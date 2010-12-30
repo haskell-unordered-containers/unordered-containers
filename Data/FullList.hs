@@ -4,6 +4,7 @@ module Data.FullList
     ( FullList
 
       -- * Basic interface
+    , size
     , singleton
     , lookup
     , insert
@@ -31,6 +32,9 @@ instance (NFData k, NFData v) => NFData (List k v) where
 
 ------------------------------------------------------------------------
 -- * FullList
+
+size :: FullList k v -> Int
+size (FL _ _ xs) = 1 + sizeL xs
 
 singleton :: k -> v -> FullList k v
 singleton k v = FL k v Nil
@@ -67,6 +71,10 @@ fold f z (FL k v xs) = f k v (foldL f z xs)
     
 ------------------------------------------------------------------------
 -- * List
+
+sizeL :: List k v -> Int
+sizeL Nil = 0
+sizeL (Cons _ _ xs) = 1 + sizeL xs
 
 lookupL :: Eq k => k -> List k v -> Maybe v
 lookupL = go

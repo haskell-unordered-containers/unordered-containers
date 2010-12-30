@@ -67,7 +67,7 @@ type Hash   = Int
 size :: HashMap k v -> Int
 size t = case t of
     Bin _ _ l r -> size l + size r
-    Tip _ _     -> 1
+    Tip _ l     -> FL.size l
     Nil         -> 0
     
 -- | /O(min(n,W))/ Return the value to which the specified key is
