@@ -1,0 +1,72 @@
+-- | Tests for the 'Data.HashMap' module.  We test functions by
+-- comparing them to a simple model, an association list.
+
+module Main (main) where
+
+import Data.Function (on)
+import Data.Hashable (Hashable)
+import qualified Data.List as L
+import qualified Data.HashMap as M
+import Test.QuickCheck.Batch
+
+------------------------------------------------------------------------
+-- Properties
+
+pLookup :: Int -> [(Int, Int)] -> Bool
+pLookup k = L.lookup k `eq` M.lookup k
+
+pInsert :: Int -> Int -> [(Int, Int)] -> Bool
+pInsert k v = insert (k, v) `eq` (toAscList . M.insert k v)
+
+tests :: [TestOptions -> IO TestResult]
+tests =
+    [ run pLookup
+    , run pInsert
+    ]
+
+------------------------------------------------------------------------
+-- Model
+
+-- Invariant: the list is sorted in ascending order, by key.
+type Model k v = [(k, v)]
+
+-- | Check that a function operating on a 'HashMap' is equivalent to
+-- one operating on a 'Model'.
+eq :: (Eq a, Eq k, Hashable k, Ord k)
+   => (Model k v -> a)      -- ^ Function that modifies a 'Model' in the same 
+                            -- way
+   -> (M.HashMap k v -> a)  -- ^ Function that modified a 'HashMap'
+   -> [(k, v)]              -- ^ Initial content of the 'HashMap' and 'Model'
+   -> Bool                  -- ^ True if the functions are equivalent
+eq f g xs = g (fromList ys) == f ys
+  where ys = L.nubBy ((==) `on` fst) $ L.sortBy (compare `on` fst) $ xs
+
+insert :: Ord k => (k, v) -> Model k v -> Model k v
+insert x [] = [x]
+insert x@(k, _) (y@(k', _):xs)
+    | k == k'   = x : xs
+    | k > k'    = y : insert x xs
+    | otherwise = x : y : xs
+
+------------------------------------------------------------------------
+-- Test harness
+
+options :: TestOptions
+options = TestOptions
+    { no_of_tests     = 100
+    , length_of_tests = 1
+    , debug_tests     = False
+    }
+
+main :: IO ()
+main = runTests "basics" options tests
+
+------------------------------------------------------------------------
+-- Helpers
+
+fromList :: (Eq k, Hashable k) => [(k, v)] -> M.HashMap k v
+fromList = L.foldl' ins M.empty
+  where ins m (k, v) = M.insert k v m
+
+toAscList :: Ord k => M.HashMap k v -> [(k, v)]
+toAscList = L.sortBy (compare `on` fst) . M.toList
