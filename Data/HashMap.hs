@@ -9,11 +9,18 @@
 -- Stability   :  provisional
 -- Portability :  portable
 --
--- Maps from keys to values.  The implementation is based on
--- /big-endian patricia trees/ which are keyed by the hash value of
--- the original key.  A 'HashMap' is often faster than an tree-based
--- ordered map when key comparison is expensive, as in the case of
--- strings.
+-- A map from /hashable/ keys to values.  A map cannot contain
+-- duplicate keys; each key can map to at most one value.  A 'HashMap'
+-- makes no guarantees as to the order of its elements.
+--
+-- The maps are strict both in the keys and values; keys and values
+-- are evaluated to /weak head normal form/ before they are added to a
+-- map.
+--
+-- The implementation is based on /big-endian patricia trees/, keyed
+-- by a hash of the original key.  A 'HashMap' is often faster than
+-- other tree-based maps when key comparison is expensive, as in the
+-- case of strings.
 --
 -- Many operations have a worst-case complexity of /O(min(n,W))/.
 -- This means that the operation can become linear in the number of
