@@ -29,15 +29,35 @@ import Prelude hiding (lookup)
 ------------------------------------------------------------------------
 -- * The 'FullList' type
 
+-- The 'FullList' type has two benefits:
+--
+--  * it is guaranteed to be non-empty, and
+--
+--  * it can be unpacked into a data constructor.
+
 -- Invariant: the same key only appears once in a 'FullList'.
 
+-- | A non-empty list of key/value pairs.
 data FullList k v = FL !k !v !(List k v)
                   deriving Show
+
+instance (Eq k, Eq v) => Eq (FullList k v) where
+    (FL k1 v1 xs) == (FL k2 v2 ys) = k1 == k2 && v1 == v2 && xs == ys
+    (FL k1 v1 xs) /= (FL k2 v2 ys) = k1 /= k2 || v1 /= v2 || xs /= ys
 
 instance (NFData k, NFData v) => NFData (FullList k v)
 
 data List k v = Nil | Cons !k !v !(List k v)
               deriving Show
+
+instance (Eq k, Eq v) => Eq (List k v) where
+    (Cons k1 v1 xs) == (Cons k2 v2 ys) = k1 == k2 && v1 == v2 && xs == ys
+    Nil == Nil = True
+    _   == _   = False
+
+    (Cons k1 v1 xs) /= (Cons k2 v2 ys) = k1 /= k2 || v1 /= v2 || xs /= ys
+    Nil /= Nil = False
+    _   /= _   = True
 
 instance (NFData k, NFData v) => NFData (List k v) where
     rnf Nil           = ()
@@ -83,7 +103,7 @@ delete !k (FL k' v xs)
 fold :: (k -> v -> a -> a) -> a -> FullList k v -> a
 fold f z (FL k v xs) = f k v (foldL f z xs)
 {-# INLINE fold #-}
-    
+
 ------------------------------------------------------------------------
 -- * List
 

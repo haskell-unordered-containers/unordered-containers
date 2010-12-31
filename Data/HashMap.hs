@@ -55,14 +55,38 @@ data HashMap k v
           !(HashMap k v)
     deriving Show
 
+type Prefix = Int
+type Mask   = Int
+type Hash   = Int
+
+------------------------------------------------------------------------
+-- * Instances
+
+instance (Eq k, Eq v) => Eq (HashMap k v) where
+    t1 == t2 = equal t1 t2
+    t1 /= t2 = nequal t1 t2
+
+equal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
+equal (Bin p1 m1 l1 r1) (Bin p2 m2 l2 r2) =
+    (m1 == m2) && (p1 == p2) && (equal l1 l2) && (equal r1 r2)
+equal (Tip h1 l1) (Tip h2 l2) = (h1 == h2) && (l1 == l2)
+equal Nil Nil = True
+equal _   _   = False
+
+nequal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
+nequal (Bin p1 m1 l1 r1) (Bin p2 m2 l2 r2) =
+    (m1 /= m2) || (p1 /= p2) || (nequal l1 l2) || (nequal r1 r2)
+nequal (Tip h1 l1) (Tip h2 l2) = (h1 /= h2) || (l1 /= l2)
+nequal Nil Nil = False
+nequal _   _   = True
+
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Nil           = ()
     rnf (Tip _ xs)    = rnf xs
     rnf (Bin _ _ l r) = rnf l `seq` rnf r `seq` ()
 
-type Prefix = Int
-type Mask   = Int
-type Hash   = Int
+------------------------------------------------------------------------
+-- * Basic interface
 
 -- | /O(n)/ Return the number of key-value mappings in this map.
 size :: HashMap k v -> Int
@@ -70,7 +94,7 @@ size t = case t of
     Bin _ _ l r -> size l + size r
     Tip _ l     -> FL.size l
     Nil         -> 0
-    
+
 -- | /O(min(n,W))/ Return the value to which the specified key is
 -- mapped, or 'Nothing' if this map contains no mapping for the key.
 lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v

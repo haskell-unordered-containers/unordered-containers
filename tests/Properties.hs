@@ -1,5 +1,5 @@
 -- | Tests for the 'Data.HashMap' module.  We test functions by
--- comparing them to a simple model, an association list.
+-- comparing them to a simpler model, an association list.
 
 module Main (main) where
 
@@ -10,7 +10,19 @@ import qualified Data.HashMap as M
 import Test.QuickCheck.Batch
 
 ------------------------------------------------------------------------
--- Properties
+-- * Properties
+
+------------------------------------------------------------------------
+-- ** Instances
+
+pEq :: [(Int, Int)] -> [(Int, Int)] -> Bool
+pEq xs = (xs ==) `eq` (fromList xs ==)
+
+pNeq :: [(Int, Int)] -> [(Int, Int)] -> Bool
+pNeq xs = (xs /=) `eq` (fromList xs /=)
+
+------------------------------------------------------------------------
+-- ** Basic interface
 
 pSize :: [(Int, Int)] -> Bool
 pSize = length `eq` M.size
@@ -29,7 +41,9 @@ pToList = id `eq` toAscList
 
 tests :: [TestOptions -> IO TestResult]
 tests =
-    [ run pSize
+    [ run pEq
+    , run pNeq
+    , run pSize
     , run pLookup
     , run pInsert
     , run pDelete
