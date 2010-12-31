@@ -1,5 +1,7 @@
 *.hi
 *.o
+*.tix
+.hpc/
 /benchmarks/bench
 /dist/*
 /tests/tests
