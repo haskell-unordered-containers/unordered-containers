@@ -12,6 +12,9 @@ import Test.QuickCheck.Batch
 ------------------------------------------------------------------------
 -- Properties
 
+pSize :: [(Int, Int)] -> Bool
+pSize = length `eq` M.size
+
 pLookup :: Int -> [(Int, Int)] -> Bool
 pLookup k = L.lookup k `eq` M.lookup k
 
@@ -26,7 +29,8 @@ pToList = id `eq` toAscList
 
 tests :: [TestOptions -> IO TestResult]
 tests =
-    [ run pLookup
+    [ run pSize
+    , run pLookup
     , run pInsert
     , run pDelete
     , run pToList
