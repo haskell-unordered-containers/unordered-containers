@@ -18,6 +18,8 @@ import Prelude hiding (lookup)
 ------------------------------------------------------------------------
 -- * The 'FullList' type
 
+-- Invariant: the same key only appears once in a 'FullList'.
+
 data FullList k v = FL !k !v !(List k v)
                   deriving Show
 
