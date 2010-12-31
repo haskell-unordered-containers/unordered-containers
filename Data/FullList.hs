@@ -1,5 +1,16 @@
 {-# LANGUAGE BangPatterns, CPP #-}
 
+------------------------------------------------------------------------
+-- |
+-- Module      :  Data.FullList
+-- Copyright   :  2010 Johan Tibell
+-- License     :  BSD-style
+-- Maintainer  :  johan.tibell@gmail.com
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- Non-empty lists of key/value pairs.
+
 module Data.FullList
     ( FullList
 
