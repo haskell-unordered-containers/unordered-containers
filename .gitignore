@@ -1,3 +1,5 @@
 *.hi
 *.o
+/benchmarks/bench
 /dist/*
+/tests/tests
