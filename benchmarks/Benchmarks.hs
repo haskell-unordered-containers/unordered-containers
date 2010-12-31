@@ -7,6 +7,7 @@ import Control.Exception (evaluate)
 import Control.Monad.Trans (liftIO)
 import Criterion.Config
 import Criterion.Main
+import Data.Hashable (Hashable)
 import qualified Data.HashMap as M
 import qualified Data.Map as Map
 import Data.List (foldl')
@@ -16,8 +17,9 @@ import Prelude hiding (lookup)
 import Util
 
 n :: Int
-n = 2^12
+n = 2^(12 :: Int)
 
+elems :: [(String, Int)]
 elems = zip keys values
 
 keys :: [String]
@@ -42,8 +44,7 @@ benchmarks hm m =
       ]
     ]
 
--- instance NFData (M.HashMap k v)
-
+main :: IO ()
 main = do
     let hm = fromList elems :: M.HashMap String Int
         m = Map.fromList elems :: Map.Map String Int
@@ -54,27 +55,28 @@ main = do
 -- * HashMap
 
 lookup :: [String] -> M.HashMap String Int -> Int
-lookup xs m = foldl' (\n k -> fromMaybe n (M.lookup k m)) 0 xs
+lookup xs m = foldl' (\z k -> fromMaybe z (M.lookup k m)) 0 xs
 
 insert :: [(String, Int)] -> M.HashMap String Int -> M.HashMap String Int
-insert xs m = foldl' (\m (k, v) -> M.insert k v m) m xs
+insert xs m0 = foldl' (\m (k, v) -> M.insert k v m) m0 xs
 
 delete :: [String] -> M.HashMap String Int -> M.HashMap String Int
-delete xs m = foldl' (\m k -> M.delete k m) m xs
+delete xs m0 = foldl' (\m k -> M.delete k m) m0 xs
 
 ------------------------------------------------------------------------
 -- * Map
 
 lookupM :: [String] -> Map.Map String Int -> Int
-lookupM xs m = foldl' (\n k -> fromMaybe n (Map.lookup k m)) 0 xs
+lookupM xs m = foldl' (\z k -> fromMaybe z (Map.lookup k m)) 0 xs
 
 insertM :: [(String, Int)] -> Map.Map String Int -> Map.Map String Int
-insertM xs m = foldl' (\m (k, v) -> Map.insert k v m) m xs
+insertM xs m0 = foldl' (\m (k, v) -> Map.insert k v m) m0 xs
 
 deleteM :: [String] -> Map.Map String Int -> Map.Map String Int
-deleteM xs m = foldl' (\m k -> Map.delete k m) m xs
+deleteM xs m0 = foldl' (\m k -> Map.delete k m) m0 xs
 
 ------------------------------------------------------------------------
 -- * Helpers
 
+fromList :: (Eq k, Hashable k) => [(k, v)] -> M.HashMap k v
 fromList = foldl' (\m (k, v) -> M.insert k v m) M.empty
