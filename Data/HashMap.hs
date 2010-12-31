@@ -33,6 +33,8 @@ module Data.HashMap
     , toList
     ) where
 
+#include "MachDeps.h"
+
 import Control.DeepSeq (NFData(rnf))
 import Data.Bits ((.&.), (.|.), complement, shiftR, xor)
 import Data.Hashable (Hashable(hash))
@@ -216,20 +218,20 @@ branchMask p1 p2 =
         fromIntegral p1 `xor` fromIntegral p2 :: Word))
 {-# INLINE branchMask #-}
 
--- | @highestBitMask@ returns a word where only the highest bit is
--- set.  It is found by first setting all bits in lower positions than
--- the highest bit and than taking an exclusive or with the original
--- value.  Allthough the function may look expensive, GHC compiles
--- this into excellent C code that subsequently compiled into highly
--- efficient machine code. The algorithm is derived from Jorg Arndt's
--- FXT library.
+-- | Return a 'Word' where only the highest bit is set.
 highestBitMask :: Word -> Word
-highestBitMask x0
-  = case (x0 .|. shiftR x0 1) of
-     x1 -> case (x1 .|. shiftR x1 2) of
-      x2 -> case (x2 .|. shiftR x2 4) of
-       x3 -> case (x3 .|. shiftR x3 8) of
-        x4 -> case (x4 .|. shiftR x4 16) of
-         x5 -> case (x5 .|. shiftR x5 32) of   -- for 64 bit platforms
-          x6 -> (x6 `xor` (shiftR x6 1))
+highestBitMask x0 =
+    let !x1 = x0 .|. shiftR x0 1
+        !x2 = x1 .|. shiftR x1 2
+        !x3 = x2 .|. shiftR x2 4
+        !x4 = x3 .|. shiftR x3 8
+        !x5 = x4 .|. shiftR x4 16
+#if WORD_SIZE_IN_BITS == 32
+    in x5 `xor` (shiftR x5 1)
+#elif WORD_SIZE_IN_BITS == 64
+        !x6 = x5 .|. shiftR x5 32
+    in x6 `xor` (shiftR x6 1)
+#else
+# error WORD_SIZE_IN_BITS not supported
+#endif
 {-# INLINE highestBitMask #-}
