@@ -21,11 +21,15 @@ pInsert k v = insert (k, v) `eq` (toAscList . M.insert k v)
 pDelete :: Int -> [(Int, Int)] -> Bool
 pDelete k = delete k `eq` (toAscList . M.delete k)
 
+pToList :: [(Int, Int)] -> Bool
+pToList = id `eq` toAscList
+
 tests :: [TestOptions -> IO TestResult]
 tests =
     [ run pLookup
     , run pInsert
     , run pDelete
+    , run pToList
     ]
 
 ------------------------------------------------------------------------
