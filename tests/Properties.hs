@@ -1,13 +1,23 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- | Tests for the 'Data.HashMap' module.  We test functions by
 -- comparing them to a simpler model, an association list.
 
 module Main (main) where
 
 import Data.Function (on)
-import Data.Hashable (Hashable)
+import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
 import qualified Data.HashMap as M
+import Test.QuickCheck (Arbitrary)
 import Test.QuickCheck.Batch
+
+-- Key type that generates more hash collisions.
+newtype Key = K { unK :: Int }
+            deriving (Arbitrary, Eq, Ord, Show)
+
+instance Hashable Key where
+    hash k = hash (unK k) `mod` 20
 
 ------------------------------------------------------------------------
 -- * Properties
@@ -15,28 +25,28 @@ import Test.QuickCheck.Batch
 ------------------------------------------------------------------------
 -- ** Instances
 
-pEq :: [(Int, Int)] -> [(Int, Int)] -> Bool
+pEq :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pEq xs = (xs ==) `eq` (fromList xs ==)
 
-pNeq :: [(Int, Int)] -> [(Int, Int)] -> Bool
+pNeq :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pNeq xs = (xs /=) `eq` (fromList xs /=)
 
 ------------------------------------------------------------------------
 -- ** Basic interface
 
-pSize :: [(Int, Int)] -> Bool
+pSize :: [(Key, Int)] -> Bool
 pSize = length `eq` M.size
 
-pLookup :: Int -> [(Int, Int)] -> Bool
+pLookup :: Key -> [(Key, Int)] -> Bool
 pLookup k = L.lookup k `eq` M.lookup k
 
-pInsert :: Int -> Int -> [(Int, Int)] -> Bool
+pInsert :: Key -> Int -> [(Key, Int)] -> Bool
 pInsert k v = insert (k, v) `eq` (toAscList . M.insert k v)
 
-pDelete :: Int -> [(Int, Int)] -> Bool
+pDelete :: Key -> [(Key, Int)] -> Bool
 pDelete k = delete k `eq` (toAscList . M.delete k)
 
-pToList :: [(Int, Int)] -> Bool
+pToList :: [(Key, Int)] -> Bool
 pToList = id `eq` toAscList
 
 tests :: [TestOptions -> IO TestResult]
@@ -59,7 +69,7 @@ type Model k v = [(k, v)]
 -- | Check that a function operating on a 'HashMap' is equivalent to
 -- one operating on a 'Model'.
 eq :: (Eq a, Eq k, Hashable k, Ord k)
-   => (Model k v -> a)      -- ^ Function that modifies a 'Model' in the same 
+   => (Model k v -> a)      -- ^ Function that modifies a 'Model' in the same
                             -- way
    -> (M.HashMap k v -> a)  -- ^ Function that modified a 'HashMap'
    -> [(k, v)]              -- ^ Initial content of the 'HashMap' and 'Model'
