@@ -31,25 +31,38 @@ main = do
     let hm   = fromList elems :: HM.HashMap String Int
         hmbs = fromList elemsBS :: HM.HashMap BS.ByteString Int
         m    = M.fromList elems :: M.Map String Int
+        mbs  = M.fromList elemsBS :: M.Map BS.ByteString Int
     defaultMainWith defaultConfig
-        (liftIO . evaluate $ rnf [B m, B hm, B hmbs])
+        (liftIO . evaluate $ rnf [B m, B mbs, B hm, B hmbs])
         [ bgroup "lookup"
           [ bgroup "HashMap"
             [ bench "String" $ nf (lookup keys) hm
             , bench "ByteString" $ nf (lookup keysBS) hmbs
             ]
-          , bench "Map" $ nf (lookupM keys) m
+          , bgroup "Map"
+            [ bench "String" $ nf (lookupM keys) m
+            , bench "ByteString" $ nf (lookupM keysBS) mbs
+            ]
           ]
         , bgroup "insert"
           [ bgroup "HashMap"
             [ bench "String" $ nf (insert elems) HM.empty
             , bench "ByteString" $ nf (insert elemsBS) HM.empty
             ]
-          , bench "Map" $ nf (insertM elems) M.empty
+          , bgroup "Map"
+            [ bench "String" $ nf (insertM elems) M.empty
+            , bench "ByteStringString" $ nf (insertM elemsBS) M.empty
+            ]
           ]
         , bgroup "delete"
-          [ bench "HashMap" $ nf (delete keys) hm
-          , bench "Map" $ nf (insertM elems) M.empty
+          [ bgroup "HashMap"
+            [ bench "String" $ nf (delete keys) hm
+            , bench "ByteString" $ nf (delete keysBS) hmbs
+            ]
+          , bgroup "Map"
+            [ bench "String" $ nf (insertM elems) M.empty
+            , bench "ByteString" $ nf (insertM elemsBS) M.empty
+            ]
           ]
         ]
   where
