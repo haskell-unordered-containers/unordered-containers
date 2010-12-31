@@ -18,10 +18,14 @@ pLookup k = L.lookup k `eq` M.lookup k
 pInsert :: Int -> Int -> [(Int, Int)] -> Bool
 pInsert k v = insert (k, v) `eq` (toAscList . M.insert k v)
 
+pDelete :: Int -> [(Int, Int)] -> Bool
+pDelete k = delete k `eq` (toAscList . M.delete k)
+
 tests :: [TestOptions -> IO TestResult]
 tests =
     [ run pLookup
     , run pInsert
+    , run pDelete
     ]
 
 ------------------------------------------------------------------------
@@ -48,12 +52,19 @@ insert x@(k, _) (y@(k', _):xs)
     | k > k'    = y : insert x xs
     | otherwise = x : y : xs
 
+delete :: Ord k => k -> Model k v -> Model k v
+delete _ [] = []
+delete k ys@(y@(k', _):xs)
+    | k == k'   = xs
+    | k > k'    = y : delete k xs
+    | otherwise = ys
+
 ------------------------------------------------------------------------
 -- Test harness
 
 options :: TestOptions
 options = TestOptions
-    { no_of_tests     = 100
+    { no_of_tests     = 500
     , length_of_tests = 1
     , debug_tests     = False
     }

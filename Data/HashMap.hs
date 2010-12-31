@@ -113,14 +113,14 @@ insert k0 v0 t0 = go h0 k0 v0 t0
 -- | /O(min(n,W))/ Remove the mapping for the specified key from this
 -- map if present.
 delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
-delete k0 t = go h0 k0 t
+delete k0 = go h0 k0
   where
     h0 = hash k0
-    go !h !k (Bin p m l r)
+    go !h !k t@(Bin p m l r)
         | nomatch h p m = t
-        | zero h m      = bin p m (go h k l) r
+        | zero h m      = bin p m (go h k l) r  -- takes this branch
         | otherwise     = bin p m l (go h k r)
-    go h k (Tip h' l)
+    go h k t@(Tip h' l)
         | h == h'       = case FL.delete k l of
             Nothing -> Nil
             Just l' -> Tip h' l'
