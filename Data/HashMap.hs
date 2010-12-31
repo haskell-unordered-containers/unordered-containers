@@ -53,6 +53,7 @@ data HashMap k v
           {-# UNPACK #-} !Mask
           !(HashMap k v)
           !(HashMap k v)
+    deriving Show
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Nil           = ()

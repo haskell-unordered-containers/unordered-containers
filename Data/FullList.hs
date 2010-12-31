@@ -19,10 +19,12 @@ import Prelude hiding (lookup)
 -- * The 'FullList' type
 
 data FullList k v = FL !k !v !(List k v)
+                  deriving Show
 
 instance (NFData k, NFData v) => NFData (FullList k v)
 
 data List k v = Nil | Cons !k !v !(List k v)
+              deriving Show
 
 instance (NFData k, NFData v) => NFData (List k v) where
     rnf Nil           = ()
