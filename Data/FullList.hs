@@ -40,7 +40,7 @@ singleton :: k -> v -> FullList k v
 singleton k v = FL k v Nil
 
 lookup :: Eq k => k -> FullList k v -> Maybe v
-lookup k (FL k' v xs)
+lookup !k (FL k' v xs)
     | k == k'   = Just v
     | otherwise = lookupL k xs
 #if __GLASGOW_HASKELL__ >= 700
@@ -48,7 +48,7 @@ lookup k (FL k' v xs)
 #endif
 
 insert :: Eq k => k -> v -> FullList k v -> FullList k v
-insert k v (FL k' v' xs)
+insert !k v (FL k' v' xs)
     | k == k'   = FL k v xs
     | otherwise = FL k' v' (insertL k v xs)
 #if __GLASGOW_HASKELL__ >= 700
@@ -56,7 +56,7 @@ insert k v (FL k' v' xs)
 #endif
 
 delete :: Eq k => k -> FullList k v -> Maybe (FullList k v)
-delete k (FL k' v xs)
+delete !k (FL k' v xs)
     | k == k'   = case xs of
         Nil             -> Nothing
         Cons k'' v' xs' -> Just $ FL k'' v' xs'
