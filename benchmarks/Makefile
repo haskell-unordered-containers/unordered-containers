@@ -5,7 +5,7 @@ programs := bench
 .PHONY: all
 all: $(programs)
 
-bench: $(lib) Benchmarks.o Util.o
+bench: $(lib) Benchmarks.o Util/String.o Util/ByteString.o
 	ranlib $(lib)
 	$(ghc) $(ghc-flags) -threaded -o $@ $(filter %.o,$^) $(lib)
 
@@ -14,4 +14,5 @@ clean:
 	-find . \( -name '*.o' -o -name '*.hi' \) -exec rm {} \;
 	-rm -f $(programs)
 
-Benchmarks.o: Util.o
+Benchmarks.o: Util/String.o Util/ByteString.o
+Util/ByteString.o: Util/String.o

@@ -1,3 +1,5 @@
+{-# LANGUAGE GADTs #-}
+
 module Main where
 
 import Control.DeepSeq
@@ -6,75 +8,106 @@ import Control.Monad.Trans (liftIO)
 import Criterion.Config
 import Criterion.Main
 import Data.Hashable (Hashable)
-import qualified Data.HashMap as M
-import qualified Data.Map as Map
+import qualified Data.ByteString as BS
+import qualified Data.HashMap as HM
+import qualified Data.Map as M
 import Data.List (foldl')
 import Data.Maybe (fromMaybe)
 import Prelude hiding (lookup)
 
-import Util
+import qualified Util.String as US
+import qualified Util.ByteString as UBS
 
-n :: Int
-n = 2^(12 :: Int)
+instance NFData BS.ByteString
 
-elems :: [(String, Int)]
-elems = zip keys values
+data B where
+    B :: NFData a => a -> B
 
-keys :: [String]
-keys = rnd 8 n
-
-values :: [Int]
-values = [1..n]
-
-benchmarks :: M.HashMap String Int -> Map.Map String Int -> [Benchmark]
-benchmarks hm m =
-    [ bgroup "lookup" 
-      [ bench "HashMap" $ nf (lookup keys) hm
-      , bench "Map" $ nf (lookupM keys) m
-      ]
-    , bgroup "insert" 
-      [ bench "HashMap" $ nf (insert elems) M.empty
-      , bench "Map" $ nf (insertM elems) Map.empty
-      ]
-    , bgroup "delete" 
-      [ bench "HashMap" $ nf (delete keys) hm
-      , bench "Map" $ nf (insertM elems) Map.empty
-      ]
-    ]
+instance NFData B where
+    rnf (B b) = rnf b
 
 main :: IO ()
 main = do
-    let hm = fromList elems :: M.HashMap String Int
-        m = Map.fromList elems :: Map.Map String Int
-    defaultMainWith defaultConfig (liftIO . evaluate $ rnf [m])
-        (benchmarks hm m)
+    let hm   = fromList elems :: HM.HashMap String Int
+        hmbs = fromList elemsBS :: HM.HashMap BS.ByteString Int
+        m    = M.fromList elems :: M.Map String Int
+    defaultMainWith defaultConfig
+        (liftIO . evaluate $ rnf [B m, B hm, B hmbs])
+        [ bgroup "lookup"
+          [ bgroup "HashMap"
+            [ bench "String" $ nf (lookup keys) hm
+            , bench "ByteString" $ nf (lookup keysBS) hmbs
+            ]
+          , bench "Map" $ nf (lookupM keys) m
+          ]
+        , bgroup "insert"
+          [ bgroup "HashMap"
+            [ bench "String" $ nf (insert elems) HM.empty
+            , bench "ByteString" $ nf (insert elemsBS) HM.empty
+            ]
+          , bench "Map" $ nf (insertM elems) M.empty
+          ]
+        , bgroup "delete"
+          [ bench "HashMap" $ nf (delete keys) hm
+          , bench "Map" $ nf (insertM elems) M.empty
+          ]
+        ]
+  where
+    n :: Int
+    n = 2^(12 :: Int)
+
+    elems = zip keys [1..n]
+    keys = US.rnd 8 n
+    elemsBS = zip keysBS [1..n]
+    keysBS = UBS.rnd 8 n
 
 ------------------------------------------------------------------------
 -- * HashMap
 
-lookup :: [String] -> M.HashMap String Int -> Int
-lookup xs m = foldl' (\z k -> fromMaybe z (M.lookup k m)) 0 xs
+lookup :: (Eq k, Hashable k) => [k] -> HM.HashMap k Int -> Int
+lookup xs m = foldl' (\z k -> fromMaybe z (HM.lookup k m)) 0 xs
+{-# SPECIALIZE lookup :: [String] -> HM.HashMap String Int -> Int #-}
+{-# SPECIALIZE lookup :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
+                      -> Int #-}
 
-insert :: [(String, Int)] -> M.HashMap String Int -> M.HashMap String Int
-insert xs m0 = foldl' (\m (k, v) -> M.insert k v m) m0 xs
+insert :: (Eq k, Hashable k) => [(k, Int)] -> HM.HashMap k Int
+       -> HM.HashMap k Int
+insert xs m0 = foldl' (\m (k, v) -> HM.insert k v m) m0 xs
+{-# SPECIALIZE insert :: [(String, Int)] -> HM.HashMap String Int
+                      -> HM.HashMap String Int #-}
+{-# SPECIALIZE insert :: [(BS.ByteString, Int)] -> HM.HashMap BS.ByteString Int
+                      -> HM.HashMap BS.ByteString Int #-}
 
-delete :: [String] -> M.HashMap String Int -> M.HashMap String Int
-delete xs m0 = foldl' (\m k -> M.delete k m) m0 xs
+delete :: (Eq k, Hashable k) => [k] -> HM.HashMap k Int -> HM.HashMap k Int
+delete xs m0 = foldl' (\m k -> HM.delete k m) m0 xs
+{-# SPECIALIZE delete :: [String] -> HM.HashMap String Int
+                      -> HM.HashMap String Int #-}
+{-# SPECIALIZE delete :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
+                      -> HM.HashMap BS.ByteString Int #-}
 
 ------------------------------------------------------------------------
 -- * Map
 
-lookupM :: [String] -> Map.Map String Int -> Int
-lookupM xs m = foldl' (\z k -> fromMaybe z (Map.lookup k m)) 0 xs
+lookupM :: Ord k => [k] -> M.Map k Int -> Int
+lookupM xs m = foldl' (\z k -> fromMaybe z (M.lookup k m)) 0 xs
+{-# SPECIALIZE lookupM :: [String] -> M.Map String Int -> Int #-}
+{-# SPECIALIZE lookupM :: [BS.ByteString] -> M.Map BS.ByteString Int -> Int #-}
 
-insertM :: [(String, Int)] -> Map.Map String Int -> Map.Map String Int
-insertM xs m0 = foldl' (\m (k, v) -> Map.insert k v m) m0 xs
+insertM :: Ord k => [(k, Int)] -> M.Map k Int -> M.Map k Int
+insertM xs m0 = foldl' (\m (k, v) -> M.insert k v m) m0 xs
+{-# SPECIALIZE insertM :: [(String, Int)] -> M.Map String Int
+                       -> M.Map String Int #-}
+{-# SPECIALIZE insertM :: [(BS.ByteString, Int)] -> M.Map BS.ByteString Int
+                       -> M.Map BS.ByteString Int #-}
 
-deleteM :: [String] -> Map.Map String Int -> Map.Map String Int
-deleteM xs m0 = foldl' (\m k -> Map.delete k m) m0 xs
+deleteM :: Ord k => [k] -> M.Map k Int -> M.Map k Int
+deleteM xs m0 = foldl' (\m k -> M.delete k m) m0 xs
+{-# SPECIALIZE deleteM :: [String] -> M.Map String Int -> M.Map String Int #-}
+{-# SPECIALIZE deleteM :: [BS.ByteString] -> M.Map BS.ByteString Int
+                       -> M.Map BS.ByteString Int #-}
 
 ------------------------------------------------------------------------
 -- * Helpers
 
-fromList :: (Eq k, Hashable k) => [(k, v)] -> M.HashMap k v
-fromList = foldl' (\m (k, v) -> M.insert k v m) M.empty
+fromList :: (Eq k, Hashable k) => [(k, v)] -> HM.HashMap k v
+fromList = foldl' (\m (k, v) -> HM.insert k v m) HM.empty

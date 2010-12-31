@@ -1,6 +1,6 @@
 -- | Benchmarking utilities.  For example, functions for generating
 -- random strings.
-module Util where
+module Util.String where
 
 import System.Random (mkStdGen, randomRs)
 
