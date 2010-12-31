@@ -214,13 +214,12 @@ maskW i m = fromIntegral (i .&. (complement (m-1) `xor` m))
 
 branchMask :: Prefix -> Prefix -> Mask
 branchMask p1 p2 =
-    fromIntegral (highestBitMask (
-        fromIntegral p1 `xor` fromIntegral p2 :: Word))
+    fromIntegral (highBit (fromIntegral p1 `xor` fromIntegral p2 :: Word))
 {-# INLINE branchMask #-}
 
 -- | Return a 'Word' where only the highest bit is set.
-highestBitMask :: Word -> Word
-highestBitMask x0 =
+highBit :: Word -> Word
+highBit x0 =
     let !x1 = x0 .|. shiftR x0 1
         !x2 = x1 .|. shiftR x1 2
         !x3 = x2 .|. shiftR x2 4
@@ -234,4 +233,4 @@ highestBitMask x0 =
 #else
 # error WORD_SIZE_IN_BITS not supported
 #endif
-{-# INLINE highestBitMask #-}
+{-# INLINE highBit #-}
