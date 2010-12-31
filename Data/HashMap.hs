@@ -157,6 +157,8 @@ delete k0 = go h0 k0
 {-# INLINABLE delete #-}
 #endif
 
+-- | /O(n)/ Convert the map to a list of key-value pairs.  The list is
+-- generated lazily.
 toList :: HashMap k v -> [(k, v)]
 toList = fold (\k v xs -> (k, v) : xs) []
 
