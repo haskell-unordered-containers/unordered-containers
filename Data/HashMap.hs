@@ -36,6 +36,7 @@ module Data.HashMap
     , size
     , lookup
     , empty
+    , singleton
     , insert
     , delete
     , toList
@@ -130,6 +131,14 @@ lookup k0 t = go h0 k0 t
 -- | /O(1)/ Construct an empty 'HashMap'.
 empty :: HashMap k v
 empty = Nil
+
+-- | /O(1)/ Construct a map of one element.
+singleton :: Hashable k => k -> v -> HashMap k v
+singleton k v = Tip h $ FL.singleton k v
+  where h = hash k
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE singleton #-}
+#endif
 
 -- | /O(min(n,W))/ Associate the specified value with the specified
 -- key in this map.  If the map previously contained a mapping for the
