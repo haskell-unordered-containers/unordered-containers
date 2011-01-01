@@ -32,6 +32,7 @@ module Data.HashMap
       HashMap
 
       -- * Basic interface
+    , null
     , size
     , lookup
     , empty
@@ -47,7 +48,7 @@ import Data.Bits ((.&.), (.|.), complement, shiftR, xor)
 import Data.Hashable (Hashable(hash))
 import qualified Data.FullList as FL
 import Data.Word (Word)
-import Prelude hiding (lookup)
+import Prelude hiding (lookup, null)
 
 ------------------------------------------------------------------------
 -- * The 'HashMap' type
@@ -96,6 +97,11 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
 
 ------------------------------------------------------------------------
 -- * Basic interface
+
+-- | /O(1)/ Return 'True' if the map is empty, 'False' otherwise.
+null :: HashMap k v -> Bool
+null Nil = True
+null _   = False
 
 -- | /O(n)/ Return the number of key-value mappings in this map.
 size :: HashMap k v -> Int
