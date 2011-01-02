@@ -95,7 +95,8 @@ delete !k (FL k' v xs)
     | k == k'   = case xs of
         Nil             -> Nothing
         Cons k'' v' xs' -> Just $ FL k'' v' xs'
-    | otherwise = Just $ FL k' v (deleteL k xs)
+    | otherwise = let ys = deleteL k xs
+                  in ys `seq` Just (FL k' v ys)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE delete #-}
 #endif
