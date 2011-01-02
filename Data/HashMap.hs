@@ -41,6 +41,9 @@ module Data.HashMap
     , delete
     , toList
 
+      -- * Transformations
+    , mapValues
+
       -- * Filter
     , filter
     , filterKeys
@@ -201,7 +204,20 @@ fold f = go
 {-# INLINE fold #-}
 
 ------------------------------------------------------------------------
--- * FilterValues
+-- * Transformations
+
+-- | /O(n)/ Transform this map by applying a function to every value.
+mapValues :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
+mapValues f = go
+  where
+    go (Bin p m l r) = Bin p m (go l) (go r)
+    go (Tip h l)     = Tip h (FL.map f' l)
+    go Nil           = Nil
+    f' k v = (k, f v)
+{-# INLINE mapValues #-}
+
+------------------------------------------------------------------------
+-- * Filter
 
 -- | /O(n)/ Filter this map by retaining only elements satisfying a
 -- predicate.

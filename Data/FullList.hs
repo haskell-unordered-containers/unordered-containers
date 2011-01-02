@@ -22,12 +22,15 @@ module Data.FullList
     , delete
     , foldr
 
+      -- * Transformations
+    , map
+
       -- * Filter
     , filter
     ) where
 
 import Control.DeepSeq (NFData(rnf))
-import Prelude hiding (filter, foldr, lookup)
+import Prelude hiding (filter, foldr, lookup, map)
 
 ------------------------------------------------------------------------
 -- * The 'FullList' type
@@ -109,6 +112,14 @@ foldr f z (FL k v xs) = f k v (foldrL f z xs)
 {-# INLINE foldr #-}
 
 ------------------------------------------------------------------------
+-- ** Transformations
+
+map :: (k1 -> v1 -> (k2, v2)) -> FullList k1 v1 -> FullList k2 v2
+map f (FL k v xs) = let (k', v') = f k v
+                    in FL k' v' (mapL f xs)
+{-# INLINE map #-}
+
+------------------------------------------------------------------------
 -- ** Filter
 
 filter :: (k -> v -> Bool) -> FullList k v -> Maybe (FullList k v)
@@ -170,6 +181,17 @@ foldrL f = go
     go z Nil = z
     go z (Cons k v xs) = f k v (go z xs)
 {-# INLINE foldrL #-}
+
+------------------------------------------------------------------------
+-- ** Transformations
+
+mapL :: (k1 -> v1 -> (k2, v2)) -> List k1 v1 -> List k2 v2
+mapL f = go
+  where
+    go Nil = Nil
+    go (Cons k v xs) = let (k', v') = f k v
+                       in Cons k' v' (go xs)
+{-# INLINE mapL #-}
 
 ------------------------------------------------------------------------
 -- ** Filter
