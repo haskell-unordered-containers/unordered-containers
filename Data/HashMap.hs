@@ -99,7 +99,7 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
 ------------------------------------------------------------------------
 -- * Basic interface
 
--- | /O(1)/ Return 'True' if the map is empty, 'False' otherwise.
+-- | /O(1)/ Return 'True' if this map is empty, 'False' otherwise.
 null :: HashMap k v -> Bool
 null Nil = True
 null _   = False
@@ -141,8 +141,8 @@ singleton k v = Tip h $ FL.singleton k v
 #endif
 
 -- | /O(min(n,W))/ Associate the specified value with the specified
--- key in this map.  If the map previously contained a mapping for the
--- key, the old value is replaced.
+-- key in this map.  If this map previously contained a mapping for
+-- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k0 v0 t0 = go h0 k0 v0 t0
   where
@@ -179,8 +179,8 @@ delete k0 = go h0 k0
 {-# INLINABLE delete #-}
 #endif
 
--- | /O(n)/ Convert the map to a list of key-value pairs.  The list is
--- generated lazily.
+-- | /O(n)/ Convert this map to a list of key-value pairs.  The list
+-- is generated lazily.
 toList :: HashMap k v -> [(k, v)]
 toList = fold (\k v xs -> (k, v) : xs) []
 
