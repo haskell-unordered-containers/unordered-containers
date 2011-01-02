@@ -44,6 +44,10 @@ module Data.HashMap
       -- * Transformations
     , mapValues
 
+      -- * Folds
+    , foldl'
+    , foldr
+
       -- * Filter
     , filter
     , filterKeys
@@ -57,7 +61,7 @@ import Data.Bits ((.&.), (.|.), complement, shiftR, xor)
 import Data.Hashable (Hashable(hash))
 import qualified Data.FullList as FL
 import Data.Word (Word)
-import Prelude hiding (filter, lookup, null, pred)
+import Prelude hiding (filter, foldr, lookup, null, pred)
 
 ------------------------------------------------------------------------
 -- * The 'HashMap' type
@@ -190,18 +194,8 @@ delete k0 = go h0 k0
 -- | /O(n)/ Convert this map to a list of key-value pairs.  The list
 -- is generated lazily.
 toList :: HashMap k v -> [(k, v)]
-toList = fold (\k v xs -> (k, v) : xs) []
-
--- | /O(n)/ 'fold', applied to a binary operator, a starting value
--- (typically the left-identity of the operator), and a 'HashMap',
--- reduces the 'HashMap' using the binary operator.
-fold :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-fold f = go
-  where
-    go z (Bin _ _ l r) = go (go z r) l
-    go z (Tip _ l)     = FL.foldr f z l
-    go z Nil           = z
-{-# INLINE fold #-}
+toList = foldr (\ k v xs -> (k, v) : xs) []
+{-# INLINE toList #-}
 
 ------------------------------------------------------------------------
 -- * Transformations
@@ -215,6 +209,34 @@ mapValues f = go
     go Nil           = Nil
     f' k v = (k, f v)
 {-# INLINE mapValues #-}
+
+------------------------------------------------------------------------
+-- * Folds
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- left-identity of the operator).  Each application of the binary
+-- operator is evaluated before before using the result in the next
+-- application.  This function is strict in the starting value.
+foldl' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
+foldl' f = go
+  where
+    go !z (Bin _ _ l r) = let z' = go z l
+                          in z' `seq` go z' r
+    go z (Tip _ l)      = FL.foldl' f z l
+    go z Nil            = z
+{-# INLINE foldl' #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- right-identity of the operator).
+foldr :: (k -> v -> a -> a) -> a -> HashMap k v -> a
+foldr f = go
+  where
+    go z (Bin _ _ l r) = go (go z r) l
+    go z (Tip _ l)     = FL.foldr f z l
+    go z Nil           = z
+{-# INLINE foldr #-}
 
 ------------------------------------------------------------------------
 -- * Filter

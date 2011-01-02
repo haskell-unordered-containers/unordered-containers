@@ -84,6 +84,10 @@ main = do
           -- Transformations
         , bench "mapValues" $ nf (HM.mapValues (\ v -> v + 1)) hmi
 
+          -- Folds
+        , bench "foldl'" $ nf (HM.foldl' (\ z _ v -> z + v) 0) hmi
+        , bench "foldr" $ nf (HM.foldr (\ k v z -> (k, v) : z) []) hmi
+
           -- Filter
         , bench "filter" $ nf (HM.filter (\ k _ -> k .&. 1 == 0)) hmi
         , bench "filterKeys" $ nf (HM.filterKeys (\ k -> k .&. 1 == 0)) hmi

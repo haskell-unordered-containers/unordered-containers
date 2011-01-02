@@ -20,10 +20,13 @@ module Data.FullList
     , lookup
     , insert
     , delete
-    , foldr
 
       -- * Transformations
     , map
+
+      -- * Folds
+    , foldl'
+    , foldr
 
       -- * Filter
     , filter
@@ -107,10 +110,6 @@ delete !k (FL k' v xs)
 {-# INLINABLE delete #-}
 #endif
 
-foldr :: (k -> v -> a -> a) -> a -> FullList k v -> a
-foldr f z (FL k v xs) = f k v (foldrL f z xs)
-{-# INLINE foldr #-}
-
 ------------------------------------------------------------------------
 -- ** Transformations
 
@@ -118,6 +117,17 @@ map :: (k1 -> v1 -> (k2, v2)) -> FullList k1 v1 -> FullList k2 v2
 map f (FL k v xs) = let (k', v') = f k v
                     in FL k' v' (mapL f xs)
 {-# INLINE map #-}
+
+------------------------------------------------------------------------
+-- ** Folds
+
+foldl' :: (a -> k -> v -> a) -> a -> FullList k v -> a
+foldl' f !z (FL k v xs) = foldl'L f (f z k v) xs
+{-# INLINE foldl' #-}
+
+foldr :: (k -> v -> a -> a) -> a -> FullList k v -> a
+foldr f z (FL k v xs) = f k v (foldrL f z xs)
+{-# INLINE foldr #-}
 
 ------------------------------------------------------------------------
 -- ** Filter
@@ -175,13 +185,6 @@ deleteL = go
 {-# INLINABLE deleteL #-}
 #endif
 
-foldrL :: (k -> v -> a -> a) -> a -> List k v -> a
-foldrL f = go
-  where
-    go z Nil = z
-    go z (Cons k v xs) = f k v (go z xs)
-{-# INLINE foldrL #-}
-
 ------------------------------------------------------------------------
 -- ** Transformations
 
@@ -192,6 +195,23 @@ mapL f = go
     go (Cons k v xs) = let (k', v') = f k v
                        in Cons k' v' (go xs)
 {-# INLINE mapL #-}
+
+------------------------------------------------------------------------
+-- ** Folds
+
+foldl'L :: (a -> k -> v -> a) -> a -> List k v -> a
+foldl'L f = go
+  where
+    go !z Nil          = z
+    go z (Cons k v xs) = go (f z k v) xs
+{-# INLINE foldl'L #-}
+
+foldrL :: (k -> v -> a -> a) -> a -> List k v -> a
+foldrL f = go
+  where
+    go z Nil = z
+    go z (Cons k v xs) = f k v (go z xs)
+{-# INLINE foldrL #-}
 
 ------------------------------------------------------------------------
 -- ** Filter

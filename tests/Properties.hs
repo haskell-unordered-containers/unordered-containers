@@ -58,7 +58,23 @@ tests =
     , run pInsert
     , run pDelete
     , run pToList
+
+      -- Folds
+    , run pFoldl'
+    , run pFoldr
     ]
+
+------------------------------------------------------------------------
+-- ** Folds
+
+pFoldl' :: Int -> [(Int, Int)] -> Bool
+pFoldl' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` M.foldl' f z0
+  where f z _ v = z + v
+
+pFoldr :: [(Int, Int)] -> Bool
+pFoldr = (sortByKey . L.foldr (\ p z -> p : z) []) `eq`
+         (sortByKey . M.foldr f [])
+  where f k v z = (k, v) : z
 
 ------------------------------------------------------------------------
 -- Model
@@ -111,5 +127,8 @@ fromList :: (Eq k, Hashable k) => [(k, v)] -> M.HashMap k v
 fromList = L.foldl' ins M.empty
   where ins m (k, v) = M.insert k v m
 
+sortByKey :: Ord k => [(k, v)] -> [(k, v)]
+sortByKey = L.sortBy (compare `on` fst)
+
 toAscList :: Ord k => M.HashMap k v -> [(k, v)]
-toAscList = L.sortBy (compare `on` fst) . M.toList
+toAscList = sortByKey . M.toList
