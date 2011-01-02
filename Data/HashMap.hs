@@ -39,7 +39,6 @@ module Data.HashMap
     , singleton
     , insert
     , delete
-    , toList
 
       -- * Transformations
     , mapValues
@@ -52,16 +51,26 @@ module Data.HashMap
     , filter
     , filterKeys
     , filterValues
+
+      -- * Conversions
+    , toList
+    , keys
+    , values
     ) where
 
 #include "MachDeps.h"
 
 import Control.DeepSeq (NFData(rnf))
 import Data.Bits ((.&.), (.|.), complement, shiftR, xor)
-import Data.Hashable (Hashable(hash))
 import qualified Data.FullList as FL
+import Data.Hashable (Hashable(hash))
+import qualified Data.List as L
 import Data.Word (Word)
 import Prelude hiding (filter, foldr, lookup, null, pred)
+
+#if defined(__GLASGOW_HASKELL__)
+import GHC.Exts (build)
+#endif
 
 ------------------------------------------------------------------------
 -- * The 'HashMap' type
@@ -191,12 +200,6 @@ delete k0 = go h0 k0
 {-# INLINABLE delete #-}
 #endif
 
--- | /O(n)/ Convert this map to a list of key-value pairs.  The list
--- is generated lazily.
-toList :: HashMap k v -> [(k, v)]
-toList = fold (\ k v xs -> (k, v) : xs) []
-{-# INLINE toList #-}
-
 ------------------------------------------------------------------------
 -- * Transformations
 
@@ -265,6 +268,29 @@ filterKeys p = filter (\k _ -> p k)
 filterValues :: (v -> Bool) -> HashMap k v -> HashMap k v
 filterValues p = filter (\_ v -> p v)
 {-# INLINE filterValues #-}
+
+------------------------------------------------------------------------
+-- Conversions
+
+-- | /O(n)/ Convert this map to a list of key-value pairs.  The list
+-- is generated lazily.
+toList :: HashMap k v -> [(k, v)]
+#if defined(__GLASGOW_HASKELL__)
+toList t = build (\ c z -> fold (curry c) z t)
+#else
+toList = fold (\ k v xs -> (k, v) : xs) []
+#endif
+{-# INLINE toList #-}
+
+-- | /O(n)/ Return all keys of this map.
+keys :: HashMap k v -> [k]
+keys = L.map fst . toList
+{-# INLINE keys #-}
+
+-- | /O(n)/ Return all values of this map.
+values :: HashMap k v -> [v]
+values = L.map snd . toList
+{-# INLINE values #-}
 
 ------------------------------------------------------------------------
 -- Helpers
