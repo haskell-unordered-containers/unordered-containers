@@ -45,8 +45,8 @@ module Data.HashMap
     , mapValues
 
       -- * Folds
-    , foldl'
-    , foldr
+    , fold
+    , fold'
 
       -- * Filter
     , filter
@@ -194,7 +194,7 @@ delete k0 = go h0 k0
 -- | /O(n)/ Convert this map to a list of key-value pairs.  The list
 -- is generated lazily.
 toList :: HashMap k v -> [(k, v)]
-toList = foldr (\ k v xs -> (k, v) : xs) []
+toList = fold (\ k v xs -> (k, v) : xs) []
 {-# INLINE toList #-}
 
 ------------------------------------------------------------------------
@@ -214,29 +214,30 @@ mapValues f = go
 -- * Folds
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
--- elements, using the given starting value (typically the
--- left-identity of the operator).  Each application of the binary
--- operator is evaluated before before using the result in the next
--- application.  This function is strict in the starting value.
-foldl' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
-foldl' f = go
-  where
-    go !z (Bin _ _ l r) = let z' = go z l
-                          in z' `seq` go z' r
-    go z (Tip _ l)      = FL.foldl' f z l
-    go z Nil            = z
-{-# INLINE foldl' #-}
-
--- | /O(n)/ Reduce this map by applying a binary operator to all
--- elements, using the given starting value (typically the
--- right-identity of the operator).
-foldr :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-foldr f = go
+-- elements, using the given starting value (typically the identity of
+-- the operator).
+fold :: (k -> v -> a -> a) -> a -> HashMap k v -> a
+fold f = go
   where
     go z (Bin _ _ l r) = go (go z r) l
     go z (Tip _ l)     = FL.foldr f z l
     go z Nil           = z
-{-# INLINE foldr #-}
+{-# INLINE fold #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the identity of
+-- the operator).  Each application of the operator is evaluated
+-- before before using the result in the next application.  This
+-- function is strict in the starting value.
+fold' :: (k -> v -> a -> a) -> a -> HashMap k v -> a
+fold' f = go
+  where
+    go !z (Bin _ _ l r) = let z' = go z l
+                          in z' `seq` go z' r
+    go z (Tip _ l)      = FL.foldl' f' z l
+    go z Nil            = z
+    f' z k v = f k v z
+{-# INLINE fold' #-}
 
 ------------------------------------------------------------------------
 -- * Filter
