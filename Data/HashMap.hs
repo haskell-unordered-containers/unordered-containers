@@ -191,7 +191,7 @@ fold :: (k -> v -> a -> a) -> a -> HashMap k v -> a
 fold f = go
   where
     go z (Bin _ _ l r) = go (go z r) l
-    go z (Tip _ l)     = FL.fold f z l
+    go z (Tip _ l)     = FL.foldr f z l
     go z Nil           = z
 {-# INLINE fold #-}
 

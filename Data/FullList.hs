@@ -20,11 +20,11 @@ module Data.FullList
     , lookup
     , insert
     , delete
-    , fold
+    , foldr
     ) where
 
 import Control.DeepSeq (NFData(rnf))
-import Prelude hiding (lookup)
+import Prelude hiding (foldr, lookup)
 
 ------------------------------------------------------------------------
 -- * The 'FullList' type
@@ -100,9 +100,9 @@ delete !k (FL k' v xs)
 {-# INLINABLE delete #-}
 #endif
 
-fold :: (k -> v -> a -> a) -> a -> FullList k v -> a
-fold f z (FL k v xs) = f k v (foldL f z xs)
-{-# INLINE fold #-}
+foldr :: (k -> v -> a -> a) -> a -> FullList k v -> a
+foldr f z (FL k v xs) = f k v (foldrL f z xs)
+{-# INLINE foldr #-}
 
 ------------------------------------------------------------------------
 -- * List
@@ -148,9 +148,9 @@ deleteL = go
 {-# INLINABLE deleteL #-}
 #endif
 
-foldL :: (k -> v -> a -> a) -> a -> List k v -> a
-foldL f = go
+foldrL :: (k -> v -> a -> a) -> a -> List k v -> a
+foldrL f = go
   where
     go z Nil = z
     go z (Cons k v xs) = f k v (go z xs)
-{-# INLINE foldL #-}
+{-# INLINE foldrL #-}
