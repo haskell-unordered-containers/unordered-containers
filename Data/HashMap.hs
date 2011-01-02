@@ -40,6 +40,11 @@ module Data.HashMap
     , insert
     , delete
     , toList
+
+      -- * Filter
+    , filter
+    , filterKeys
+    , filterValues
     ) where
 
 #include "MachDeps.h"
@@ -49,7 +54,7 @@ import Data.Bits ((.&.), (.|.), complement, shiftR, xor)
 import Data.Hashable (Hashable(hash))
 import qualified Data.FullList as FL
 import Data.Word (Word)
-import Prelude hiding (lookup, null)
+import Prelude hiding (filter, lookup, null, pred)
 
 ------------------------------------------------------------------------
 -- * The 'HashMap' type
@@ -194,6 +199,33 @@ fold f = go
     go z (Tip _ l)     = FL.foldr f z l
     go z Nil           = z
 {-# INLINE fold #-}
+
+------------------------------------------------------------------------
+-- * FilterValues
+
+-- | /O(n)/ Filter this map by retaining only elements satisfying a
+-- predicate.
+filter :: (k -> v -> Bool) -> HashMap k v -> HashMap k v
+filter pred = go
+  where
+    go (Bin p m l r) = bin p m (go l) (go r)
+    go (Tip h l)     = case FL.filter pred l of
+        Just l' -> Tip h l'
+        Nothing -> Nil
+    go Nil           = Nil
+{-# INLINE filter #-}
+
+-- | /O(n)/ Filter this map by retaining only elements which keys
+-- satisfying a predicate.
+filterKeys :: (k -> Bool) -> HashMap k v -> HashMap k v
+filterKeys p = filter (\k _ -> p k)
+{-# INLINE filterKeys #-}
+
+-- | /O(n)/ Filter this map by retaining only elements which values
+-- satisfying a predicate.
+filterValues :: (v -> Bool) -> HashMap k v -> HashMap k v
+filterValues p = filter (\_ v -> p v)
+{-# INLINE filterValues #-}
 
 ------------------------------------------------------------------------
 -- Helpers

@@ -7,6 +7,7 @@ import Control.Exception (evaluate)
 import Control.Monad.Trans (liftIO)
 import Criterion.Config
 import Criterion.Main
+import Data.Bits ((.&.))
 import Data.Hashable (Hashable)
 import qualified Data.ByteString as BS
 import qualified Data.HashMap as HM
@@ -79,6 +80,11 @@ main = do
           , bench "ByteString" $ nf (delete keysBS) hmbs
           , bench "Int" $ nf (delete keysI) hmi
           ]
+
+          -- Filter
+        , bench "filter" $ nf (HM.filter (\ k _ -> k .&. 1 == 0)) hmi
+        , bench "filterKeys" $ nf (HM.filterKeys (\ k -> k .&. 1 == 0)) hmi
+        , bench "filterValues" $ nf (HM.filterValues (\ v -> v .&. 1 == 0)) hmi
         ]
   where
     n :: Int
