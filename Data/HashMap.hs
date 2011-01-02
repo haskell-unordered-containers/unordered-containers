@@ -272,8 +272,8 @@ filterValues p = filter (\_ v -> p v)
 ------------------------------------------------------------------------
 -- Conversions
 
--- | /O(n)/ Convert this map to a list of key-value pairs.  The list
--- is generated lazily.
+-- | /O(n)/ Return a list of this map's elements.  The list is
+-- produced lazily.
 toList :: HashMap k v -> [(k, v)]
 #if defined(__GLASGOW_HASKELL__)
 toList t = build (\ c z -> fold (curry c) z t)
@@ -282,12 +282,14 @@ toList = fold (\ k v xs -> (k, v) : xs) []
 #endif
 {-# INLINE toList #-}
 
--- | /O(n)/ Return all keys of this map.
+-- | /O(n)/ Return a list of this map's keys.  The list is produced
+-- lazily.
 keys :: HashMap k v -> [k]
 keys = L.map fst . toList
 {-# INLINE keys #-}
 
--- | /O(n)/ Return all values of this map.
+-- | /O(n)/ Return a list of this map's values.  The list is produced
+-- lazily.
 values :: HashMap k v -> [v]
 values = L.map snd . toList
 {-# INLINE values #-}
