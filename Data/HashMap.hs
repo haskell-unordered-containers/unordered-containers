@@ -216,13 +216,13 @@ filter pred = go
 {-# INLINE filter #-}
 
 -- | /O(n)/ Filter this map by retaining only elements which keys
--- satisfying a predicate.
+-- satisfy a predicate.
 filterKeys :: (k -> Bool) -> HashMap k v -> HashMap k v
 filterKeys p = filter (\k _ -> p k)
 {-# INLINE filterKeys #-}
 
 -- | /O(n)/ Filter this map by retaining only elements which values
--- satisfying a predicate.
+-- satisfy a predicate.
 filterValues :: (v -> Bool) -> HashMap k v -> HashMap k v
 filterValues p = filter (\_ v -> p v)
 {-# INLINE filterValues #-}
