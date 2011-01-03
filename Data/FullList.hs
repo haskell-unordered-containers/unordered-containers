@@ -77,8 +77,15 @@ instance (NFData k, NFData v) => NFData (List k v) where
 ------------------------------------------------------------------------
 -- * FullList
 
+-- The 'List' functions are not inlined as they should be seldomly
+-- called in practice (i.e. we expect few collisions.)
+
 size :: FullList k v -> Int
 size (FL _ _ xs) = 1 + sizeL xs
+
+sizeL :: List k v -> Int
+sizeL Nil = 0
+sizeL (Cons _ _ xs) = 1 + sizeL xs
 
 singleton :: k -> v -> FullList k v
 singleton k v = FL k v Nil
@@ -91,63 +98,6 @@ lookup !k (FL k' v xs)
 {-# INLINABLE lookup #-}
 #endif
 
-insert :: Eq k => k -> v -> FullList k v -> FullList k v
-insert !k v (FL k' v' xs)
-    | k == k'   = FL k v xs
-    | otherwise = FL k' v' (insertL k v xs)
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE insert #-}
-#endif
-
-delete :: Eq k => k -> FullList k v -> Maybe (FullList k v)
-delete !k (FL k' v xs)
-    | k == k'   = case xs of
-        Nil             -> Nothing
-        Cons k'' v' xs' -> Just $ FL k'' v' xs'
-    | otherwise = let ys = deleteL k xs
-                  in ys `seq` Just (FL k' v ys)
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE delete #-}
-#endif
-
-------------------------------------------------------------------------
--- ** Transformations
-
-map :: (k1 -> v1 -> (k2, v2)) -> FullList k1 v1 -> FullList k2 v2
-map f (FL k v xs) = let (k', v') = f k v
-                    in FL k' v' (mapL f xs)
-{-# INLINE map #-}
-
-------------------------------------------------------------------------
--- ** Folds
-
-foldl' :: (a -> k -> v -> a) -> a -> FullList k v -> a
-foldl' f !z (FL k v xs) = foldl'L f (f z k v) xs
-{-# INLINE foldl' #-}
-
-foldr :: (k -> v -> a -> a) -> a -> FullList k v -> a
-foldr f z (FL k v xs) = f k v (foldrL f z xs)
-{-# INLINE foldr #-}
-
-------------------------------------------------------------------------
--- ** Filter
-
-filter :: (k -> v -> Bool) -> FullList k v -> Maybe (FullList k v)
-filter p (FL k v xs)
-    | p k v     = Just (FL k v ys)
-    | otherwise = case ys of
-        Nil           -> Nothing
-        Cons k' v' zs -> Just $ FL k' v' zs
-  where !ys = filterL p xs
-{-# INLINE filter #-}
-
-------------------------------------------------------------------------
--- * List
-
-sizeL :: List k v -> Int
-sizeL Nil = 0
-sizeL (Cons _ _ xs) = 1 + sizeL xs
-
 lookupL :: Eq k => k -> List k v -> Maybe v
 lookupL = go
   where
@@ -159,7 +109,13 @@ lookupL = go
 {-# INLINABLE lookupL #-}
 #endif
 
--- TODO: Reduce copying by always inserting at the head of the list?
+insert :: Eq k => k -> v -> FullList k v -> FullList k v
+insert !k v (FL k' v' xs)
+    | k == k'   = FL k v xs
+    | otherwise = FL k' v' (insertL k v xs)
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE insert #-}
+#endif
 
 -- | /O(n)/ Insert at the head of the list to avoid copying the whole
 -- list.
@@ -174,6 +130,17 @@ insertL = go
 {-# INLINABLE insertL #-}
 #endif
 
+delete :: Eq k => k -> FullList k v -> Maybe (FullList k v)
+delete !k (FL k' v xs)
+    | k == k'   = case xs of
+        Nil             -> Nothing
+        Cons k'' v' xs' -> Just $ FL k'' v' xs'
+    | otherwise = let ys = deleteL k xs
+                  in ys `seq` Just (FL k' v ys)
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE delete #-}
+#endif
+
 deleteL :: Eq k => k -> List k v -> List k v
 deleteL = go
   where
@@ -186,7 +153,12 @@ deleteL = go
 #endif
 
 ------------------------------------------------------------------------
--- ** Transformations
+-- * Transformations
+
+map :: (k1 -> v1 -> (k2, v2)) -> FullList k1 v1 -> FullList k2 v2
+map f (FL k v xs) = let (k', v') = f k v
+                    in FL k' v' (mapL f xs)
+{-# INLINE map #-}
 
 mapL :: (k1 -> v1 -> (k2, v2)) -> List k1 v1 -> List k2 v2
 mapL f = go
@@ -197,7 +169,11 @@ mapL f = go
 {-# INLINE mapL #-}
 
 ------------------------------------------------------------------------
--- ** Folds
+-- * Folds
+
+foldl' :: (a -> k -> v -> a) -> a -> FullList k v -> a
+foldl' f !z (FL k v xs) = foldl'L f (f z k v) xs
+{-# INLINE foldl' #-}
 
 foldl'L :: (a -> k -> v -> a) -> a -> List k v -> a
 foldl'L f = go
@@ -205,6 +181,10 @@ foldl'L f = go
     go !z Nil          = z
     go z (Cons k v xs) = go (f z k v) xs
 {-# INLINE foldl'L #-}
+
+foldr :: (k -> v -> a -> a) -> a -> FullList k v -> a
+foldr f z (FL k v xs) = f k v (foldrL f z xs)
+{-# INLINE foldr #-}
 
 foldrL :: (k -> v -> a -> a) -> a -> List k v -> a
 foldrL f = go
@@ -214,7 +194,16 @@ foldrL f = go
 {-# INLINE foldrL #-}
 
 ------------------------------------------------------------------------
--- ** Filter
+-- * Filter
+
+filter :: (k -> v -> Bool) -> FullList k v -> Maybe (FullList k v)
+filter p (FL k v xs)
+    | p k v     = Just (FL k v ys)
+    | otherwise = case ys of
+        Nil           -> Nothing
+        Cons k' v' zs -> Just $ FL k' v' zs
+  where !ys = filterL p xs
+{-# INLINE filter #-}
 
 filterL :: (k -> v -> Bool) -> List k v -> List k v
 filterL p = go
