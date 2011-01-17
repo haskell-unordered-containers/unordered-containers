@@ -39,6 +39,7 @@ module Data.HashMap
     , singleton
     , insert
     , delete
+    , adjustWithDefault
 
       -- * Transformations
     , mapValues
@@ -198,6 +199,23 @@ delete k0 = go h0 k0
     go _ _ Nil          = Nil
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE delete #-}
+#endif
+
+adjustWithDefault :: (Eq k, Hashable k) => (v -> v) -> k -> v -> HashMap k v
+                  -> HashMap k v
+adjustWithDefault f k0 v0 t0 = go h0 k0 v0 t0
+  where
+    h0 = hash k0
+    go !h !k v t@(Bin p m l r)
+        | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
+        | zero h m      = Bin p m (go h k v l) r
+        | otherwise     = Bin p m l (go h k v r)
+    go h k v t@(Tip h' l)
+        | h == h'       = Tip h $ FL.adjustWithDefault f k v l
+        | otherwise     = join h (Tip h $ FL.singleton k v) h' t
+    go h k v Nil        = Tip h $ FL.singleton k v
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE adjustWithDefault #-}
 #endif
 
 ------------------------------------------------------------------------

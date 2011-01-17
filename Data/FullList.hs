@@ -20,6 +20,7 @@ module Data.FullList
     , lookup
     , insert
     , delete
+    , adjustWithDefault
 
       -- * Transformations
     , map
@@ -150,6 +151,25 @@ deleteL = go
         | otherwise = Cons k' v (go k xs)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE deleteL #-}
+#endif
+
+adjustWithDefault :: Eq k => (v -> v) -> k -> v -> FullList k v -> FullList k v
+adjustWithDefault f !k v (FL k' v' xs)
+    | k == k'   = FL k (f v') xs
+    | otherwise = FL k' v' (adjustWithDefaultL f k v xs)
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE adjustWithDefault #-}
+#endif
+
+adjustWithDefaultL :: Eq k => (v -> v) -> k -> v -> List k v -> List k v
+adjustWithDefaultL f = go f
+  where
+    go _ !k v Nil = Cons k v Nil
+    go f k v (Cons k' v' xs)
+        | k == k'   = Cons k (f v') xs
+        | otherwise = Cons k' v' (go f k v xs)
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE adjustWithDefaultL #-}
 #endif
 
 ------------------------------------------------------------------------

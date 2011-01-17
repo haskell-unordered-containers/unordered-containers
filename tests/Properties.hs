@@ -46,6 +46,10 @@ pInsert k v = insert (k, v) `eq` (toAscList . M.insert k v)
 pDelete :: Key -> [(Key, Int)] -> Bool
 pDelete k = delete k `eq` (toAscList . M.delete k)
 
+pAdjustWithDefault :: Key -> [(Key, Int)] -> Bool
+pAdjustWithDefault k = adjustWithDefault (+ 1) (k, 0) `eq`
+                       (toAscList . M.adjustWithDefault (+ 1) k 0)
+
 pToList :: [(Key, Int)] -> Bool
 pToList = id `eq` toAscList
 
@@ -57,11 +61,14 @@ tests =
     , run pLookup
     , run pInsert
     , run pDelete
-    , run pToList
+    , run pAdjustWithDefault
 
       -- Folds
     , run pFold
     , run pFold'
+
+      -- Conversions
+    , run pToList
     ]
 
 ------------------------------------------------------------------------
@@ -106,6 +113,13 @@ delete k ys@(y@(k', _):xs)
     | k == k'   = xs
     | k > k'    = y : delete k xs
     | otherwise = ys
+
+adjustWithDefault :: Ord k => (v -> v) -> (k, v) -> Model k v -> Model k v
+adjustWithDefault _ x [] = [x]
+adjustWithDefault f x@(k, _) (y@(k', v):xs)
+    | k == k'   = (k', f v) : xs
+    | k > k'    = y : adjustWithDefault f x xs
+    | otherwise = x : y : xs
 
 ------------------------------------------------------------------------
 -- Test harness
