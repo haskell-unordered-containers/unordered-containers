@@ -1,25 +1,24 @@
 {-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples #-}
 
 module Data.HashMap
-       ( HashMap
-       , empty
-       , insert
-       , lookup
-       , fromList
-       , toList
-       ) where
+    ( HashMap
+    , empty
+    , insert
+    , lookup
+    , fromList
+    , toList
+    ) where
 
-import Control.DeepSeq
-import Data.Bits
+import Control.DeepSeq (NFData(rnf))
+import Data.Bits ((.&.), (.|.), bitSize)
 import qualified Data.Hashable as H
 import Data.Hashable (Hashable)
 import qualified Data.List as L
-import Data.Word
-import GHC.Exts
+import GHC.Exts (Word(W#), Int(I#), uncheckedShiftL#, uncheckedShiftRL#)
 import Prelude hiding (lookup)
 
 import qualified Data.HashMap.Array as A
-import Data.HashMap.PopCount
+import Data.HashMap.PopCount (popCount)
 
 ------------------------------------------------------------------------
 
