@@ -1,238 +1,187 @@
-{-# LANGUAGE BangPatterns, CPP #-}
-
-------------------------------------------------------------------------
--- |
--- Module      :  Data.HashMap
--- Copyright   :  2010 Johan Tibell
--- License     :  BSD-style
--- Maintainer  :  johan.tibell@gmail.com
--- Stability   :  provisional
--- Portability :  portable
---
--- A map from /hashable/ keys to values.  A map cannot contain
--- duplicate keys; each key can map to at most one value.  A 'HashMap'
--- makes no guarantees as to the order of its elements.
---
--- The maps are strict both in the keys and values; keys and values
--- are evaluated to /weak head normal form/ before they are added to a
--- map.
---
--- The implementation is based on /big-endian patricia trees/, keyed
--- by a hash of the original key.  A 'HashMap' is often faster than
--- other tree-based maps when key comparison is expensive, as in the
--- case of strings.
---
--- Many operations have a worst-case complexity of /O(min(n,W))/.
--- This means that the operation can become linear in the number of
--- elements with a maximum of /W/ -- the number of bits in an 'Int'
--- (32 or 64).
+{-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples #-}
 
 module Data.HashMap
-    (
-      HashMap
+       ( HashMap
+       , empty
+       , insert
+       , lookup
+       , fromList
+       , toList
+       ) where
 
-      -- * Basic interface
-    , null
-    , size
-    , lookup
-    , empty
-    , singleton
-    , insert
-    , delete
-    , adjustWithDefault
-
-      -- * Transformations
-    , mapValues
-
-      -- * Folds
-    , fold
-    , fold'
-
-      -- * Filter
-    , filter
-    , filterKeys
-    , filterValues
-
-      -- * Conversions
-    , toList
-    , keys
-    , values
-    ) where
-
-#include "MachDeps.h"
-
-import Control.DeepSeq (NFData(rnf))
-import Data.Bits ((.&.), (.|.), complement, shiftR, xor)
-import qualified Data.FullList as FL
-import Data.Hashable (Hashable(hash))
+import Control.DeepSeq
+import Data.Bits
+import qualified Data.Hashable as H
+import Data.Hashable (Hashable)
 import qualified Data.List as L
-import Data.Word (Word)
-import Prelude hiding (filter, foldr, lookup, null, pred)
+import Data.Word
+import GHC.Exts
+import Prelude hiding (lookup)
 
-#if defined(__GLASGOW_HASKELL__)
-import GHC.Exts (build)
-#endif
+import qualified Data.HashMap.Array as A
+import Data.HashMap.PopCount
 
 ------------------------------------------------------------------------
--- * The 'HashMap' type
 
--- | A map from keys to values.  A map cannot contain duplicate keys;
--- each key can map to at most one value.
+-- | Convenience function.  Compute a hash value for the given value.
+hash :: Hashable a => a -> Hash
+hash = fromIntegral . H.hash
+
+data Leaf k v = L {-# UNPACK #-} !Hash !k v
+
+instance (NFData k, NFData v) => NFData (Leaf k v) where
+    rnf (L _ k v) = rnf k `seq` rnf v
+
 data HashMap k v
-    = Nil
-    | Tip {-# UNPACK #-} !Hash
-          {-# UNPACK #-} !(FL.FullList k v)
-    | Bin {-# UNPACK #-} !Prefix
-          {-# UNPACK #-} !Mask
-          !(HashMap k v)
-          !(HashMap k v)
-    deriving Show
+    = Empty
+    | BitmapIndexed {-# UNPACK #-} !Bitmap {-# UNPACK #-} !(A.Array (HashMap k v))
+    | Leaf {-# UNPACK #-} !(Leaf k v)
+    | Full {-# UNPACK #-} !(A.Array (HashMap k v))
+    | Collision {-# UNPACK #-} !Hash {-# UNPACK #-} !(A.Array (Leaf k v))
 
-type Prefix = Int
-type Mask   = Int
-type Hash   = Int
-
-------------------------------------------------------------------------
--- * Instances
-
-instance (Eq k, Eq v) => Eq (HashMap k v) where
-    t1 == t2 = equal t1 t2
-    t1 /= t2 = nequal t1 t2
-
-equal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
-equal (Bin p1 m1 l1 r1) (Bin p2 m2 l2 r2) =
-    (m1 == m2) && (p1 == p2) && (equal l1 l2) && (equal r1 r2)
-equal (Tip h1 l1) (Tip h2 l2) = (h1 == h2) && (l1 == l2)
-equal Nil Nil = True
-equal _   _   = False
-
-nequal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
-nequal (Bin p1 m1 l1 r1) (Bin p2 m2 l2 r2) =
-    (m1 /= m2) || (p1 /= p2) || (nequal l1 l2) || (nequal r1 r2)
-nequal (Tip h1 l1) (Tip h2 l2) = (h1 /= h2) || (l1 /= l2)
-nequal Nil Nil = False
-nequal _   _   = True
+type Hash   = Word
+type Bitmap = Word
+type Shift  = Int
+type Subkey = Int -- we need to use this to do shifts, so an Int it is
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
-    rnf Nil           = ()
-    rnf (Tip _ xs)    = rnf xs
-    rnf (Bin _ _ l r) = rnf l `seq` rnf r `seq` ()
+    rnf Empty                 = ()
+    rnf (BitmapIndexed _ ary) = rnf ary
+    rnf (Leaf (L _ k v))      = rnf k `seq` rnf v
+    rnf (Full ary)            = rnf ary
+    rnf (Collision _ ary)     = rnf ary
+
+-- These architecture dependent constants
+
+bitsPerSubkey :: Int
+bitsPerSubkey
+    | wordSizeInBits == 32 = 5
+    | wordSizeInBits == 64 = 6
+    | otherwise =
+        error "Data.HashMap.bitsPerSubkey: Unsupported architecture"
+  where wordSizeInBits = bitSize (undefined :: Word)
+
+subkeyMask :: Bitmap
+subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
+
+maskIndex :: Bitmap -> Bitmap -> Int
+maskIndex b m = popCount (b .&. (m - 1))
+
+mask :: Word -> Shift -> Bitmap
+mask k s = 1 `unsafeShiftL` subkey k s
+{-# INLINE mask #-}
+
+subkey :: Word -> Shift -> Int
+subkey k s = fromIntegral $ unsafeShiftR k s .&. subkeyMask
+{-# INLINE subkey #-}
+
+-- | /O(n)/ Lookup the value associated with the given key in this
+-- array.  Returns 'Nothing' if the key wasn't found.
+lookupInArray :: Eq k => Hash -> k -> A.Array (Leaf k v) -> Maybe v
+lookupInArray h0 k0 ary0 = go h0 k0 ary0 0 (A.length ary0)
+  where
+    go !h !k !ary !i !n
+        | i >= n = Nothing
+        | otherwise = case A.unsafeIndex ary i of
+            (L hx kx v)
+                | h == hx && k == kx -> Just v
+                | otherwise -> go h k ary (i+1) n
+{-# INLINABLE lookupInArray #-}
+
+updateOrSnoc :: Eq k => Hash -> k -> v -> A.Array (Leaf k v)
+             -> A.Array (Leaf k v)
+updateOrSnoc h0 k0 v0 ary0 = go h0 k0 v0 ary0 0 (A.length ary0)
+  where
+    go !h !k v !ary !i !n
+        | i >= n = A.run $ do
+            -- Not found, append to the end.
+            mary <- A.new (n + 1) undefinedElem
+            A.unsafeCopy ary 0 mary 0 n
+            A.unsafeWrite mary n (L h k v)
+            return mary
+        | otherwise = case A.unsafeIndex ary i of
+            (L hx kx _)
+                | h == hx && k == kx -> A.unsafeUpdate ary i (L h k v)
+                | otherwise -> go h k v ary (i+1) n
+{-# INLINABLE updateOrSnoc #-}
+
+undefinedElem :: a
+undefinedElem = error "Undefined element!"
 
 ------------------------------------------------------------------------
--- * Basic interface
+-- Basic interface
 
--- | /O(1)/ Return 'True' if this map is empty, 'False' otherwise.
-null :: HashMap k v -> Bool
-null Nil = True
-null _   = False
-
--- | /O(n)/ Return the number of key-value mappings in this map.
-size :: HashMap k v -> Int
-size t = case t of
-    Bin _ _ l r -> size l + size r
-    Tip _ l     -> FL.size l
-    Nil         -> 0
+-- | /O(1)/ Construct an empty 'HashMap'.
+empty :: HashMap k v
+empty = Empty
 
 -- | /O(min(n,W))/ Return the value to which the specified key is
 -- mapped, or 'Nothing' if this map contains no mapping for the key.
 lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
-lookup k0 t = go h0 k0 t
+lookup k0 = go h0 k0 0
   where
     h0 = hash k0
-    go !h !k (Bin _ m l r)
-      | zero h m  = go h k l
-      | otherwise = go h k r
-    go h k (Tip h' l)
-      | h == h'   = FL.lookup k l
-      | otherwise = Nothing
-    go _ _ Nil    = Nothing
-#if __GLASGOW_HASKELL__ >= 700
+    go !_ !_ !_ Empty = Nothing
+    go h k _ (Leaf (L hx kx x))
+        | h == hx && k == kx = Just x
+        | otherwise = Nothing
+    go h k s (BitmapIndexed b v) =
+        let m = mask h s
+        in if b .&. m == 0
+           then Nothing
+           else go h k (s+bitsPerSubkey) (A.unsafeIndex v (maskIndex b m))
+    go h k s (Full v) = go h k (s+bitsPerSubkey) (A.unsafeIndex v (subkey h s))
+    go h k _ (Collision hx v)
+        | h == hx   = lookupInArray h k v
+        | otherwise = Nothing
 {-# INLINABLE lookup #-}
-#endif
 
--- | /O(1)/ Construct an empty 'HashMap'.
-empty :: HashMap k v
-empty = Nil
-
--- | /O(1)/ Construct a map of one element.
-singleton :: Hashable k => k -> v -> HashMap k v
-singleton k v = Tip h $ FL.singleton k v
-  where h = hash k
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE singleton #-}
-#endif
+-- | Create a 'Collision' value with two 'Leaf' values.
+collision :: Hash -> Leaf k v -> Leaf k v -> HashMap k v
+collision h e1 e2 =
+    let v = A.run $ do mary <- A.new 2 e1
+                       A.unsafeWrite mary 1 e2
+                       return mary
+    in Collision h v
+{-# INLINE collision #-}
 
 -- | /O(min(n,W))/ Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
-insert k0 v0 t0 = go h0 k0 v0 t0
+insert k0 v0 = go h0 k0 v0 0
   where
     h0 = hash k0
-    go !h !k v t@(Bin p m l r)
-        | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
-        | zero h m      = Bin p m (go h k v l) r
-        | otherwise     = Bin p m l (go h k v r)
-    go h k v t@(Tip h' l)
-        | h == h'       = Tip h $ FL.insert k v l
-        | otherwise     = join h (Tip h $ FL.singleton k v) h' t
-    go h k v Nil        = Tip h $ FL.singleton k v
-#if __GLASGOW_HASKELL__ >= 700
+    go !h !k x !_ Empty = Leaf (L h k x)
+    go h k x s t@(Leaf (L hy ky y))
+        | hy == h = if ky == k
+                    then Leaf (L h k x)
+                    else collision h (L hy ky y) (L h k x)
+        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+    go h k x s (BitmapIndexed b ary) =
+        let m = mask h s
+            i = maskIndex b m
+        in if b .&. m == 0
+               then let l    = Leaf (L h k x)
+                        ary' = A.unsafeInsert ary i l
+                        b'   = b .|. m
+                    in if b' == 0xFFFFFFFF
+                       then Full ary'
+                       else BitmapIndexed b' ary'
+               else let  st   = A.unsafeIndex ary i
+                         st'  = go h k x (s+bitsPerSubkey) st
+                         ary' = A.unsafeUpdate ary i st'
+                    in BitmapIndexed b ary'
+    go h k x s (Full ary) =
+        let i    = subkey h s
+            st   = A.unsafeIndex ary i
+            st'  = go h k x (s+bitsPerSubkey) st
+            ary' = A.unsafeUpdate ary i st'
+        in Full ary'
+    go h k x s t@(Collision hy v)
+        | h == hy = Collision h (updateOrSnoc h k x v)
+        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE insert #-}
-#endif
-
--- | /O(min(n,W))/ Remove the mapping for the specified key from this
--- map if present.
-delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
-delete k0 = go h0 k0
-  where
-    h0 = hash k0
-    go !h !k t@(Bin p m l r)
-        | nomatch h p m = t
-        | zero h m      = bin p m (go h k l) r  -- takes this branch
-        | otherwise     = bin p m l (go h k r)
-    go h k t@(Tip h' l)
-        | h == h'       = case FL.delete k l of
-            Nothing -> Nil
-            Just l' -> Tip h' l'
-        | otherwise     = t
-    go _ _ Nil          = Nil
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE delete #-}
-#endif
-
-adjustWithDefault :: (Eq k, Hashable k) => (v -> v) -> k -> v -> HashMap k v
-                  -> HashMap k v
-adjustWithDefault f k0 v0 t0 = go h0 k0 v0 t0
-  where
-    h0 = hash k0
-    go !h !k v t@(Bin p m l r)
-        | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
-        | zero h m      = Bin p m (go h k v l) r
-        | otherwise     = Bin p m l (go h k v r)
-    go h k v t@(Tip h' l)
-        | h == h'       = Tip h $ FL.adjustWithDefault f k v l
-        | otherwise     = join h (Tip h $ FL.singleton k v) h' t
-    go h k v Nil        = Tip h $ FL.singleton k v
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE adjustWithDefault #-}
-#endif
-
-------------------------------------------------------------------------
--- * Transformations
-
--- | /O(n)/ Transform this map by applying a function to every value.
-mapValues :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
-mapValues f = go
-  where
-    go (Bin p m l r) = Bin p m (go l) (go r)
-    go (Tip h l)     = Tip h (FL.map f' l)
-    go Nil           = Nil
-    f' k v = (k, f v)
-{-# INLINE mapValues #-}
-
-------------------------------------------------------------------------
--- * Folds
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the identity of
@@ -240,138 +189,38 @@ mapValues f = go
 fold :: (k -> v -> a -> a) -> a -> HashMap k v -> a
 fold f = go
   where
-    go z (Bin _ _ l r) = go (go z r) l
-    go z (Tip _ l)     = FL.foldr f z l
-    go z Nil           = z
+    go z Empty = z
+    go z (Leaf (L _ k v)) = f k v z
+    go z (BitmapIndexed _ ary) = A.foldr (flip go) z ary
+    go z (Full ary) = A.foldr (flip go) z ary
+    go z (Collision _ ary) = A.foldr (\ (L _ k v) z -> f k v z) z ary
 {-# INLINE fold #-}
 
--- | /O(n)/ Reduce this map by applying a binary operator to all
--- elements, using the given starting value (typically the identity of
--- the operator).  Each application of the operator is evaluated
--- before before using the result in the next application.  This
--- function is strict in the starting value.
-fold' :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-fold' f = go
-  where
-    go !z (Bin _ _ l r) = let z' = go z l
-                          in z' `seq` go z' r
-    go z (Tip _ l)      = FL.foldl' f' z l
-    go z Nil            = z
-    f' z k v = f k v z
-{-# INLINE fold' #-}
+{-
+    | BitmapIndexed {-# UNPACK #-} !Bitmap {-# UNPACK #-} !(A.Array (HashMap k v))
+    | Leaf {-# UNPACK #-} !(Leaf k v)
+    | Full {-# UNPACK #-} !(A.Array (HashMap k v))
+    | Collision {-# UNPACK #-} !Hash {-# UNPACK #-} !(A.Array (Leaf k v))
+-}
 
-------------------------------------------------------------------------
--- * Filter
-
--- | /O(n)/ Filter this map by retaining only elements satisfying a
--- predicate.
-filter :: (k -> v -> Bool) -> HashMap k v -> HashMap k v
-filter pred = go
-  where
-    go (Bin p m l r) = bin p m (go l) (go r)
-    go (Tip h l)     = case FL.filter pred l of
-        Just l' -> Tip h l'
-        Nothing -> Nil
-    go Nil           = Nil
-{-# INLINE filter #-}
-
--- | /O(n)/ Filter this map by retaining only elements which keys
--- satisfy a predicate.
-filterKeys :: (k -> Bool) -> HashMap k v -> HashMap k v
-filterKeys p = filter (\k _ -> p k)
-{-# INLINE filterKeys #-}
-
--- | /O(n)/ Filter this map by retaining only elements which values
--- satisfy a predicate.
-filterValues :: (v -> Bool) -> HashMap k v -> HashMap k v
-filterValues p = filter (\_ v -> p v)
-{-# INLINE filterValues #-}
-
-------------------------------------------------------------------------
--- Conversions
+fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
+fromList = L.foldl' (flip $ uncurry insert) empty
+{-# INLINABLE fromList #-}
 
 -- | /O(n)/ Return a list of this map's elements.  The list is
 -- produced lazily.
 toList :: HashMap k v -> [(k, v)]
-#if defined(__GLASGOW_HASKELL__)
-toList t = build (\ c z -> fold (curry c) z t)
-#else
 toList = fold (\ k v xs -> (k, v) : xs) []
-#endif
-{-# INLINE toList #-}
-
--- | /O(n)/ Return a list of this map's keys.  The list is produced
--- lazily.
-keys :: HashMap k v -> [k]
-keys = L.map fst . toList
-{-# INLINE keys #-}
-
--- | /O(n)/ Return a list of this map's values.  The list is produced
--- lazily.
-values :: HashMap k v -> [v]
-values = L.map snd . toList
-{-# INLINE values #-}
+{-# INLINABLE toList #-}
 
 ------------------------------------------------------------------------
--- Helpers
+-- Utility functions
 
-join :: Prefix -> HashMap k v -> Prefix -> HashMap k v -> HashMap k v
-join p1 t1 p2 t2
-    | zero p1 m = Bin p m t1 t2
-    | otherwise = Bin p m t2 t1
-  where
-    m = branchMask p1 p2
-    p = mask p1 m
-{-# INLINE join #-}
+unsafeShiftL :: Word -> Int -> Word
+unsafeShiftL (W# x#) (I# i#) = W# (x# `uncheckedShiftL#` i#)
+{-# INLINE unsafeShiftL #-}
 
--- | @bin@ assures that we never have empty trees within a tree.
-bin :: Prefix -> Mask -> HashMap k v -> HashMap k v -> HashMap k v
-bin _ _ l Nil = l
-bin _ _ Nil r = r
-bin p m l r   = Bin p m l r
-{-# INLINE bin #-}
+unsafeShiftR :: Word -> Int -> Word
+unsafeShiftR (W# x#) (I# i#) = W# (x# `uncheckedShiftRL#` i#)
+{-# INLINE unsafeShiftR #-}
 
-------------------------------------------------------------------------
--- Endian independent bit twiddling
-
-zero :: Hash -> Mask -> Bool
-zero i m = (fromIntegral i :: Word) .&. (fromIntegral m :: Word) == 0
-{-# INLINE zero #-}
-
-nomatch :: Hash -> Prefix -> Mask -> Bool
-nomatch i p m = (mask i m) /= p
-{-# INLINE nomatch #-}
-
-mask :: Hash -> Mask -> Prefix
-mask i m = maskW (fromIntegral i :: Word) (fromIntegral m :: Word)
-{-# INLINE mask #-}
-
-------------------------------------------------------------------------
--- Big endian operations
-
-maskW :: Word -> Word -> Prefix
-maskW i m = fromIntegral (i .&. (complement (m-1) `xor` m))
-{-# INLINE maskW #-}
-
-branchMask :: Prefix -> Prefix -> Mask
-branchMask p1 p2 =
-    fromIntegral (highBit (fromIntegral p1 `xor` fromIntegral p2 :: Word))
-{-# INLINE branchMask #-}
-
--- | Return a 'Word' where only the highest bit is set.
-highBit :: Word -> Word
-highBit x0 =
-    let !x1 = x0 .|. shiftR x0 1
-        !x2 = x1 .|. shiftR x1 2
-        !x3 = x2 .|. shiftR x2 4
-        !x4 = x3 .|. shiftR x3 8
-        !x5 = x4 .|. shiftR x4 16
-#if WORD_SIZE_IN_BITS == 32
-    in x5 `xor` (shiftR x5 1)
-#elif WORD_SIZE_IN_BITS == 64
-        !x6 = x5 .|. shiftR x5 32
-    in x6 `xor` (shiftR x6 1)
-#else
-# error WORD_SIZE_IN_BITS not supported
-#endif
-{-# INLINE highBit #-}

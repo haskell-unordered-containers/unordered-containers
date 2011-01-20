@@ -7,7 +7,6 @@ import Control.Exception (evaluate)
 import Control.Monad.Trans (liftIO)
 import Criterion.Config
 import Criterion.Main
-import Data.Bits ((.&.))
 import Data.Hashable (Hashable)
 import qualified Data.ByteString as BS
 import qualified Data.HashMap as HM
@@ -31,9 +30,9 @@ instance NFData B where
 
 main :: IO ()
 main = do
-    let hm   = fromList elems :: HM.HashMap String Int
-        hmbs = fromList elemsBS :: HM.HashMap BS.ByteString Int
-        hmi  = fromList elemsI :: HM.HashMap Int Int
+    let hm   = HM.fromList elems :: HM.HashMap String Int
+        hmbs = HM.fromList elemsBS :: HM.HashMap BS.ByteString Int
+        hmi  = HM.fromList elemsI :: HM.HashMap Int Int
         m    = M.fromList elems :: M.Map String Int
         mbs  = M.fromList elemsBS :: M.Map BS.ByteString Int
         im   = IM.fromList elemsI :: IM.IntMap Int
@@ -75,23 +74,6 @@ main = do
           , bench "ByteString" $ nf (insert elemsBS) HM.empty
           , bench "Int" $ nf (insert elemsI) HM.empty
           ]
-        , bgroup "delete"
-          [ bench "String" $ nf (delete keys) hm
-          , bench "ByteString" $ nf (delete keysBS) hmbs
-          , bench "Int" $ nf (delete keysI) hmi
-          ]
-
-          -- Transformations
-        , bench "mapValues" $ nf (HM.mapValues (\ v -> v + 1)) hmi
-
-          -- Folds
-        , bench "fold" $ nf (HM.fold (\ k v z -> (k, v) : z) []) hmi
-        , bench "fold'" $ nf (HM.fold' (\ _ v z -> v + z) 0) hmi
-
-          -- Filter
-        , bench "filter" $ nf (HM.filter (\ k _ -> k .&. 1 == 0)) hmi
-        , bench "filterKeys" $ nf (HM.filterKeys (\ k -> k .&. 1 == 0)) hmi
-        , bench "filterValues" $ nf (HM.filterValues (\ v -> v .&. 1 == 0)) hmi
         ]
   where
     n :: Int
@@ -122,14 +104,6 @@ insert xs m0 = foldl' (\m (k, v) -> HM.insert k v m) m0 xs
 {-# SPECIALIZE insert :: [(String, Int)] -> HM.HashMap String Int
                       -> HM.HashMap String Int #-}
 {-# SPECIALIZE insert :: [(BS.ByteString, Int)] -> HM.HashMap BS.ByteString Int
-                      -> HM.HashMap BS.ByteString Int #-}
-
-delete :: (Eq k, Hashable k) => [k] -> HM.HashMap k Int -> HM.HashMap k Int
-delete xs m0 = foldl' (\m k -> HM.delete k m) m0 xs
-{-# SPECIALIZE delete :: [Int] -> HM.HashMap Int Int -> HM.HashMap Int Int #-}
-{-# SPECIALIZE delete :: [String] -> HM.HashMap String Int
-                      -> HM.HashMap String Int #-}
-{-# SPECIALIZE delete :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
                       -> HM.HashMap BS.ByteString Int #-}
 
 ------------------------------------------------------------------------
@@ -164,9 +138,3 @@ insertIM xs m0 = foldl' (\m (k, v) -> IM.insert k v m) m0 xs
 
 deleteIM :: [Int] -> IM.IntMap Int -> IM.IntMap Int
 deleteIM xs m0 = foldl' (\m k -> IM.delete k m) m0 xs
-
-------------------------------------------------------------------------
--- * Helpers
-
-fromList :: (Eq k, Hashable k) => [(k, v)] -> HM.HashMap k v
-fromList = foldl' (\m (k, v) -> HM.insert k v m) HM.empty
