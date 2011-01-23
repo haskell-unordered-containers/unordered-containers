@@ -73,7 +73,8 @@ unsafeRead ary _i@(I# i#) = ST $ \ s ->
 unsafeWrite :: MArray s a -> Int -> a -> ST s ()
 unsafeWrite ary _i@(I# i#) b = ST $ \ s ->
     CHECK_BOUNDS("unsafeWrite", lengthM ary, _i)
-        (# writeArray# (unMArray ary) i# b s, () #)
+        case writeArray# (unMArray ary) i# b s of
+            s' -> (# s' , () #)
 {-# INLINE unsafeWrite #-}
 
 unsafeIndex :: Array a -> Int -> a
@@ -103,7 +104,7 @@ unsafeCopy src sidx dest didx count =
     where
       copy_loop !i !j !c
           | c >= count  = return ()
-          | otherwise = do unsafeWrite dest j $ unsafeIndex src i
+          | otherwise = do unsafeWrite dest j $! unsafeIndex src i
                            copy_loop (i+1) (j+1) (c+1)
 {-# INLINE unsafeCopy #-}
 
