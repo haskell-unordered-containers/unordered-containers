@@ -1,11 +1,20 @@
+ghc-prof-flags :=
+ifdef ENABLE_PROFILING
+	ghc-prof-flags += -prof -hisuf p_hi -osuf p_o
+	lib-suffix := _p
+else
+	lib-suffix :=
+endif
+
 package := unordered-containers
 version := $(shell awk '/^version:/{print $$2}' ../$(package).cabal)
-lib := ../dist/build/libHS$(package)-$(version).a
+lib := ../dist/build/libHS$(package)-$(version)$(lib-suffix).a
 ghc := ghc
 ghc-flags := -Wall -O2 -hide-all-packages \
 	-package-conf ../dist/package.conf.inplace -package base -package mtl \
 	-package unordered-containers -package containers -package criterion \
-	-package deepseq -package hashable -package random -package bytestring
+	-package deepseq -package hashable -package random -package bytestring \
+	$(ghc-prof-flags) -rtsopts
 
 %.o: %.hs
 	$(ghc) $(ghc-flags) -c -o $@ $<
