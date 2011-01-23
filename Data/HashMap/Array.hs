@@ -103,10 +103,9 @@ unsafeCopy !src !sidx !dest !didx count =
     copy_loop sidx didx 0
     where
       copy_loop !i !j !c
-          | c >= count  = return ()
+          | c >= count = return ()
           | otherwise = do unsafeWrite dest j $! unsafeIndex src i
                            copy_loop (i+1) (j+1) (c+1)
-{-# INLINE unsafeCopy #-}
 
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
@@ -120,6 +119,7 @@ unsafeInsert ary idx b =
             unsafeCopy ary idx mary (idx+1) (count-idx)
             return mary
   where !count = length ary
+{-# INLINE unsafeInsert #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
 unsafeUpdate :: Array e -> Int -> e -> Array e
@@ -131,6 +131,7 @@ unsafeUpdate ary idx b =
             unsafeWrite mary idx b
             return mary
   where !count = length ary
+{-# INLINE unsafeUpdate #-}
 
 foldr :: (a -> b -> b) -> b -> Array a -> b
 foldr f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
