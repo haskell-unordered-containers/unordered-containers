@@ -162,20 +162,20 @@ insert k0 v0 = go h0 k0 v0 0
             i = maskIndex b m
         in if b .&. m == 0
                then let l    = Leaf (L h k x)
-                        ary' = A.unsafeInsert ary i l
+                        ary' = A.unsafeInsert ary i $! l
                         b'   = b .|. m
                     in if b' == 0xFFFFFFFF
                        then Full ary'
                        else BitmapIndexed b' ary'
                else let  st   = A.unsafeIndex ary i
                          st'  = go h k x (s+bitsPerSubkey) st
-                         ary' = A.unsafeUpdate ary i st'
+                         ary' = A.unsafeUpdate ary i $! st'
                     in BitmapIndexed b ary'
     go h k x s (Full ary) =
         let i    = subkey h s
             st   = A.unsafeIndex ary i
             st'  = go h k x (s+bitsPerSubkey) st
-            ary' = A.unsafeUpdate ary i st'
+            ary' = A.unsafeUpdate ary i $! st'
         in Full ary'
     go h k x s t@(Collision hy v)
         | h == hy = Collision h (updateOrSnoc h k x v)
