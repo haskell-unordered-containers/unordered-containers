@@ -43,36 +43,36 @@ main = do
           -- ** Map
           bgroup "Map"
           [ bgroup "lookup"
-            [ bench "String" $ nf (lookupM keys) m
-            , bench "ByteString" $ nf (lookupM keysBS) mbs
+            [ bench "String" $ whnf (lookupM keys) m
+            , bench "ByteString" $ whnf (lookupM keysBS) mbs
             ]
           , bgroup "insert"
-            [ bench "String" $ nf (insertM elems) M.empty
-            , bench "ByteStringString" $ nf (insertM elemsBS) M.empty
+            [ bench "String" $ whnf (insertM elems) M.empty
+            , bench "ByteStringString" $ whnf (insertM elemsBS) M.empty
             ]
           , bgroup "delete"
-            [ bench "String" $ nf (insertM elems) M.empty
-            , bench "ByteString" $ nf (insertM elemsBS) M.empty
+            [ bench "String" $ whnf (insertM elems) M.empty
+            , bench "ByteString" $ whnf (insertM elemsBS) M.empty
             ]
           ]
 
           -- ** IntMap
         , bgroup "IntMap"
-          [ bench "lookup" $ nf (lookupIM keysI) im
-          , bench "insert" $ nf (insertIM elemsI) IM.empty
-          , bench "delete" $ nf (deleteIM keysI) im
+          [ bench "lookup" $ whnf (lookupIM keysI) im
+          , bench "insert" $ whnf (insertIM elemsI) IM.empty
+          , bench "delete" $ whnf (deleteIM keysI) im
           ]
 
           -- * Basic interface
         , bgroup "lookup"
-          [ bench "String" $ nf (lookup keys) hm
-          , bench "ByteString" $ nf (lookup keysBS) hmbs
-          , bench "Int" $ nf (lookup keysI) hmi
+          [ bench "String" $ whnf (lookup keys) hm
+          , bench "ByteString" $ whnf (lookup keysBS) hmbs
+          , bench "Int" $ whnf (lookup keysI) hmi
           ]
         , bgroup "insert"
-          [ bench "String" $ nf (insert elems) HM.empty
-          , bench "ByteString" $ nf (insert elemsBS) HM.empty
-          , bench "Int" $ nf (insert elemsI) HM.empty
+          [ bench "String" $ whnf (insert elems) HM.empty
+          , bench "ByteString" $ whnf (insert elemsBS) HM.empty
+          , bench "Int" $ whnf (insert elemsI) HM.empty
           ]
         ]
   where
