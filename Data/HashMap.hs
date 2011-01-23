@@ -3,6 +3,7 @@
 module Data.HashMap
     ( HashMap
     , empty
+    , null
     , insert
     , lookup
     , fromList
@@ -113,6 +114,11 @@ undefinedElem = error "Undefined element!"
 -- | /O(1)/ Construct an empty 'HashMap'.
 empty :: HashMap k v
 empty = Empty
+
+-- | /O(1)/ Return 'True' if this map is empty, 'False' otherwise.
+null :: HashMap k v -> Bool
+null Empty = True
+null _   = False
 
 -- | /O(min(n,W))/ Return the value to which the specified key is
 -- mapped, or 'Nothing' if this map contains no mapping for the key.
