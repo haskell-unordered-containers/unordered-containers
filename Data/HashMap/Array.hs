@@ -95,7 +95,7 @@ run act = runST $ act >>= unsafeFreeze
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
 unsafeCopy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
-unsafeCopy src sidx dest didx count =
+unsafeCopy !src !sidx !dest !didx count =
 #if defined(ASSERTS)
     assert (sidx + count <= length src) .
     assert (didx + count <= lengthM dest) $
