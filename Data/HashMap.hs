@@ -192,15 +192,8 @@ fold f = go
     go z (Leaf (L _ k v)) = f k v z
     go z (BitmapIndexed _ ary) = A.foldr (flip go) z ary
     go z (Full ary) = A.foldr (flip go) z ary
-    go z (Collision _ ary) = A.foldr (\ (L _ k v) z -> f k v z) z ary
+    go z (Collision _ ary) = A.foldr (\ (L _ k v) z' -> f k v z') z ary
 {-# INLINE fold #-}
-
-{-
-    | BitmapIndexed {-# UNPACK #-} !Bitmap {-# UNPACK #-} !(A.Array (HashMap k v))
-    | Leaf {-# UNPACK #-} !(Leaf k v)
-    | Full {-# UNPACK #-} !(A.Array (HashMap k v))
-    | Collision {-# UNPACK #-} !Hash {-# UNPACK #-} !(A.Array (Leaf k v))
--}
 
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = L.foldl' (flip $ uncurry insert) empty
