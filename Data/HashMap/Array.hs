@@ -83,6 +83,12 @@ unsafeIndex ary _i@(I# i#) =
         case indexArray# (unArray ary) i# of (# b #) -> b
 {-# INLINE unsafeIndex #-}
 
+unsafeIndexM :: Array a -> Int -> ST s a
+unsafeIndexM ary _i@(I# i#) =
+    CHECK_BOUNDS("unsafeIndexM", length ary, _i)
+        case indexArray# (unArray ary) i# of (# b #) -> return b
+{-# INLINE unsafeIndexM #-}
+
 unsafeFreeze :: MArray s a -> ST s (Array a)
 unsafeFreeze (MArray mary n)
     = ST $ \s -> case unsafeFreezeArray# mary s of
@@ -104,7 +110,8 @@ unsafeCopy !src !sidx !dest !didx count =
     where
       copy_loop !i !j !c
           | c >= count = return ()
-          | otherwise = do unsafeWrite dest j $! unsafeIndex src i
+          | otherwise = do b <- unsafeIndexM src i
+                           unsafeWrite dest j b
                            copy_loop (i+1) (j+1) (c+1)
 
 -- | /O(n)/ Insert an element at the given position in this array,
