@@ -16,7 +16,7 @@ import qualified Data.Hashable as H
 import Data.Hashable (Hashable)
 import qualified Data.List as L
 import GHC.Exts (Word(W#), Int(I#), uncheckedShiftL#, uncheckedShiftRL#)
-import Prelude hiding (lookup)
+import Prelude hiding (lookup, null)
 
 import qualified Data.HashMap.Array as A
 import Data.HashMap.PopCount (popCount)
