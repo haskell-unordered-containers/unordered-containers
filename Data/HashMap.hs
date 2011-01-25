@@ -64,16 +64,16 @@ bitsPerSubkey
 subkeyMask :: Bitmap
 subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
 
-maskIndex :: Bitmap -> Bitmap -> Int
-maskIndex b m = popCount (b .&. (m - 1))
+index :: Bitmap -> Bitmap -> Int
+index b m = popCount (b .&. (m - 1))
 
-mask :: Word -> Shift -> Bitmap
-mask k s = 1 `unsafeShiftL` subkey k s
+bitpos :: Word -> Shift -> Bitmap
+bitpos h s = 1 `unsafeShiftL` mask h s
+{-# INLINE bitpos #-}
+
+mask :: Word -> Shift -> Int
+mask h s = fromIntegral $ unsafeShiftR h s .&. subkeyMask
 {-# INLINE mask #-}
-
-subkey :: Word -> Shift -> Int
-subkey k s = fromIntegral $ unsafeShiftR k s .&. subkeyMask
-{-# INLINE subkey #-}
 
 -- | /O(n)/ Lookup the value associated with the given key in this
 -- array.  Returns 'Nothing' if the key wasn't found.
@@ -131,11 +131,11 @@ lookup k0 = go h0 k0 0
         | h == hx && k == kx = Just x
         | otherwise = Nothing
     go h k s (BitmapIndexed b v) =
-        let m = mask h s
+        let m = bitpos h s
         in if b .&. m == 0
            then Nothing
-           else go h k (s+bitsPerSubkey) (A.unsafeIndex v (maskIndex b m))
-    go h k s (Full v) = go h k (s+bitsPerSubkey) (A.unsafeIndex v (subkey h s))
+           else go h k (s+bitsPerSubkey) (A.unsafeIndex v (index b m))
+    go h k s (Full v) = go h k (s+bitsPerSubkey) (A.unsafeIndex v (mask h s))
     go h k _ (Collision hx v)
         | h == hx   = lookupInArray h k v
         | otherwise = Nothing
@@ -162,10 +162,10 @@ insert k0 v0 = go h0 k0 v0 0
         | hy == h = if ky == k
                     then Leaf (L h k x)
                     else collision h (L hy ky y) (L h k x)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
     go h k x s (BitmapIndexed b ary) =
-        let m = mask h s
-            i = maskIndex b m
+        let m = bitpos h s
+            i = index b m
         in if b .&. m == 0
                then let l    = Leaf (L h k x)
                         ary' = A.unsafeInsert ary i $! l
@@ -178,14 +178,14 @@ insert k0 v0 = go h0 k0 v0 0
                          ary' = A.unsafeUpdate ary i $! st'
                     in BitmapIndexed b ary'
     go h k x s (Full ary) =
-        let i    = subkey h s
+        let i    = mask h s
             st   = A.unsafeIndex ary i
             st'  = go h k x (s+bitsPerSubkey) st
             ary' = A.unsafeUpdate ary i $! st'
         in Full ary'
     go h k x s t@(Collision hy v)
         | h == hy = Collision h (updateOrSnoc h k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
 {-# INLINABLE insert #-}
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
