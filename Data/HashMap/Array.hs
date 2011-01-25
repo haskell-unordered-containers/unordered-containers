@@ -33,7 +33,7 @@ import Prelude hiding (foldr, length)
 # define CHECK_BOUNDS(_func_,_len_,_k_) \
 if (_k_) < 0 || (_k_) >= (_len_) then error ("Data.HashMap.Array." ++ (_func_) ++ ": bounds error, offset " ++ show (_k_) ++ ", length " ++ show (_len_)) else
 # define CHECK_LENGTH(_func_,_expected_,_actual_) \
-if (_k_) < 0 || (_k_) >= (_len_) then error ("Data.HashMap.Array." ++ (_func_) ++ ": expected length " ++ show (_expected_) ++ ", actual length " ++ show (_len_)) else
+if (_actual_) /= (_expected_) then error ("Data.HashMap.Array." ++ (_func_) ++ ": expected length " ++ show (_expected_) ++ ", actual length " ++ show (_actual_)) else
 #else
 # define CHECK_BOUNDS(_func_,_len_,_k_)
 # define CHECK_LENGTH(_func_,_len_,_actual_)
@@ -106,17 +106,15 @@ run act = runST $ act >>= unsafeFreeze
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
 unsafeCopy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
 unsafeCopy !src !sidx !dest !didx count =
-#if defined(ASSERTS)
-    assert (sidx + count <= length src) .
-    assert (didx + count <= lengthM dest) $
-#endif
-    copy_loop sidx didx 0
-    where
-      copy_loop !i !j !c
-          | c >= count = return ()
-          | otherwise = do b <- unsafeIndexM src i
-                           unsafeWrite dest j b
-                           copy_loop (i+1) (j+1) (c+1)
+    CHECK_BOUNDS("unsafeCopy", length src, sidx + count)
+    CHECK_BOUNDS("unsafeCopy", lengthM dest, didx + count)
+        copy_loop sidx didx 0
+  where
+    copy_loop !i !j !c
+        | c >= count = return ()
+        | otherwise = do b <- unsafeIndexM src i
+                         unsafeWrite dest j b
+                         copy_loop (i+1) (j+1) (c+1)
 
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.

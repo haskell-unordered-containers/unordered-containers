@@ -9,6 +9,10 @@ category:       Data
 build-type:     Simple
 cabal-version:  >=1.10
 
+flag debug
+  description:  Enable debug support
+  default:      False
+
 library
   exposed-modules:
     Data.HashMap
@@ -28,6 +32,8 @@ library
     ghc-options: -fwarn-tabs
   if impl(ghc > 6.10)
     ghc-options: -fregs-graph
+  if flag(debug)
+    cpp-options: -DASSERTS
 
   default-language: Haskell98
 
