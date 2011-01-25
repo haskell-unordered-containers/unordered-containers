@@ -174,7 +174,7 @@ insert k0 v0 = go h0 k0 v0 0
         let i    = mask h s
             st   = A.unsafeIndex ary i
             st'  = go h k x (s+bitsPerSubkey) st
-            ary' = A.unsafeUpdate ary i $! st'
+            ary' = A.unsafeUpdate32 ary i $! st'
         in Full ary'
     go h k x s t@(Collision hy v)
         | h == hy = Collision h (updateOrSnoc h k x v)

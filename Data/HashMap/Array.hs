@@ -16,6 +16,7 @@ module Data.HashMap.Array
     , unsafeUpdate
     , unsafeInsert
     , foldr
+    , unsafeUpdate32
     ) where
 
 import Control.DeepSeq
@@ -31,8 +32,11 @@ import Prelude hiding (foldr, length)
 -- with MagicHash and UnboxedTuples when inferring types. Eek!
 # define CHECK_BOUNDS(_func_,_len_,_k_) \
 if (_k_) < 0 || (_k_) >= (_len_) then error ("Data.HashMap.Array." ++ (_func_) ++ ": bounds error, offset " ++ show (_k_) ++ ", length " ++ show (_len_)) else
+# define CHECK_LENGTH(_func_,_expected_,_actual_) \
+if (_k_) < 0 || (_k_) >= (_len_) then error ("Data.HashMap.Array." ++ (_func_) ++ ": expected length " ++ show (_expected_) ++ ", actual length " ++ show (_len_)) else
 #else
 # define CHECK_BOUNDS(_func_,_len_,_k_)
+# define CHECK_LENGTH(_func_,_len_,_actual_)
 #endif
 
 data Array a = Array {
@@ -150,3 +154,57 @@ foldr f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
 
 undefinedElem :: a
 undefinedElem = error "Undefined element!"
+
+------------------------------------------------------------------------
+-- Manually unrolled loops
+
+-- | /O(n)/ Update the element at the given position in this array.
+unsafeUpdate32 :: Array e -> Int -> e -> Array e
+unsafeUpdate32 ary idx b =
+    CHECK_BOUNDS("unsafeUpdate32", count, idx)
+        run $ do
+            mary <- unsafeClone32 ary
+            unsafeWrite mary idx b
+            return mary
+  where !count = length ary
+{-# INLINE unsafeUpdate32 #-}
+
+-- | Unsafely clone an array of 32 elements.  The length of the input
+-- array is not checked.
+unsafeClone32 :: Array e -> ST s (MArray s e)
+unsafeClone32 ary =
+    CHECK_LENGTH("unsafeClone32", 32, length ary)
+        do mary <- new 32 undefinedElem
+           unsafeIndexM ary 0 >>= unsafeWrite mary 0
+           unsafeIndexM ary 1 >>= unsafeWrite mary 1
+           unsafeIndexM ary 2 >>= unsafeWrite mary 2
+           unsafeIndexM ary 3 >>= unsafeWrite mary 3
+           unsafeIndexM ary 4 >>= unsafeWrite mary 4
+           unsafeIndexM ary 5 >>= unsafeWrite mary 5
+           unsafeIndexM ary 6 >>= unsafeWrite mary 6
+           unsafeIndexM ary 7 >>= unsafeWrite mary 7
+           unsafeIndexM ary 8 >>= unsafeWrite mary 8
+           unsafeIndexM ary 9 >>= unsafeWrite mary 9
+           unsafeIndexM ary 10 >>= unsafeWrite mary 10
+           unsafeIndexM ary 11 >>= unsafeWrite mary 11
+           unsafeIndexM ary 12 >>= unsafeWrite mary 12
+           unsafeIndexM ary 13 >>= unsafeWrite mary 13
+           unsafeIndexM ary 14 >>= unsafeWrite mary 14
+           unsafeIndexM ary 15 >>= unsafeWrite mary 15
+           unsafeIndexM ary 16 >>= unsafeWrite mary 16
+           unsafeIndexM ary 17 >>= unsafeWrite mary 17
+           unsafeIndexM ary 18 >>= unsafeWrite mary 18
+           unsafeIndexM ary 19 >>= unsafeWrite mary 19
+           unsafeIndexM ary 20 >>= unsafeWrite mary 20
+           unsafeIndexM ary 21 >>= unsafeWrite mary 21
+           unsafeIndexM ary 22 >>= unsafeWrite mary 22
+           unsafeIndexM ary 23 >>= unsafeWrite mary 23
+           unsafeIndexM ary 24 >>= unsafeWrite mary 24
+           unsafeIndexM ary 25 >>= unsafeWrite mary 25
+           unsafeIndexM ary 26 >>= unsafeWrite mary 26
+           unsafeIndexM ary 27 >>= unsafeWrite mary 27
+           unsafeIndexM ary 28 >>= unsafeWrite mary 28
+           unsafeIndexM ary 29 >>= unsafeWrite mary 29
+           unsafeIndexM ary 30 >>= unsafeWrite mary 30
+           unsafeIndexM ary 31 >>= unsafeWrite mary 31
+           return mary
