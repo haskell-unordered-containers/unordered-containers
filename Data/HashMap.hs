@@ -51,15 +51,8 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf (Full ary)            = rnf ary
     rnf (Collision _ ary)     = rnf ary
 
--- These architecture dependent constants
-
 bitsPerSubkey :: Int
-bitsPerSubkey
-    | wordSizeInBits == 32 = 5
-    | wordSizeInBits == 64 = 6
-    | otherwise =
-        error "Data.HashMap.bitsPerSubkey: Unsupported architecture"
-  where wordSizeInBits = bitSize (undefined :: Word)
+bitsPerSubkey = 5
 
 subkeyMask :: Bitmap
 subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
