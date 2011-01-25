@@ -161,12 +161,11 @@ undefinedElem = error "Undefined element!"
 -- | /O(n)/ Update the element at the given position in this array.
 unsafeUpdate32 :: Array e -> Int -> e -> Array e
 unsafeUpdate32 ary idx b =
-    CHECK_BOUNDS("unsafeUpdate32", count, idx)
+    CHECK_BOUNDS("unsafeUpdate32", length ary, idx)
         run $ do
             mary <- unsafeClone32 ary
             unsafeWrite mary idx b
             return mary
-  where !count = length ary
 {-# INLINE unsafeUpdate32 #-}
 
 -- | Unsafely clone an array of 32 elements.  The length of the input

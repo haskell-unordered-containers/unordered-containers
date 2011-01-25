@@ -11,7 +11,7 @@ module Data.HashMap
     ) where
 
 import Control.DeepSeq (NFData(rnf))
-import Data.Bits ((.&.), (.|.), bitSize)
+import Data.Bits ((.&.), (.|.))
 import qualified Data.Hashable as H
 import Data.Hashable (Hashable)
 import qualified Data.List as L
@@ -42,7 +42,6 @@ data HashMap k v
 type Hash   = Word
 type Bitmap = Word
 type Shift  = Int
-type Subkey = Int -- we need to use this to do shifts, so an Int it is
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Empty                 = ()
