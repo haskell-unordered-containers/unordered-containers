@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Data.HashMap
     ( HashMap
@@ -15,11 +15,12 @@ import Data.Bits ((.&.), (.|.))
 import qualified Data.Hashable as H
 import Data.Hashable (Hashable)
 import qualified Data.List as L
-import GHC.Exts (Word(W#), Int(I#), uncheckedShiftL#, uncheckedShiftRL#)
+import Data.Word (Word)
 import Prelude hiding (lookup, null)
 
 import qualified Data.HashMap.Array as A
 import Data.HashMap.PopCount (popCount)
+import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
 
 ------------------------------------------------------------------------
 
@@ -202,15 +203,3 @@ fromList = L.foldl' (flip $ uncurry insert) empty
 toList :: HashMap k v -> [(k, v)]
 toList = fold (\ k v xs -> (k, v) : xs) []
 {-# INLINABLE toList #-}
-
-------------------------------------------------------------------------
--- Utility functions
-
-unsafeShiftL :: Word -> Int -> Word
-unsafeShiftL (W# x#) (I# i#) = W# (x# `uncheckedShiftL#` i#)
-{-# INLINE unsafeShiftL #-}
-
-unsafeShiftR :: Word -> Int -> Word
-unsafeShiftR (W# x#) (I# i#) = W# (x# `uncheckedShiftRL#` i#)
-{-# INLINE unsafeShiftR #-}
-

@@ -19,6 +19,7 @@ library
   other-modules:
     Data.HashMap.Array
     Data.HashMap.PopCount
+    Data.HashMap.UnsafeShift
 
   build-depends:
     base,
