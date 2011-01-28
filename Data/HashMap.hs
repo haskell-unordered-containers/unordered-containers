@@ -51,6 +51,9 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf (Full ary)            = rnf ary
     rnf (Collision _ ary)     = rnf ary
 
+instance (Show k, Show v) => Show (HashMap k v) where
+    show m = "fromList " ++ show (toList m)
+
 bitsPerSubkey :: Int
 bitsPerSubkey = 5
 
