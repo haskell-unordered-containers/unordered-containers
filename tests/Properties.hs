@@ -31,10 +31,14 @@ pLookup k = L.lookup k `eq` M.lookup k
 pInsert :: Key -> Int -> [(Key, Int)] -> Bool
 pInsert k v = insert (k, v) `eq` (toAscList . M.insert k v)
 
+pSingleton :: Key -> Int -> Bool
+pSingleton k v = singleton k v == M.toList (M.singleton k v)
+
 tests :: [TestOptions -> IO TestResult]
 tests =
     [ run pLookup
     , run pInsert
+    , run pSingleton
     ]
 
 ------------------------------------------------------------------------
@@ -60,6 +64,9 @@ insert x@(k, _) (y@(k', _):xs)
     | k == k'   = x : xs
     | k > k'    = y : insert x xs
     | otherwise = x : y : xs
+
+singleton :: k -> v -> Model k v
+singleton k v = [(k,v)]
 
 delete :: Ord k => k -> Model k v -> Model k v
 delete _ [] = []

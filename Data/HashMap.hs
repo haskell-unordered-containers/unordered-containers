@@ -3,6 +3,7 @@
 module Data.HashMap
     ( HashMap
     , empty
+    , singleton
     , null
     , insert
     , lookup
@@ -145,6 +146,13 @@ collision h e1 e2 =
                        return mary
     in Collision h v
 {-# INLINE collision #-}
+
+-- | /O(1)/ A map with a single element.
+--
+-- > singleton 1 'a'        == fromList [(1, 'a')]
+-- > size (singleton 1 'a') == 1
+singleton :: (Hashable k) => k -> v -> HashMap k v
+singleton k v = Leaf (L (hash k) k v)
 
 -- | /O(min(n,W))/ Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
