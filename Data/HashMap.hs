@@ -55,6 +55,10 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
 instance (Show k, Show v) => Show (HashMap k v) where
     show m = "fromList " ++ show (toList m)
 
+-- NOTE: This is just a placeholder.
+instance (Eq k, Eq v) => Eq (HashMap k v) where
+    a == b = toList a == toList b
+
 bitsPerSubkey :: Int
 bitsPerSubkey = 5
 
