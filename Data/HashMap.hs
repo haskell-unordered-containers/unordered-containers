@@ -78,8 +78,8 @@ null :: HashMap k v -> Bool
 null Empty = True
 null _   = False
 
--- | /O(min(n,W))/ Return the value to which the specified key is
--- mapped, or 'Nothing' if this map contains no mapping for the key.
+-- | /O(log n)/ Return the value to which the specified key is mapped,
+-- or 'Nothing' if this map contains no mapping for the key.
 lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
 lookup k0 = go h0 k0 0
   where
@@ -108,14 +108,11 @@ collision h e1 e2 =
     in Collision h v
 {-# INLINE collision #-}
 
--- | /O(1)/ A map with a single element.
---
--- > singleton 1 'a'        == fromList [(1, 'a')]
--- > size (singleton 1 'a') == 1
+-- | /O(1)/ Construct a map with a single element.
 singleton :: (Hashable k) => k -> v -> HashMap k v
 singleton k v = Leaf (L (hash k) k v)
 
--- | /O(min(n,W))/ Associate the specified value with the specified
+-- | /O(log n)/ Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
@@ -166,6 +163,8 @@ fold f = go
     go z (Collision _ ary) = A.foldr (\ (L _ k v) z' -> f k v z') z ary
 {-# INLINE fold #-}
 
+-- | /O(n)/ Construct a map with the supplied mappings.  If the list
+-- contains duplicate mappings, the later mappings take precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList xs = runST (M.freeze =<< M.fromList xs)
 {-# INLINABLE fromList #-}
