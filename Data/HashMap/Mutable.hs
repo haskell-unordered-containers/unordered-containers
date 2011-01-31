@@ -80,7 +80,7 @@ insert k0 v0 = go h0 k0 v0 0
         | otherwise = do
             mary <- A.new 1 t
             go h k x s $ BitmapIndexed (bitpos hy s) mary
-    go h k x s (BitmapIndexed b mary) =
+    go h k x s t@(BitmapIndexed b mary) =
         let m = bitpos h s
             i = index b m
         in if b .&. m == 0
@@ -92,13 +92,13 @@ insert k0 v0 = go h0 k0 v0 0
                               else return $! BitmapIndexed b' mary'
                else do st <- A.unsafeRead mary i
                        st' <- go h k x (s+bitsPerSubkey) st
-                       A.unsafeWrite mary i $! st'
-                       return $! BitmapIndexed b mary
+                       A.unsafeWrite mary i st'
+                       return t
     go h k x s (Full mary) =
         let i = mask h s
         in do st <- A.unsafeRead mary i
               st' <- go h k x (s+bitsPerSubkey) st
-              A.unsafeWrite mary i $! st'
+              A.unsafeWrite mary i st'
               return $! Full mary
     go h k x s t@(Collision hy v)
         | h == hy = do v' <- updateOrSnoc h k x v
@@ -109,7 +109,7 @@ insert k0 v0 = go h0 k0 v0 0
                          
 fromList :: (Eq k, Hashable k) => [(k, v)] -> ST s (HashMap s k v)
 fromList = foldlM' (flip $ uncurry insert) empty
-{-# INLINABLE fromList #-}
+{-# INLINE fromList #-}
 
 freeze :: HashMap s k v -> ST s (I.HashMap k v)
 freeze = go
