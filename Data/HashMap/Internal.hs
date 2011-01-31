@@ -32,6 +32,8 @@ data Leaf k v = L {-# UNPACK #-} !Hash !k v
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L _ k v) = rnf k `seq` rnf v
 
+-- | A mapping from keys to values.  Keys are required to be
+-- 'H.Hashable'.
 data HashMap k v
     = Empty
     | BitmapIndexed {-# UNPACK #-} !Bitmap {-# UNPACK #-} !(A.Array (HashMap k v))

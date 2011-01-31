@@ -69,7 +69,7 @@ undefinedElem = error "Undefined element!"
 ------------------------------------------------------------------------
 -- Basic interface
 
--- | /O(1)/ Construct an empty 'HashMap'.
+-- | /O(1)/ Construct an empty map.
 empty :: HashMap k v
 empty = Empty
 
