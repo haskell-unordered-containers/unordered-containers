@@ -34,11 +34,16 @@ pInsert k v = insert (k, v) `eq` (toAscList . M.insert k v)
 pSingleton :: Key -> Int -> Bool
 pSingleton k v = singleton k v == M.toList (M.singleton k v)
 
+pFromList :: [(Key, Int)] -> Bool
+pFromList xs = fromList ys == toAscList (M.fromList ys)
+  where ys = L.nubBy ((==) `on` fst) $ L.sortBy (compare `on` fst) $ xs
+
 tests :: [TestOptions -> IO TestResult]
 tests =
     [ run pLookup
     , run pInsert
     , run pSingleton
+    , run pFromList
     ]
 
 ------------------------------------------------------------------------
@@ -55,7 +60,7 @@ eq :: (Eq a, Eq k, Hashable k, Ord k)
    -> (M.HashMap k v -> a)  -- ^ Function that modified a 'HashMap'
    -> [(k, v)]              -- ^ Initial content of the 'HashMap' and 'Model'
    -> Bool                  -- ^ True if the functions are equivalent
-eq f g xs = g (fromList ys) == f ys
+eq f g xs = g (fromListSimple ys) == f ys
   where ys = L.nubBy ((==) `on` fst) $ L.sortBy (compare `on` fst) $ xs
 
 insert :: Ord k => (k, v) -> Model k v -> Model k v
@@ -75,6 +80,9 @@ delete k ys@(y@(k', _):xs)
     | k > k'    = y : delete k xs
     | otherwise = ys
 
+fromList :: Ord k => [(k, v)] -> [(k, v)]
+fromList = L.sortBy (compare `on` fst)
+
 ------------------------------------------------------------------------
 -- Test harness
 
@@ -91,8 +99,10 @@ main = runTests "basics" options tests
 ------------------------------------------------------------------------
 -- Helpers
 
-fromList :: (Eq k, Hashable k) => [(k, v)] -> M.HashMap k v
-fromList = L.foldl' ins M.empty
+-- | A simple, alternative definition of 'M.fromList', useful for
+-- testing 'M.fromList'.
+fromListSimple :: (Eq k, Hashable k) => [(k, v)] -> M.HashMap k v
+fromListSimple = L.foldl' ins M.empty
   where ins m (k, v) = M.insert k v m
 
 sortByKey :: Ord k => [(k, v)] -> [(k, v)]
