@@ -4,7 +4,8 @@ license:        BSD3
 license-file:   LICENSE
 author:         Johan Tibell
 maintainer:     johan.tibell@gmail.com
-copyright:      2010 Johan Tibell
+copyright:      2010-2011 Johan Tibell
+                2010 Edward Z. Yang
 category:       Data
 build-type:     Simple
 cabal-version:  >=1.8
@@ -18,6 +19,8 @@ library
     Data.HashMap
   other-modules:
     Data.HashMap.Array
+    Data.HashMap.Internal
+    Data.HashMap.Mutable
     Data.HashMap.PopCount
     Data.HashMap.UnsafeShift
 
@@ -28,7 +31,7 @@ library
 
   c-sources: cbits/popc.c
 
-  ghc-options: -Wall -O2
+  ghc-options: -Wall -O2 -fno-warn-orphans
   if impl(ghc >= 6.8)
     ghc-options: -fwarn-tabs
   if impl(ghc > 6.10)

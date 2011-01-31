@@ -74,6 +74,10 @@ main = do
           , bench "ByteString" $ whnf (insert elemsBS) HM.empty
           , bench "Int" $ whnf (insert elemsI) HM.empty
           ]
+        , bgroup "fromList"
+          [ bench "pure" $ whnf fromList elemsI
+          , bench "mutating" $ whnf HM.fromList elemsI
+          ]
         ]
   where
     n :: Int
@@ -105,6 +109,9 @@ insert xs m0 = foldl' (\m (k, v) -> HM.insert k v m) m0 xs
                       -> HM.HashMap String Int #-}
 {-# SPECIALIZE insert :: [(BS.ByteString, Int)] -> HM.HashMap BS.ByteString Int
                       -> HM.HashMap BS.ByteString Int #-}
+
+fromList :: [(Int, Int)] -> HM.HashMap Int Int
+fromList xs = foldl' (\ m (k, v) -> HM.insert k v m) HM.empty xs
 
 ------------------------------------------------------------------------
 -- * Map
