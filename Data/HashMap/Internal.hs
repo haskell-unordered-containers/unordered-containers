@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 module Data.HashMap.Internal
     ( hash
     , Leaf(..)
@@ -20,6 +22,7 @@ import qualified Data.HashMap.Array as A
 import qualified Data.Hashable as H
 import Data.HashMap.PopCount (popCount)
 import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
+import Data.Typeable (Typeable)
 
 ------------------------------------------------------------------------
 
@@ -40,6 +43,7 @@ data HashMap k v
     | Leaf {-# UNPACK #-} !(Leaf k v)
     | Full {-# UNPACK #-} !(A.Array (HashMap k v))
     | Collision {-# UNPACK #-} !Hash {-# UNPACK #-} !(A.Array (Leaf k v))
+      deriving (Typeable)
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Empty                 = ()
