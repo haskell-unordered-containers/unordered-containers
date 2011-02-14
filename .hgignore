@@ -1,6 +1,5 @@
 ^dist$
-^tests/benchmarks/.*\.txt$
-^tests/(?:\.hpc|bm|qc|qc-hpc|stdio-hpc|text/test)$
+^benchmarks/bench$
 \.(?:aux|eventlog|h[ip]|log|[oa]|orig|prof|ps|rej|swp)$
 ~$
 syntax: glob
