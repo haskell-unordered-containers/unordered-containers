@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE BangPatterns, GeneralizedNewtypeDeriving #-}
 
 -- | Tests for the 'Data.HashMap' module.  We test functions by
 -- comparing them to a simpler model, an association list.
@@ -31,6 +31,10 @@ pLookup k = L.lookup k `eq` M.lookup k
 pInsert :: Key -> Int -> [(Key, Int)] -> Bool
 pInsert k v = insert (k, v) `eq` (toAscList . M.insert k v)
 
+pUpdateWithDefault :: Key -> Int -> [(Key, Int)] -> Bool
+pUpdateWithDefault k v = updateWithDefault (+) (k, v) `eq`
+                         (toAscList . M.updateWithDefault (+) k v)
+
 pSingleton :: Key -> Int -> Bool
 pSingleton k v = singleton k v == M.toList (M.singleton k v)
 
@@ -42,6 +46,7 @@ tests :: [TestOptions -> IO TestResult]
 tests =
     [ run pLookup
     , run pInsert
+    , run pUpdateWithDefault
     , run pSingleton
     , run pFromList
     ]
@@ -68,6 +73,13 @@ insert x [] = [x]
 insert x@(k, _) (y@(k', _):xs)
     | k == k'   = x : xs
     | k > k'    = y : insert x xs
+    | otherwise = x : y : xs
+
+updateWithDefault :: Ord k => (v -> v -> v) -> (k,v) -> Model k v -> Model k v
+updateWithDefault _ x [] = [x]
+updateWithDefault f x@(k, v) (y@(k', v'):xs)
+    | k == k'   = let !v'' = f v v' in (k, v'') : xs
+    | k > k'    = y : updateWithDefault f x xs
     | otherwise = x : y : xs
 
 singleton :: k -> v -> Model k v
