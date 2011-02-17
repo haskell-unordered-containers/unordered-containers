@@ -13,14 +13,14 @@
 -- duplicate keys; each key can map to at most one value.  A 'HashMap'
 -- makes no guarantees as to the order of its elements.
 --
--- The maps are strict both in the keys and values; keys and values
--- are evaluated to /weak head normal form/ before they are added to a
+-- The map is strict both in the keys and values; keys and values are
+-- evaluated to /weak head normal form/ before they are added to the
 -- map.
 --
 -- The implementation is based on /big-endian patricia trees/, keyed
 -- by a hash of the original key.  A 'HashMap' is often faster than
--- other tree-based maps when key comparison is expensive, as in the
--- case of strings.
+-- other tree-based maps, especially when key comparison is expensive,
+-- as in the case of strings.
 --
 -- Many operations have a worst-case complexity of /O(min(n,W))/.
 -- This means that the operation can become linear in the number of
@@ -39,7 +39,7 @@ module Data.HashMap
     , singleton
     , insert
     , delete
-    , adjustWithDefault
+    , insertWith
 
       -- * Transformations
     , mapValues
@@ -218,9 +218,9 @@ delete k0 = go h0 k0
 --
 -- * If no existing value @e@ is present at the given key, the new
 --   value @v@ is inserted, and the function @f@ is not used.
-adjustWithDefault :: (Eq k, Hashable k) => (v -> v) -> k -> v -> HashMap k v
-                  -> HashMap k v
-adjustWithDefault f k0 v0 t0 = go h0 k0 v0 t0
+insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
+           -> HashMap k v
+insertWith f k0 v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
     go !h !k v t@(Bin p m l r)
@@ -228,11 +228,11 @@ adjustWithDefault f k0 v0 t0 = go h0 k0 v0 t0
         | zero h m      = Bin p m (go h k v l) r
         | otherwise     = Bin p m l (go h k v r)
     go h k v t@(Tip h' l)
-        | h == h'       = Tip h $ FL.adjustWithDefault f k v l
+        | h == h'       = Tip h $ FL.insertWith f k v l
         | otherwise     = join h (Tip h $ FL.singleton k v) h' t
     go h k v Nil        = Tip h $ FL.singleton k v
 #if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE adjustWithDefault #-}
+{-# INLINABLE insertWith #-}
 #endif
 
 ------------------------------------------------------------------------
