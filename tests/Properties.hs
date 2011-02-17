@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | Tests for the 'Data.HashMap' module.  We test functions by
 -- comparing them to a simpler model, an association list.
@@ -23,7 +23,19 @@ instance Hashable Key where
 -- * Properties
 
 ------------------------------------------------------------------------
+-- ** Instances
+
+pEq :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pEq xs = (xs ==) `eq` (fromList xs ==)
+
+pNeq :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pNeq xs = (xs /=) `eq` (fromList xs /=)
+
+------------------------------------------------------------------------
 -- ** Basic interface
+
+pSize :: [(Key, Int)] -> Bool
+pSize = length `eq` M.size
 
 pLookup :: Key -> [(Key, Int)] -> Bool
 pLookup k = L.lookup k `eq` M.lookup k
@@ -31,25 +43,45 @@ pLookup k = L.lookup k `eq` M.lookup k
 pInsert :: Key -> Int -> [(Key, Int)] -> Bool
 pInsert k v = insert (k, v) `eq` (toAscList . M.insert k v)
 
-pUpdateWithDefault :: Key -> Int -> [(Key, Int)] -> Bool
-pUpdateWithDefault k v = updateWithDefault (+) (k, v) `eq`
-                         (toAscList . M.updateWithDefault (+) k v)
+pDelete :: Key -> [(Key, Int)] -> Bool
+pDelete k = delete k `eq` (toAscList . M.delete k)
 
-pSingleton :: Key -> Int -> Bool
-pSingleton k v = singleton k v == M.toList (M.singleton k v)
+pAdjustWithDefault :: Key -> [(Key, Int)] -> Bool
+pAdjustWithDefault k = adjustWithDefault (+ 1) (k, 0) `eq`
+                       (toAscList . M.adjustWithDefault (+ 1) k 0)
 
-pFromList :: [(Key, Int)] -> Bool
-pFromList xs = fromList ys == toAscList (M.fromList ys)
-  where ys = L.nubBy ((==) `on` fst) $ L.sortBy (compare `on` fst) $ xs
+pToList :: [(Key, Int)] -> Bool
+pToList = id `eq` toAscList
 
 tests :: [TestOptions -> IO TestResult]
 tests =
-    [ run pLookup
+    [ run pEq
+    , run pNeq
+    , run pSize
+    , run pLookup
     , run pInsert
-    , run pUpdateWithDefault
-    , run pSingleton
-    , run pFromList
+    , run pDelete
+    , run pAdjustWithDefault
+
+      -- Folds
+    , run pFold
+    , run pFold'
+
+      -- Conversions
+    , run pToList
     ]
+
+------------------------------------------------------------------------
+-- ** Folds
+
+pFold :: [(Int, Int)] -> Bool
+pFold = (sortByKey . L.foldr (\ p z -> p : z) []) `eq`
+         (sortByKey . M.fold f [])
+  where f k v z = (k, v) : z
+
+pFold' :: Int -> [(Int, Int)] -> Bool
+pFold' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` M.fold' f z0
+  where f _ v z = v + z
 
 ------------------------------------------------------------------------
 -- Model
@@ -65,7 +97,7 @@ eq :: (Eq a, Eq k, Hashable k, Ord k)
    -> (M.HashMap k v -> a)  -- ^ Function that modified a 'HashMap'
    -> [(k, v)]              -- ^ Initial content of the 'HashMap' and 'Model'
    -> Bool                  -- ^ True if the functions are equivalent
-eq f g xs = g (fromListSimple ys) == f ys
+eq f g xs = g (fromList ys) == f ys
   where ys = L.nubBy ((==) `on` fst) $ L.sortBy (compare `on` fst) $ xs
 
 insert :: Ord k => (k, v) -> Model k v -> Model k v
@@ -75,16 +107,6 @@ insert x@(k, _) (y@(k', _):xs)
     | k > k'    = y : insert x xs
     | otherwise = x : y : xs
 
-updateWithDefault :: Ord k => (v -> v -> v) -> (k,v) -> Model k v -> Model k v
-updateWithDefault _ x [] = [x]
-updateWithDefault f x@(k, v) (y@(k', v'):xs)
-    | k == k'   = let !v'' = f v v' in (k, v'') : xs
-    | k > k'    = y : updateWithDefault f x xs
-    | otherwise = x : y : xs
-
-singleton :: k -> v -> Model k v
-singleton k v = [(k,v)]
-
 delete :: Ord k => k -> Model k v -> Model k v
 delete _ [] = []
 delete k ys@(y@(k', _):xs)
@@ -92,8 +114,12 @@ delete k ys@(y@(k', _):xs)
     | k > k'    = y : delete k xs
     | otherwise = ys
 
-fromList :: Ord k => [(k, v)] -> [(k, v)]
-fromList = L.sortBy (compare `on` fst)
+adjustWithDefault :: Ord k => (v -> v) -> (k, v) -> Model k v -> Model k v
+adjustWithDefault _ x [] = [x]
+adjustWithDefault f x@(k, _) (y@(k', v):xs)
+    | k == k'   = (k', f v) : xs
+    | k > k'    = y : adjustWithDefault f x xs
+    | otherwise = x : y : xs
 
 ------------------------------------------------------------------------
 -- Test harness
@@ -111,10 +137,8 @@ main = runTests "basics" options tests
 ------------------------------------------------------------------------
 -- Helpers
 
--- | A simple, alternative definition of 'M.fromList', useful for
--- testing 'M.fromList'.
-fromListSimple :: (Eq k, Hashable k) => [(k, v)] -> M.HashMap k v
-fromListSimple = L.foldl' ins M.empty
+fromList :: (Eq k, Hashable k) => [(k, v)] -> M.HashMap k v
+fromList = L.foldl' ins M.empty
   where ins m (k, v) = M.insert k v m
 
 sortByKey :: Ord k => [(k, v)] -> [(k, v)]
