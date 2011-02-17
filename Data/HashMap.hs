@@ -150,11 +150,11 @@ lookup k0 t = go h0 k0 t
 {-# INLINABLE lookup #-}
 #endif
 
--- | /O(1)/ Construct an empty 'HashMap'.
+-- | /O(1)/ Construct an empty map.
 empty :: HashMap k v
 empty = Nil
 
--- | /O(1)/ Construct a map of one element.
+-- | /O(1)/ Construct a map with a single element.
 singleton :: Hashable k => k -> v -> HashMap k v
 singleton k v = Tip h $ FL.singleton k v
   where h = hash k
@@ -201,6 +201,23 @@ delete k0 = go h0 k0
 {-# INLINABLE delete #-}
 #endif
 
+-- | /O(min(n,W))/ Update the entry at the given key in the map using
+-- the supplied function @f@ and value @v@.
+--
+-- * If a value is already present at the given key, we'll refer to it
+--   as @e@.
+--
+-- * If @e@ is present, the function @f@ is used to combine the
+--   existing and new values, and the location is updated with the
+--   result of @f v e@.
+--
+-- * The value @v@ is supplied as the first argument to the function,
+--   and the existing value @e@ as the second.  The result of @f v e@
+--   will be evaluated to weak head normal form before the map is
+--   updated.
+--
+-- * If no existing value @e@ is present at the given key, the new
+--   value @v@ is inserted, and the function @f@ is not used.
 adjustWithDefault :: (Eq k, Hashable k) => (v -> v) -> k -> v -> HashMap k v
                   -> HashMap k v
 adjustWithDefault f k0 v0 t0 = go h0 k0 v0 t0
