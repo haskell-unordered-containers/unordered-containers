@@ -47,8 +47,8 @@ pDelete :: Key -> [(Key, Int)] -> Bool
 pDelete k = delete k `eq` (toAscList . M.delete k)
 
 pAdjustWithDefault :: Key -> [(Key, Int)] -> Bool
-pAdjustWithDefault k = adjustWithDefault (+ 1) (k, 0) `eq`
-                       (toAscList . M.adjustWithDefault (+ 1) k 0)
+pAdjustWithDefault k = insertWith (+) (k, 1) `eq`
+                       (toAscList . M.insertWith (+) k 1)
 
 pToList :: [(Key, Int)] -> Bool
 pToList = id `eq` toAscList
@@ -114,11 +114,11 @@ delete k ys@(y@(k', _):xs)
     | k > k'    = y : delete k xs
     | otherwise = ys
 
-adjustWithDefault :: Ord k => (v -> v) -> (k, v) -> Model k v -> Model k v
-adjustWithDefault _ x [] = [x]
-adjustWithDefault f x@(k, _) (y@(k', v):xs)
-    | k == k'   = (k', f v) : xs
-    | k > k'    = y : adjustWithDefault f x xs
+insertWith :: Ord k => (v -> v -> v) -> (k, v) -> Model k v -> Model k v
+insertWith _ x [] = [x]
+insertWith f x@(k, v) (y@(k', v'):xs)
+    | k == k'   = (k', f v v') : xs
+    | k > k'    = y : insertWith f x xs
     | otherwise = x : y : xs
 
 ------------------------------------------------------------------------
