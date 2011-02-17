@@ -45,8 +45,8 @@ module Data.HashMap
     , mapValues
 
       -- * Folds
-    , fold
-    , fold'
+    , foldr
+    , foldl'
 
       -- * Filter
     , filter
@@ -244,28 +244,27 @@ mapValues f = go
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the identity of
 -- the operator).
-fold :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-fold f = go
+foldr :: (k -> v -> a -> a) -> a -> HashMap k v -> a
+foldr f = go
   where
     go z (Bin _ _ l r) = go (go z r) l
     go z (Tip _ l)     = FL.foldr f z l
     go z Nil           = z
-{-# INLINE fold #-}
+{-# INLINE foldr #-}
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the identity of
 -- the operator).  Each application of the operator is evaluated
 -- before before using the result in the next application.  This
 -- function is strict in the starting value.
-fold' :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-fold' f = go
+foldl' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
+foldl' f = go
   where
     go !z (Bin _ _ l r) = let z' = go z l
                           in z' `seq` go z' r
-    go z (Tip _ l)      = FL.foldl' f' z l
+    go z (Tip _ l)      = FL.foldl' f z l
     go z Nil            = z
-    f' z k v = f k v z
-{-# INLINE fold' #-}
+{-# INLINE foldl' #-}
 
 ------------------------------------------------------------------------
 -- * Filter
@@ -301,9 +300,9 @@ filterValues p = filter (\_ v -> p v)
 -- produced lazily.
 toList :: HashMap k v -> [(k, v)]
 #if defined(__GLASGOW_HASKELL__)
-toList t = build (\ c z -> fold (curry c) z t)
+toList t = build (\ c z -> foldr (curry c) z t)
 #else
-toList = fold (\ k v xs -> (k, v) : xs) []
+toList = foldr (\ k v xs -> (k, v) : xs) []
 #endif
 {-# INLINE toList #-}
 

@@ -64,8 +64,8 @@ tests =
     , run pAdjustWithDefault
 
       -- Folds
-    , run pFold
-    , run pFold'
+    , run pFoldr
+    , run pFoldl'
 
       -- Conversions
     , run pToList
@@ -74,13 +74,13 @@ tests =
 ------------------------------------------------------------------------
 -- ** Folds
 
-pFold :: [(Int, Int)] -> Bool
-pFold = (sortByKey . L.foldr (\ p z -> p : z) []) `eq`
-         (sortByKey . M.fold f [])
+pFoldr :: [(Int, Int)] -> Bool
+pFoldr = (sortByKey . L.foldr (\ p z -> p : z) []) `eq`
+         (sortByKey . M.foldr f [])
   where f k v z = (k, v) : z
 
-pFold' :: Int -> [(Int, Int)] -> Bool
-pFold' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` M.fold' f z0
+pFoldl' :: Int -> [(Int, Int)] -> Bool
+pFoldl' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` M.foldl' f z0
   where f _ v z = v + z
 
 ------------------------------------------------------------------------
