@@ -201,23 +201,13 @@ delete k0 = go h0 k0
 {-# INLINABLE delete #-}
 #endif
 
--- | /O(min(n,W))/ Update the entry at the given key in the map using
--- the supplied function @f@ and value @v@.
+-- | /O(min(n,W))/ Associate the value with the key in this map.  If
+-- this map previously contained a mapping for the key, the old value
+-- is replaced by the result of applying the given function to the new
+-- and old value.  Example:
 --
--- * If a value is already present at the given key, we'll refer to it
---   as @e@.
---
--- * If @e@ is present, the function @f@ is used to combine the
---   existing and new values, and the location is updated with the
---   result of @f v e@.
---
--- * The value @v@ is supplied as the first argument to the function,
---   and the existing value @e@ as the second.  The result of @f v e@
---   will be evaluated to weak head normal form before the map is
---   updated.
---
--- * If no existing value @e@ is present at the given key, the new
---   value @v@ is inserted, and the function @f@ is not used.
+-- > insertWith f k v map
+-- >   where f new old = new + old
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
            -> HashMap k v
 insertWith f k0 v0 t0 = go h0 k0 v0 t0
