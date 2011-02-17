@@ -162,7 +162,7 @@ adjustWithDefault f !k v (FL k' v' xs)
 #endif
 
 adjustWithDefaultL :: Eq k => (v -> v) -> k -> v -> List k v -> List k v
-adjustWithDefaultL f = go f
+adjustWithDefaultL = go
   where
     go _ !k v Nil = Cons k v Nil
     go f k v (Cons k' v' xs)
