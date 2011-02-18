@@ -2,8 +2,8 @@
 
 ------------------------------------------------------------------------
 -- |
--- Module      :  Data.FullList
--- Copyright   :  2010 Johan Tibell
+-- Module      :  Data.FullList.Lazy
+-- Copyright   :  2010-2011 Johan Tibell
 -- License     :  BSD-style
 -- Maintainer  :  johan.tibell@gmail.com
 -- Stability   :  provisional
@@ -12,7 +12,7 @@
 -- Non-empty lists of key/value pairs.  The lists are strict in the
 -- keys and lazy in the values.
 
-module Data.FullList
+module Data.FullList.Lazy
     ( FullList
 
       -- * Basic interface

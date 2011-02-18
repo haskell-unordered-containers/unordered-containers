@@ -20,7 +20,8 @@ library
     hashable >= 1.0.1.1 && < 1.1
 
   other-modules:
-    Data.FullList
+    Data.FullList.Lazy
+    Data.FullList.Strict
 
   ghc-options: -Wall -O2
   if impl(ghc >= 6.8)

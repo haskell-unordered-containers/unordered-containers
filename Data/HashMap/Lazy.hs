@@ -70,7 +70,7 @@ module Data.HashMap.Lazy
 import Control.DeepSeq (NFData(rnf))
 import Data.Bits ((.&.), (.|.), complement, shiftR, xor)
 import qualified Data.Foldable as Foldable
-import qualified Data.FullList as FL
+import qualified Data.FullList.Lazy as FL
 import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
 import Data.Word (Word)
