@@ -8,7 +8,7 @@ description:
         valid even if structures are shared.
 license:        BSD3
 license-file:   LICENSE
-author:         Johan Tibell
+author:         Johan Tibell <johan.tibell@gmail.com>
 maintainer:     johan.tibell@gmail.com
 bug-reports:    https://github.com/tibbe/unordered-containers/issues
 copyright:      (c) 2010-2011 Johan Tibell
