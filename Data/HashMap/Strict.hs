@@ -15,7 +15,8 @@
 --
 -- This map is strict in both the keys and the values; keys and values
 -- are evaluated to /weak head normal form/ before they are added to
--- the map.
+-- the map.  Exception: the provided instances are the same as for the
+-- lazy version of this module.
 --
 -- The implementation is based on /big-endian patricia trees/, keyed
 -- by a hash of the original key.  A 'HashMap' is often faster than
