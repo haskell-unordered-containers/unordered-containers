@@ -10,7 +10,7 @@ import Criterion.Main
 import Data.Bits ((.&.))
 import Data.Hashable (Hashable)
 import qualified Data.ByteString as BS
-import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashMap.Strict as HM
 import qualified Data.IntMap as IM
 import qualified Data.Map as M
 import Data.List (foldl')

@@ -67,7 +67,7 @@ module Data.HashMap.Lazy
 
 import qualified Data.FullList.Lazy as FL
 import Data.Hashable (Hashable(hash))
-import qualified Data.List as L
+import qualified Data.List as List
 import Prelude hiding (filter, foldr, lookup, map, null, pred)
 
 #if defined(__GLASGOW_HASKELL__)
@@ -276,17 +276,17 @@ toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
 
 -- | /O(n*min(W, n))/ Construct a map from a list of elements.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
-fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
+fromList = List.foldl' (\ m (k, v) -> insert k v m) empty
 {-# INLINE fromList #-}
 
 -- | /O(n)/ Return a list of this map's keys.  The list is produced
 -- lazily.
 keys :: HashMap k v -> [k]
-keys = L.map fst . toList
+keys = List.map fst . toList
 {-# INLINE keys #-}
 
 -- | /O(n)/ Return a list of this map's values.  The list is produced
 -- lazily.
 elems :: HashMap k v -> [v]
-elems = L.map snd . toList
+elems = List.map snd . toList
 {-# INLINE elems #-}

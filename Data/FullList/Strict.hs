@@ -36,7 +36,7 @@ module Data.FullList.Strict
 
 import Prelude hiding (lookup, map)
 
-import Data.FullList.Lazy hiding (insertWith)
+import Data.FullList.Lazy hiding (insertWith, map)
 
 insertWith :: Eq k => (v -> v -> v) -> k -> v -> FullList k v -> FullList k v
 insertWith f !k v (FL k' v' xs)
@@ -56,3 +56,19 @@ insertWithL = go
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWithL #-}
 #endif
+
+------------------------------------------------------------------------
+-- * Transformations
+
+map :: (k1 -> v1 -> (k2, v2)) -> FullList k1 v1 -> FullList k2 v2
+map f (FL k v xs) = let !(k', !v') = f k v
+                    in FL k' v' (mapL f xs)
+{-# INLINE map #-}
+
+mapL :: (k1 -> v1 -> (k2, v2)) -> List k1 v1 -> List k2 v2
+mapL f = go
+  where
+    go Nil = Nil
+    go (Cons k v xs) = let !(k', !v') = f k v
+                       in Cons k' v' (go xs)
+{-# INLINE mapL #-}
