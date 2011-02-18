@@ -31,7 +31,7 @@ library
   build-depends:
     base,
     deepseq == 1.1.*,
-    hashable >= 1.0.1.1 && < 1.1
+    hashable >= 1.0.1.1 && < 1.2
 
   other-modules:
     Data.FullList.Lazy
