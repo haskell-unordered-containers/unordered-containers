@@ -13,7 +13,8 @@
 -- keys and lazy in the values.
 
 module Data.FullList.Lazy
-    ( FullList
+    ( FullList(..)
+    , List(..)
 
       -- * Basic interface
     , size

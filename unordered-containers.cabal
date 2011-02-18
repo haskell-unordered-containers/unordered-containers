@@ -22,6 +22,7 @@ library
   other-modules:
     Data.FullList.Lazy
     Data.FullList.Strict
+    Data.HashMap.Common
 
   ghc-options: -Wall -O2
   if impl(ghc >= 6.8)

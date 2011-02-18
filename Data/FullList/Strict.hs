@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, CPP #-}
 
 ------------------------------------------------------------------------
 -- |
@@ -36,4 +36,23 @@ module Data.FullList.Strict
 
 import Prelude hiding (lookup, map)
 
-import Data.FullList.Lazy
+import Data.FullList.Lazy hiding (insertWith)
+
+insertWith :: Eq k => (v -> v -> v) -> k -> v -> FullList k v -> FullList k v
+insertWith f !k v (FL k' v' xs)
+    | k == k'   = let v'' = f v v' in v'' `seq` FL k v'' xs
+    | otherwise = FL k' v' (insertWithL f k v xs)
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE insertWith #-}
+#endif
+
+insertWithL :: Eq k => (v -> v -> v) -> k -> v -> List k v -> List k v
+insertWithL = go
+  where
+    go _ !k v Nil = Cons k v Nil
+    go f k v (Cons k' v' xs)
+        | k == k'   = let v'' = f v v' in v'' `seq` Cons k v'' xs
+        | otherwise = Cons k' v' (go f k v xs)
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE insertWithL #-}
+#endif
