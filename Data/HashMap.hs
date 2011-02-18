@@ -69,6 +69,7 @@ module Data.HashMap
 
 import Control.DeepSeq (NFData(rnf))
 import Data.Bits ((.&.), (.|.), complement, shiftR, xor)
+import qualified Data.Foldable as Foldable
 import qualified Data.FullList as FL
 import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
@@ -126,6 +127,9 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
 
 instance Functor (HashMap k) where
     fmap = map
+
+instance Foldable.Foldable (HashMap k) where
+    foldr = foldr
 
 ------------------------------------------------------------------------
 -- * Basic interface
