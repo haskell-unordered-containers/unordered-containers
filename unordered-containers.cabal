@@ -1,5 +1,11 @@
 name:           unordered-containers
 version:        0.1.0.0
+synopsis:       Hashing-based container types
+description:
+        This package contains efficient hashing-based implementations
+        of various basic immutable container types.  The declared cost of
+        each operation is either worst-case or amortized, but remains
+        valid even if structures are shared.
 license:        BSD3
 license-file:   LICENSE
 author:         Johan Tibell
@@ -8,6 +14,11 @@ copyright:      2010-2011 Johan Tibell
 category:       Data
 build-type:     Simple
 cabal-version:  >=1.8
+-- The test files shouldn't have to go here, but the source files for
+-- the test-suite stanzas don't get picked up by `cabal sdist`.
+Extra-source-files:
+  tests/Properties.hs, benchmarks/Benchmarks.hs benchmarks/Makefile
+  benchmarks/Util/*.hs
 
 library
   exposed-modules:
@@ -43,3 +54,6 @@ test-suite properties
 
   ghc-options: -Wall
 
+source-repository head
+  type:     git
+  location: https://github.com/tibbe/unordered-containers.git
