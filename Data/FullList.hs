@@ -9,7 +9,8 @@
 -- Stability   :  provisional
 -- Portability :  portable
 --
--- Non-empty lists of key/value pairs.
+-- Non-empty lists of key/value pairs.  The lists are strict in the
+-- keys and lazy in the values.
 
 module Data.FullList
     ( FullList
@@ -48,7 +49,7 @@ import Prelude hiding (lookup, map)
 -- Invariant: the same key only appears once in a 'FullList'.
 
 -- | A non-empty list of key/value pairs.
-data FullList k v = FL !k !v !(List k v)
+data FullList k v = FL !k v !(List k v)
                   deriving Show
 
 instance (Eq k, Eq v) => Eq (FullList k v) where
@@ -57,7 +58,7 @@ instance (Eq k, Eq v) => Eq (FullList k v) where
 
 instance (NFData k, NFData v) => NFData (FullList k v)
 
-data List k v = Nil | Cons !k !v !(List k v)
+data List k v = Nil | Cons !k v !(List k v)
               deriving Show
 
 instance (Eq k, Eq v) => Eq (List k v) where

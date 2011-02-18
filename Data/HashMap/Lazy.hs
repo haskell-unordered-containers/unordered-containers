@@ -2,8 +2,8 @@
 
 ------------------------------------------------------------------------
 -- |
--- Module      :  Data.HashMap
--- Copyright   :  2010 Johan Tibell
+-- Module      :  Data.HashMap.Lazy
+-- Copyright   :  2010-2011 Johan Tibell
 -- License     :  BSD-style
 -- Maintainer  :  johan.tibell@gmail.com
 -- Stability   :  provisional
@@ -13,7 +13,7 @@
 -- duplicate keys; each key can map to at most one value.  A 'HashMap'
 -- makes no guarantees as to the order of its elements.
 --
--- The map is strict both in the keys and values; keys and values are
+-- This map is strict in the keys and lazy in the values; keys are
 -- evaluated to /weak head normal form/ before they are added to the
 -- map.
 --
@@ -27,7 +27,7 @@
 -- elements with a maximum of /W/ -- the number of bits in an 'Int'
 -- (32 or 64).
 
-module Data.HashMap
+module Data.HashMap.Lazy
     (
       HashMap
 

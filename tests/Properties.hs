@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
--- | Tests for the 'Data.HashMap' module.  We test functions by
+-- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
 -- comparing them to a simpler model, an association list.
 
 module Main (main) where
@@ -8,7 +8,7 @@ module Main (main) where
 import Data.Function (on)
 import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
-import qualified Data.HashMap as M
+import qualified Data.HashMap.Lazy as M
 import Test.QuickCheck (Arbitrary)
 import Test.QuickCheck.Batch
 

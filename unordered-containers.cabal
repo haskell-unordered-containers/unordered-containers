@@ -11,7 +11,7 @@ cabal-version:  >=1.8
 
 library
   exposed-modules:
-    Data.HashMap
+    Data.HashMap.Lazy
 
   build-depends:
     base,
