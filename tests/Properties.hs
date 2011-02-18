@@ -76,11 +76,11 @@ tests =
 
 pFoldr :: [(Int, Int)] -> Bool
 pFoldr = (sortByKey . L.foldr (\ p z -> p : z) []) `eq`
-         (sortByKey . M.foldr f [])
+         (sortByKey . M.foldrWithKey f [])
   where f k v z = (k, v) : z
 
 pFoldl' :: Int -> [(Int, Int)] -> Bool
-pFoldl' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` M.foldl' f z0
+pFoldl' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` M.foldlWithKey' f z0
   where f _ v z = v + z
 
 ------------------------------------------------------------------------

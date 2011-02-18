@@ -48,7 +48,9 @@ module Data.HashMap
 
       -- * Folds
     , foldl'
+    , foldlWithKey'
     , foldr
+    , foldrWithKey
 
       -- * Filter
     , filter
@@ -251,27 +253,41 @@ map f = go
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- right-identity of the operator).
-foldr :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-foldr f = go
+foldr :: (v -> a -> a) -> a -> HashMap k v -> a
+foldr f = foldrWithKey (const f)
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- right-identity of the operator).
+foldrWithKey :: (k -> v -> a -> a) -> a -> HashMap k v -> a
+foldrWithKey f = go
   where
     go z (Bin _ _ l r) = go (go z r) l
-    go z (Tip _ l)     = FL.foldr f z l
+    go z (Tip _ l)     = FL.foldrWithKey f z l
     go z Nil           = z
-{-# INLINE foldr #-}
+{-# INLINE foldrWithKey #-}
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
 -- is evaluated before before using the result in the next
 -- application.  This function is strict in the starting value.
-foldl' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
-foldl' f = go
+foldl' :: (a -> v -> a) -> a -> HashMap k v -> a
+foldl' f = foldlWithKey' (\ z _ v -> f z v)
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- left-identity of the operator).  Each application of the operator
+-- is evaluated before before using the result in the next
+-- application.  This function is strict in the starting value.
+foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
+foldlWithKey' f = go
   where
     go !z (Bin _ _ l r) = let z' = go z l
                           in z' `seq` go z' r
-    go z (Tip _ l)      = FL.foldl' f z l
+    go z (Tip _ l)      = FL.foldlWithKey' f z l
     go z Nil            = z
-{-# INLINE foldl' #-}
+{-# INLINE foldlWithKey' #-}
 
 ------------------------------------------------------------------------
 -- * Filter
@@ -301,9 +317,9 @@ filter p = filterWithKey (\_ v -> p v)
 -- produced lazily.
 toList :: HashMap k v -> [(k, v)]
 #if defined(__GLASGOW_HASKELL__)
-toList t = build (\ c z -> foldr (curry c) z t)
+toList t = build (\ c z -> foldrWithKey (curry c) z t)
 #else
-toList = foldr (\ k v xs -> (k, v) : xs) []
+toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
 #endif
 {-# INLINE toList #-}
 

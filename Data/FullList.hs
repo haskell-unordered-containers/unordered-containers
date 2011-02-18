@@ -26,15 +26,15 @@ module Data.FullList
     , map
 
       -- * Folds
-    , foldl'
-    , foldr
+    , foldlWithKey'
+    , foldrWithKey
 
       -- * Filter
     , filterWithKey
     ) where
 
 import Control.DeepSeq (NFData(rnf))
-import Prelude hiding (filter, foldr, lookup, map)
+import Prelude hiding (lookup, map)
 
 ------------------------------------------------------------------------
 -- * The 'FullList' type
@@ -191,27 +191,27 @@ mapL f = go
 ------------------------------------------------------------------------
 -- * Folds
 
-foldl' :: (a -> k -> v -> a) -> a -> FullList k v -> a
-foldl' f !z (FL k v xs) = foldl'L f (f z k v) xs
-{-# INLINE foldl' #-}
+foldlWithKey' :: (a -> k -> v -> a) -> a -> FullList k v -> a
+foldlWithKey' f !z (FL k v xs) = foldlWithKey'L f (f z k v) xs
+{-# INLINE foldlWithKey' #-}
 
-foldl'L :: (a -> k -> v -> a) -> a -> List k v -> a
-foldl'L f = go
+foldlWithKey'L :: (a -> k -> v -> a) -> a -> List k v -> a
+foldlWithKey'L f = go
   where
     go !z Nil          = z
     go z (Cons k v xs) = go (f z k v) xs
-{-# INLINE foldl'L #-}
+{-# INLINE foldlWithKey'L #-}
 
-foldr :: (k -> v -> a -> a) -> a -> FullList k v -> a
-foldr f z (FL k v xs) = f k v (foldrL f z xs)
-{-# INLINE foldr #-}
+foldrWithKey :: (k -> v -> a -> a) -> a -> FullList k v -> a
+foldrWithKey f z (FL k v xs) = f k v (foldrWithKeyL f z xs)
+{-# INLINE foldrWithKey #-}
 
-foldrL :: (k -> v -> a -> a) -> a -> List k v -> a
-foldrL f = go
+foldrWithKeyL :: (k -> v -> a -> a) -> a -> List k v -> a
+foldrWithKeyL f = go
   where
     go z Nil = z
     go z (Cons k v xs) = f k v (go z xs)
-{-# INLINE foldrL #-}
+{-# INLINE foldrWithKeyL #-}
 
 ------------------------------------------------------------------------
 -- * Filter
