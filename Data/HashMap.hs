@@ -31,32 +31,36 @@ module Data.HashMap
     (
       HashMap
 
+      -- * Construction
+    , empty
+    , singleton
+
       -- * Basic interface
     , null
     , size
     , lookup
-    , empty
-    , singleton
     , insert
     , delete
     , insertWith
 
       -- * Transformations
-    , mapValues
+    , map
 
       -- * Folds
-    , foldr
     , foldl'
+    , foldr
 
       -- * Filter
     , filter
-    , filterKeys
-    , filterValues
+    , filterWithKey
 
       -- * Conversions
-    , toList
+    , elems
     , keys
-    , values
+
+      -- ** Lists
+    , toList
+    , fromList
     ) where
 
 #include "MachDeps.h"
@@ -67,7 +71,7 @@ import qualified Data.FullList as FL
 import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
 import Data.Word (Word)
-import Prelude hiding (filter, foldr, lookup, null, pred)
+import Prelude hiding (filter, foldr, lookup, map, null, pred)
 
 #if defined(__GLASGOW_HASKELL__)
 import GHC.Exts (build)
@@ -117,6 +121,9 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Nil           = ()
     rnf (Tip _ xs)    = rnf xs
     rnf (Bin _ _ l r) = rnf l `seq` rnf r `seq` ()
+
+instance Functor (HashMap k) where
+    fmap = map
 
 ------------------------------------------------------------------------
 -- * Basic interface
@@ -229,21 +236,21 @@ insertWith f k0 v0 t0 = go h0 k0 v0 t0
 -- * Transformations
 
 -- | /O(n)/ Transform this map by applying a function to every value.
-mapValues :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
-mapValues f = go
+map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
+map f = go
   where
     go (Bin p m l r) = Bin p m (go l) (go r)
     go (Tip h l)     = Tip h (FL.map f' l)
     go Nil           = Nil
     f' k v = (k, f v)
-{-# INLINE mapValues #-}
+{-# INLINE map #-}
 
 ------------------------------------------------------------------------
 -- * Folds
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
--- elements, using the given starting value (typically the identity of
--- the operator).
+-- elements, using the given starting value (typically the
+-- right-identity of the operator).
 foldr :: (k -> v -> a -> a) -> a -> HashMap k v -> a
 foldr f = go
   where
@@ -253,10 +260,10 @@ foldr f = go
 {-# INLINE foldr #-}
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
--- elements, using the given starting value (typically the identity of
--- the operator).  Each application of the operator is evaluated
--- before before using the result in the next application.  This
--- function is strict in the starting value.
+-- elements, using the given starting value (typically the
+-- left-identity of the operator).  Each application of the operator
+-- is evaluated before before using the result in the next
+-- application.  This function is strict in the starting value.
 foldl' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
 foldl' f = go
   where
@@ -271,27 +278,21 @@ foldl' f = go
 
 -- | /O(n)/ Filter this map by retaining only elements satisfying a
 -- predicate.
-filter :: (k -> v -> Bool) -> HashMap k v -> HashMap k v
-filter pred = go
+filterWithKey :: (k -> v -> Bool) -> HashMap k v -> HashMap k v
+filterWithKey pred = go
   where
     go (Bin p m l r) = bin p m (go l) (go r)
-    go (Tip h l)     = case FL.filter pred l of
+    go (Tip h l)     = case FL.filterWithKey pred l of
         Just l' -> Tip h l'
         Nothing -> Nil
     go Nil           = Nil
-{-# INLINE filter #-}
-
--- | /O(n)/ Filter this map by retaining only elements which keys
--- satisfy a predicate.
-filterKeys :: (k -> Bool) -> HashMap k v -> HashMap k v
-filterKeys p = filter (\k _ -> p k)
-{-# INLINE filterKeys #-}
+{-# INLINE filterWithKey #-}
 
 -- | /O(n)/ Filter this map by retaining only elements which values
 -- satisfy a predicate.
-filterValues :: (v -> Bool) -> HashMap k v -> HashMap k v
-filterValues p = filter (\_ v -> p v)
-{-# INLINE filterValues #-}
+filter :: (v -> Bool) -> HashMap k v -> HashMap k v
+filter p = filterWithKey (\_ v -> p v)
+{-# INLINE filter #-}
 
 ------------------------------------------------------------------------
 -- Conversions
@@ -306,6 +307,11 @@ toList = foldr (\ k v xs -> (k, v) : xs) []
 #endif
 {-# INLINE toList #-}
 
+-- | /O(n*min(W, n))/ Construct a map from a list of elements.
+fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
+fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
+{-# INLINE fromList #-}
+
 -- | /O(n)/ Return a list of this map's keys.  The list is produced
 -- lazily.
 keys :: HashMap k v -> [k]
@@ -314,9 +320,9 @@ keys = L.map fst . toList
 
 -- | /O(n)/ Return a list of this map's values.  The list is produced
 -- lazily.
-values :: HashMap k v -> [v]
-values = L.map snd . toList
-{-# INLINE values #-}
+elems :: HashMap k v -> [v]
+elems = L.map snd . toList
+{-# INLINE elems #-}
 
 ------------------------------------------------------------------------
 -- Helpers

@@ -30,7 +30,7 @@ module Data.FullList
     , foldr
 
       -- * Filter
-    , filter
+    , filterWithKey
     ) where
 
 import Control.DeepSeq (NFData(rnf))
@@ -216,20 +216,20 @@ foldrL f = go
 ------------------------------------------------------------------------
 -- * Filter
 
-filter :: (k -> v -> Bool) -> FullList k v -> Maybe (FullList k v)
-filter p (FL k v xs)
+filterWithKey :: (k -> v -> Bool) -> FullList k v -> Maybe (FullList k v)
+filterWithKey p (FL k v xs)
     | p k v     = Just (FL k v ys)
     | otherwise = case ys of
         Nil           -> Nothing
         Cons k' v' zs -> Just $ FL k' v' zs
-  where !ys = filterL p xs
-{-# INLINE filter #-}
+  where !ys = filterWithKeyL p xs
+{-# INLINE filterWithKey #-}
 
-filterL :: (k -> v -> Bool) -> List k v -> List k v
-filterL p = go
+filterWithKeyL :: (k -> v -> Bool) -> List k v -> List k v
+filterWithKeyL p = go
   where
     go Nil = Nil
     go (Cons k v xs)
         | p k v     = Cons k v (go xs)
         | otherwise = go xs
-{-# INLINE filterL #-}
+{-# INLINE filterWithKeyL #-}
