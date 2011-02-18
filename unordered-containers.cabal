@@ -1,11 +1,13 @@
 name:           unordered-containers
 version:        0.1.0.0
-synopsis:       Hashing-based container types
+synopsis:       Efficient hashing-based container types
 description:
-        This package contains efficient hashing-based implementations
-        of various basic immutable container types.  The declared cost of
-        each operation is either worst-case or amortized, but remains
-        valid even if structures are shared.
+  Efficient hashing-based container types.  The containers have been
+  optimized for performance critical use, both in terms of large data
+  quantities and high speed.
+  .
+  The declared cost of each operation is either worst-case or
+  amortized, but remains valid even if structures are shared.
 license:        BSD3
 license-file:   LICENSE
 author:         Johan Tibell <johan.tibell@gmail.com>
