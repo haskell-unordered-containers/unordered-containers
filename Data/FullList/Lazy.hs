@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP #-}
+{-# LANGUAGE CPP #-}
 
 ------------------------------------------------------------------------
 -- |
@@ -97,8 +97,8 @@ singleton :: k -> v -> FullList k v
 singleton k v = FL k v Nil
 
 lookup :: Eq k => k -> FullList k v -> Maybe v
-lookup !k (FL k' v xs)
-    | k == k'   = Just v
+lookup k (FL k' v xs)
+    | k `seq` k == k'   = Just v
     | otherwise = lookupL k xs
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE lookup #-}
@@ -107,7 +107,8 @@ lookup !k (FL k' v xs)
 lookupL :: Eq k => k -> List k v -> Maybe v
 lookupL = go
   where
-    go !_ Nil = Nothing
+    go k t | k `seq` t `seq` False = undefined
+    go _ Nil = Nothing
     go k (Cons k' v xs)
         | k == k'   = Just v
         | otherwise = go k xs
@@ -116,8 +117,8 @@ lookupL = go
 #endif
 
 insert :: Eq k => k -> v -> FullList k v -> FullList k v
-insert !k v (FL k' v' xs)
-    | k == k'   = FL k v xs
+insert k v (FL k' v' xs)
+    | k `seq` (k == k') = FL k v xs
     | otherwise = FL k' v' (insertL k v xs)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
@@ -128,7 +129,8 @@ insert !k v (FL k' v' xs)
 insertL :: Eq k => k -> v -> List k v -> List k v
 insertL = go
   where
-    go !k v Nil = Cons k v Nil
+    go k _ t | k `seq` t `seq` False = undefined
+    go k v Nil = Cons k v Nil
     go k v (Cons k' v' xs)
         | k == k'   = Cons k v xs
         | otherwise = Cons k' v' (go k v xs)
@@ -137,8 +139,8 @@ insertL = go
 #endif
 
 delete :: Eq k => k -> FullList k v -> Maybe (FullList k v)
-delete !k (FL k' v xs)
-    | k == k'   = case xs of
+delete k (FL k' v xs)
+    | k `seq` (k == k') = case xs of
         Nil             -> Nothing
         Cons k'' v' xs' -> Just $ FL k'' v' xs'
     | otherwise = let ys = deleteL k xs
@@ -150,7 +152,8 @@ delete !k (FL k' v xs)
 deleteL :: Eq k => k -> List k v -> List k v
 deleteL = go
   where
-    go !_ Nil = Nil
+    go k t | k `seq` t `seq` False = undefined
+    go _ Nil = Nil
     go k (Cons k' v xs)
         | k == k'   = xs
         | otherwise = Cons k' v (go k xs)
@@ -159,9 +162,9 @@ deleteL = go
 #endif
 
 insertWith :: Eq k => (v -> v -> v) -> k -> v -> FullList k v -> FullList k v
-insertWith f !k v (FL k' v' xs)
-    | k == k'   = FL k (f v v') xs
-    | otherwise = FL k' v' (insertWithL f k v xs)
+insertWith f k v (FL k' v' xs)
+    | k `seq` (k == k') = FL k (f v v') xs
+    | otherwise         = FL k' v' (insertWithL f k v xs)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
 #endif
@@ -169,7 +172,8 @@ insertWith f !k v (FL k' v' xs)
 insertWithL :: Eq k => (v -> v -> v) -> k -> v -> List k v -> List k v
 insertWithL = go
   where
-    go _ !k v Nil = Cons k v Nil
+    go _ k _ t | k `seq` t `seq` False = undefined
+    go _ k v Nil = Cons k v Nil
     go f k v (Cons k' v' xs)
         | k == k'   = Cons k (f v v') xs
         | otherwise = Cons k' v' (go f k v xs)
@@ -178,8 +182,8 @@ insertWithL = go
 #endif
 
 adjust :: Eq k => (v -> v) -> k -> FullList k v -> FullList k v
-adjust f !k (FL k' v xs)
-  | k == k' = FL k' (f v) xs
+adjust f k (FL k' v xs)
+  | k `seq` (k == k') = FL k' (f v) xs
   | otherwise = FL k' v (adjustL f k xs)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE adjust #-}
@@ -188,7 +192,8 @@ adjust f !k (FL k' v xs)
 adjustL :: Eq k => (v -> v) -> k -> List k v -> List k v
 adjustL f = go 
   where
-    go !_ Nil = Nil
+    go k t | k `seq` t `seq` False = undefined
+    go _ Nil = Nil
     go k (Cons k' v xs) 
       | k == k' = Cons k' (f v) xs
       | otherwise = Cons k' v (go k xs)
@@ -227,13 +232,14 @@ traverseWithKeyL f = go
 -- * Folds
 
 foldlWithKey' :: (a -> k -> v -> a) -> a -> FullList k v -> a
-foldlWithKey' f !z (FL k v xs) = foldlWithKey'L f (f z k v) xs
+foldlWithKey' f z (FL k v xs) = z `seq` foldlWithKey'L f (f z k v) xs
 {-# INLINE foldlWithKey' #-}
 
 foldlWithKey'L :: (a -> k -> v -> a) -> a -> List k v -> a
 foldlWithKey'L f = go
   where
-    go !z Nil          = z
+    go z t | z `seq` t `seq` False = undefined
+    go z Nil          = z
     go z (Cons k v xs) = go (f z k v) xs
 {-# INLINE foldlWithKey'L #-}
 
@@ -253,11 +259,11 @@ foldrWithKeyL f = go
 
 filterWithKey :: (k -> v -> Bool) -> FullList k v -> Maybe (FullList k v)
 filterWithKey p (FL k v xs)
-    | p k v     = Just (FL k v ys)
+    | p k v     = ys `seq` Just (FL k v ys)
     | otherwise = case ys of
         Nil           -> Nothing
         Cons k' v' zs -> Just $ FL k' v' zs
-  where !ys = filterWithKeyL p xs
+  where ys = filterWithKeyL p xs
 {-# INLINE filterWithKey #-}
 
 filterWithKeyL :: (k -> v -> Bool) -> List k v -> List k v

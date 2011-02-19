@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP #-}
+{-# LANGUAGE CPP #-}
 
 -- | Code shared between the lazy and strict versions.
 
@@ -172,16 +172,16 @@ branchMask p1 p2 =
 -- | Return a 'Word' where only the highest bit is set.
 highBit :: Word -> Word
 highBit x0 =
-    let !x1 = x0 .|. shiftR x0 1
-        !x2 = x1 .|. shiftR x1 2
-        !x3 = x2 .|. shiftR x2 4
-        !x4 = x3 .|. shiftR x3 8
-        !x5 = x4 .|. shiftR x4 16
+    let x1 = x0 .|. shiftR x0 1
+        x2 = x1 `seq` (x1 .|. shiftR x1 2)
+        x3 = x2 `seq` (x2 .|. shiftR x2 4)
+        x4 = x3 `seq` (x3 .|. shiftR x3 8)
+        x5 = x4 `seq` (x4 .|. shiftR x4 16)
 #if WORD_SIZE_IN_BITS == 32
-    in x5 `xor` (shiftR x5 1)
+    in x5 `seq` (x5 `xor` shiftR x5 1)
 #elif WORD_SIZE_IN_BITS == 64
-        !x6 = x5 .|. shiftR x5 32
-    in x6 `xor` (shiftR x6 1)
+        x6 = x5 `seq` (x5 .|. shiftR x5 32)
+    in x6 `seq` (x6 `xor` shiftR x6 1)
 #else
 # error WORD_SIZE_IN_BITS not supported
 #endif

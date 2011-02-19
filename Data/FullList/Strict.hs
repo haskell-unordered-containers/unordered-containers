@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP #-}
+{-# LANGUAGE CPP #-}
 
 ------------------------------------------------------------------------
 -- |
@@ -41,8 +41,8 @@ import Prelude hiding (lookup, map)
 import Data.FullList.Lazy hiding (insertWith, map, adjust)
 
 insertWith :: Eq k => (v -> v -> v) -> k -> v -> FullList k v -> FullList k v
-insertWith f !k v (FL k' v' xs)
-    | k == k'   = let v'' = f v v' in v'' `seq` FL k v'' xs
+insertWith f k v (FL k' v' xs)
+    | k `seq` k == k' = let v'' = f v v' in v'' `seq` FL k v'' xs
     | otherwise = FL k' v' (insertWithL f k v xs)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
@@ -51,7 +51,8 @@ insertWith f !k v (FL k' v' xs)
 insertWithL :: Eq k => (v -> v -> v) -> k -> v -> List k v -> List k v
 insertWithL = go
   where
-    go _ !k v Nil = Cons k v Nil
+    go _ k _ t | k `seq` t `seq` False = undefined
+    go _ k v Nil = Cons k v Nil
     go f k v (Cons k' v' xs)
         | k == k'   = let v'' = f v v' in v'' `seq` Cons k v'' xs
         | otherwise = Cons k' v' (go f k v xs)
@@ -60,8 +61,8 @@ insertWithL = go
 #endif
 
 adjust :: Eq k => (v -> v) -> k -> FullList k v -> FullList k v
-adjust f !k (FL k' v xs)
-  | k == k' = let v' = f v in v' `seq` FL k' v' xs
+adjust f k (FL k' v xs)
+  | k `seq` k == k' = let v' = f v in v' `seq` FL k' v' xs
   | otherwise = FL k' v (adjustL f k xs)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE adjust #-}
@@ -70,7 +71,8 @@ adjust f !k (FL k' v xs)
 adjustL :: Eq k => (v -> v) -> k -> List k v -> List k v
 adjustL f = go
   where
-    go !_ Nil = Nil
+    go k t | k `seq` t `seq` False = undefined
+    go _ Nil = Nil
     go k (Cons k' v xs)
       | k == k' = let v' = f v in v' `seq` Cons k' v' xs
       | otherwise = Cons k' v (go k xs)
@@ -82,14 +84,14 @@ adjustL f = go
 -- * Transformations
 
 map :: (k1 -> v1 -> (k2, v2)) -> FullList k1 v1 -> FullList k2 v2
-map f (FL k v xs) = let !(k', !v') = f k v
-                    in FL k' v' (mapL f xs)
+map f (FL k v xs) = case f k v of 
+    (k', v') -> v' `seq` FL k' v' (mapL f xs)
 {-# INLINE map #-}
 
 mapL :: (k1 -> v1 -> (k2, v2)) -> List k1 v1 -> List k2 v2
 mapL f = go
   where
     go Nil = Nil
-    go (Cons k v xs) = let !(k', !v') = f k v
-                       in Cons k' v' (go xs)
+    go (Cons k v xs) = case f k v of
+      (k', v') -> v' `seq` Cons k' v' (go xs)
 {-# INLINE mapL #-}

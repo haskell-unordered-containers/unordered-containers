@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP #-}
+{-# LANGUAGE CPP #-}
 
 ------------------------------------------------------------------------
 -- |
@@ -82,17 +82,18 @@ import qualified Data.List as List
 
 -- | /O(1)/ Construct a map with a single element.
 singleton :: Hashable k => k -> v -> HashMap k v
-singleton k !v = L.singleton k v
+singleton k v = v `seq` L.singleton k v
 {-# INLINE singleton #-}
 
 -- | /O(min(n,W))/ Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
-insert k0 !v0 t0 = go h0 k0 v0 t0
+insert k0 v0 t0 = v0 `seq` go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin p m l r)
+    go h k _ t | h `seq` k `seq` t `seq` False = undefined
+    go h k v t@(Bin p m l r)
         | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
         | zero h m      = Bin p m (go h k v l) r
         | otherwise     = Bin p m l (go h k v r)
@@ -113,10 +114,11 @@ insert k0 !v0 t0 = go h0 k0 v0 t0
 -- >   where f new old = new + old
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
            -> HashMap k v
-insertWith f k0 !v0 t0 = go h0 k0 v0 t0
+insertWith f k0 v0 t0 = v0 `seq` go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin p m l r)
+    go h k _ t | h `seq` k `seq` t `seq` False = undefined
+    go h k v t@(Bin p m l r)
         | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
         | zero h m      = Bin p m (go h k v l) r
         | otherwise     = Bin p m l (go h k v r)
@@ -134,7 +136,8 @@ adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
 adjust f k0 t0 = go h0 k0 t0
   where
     h0 = hash k0
-    go !h !k t@(Bin p m l r)
+    go h k t | h `seq` k `seq` t `seq` False = undefined 
+    go h k t@(Bin p m l r)
       | nomatch h p m = t
       | zero h m      = Bin p m (go h k l) r
       | otherwise     = Bin p m l (go h k r)

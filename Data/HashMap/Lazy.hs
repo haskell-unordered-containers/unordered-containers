@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP #-}
+{-# LANGUAGE CPP #-}
 
 ------------------------------------------------------------------------
 -- |
@@ -99,7 +99,8 @@ lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
 lookup k0 t = go h0 k0 t
   where
     h0 = hash k0
-    go !h !k (Bin _ m l r)
+    go h k t' | h `seq` k `seq` t' `seq` False = undefined
+    go h k (Bin _ m l r)
       | zero h m  = go h k l
       | otherwise = go h k r
     go h k (Tip h' l)
@@ -129,7 +130,8 @@ insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k0 v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin p m l r)
+    go h k _ t | h `seq` k `seq` t `seq` False = undefined
+    go h k v t@(Bin p m l r)
         | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
         | zero h m      = Bin p m (go h k v l) r
         | otherwise     = Bin p m l (go h k v r)
@@ -147,7 +149,8 @@ delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
 delete k0 = go h0 k0
   where
     h0 = hash k0
-    go !h !k t@(Bin p m l r)
+    go h k t | h `seq` k `seq` t `seq` False = undefined
+    go h k t@(Bin p m l r)
         | nomatch h p m = t
         | zero h m      = bin p m (go h k l) r  -- takes this branch
         | otherwise     = bin p m l (go h k r)
@@ -173,7 +176,8 @@ insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
 insertWith f k0 v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin p m l r)
+    go h k _ t | h `seq` k `seq` t `seq` False = undefined
+    go h k v t@(Bin p m l r)
         | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
         | zero h m      = Bin p m (go h k v l) r
         | otherwise     = Bin p m l (go h k v r)
@@ -191,7 +195,8 @@ adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
 adjust f k0 t0 = go h0 k0 t0
   where
     h0 = hash k0
-    go !h !k t@(Bin p m l r)
+    go h k t | h `seq` k `seq` t `seq` False = undefined
+    go h k t@(Bin p m l r)
       | nomatch h p m = t
       | zero h m      = Bin p m (go h k l) r
       | otherwise     = Bin p m l (go h k r)
@@ -254,7 +259,8 @@ foldl' f = foldlWithKey' (\ z _ v -> f z v)
 foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
 foldlWithKey' f = go
   where
-    go !z (Bin _ _ l r) = let z' = go z l
+    go z t | z `seq` t `seq` False = undefined
+    go z (Bin _ _ l r) = let z' = go z l
                           in z' `seq` go z' r
     go z (Tip _ l)      = FL.foldlWithKey' f z l
     go z Nil            = z
