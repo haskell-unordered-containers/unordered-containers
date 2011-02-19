@@ -44,18 +44,19 @@ library
   if impl(ghc > 6.10)
     ghc-options: -fregs-graph
 
-test-suite properties
-  hs-source-dirs: tests
-  main-is: Properties.hs
-  type: exitcode-stdio-1.0
+-- -- Commented out until cabal-install release.
+-- test-suite properties
+--   hs-source-dirs: tests
+--   main-is: Properties.hs
+--   type: exitcode-stdio-1.0
 
-  build-depends:
-    base,
-    hashable >= 1.0.1.1 && < 1.1,
-    unordered-containers,
-    QuickCheck == 1.2.0.*
+--   build-depends:
+--     base,
+--     hashable >= 1.0.1.1 && < 1.1,
+--     unordered-containers,
+--     QuickCheck == 1.2.0.*
 
-  ghc-options: -Wall
+--   ghc-options: -Wall
 
 source-repository head
   type:     git
