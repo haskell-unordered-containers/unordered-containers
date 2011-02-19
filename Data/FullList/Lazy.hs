@@ -23,6 +23,7 @@ module Data.FullList.Lazy
     , insert
     , delete
     , insertWith
+    , adjust
 
       -- * Transformations
     , map
@@ -174,6 +175,25 @@ insertWithL = go
         | otherwise = Cons k' v' (go f k v xs)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWithL #-}
+#endif
+
+adjust :: Eq k => (v -> v) -> k -> FullList k v -> FullList k v
+adjust f !k (FL k' v xs)
+  | k == k' = FL k' (f v) xs
+  | otherwise = FL k' v (adjustL f k xs)
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE adjust #-}
+#endif
+
+adjustL :: Eq k => (v -> v) -> k -> List k v -> List k v
+adjustL f = go 
+  where
+    go !_ Nil = Nil
+    go k (Cons k' v xs) 
+      | k == k' = Cons k' (f v) xs
+      | otherwise = Cons k' v (go k xs)
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE adjustL #-}
 #endif
 
 ------------------------------------------------------------------------

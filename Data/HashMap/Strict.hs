@@ -43,6 +43,7 @@ module Data.HashMap.Strict
     , insert
     , delete
     , insertWith
+    , adjust
 
       -- * Transformations
     , map
@@ -72,7 +73,7 @@ import Prelude hiding (filter, foldr, lookup, map, null)
 
 import qualified Data.FullList.Strict as FL
 import Data.HashMap.Common
-import Data.HashMap.Lazy hiding (fromList, insert, insertWith, map, singleton)
+import Data.HashMap.Lazy hiding (fromList, insert, insertWith, adjust, map, singleton)
 import qualified Data.HashMap.Lazy as L
 import qualified Data.List as List
 
@@ -126,6 +127,25 @@ insertWith f k0 !v0 t0 = go h0 k0 v0 t0
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
 #endif
+
+-- | /O(min(n,W)/ Adjust the value tied to a given key in this map
+-- only if it is present. Otherwise, leave the map alone.
+adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
+adjust f k0 t0 = go h0 k0 t0
+  where
+    h0 = hash k0
+    go !h !k t@(Bin p m l r)
+      | nomatch h p m = t
+      | zero h m      = Bin p m (go h k l) r
+      | otherwise     = Bin p m l (go h k r)
+    go h k t@(Tip h' l)
+      | h == h'       = Tip h $ FL.adjust f k l
+      | otherwise     = t
+    go _ _ Nil        = Nil
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE adjust #-}
+#endif
+
 
 ------------------------------------------------------------------------
 -- * Transformations

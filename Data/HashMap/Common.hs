@@ -19,6 +19,8 @@ module Data.HashMap.Common
     , maskW
     , branchMask
     , highBit
+
+    -- * Common operations
     , traverseWithKey
     ) where
 
