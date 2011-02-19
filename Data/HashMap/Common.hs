@@ -17,8 +17,10 @@ module Data.HashMap.Common
     , nomatch
     , mask
     , maskW
+    , shorter
     , branchMask
     , highBit
+    , lookupFullList
 
     -- * Common operations
     , traverseWithKey
@@ -164,6 +166,10 @@ maskW :: Word -> Word -> Prefix
 maskW i m = fromIntegral (i .&. (complement (m-1) `xor` m))
 {-# INLINE maskW #-}
 
+shorter :: Mask -> Mask -> Bool
+shorter m1 m2 = (fromIntegral m1 :: Word) > fromIntegral m2
+{-# INLINE shorter #-}
+
 branchMask :: Prefix -> Prefix -> Mask
 branchMask p1 p2 =
     fromIntegral (highBit (fromIntegral p1 `xor` fromIntegral p2 :: Word))
@@ -186,3 +192,21 @@ highBit x0 =
 # error WORD_SIZE_IN_BITS not supported
 #endif
 {-# INLINE highBit #-}
+
+-- | /O(min(n,W))/ Return the value to which the specified key is
+-- mapped, or 'Nothing' if this map contains no mapping for the key.
+lookupFullList :: Hash -> HashMap k v -> Maybe (FL.FullList k v)
+lookupFullList h0 t = go h0 t
+  where
+    go h t' | h `seq` t' `seq` False = undefined
+    go h (Bin _ m l r)
+      | zero h m  = go h l
+      | otherwise = go h r
+    go h (Tip h' l)
+      | h == h'   = Just l
+      | otherwise = Nothing
+    go _ Nil    = Nothing
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE lookupFullList #-}
+#endif
+

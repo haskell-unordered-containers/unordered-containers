@@ -44,6 +44,9 @@ module Data.HashMap.Lazy
     , insertWith
     , adjust
 
+      -- * Combinations
+    , intersectionWithKey
+
       -- * Transformations
     , map
     , traverseWithKey
@@ -65,6 +68,7 @@ module Data.HashMap.Lazy
       -- ** Lists
     , toList
     , fromList
+
     ) where
 
 import qualified Data.FullList.Lazy as FL
@@ -316,3 +320,37 @@ keys = List.map fst . toList
 elems :: HashMap k v -> [v]
 elems = List.map snd . toList
 {-# INLINE elems #-}
+
+----------------------------------------------------------------------
+-- Combine
+
+
+-- | /O(n+m)/. The intersection with a combining function.
+--
+-- > let f k al ar = (show k) ++ ":" ++ al ++ "|" ++ ar
+-- > intersectionWithKey f (fromList [(5, "a"), (3, "b")]) (fromList [(5, "A"), (7, "C")]) == singleton 5 "5:a|A"
+intersectionWithKey :: Eq k => (k -> v1 -> v2 -> v3) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
+intersectionWithKey f t1@(Bin p1 m1 l1 r1) t2@(Bin p2 m2 l2 r2)
+  | shorter m1 m2  = intersection1
+  | shorter m2 m1  = intersection2
+  | p1 == p2       = bin p1 m1 (intersectionWithKey f l1 l2) (intersectionWithKey f r1 r2)
+  | otherwise      = Nil
+  where
+    intersection1 | nomatch p2 p1 m1  = Nil
+                  | zero p2 m1        = intersectionWithKey f l1 t2
+                  | otherwise         = intersectionWithKey f r1 t2
+    intersection2 | nomatch p1 p2 m2  = Nil
+                  | zero p1 m2        = intersectionWithKey f t1 l2
+                  | otherwise         = intersectionWithKey f t1 r2
+intersectionWithKey f (Tip h x) t2 = case lookupFullList h t2 of
+  Just y -> case FL.intersectionWithKey f x y of
+    FL.Cons k v xs -> Tip h (FL.FL k v xs)
+    FL.Nil -> Nil
+  Nothing -> Nil
+intersectionWithKey f t1 (Tip h y) = case lookupFullList h t1 of
+  Just x -> case FL.intersectionWithKey f x y of 
+    FL.Cons k v xs -> Tip h (FL.FL k v xs)
+    FL.Nil -> Nil
+  Nothing -> Nil
+intersectionWithKey _ Nil _ = Nil
+intersectionWithKey _ _ Nil = Nil

@@ -25,6 +25,9 @@ module Data.FullList.Lazy
     , insertWith
     , adjust
 
+      -- * Combinations
+    , intersectionWithKey
+
       -- * Transformations
     , map
     , traverseWithKey
@@ -274,3 +277,18 @@ filterWithKeyL p = go
         | p k v     = Cons k v (go xs)
         | otherwise = go xs
 {-# INLINE filterWithKeyL #-}
+
+intersectionWithKey :: Eq k => (k -> v1 -> v2 -> v3) -> FullList k v1 -> FullList k v2 -> List k v3
+intersectionWithKey f (FL k v xs) ys = case lookup k ys of
+  Just v' -> Cons k (f k v v') (intersectionWithKeyL f xs ys)
+  Nothing -> intersectionWithKeyL f xs ys
+{-# INLINE intersectionWithKey #-}
+
+intersectionWithKeyL :: Eq k => (k -> v1 -> v2 -> v3) -> List k v1 -> FullList k v2 -> List k v3
+intersectionWithKeyL f xs0 ys = go xs0
+  where
+    go Nil = Nil
+    go (Cons k v xs) = case lookup k ys of
+      Just v' -> Cons k (f k v v') (go xs)
+      Nothing -> go xs
+{-# INLINE intersectionWithKeyL #-}

@@ -24,6 +24,9 @@ module Data.FullList.Strict
     , insertWith
     , adjust
 
+      -- * Combinations
+    , intersectionWithKey
+
       -- * Transformations
     , map
     , traverseWithKey
@@ -38,7 +41,7 @@ module Data.FullList.Strict
 
 import Prelude hiding (lookup, map)
 
-import Data.FullList.Lazy hiding (insertWith, map, adjust)
+import Data.FullList.Lazy hiding (insertWith, map, adjust, intersectionWithKey)
 
 insertWith :: Eq k => (v -> v -> v) -> k -> v -> FullList k v -> FullList k v
 insertWith f k v (FL k' v' xs)
@@ -95,3 +98,22 @@ mapL f = go
     go (Cons k v xs) = case f k v of
       (k', v') -> v' `seq` Cons k' v' (go xs)
 {-# INLINE mapL #-}
+
+------------------------------------------------------------------------
+-- * Intersection
+
+intersectionWithKey :: Eq k => (k -> v1 -> v2 -> v3) -> FullList k v1 -> FullList k v2 -> List k v3
+intersectionWithKey f (FL k v xs) ys = case lookup k ys of
+  Just v' -> let v'' = f k v v' in v'' `seq` Cons k v'' (intersectionWithKeyL f xs ys)
+  Nothing -> intersectionWithKeyL f xs ys
+{-# INLINE intersectionWithKey #-}
+
+intersectionWithKeyL :: Eq k => (k -> v1 -> v2 -> v3) -> List k v1 -> FullList k v2 -> List k v3
+intersectionWithKeyL f xs0 ys = go xs0
+  where
+    go Nil = Nil
+    go (Cons k v xs) = case lookup k ys of
+      Just v' -> let v'' = f k v v' in v'' `seq` Cons k v'' (go xs)
+      Nothing -> go xs
+{-# INLINE intersectionWithKeyL #-}
+
