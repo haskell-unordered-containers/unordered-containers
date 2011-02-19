@@ -1,5 +1,5 @@
 name:           unordered-containers
-version:        0.1.0.0
+version:        0.1.0.1
 synopsis:       Efficient hashing-based container types
 description:
   Efficient hashing-based container types.  The containers have been
@@ -29,7 +29,7 @@ library
     Data.HashMap.Strict
 
   build-depends:
-    base,
+    base < 4.4,
     deepseq == 1.1.*,
     hashable >= 1.0.1.1 && < 1.2
 

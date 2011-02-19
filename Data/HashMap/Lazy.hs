@@ -45,6 +45,7 @@ module Data.HashMap.Lazy
 
       -- * Transformations
     , map
+    , traverseWithKey
 
       -- * Folds
     , foldl'

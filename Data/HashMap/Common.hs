@@ -19,13 +19,16 @@ module Data.HashMap.Common
     , maskW
     , branchMask
     , highBit
+    , traverseWithKey
     ) where
 
 #include "MachDeps.h"
 
+import Control.Applicative
 import Control.DeepSeq (NFData(rnf))
 import Data.Bits ((.&.), (.|.), complement, shiftR, xor)
 import qualified Data.Foldable as Foldable
+import Data.Traversable (Traversable(..))
 import Data.Word (Word)
 import Prelude hiding (foldr, map)
 
@@ -105,6 +108,18 @@ foldrWithKey f = go
     go z (Tip _ l)     = FL.foldrWithKey f z l
     go z Nil           = z
 {-# INLINE foldrWithKey #-}
+
+instance Traversable (HashMap k) where
+  traverse f = traverseWithKey (const f)
+
+-- | /O(n)/ Transform this map by accumulating an Applicative result from every value.
+traverseWithKey :: Applicative f => (k -> v1 -> f v2) -> HashMap k v1 -> f (HashMap k v2)
+traverseWithKey f = go
+  where
+    go (Bin p m l r) = Bin p m <$> go l <*> go r
+    go (Tip h l) = Tip h <$> FL.traverseWithKey f l
+    go Nil = pure Nil
+{-# INLINE traverseWithKey #-}    
 
 ------------------------------------------------------------------------
 -- Helpers

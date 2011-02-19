@@ -25,6 +25,7 @@ module Data.FullList.Strict
 
       -- * Transformations
     , map
+    , traverseWithKey
 
       -- * Folds
     , foldlWithKey'

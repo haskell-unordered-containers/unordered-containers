@@ -26,6 +26,7 @@ module Data.FullList.Lazy
 
       -- * Transformations
     , map
+    , traverseWithKey
 
       -- * Folds
     , foldlWithKey'
@@ -35,6 +36,7 @@ module Data.FullList.Lazy
     , filterWithKey
     ) where
 
+import Control.Applicative
 import Control.DeepSeq (NFData(rnf))
 import Prelude hiding (lookup, map)
 
@@ -189,6 +191,17 @@ mapL f = go
     go (Cons k v xs) = let (k', v') = f k v
                        in Cons k' v' (go xs)
 {-# INLINE mapL #-}
+
+traverseWithKey :: Applicative m => (k -> v1 -> m v2) -> FullList k v1 -> m (FullList k v2)
+traverseWithKey f (FL k v xs) = FL k <$> f k v <*> traverseWithKeyL f xs
+{-# INLINE traverseWithKey #-}
+
+traverseWithKeyL :: Applicative m => (k -> v1 -> m v2) -> List k v1 -> m (List k v2)
+traverseWithKeyL f = go
+  where
+    go Nil = pure Nil
+    go (Cons k v xs) = Cons k <$> f k v <*> go xs
+{-# INLINE traverseWithKeyL #-}
 
 ------------------------------------------------------------------------
 -- * Folds

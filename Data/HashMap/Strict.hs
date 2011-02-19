@@ -46,6 +46,7 @@ module Data.HashMap.Strict
 
       -- * Transformations
     , map
+    , traverseWithKey
 
       -- * Folds
     , foldl'
