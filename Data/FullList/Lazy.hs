@@ -186,10 +186,10 @@ adjust f !k (FL k' v xs)
 #endif
 
 adjustL :: Eq k => (v -> v) -> k -> List k v -> List k v
-adjustL f = go 
+adjustL f = go
   where
     go !_ Nil = Nil
-    go k (Cons k' v xs) 
+    go k (Cons k' v xs)
       | k == k' = Cons k' (f v) xs
       | otherwise = Cons k' v (go k xs)
 #if __GLASGOW_HASKELL__ >= 700

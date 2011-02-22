@@ -121,7 +121,7 @@ traverseWithKey f = go
     go (Bin p m l r) = Bin p m <$> go l <*> go r
     go (Tip h l) = Tip h <$> FL.traverseWithKey f l
     go Nil = pure Nil
-{-# INLINE traverseWithKey #-}    
+{-# INLINE traverseWithKey #-}
 
 ------------------------------------------------------------------------
 -- Helpers
