@@ -97,7 +97,8 @@ lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
 lookup k0 t = go h0 k0 t
   where
     h0 = hash k0
-    go !h !k (Bin _ m l r)
+    go !h !k (Bin s m l r)
+      | nomatch h s m = Nothing
       | zero h m  = go h k l
       | otherwise = go h k r
     go h k (Tip h' l)
@@ -127,10 +128,10 @@ insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k0 v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin p m l r)
-        | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
-        | zero h m      = Bin p m (go h k v l) r
-        | otherwise     = Bin p m l (go h k v r)
+    go !h !k v t@(Bin s m l r)
+        | nomatch h s m = join h (Tip h $ FL.singleton k v) s t
+        | zero h m      = Bin s m (go h k v l) r
+        | otherwise     = Bin s m l (go h k v r)
     go h k v t@(Tip h' l)
         | h == h'       = Tip h $ FL.insert k v l
         | otherwise     = join h (Tip h $ FL.singleton k v) h' t
@@ -145,10 +146,10 @@ delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
 delete k0 = go h0 k0
   where
     h0 = hash k0
-    go !h !k t@(Bin p m l r)
-        | nomatch h p m = t
-        | zero h m      = bin p m (go h k l) r  -- takes this branch
-        | otherwise     = bin p m l (go h k r)
+    go !h !k t@(Bin s m l r)
+        | nomatch h s m = t
+        | zero h m      = bin s m (go h k l) r  -- takes this branch
+        | otherwise     = bin s m l (go h k r)
     go h k t@(Tip h' l)
         | h == h'       = case FL.delete k l of
             Nothing -> Nil
@@ -171,10 +172,10 @@ insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
 insertWith f k0 v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin p m l r)
-        | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
-        | zero h m      = Bin p m (go h k v l) r
-        | otherwise     = Bin p m l (go h k v r)
+    go !h !k v t@(Bin s m l r)
+        | nomatch h s m = join h (Tip h $ FL.singleton k v) s t
+        | zero h m      = Bin s m (go h k v l) r
+        | otherwise     = Bin s m l (go h k v r)
     go h k v t@(Tip h' l)
         | h == h'       = Tip h $ FL.insertWith f k v l
         | otherwise     = join h (Tip h $ FL.singleton k v) h' t
@@ -190,7 +191,7 @@ insertWith f k0 v0 t0 = go h0 k0 v0 t0
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = go
   where
-    go (Bin p m l r) = Bin p m (go l) (go r)
+    go (Bin s m l r) = Bin s m (go l) (go r)
     go (Tip h l)     = Tip h (FL.map f' l)
     go Nil           = Nil
     f' k v = (k, f v)
@@ -248,7 +249,7 @@ foldlWithKey' f = go
 filterWithKey :: (k -> v -> Bool) -> HashMap k v -> HashMap k v
 filterWithKey pred = go
   where
-    go (Bin p m l r) = bin p m (go l) (go r)
+    go (Bin s m l r) = bin s m (go l) (go r)
     go (Tip h l)     = case FL.filterWithKey pred l of
         Just l' -> Tip h l'
         Nothing -> Nil
