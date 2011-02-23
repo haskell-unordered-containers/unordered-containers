@@ -27,10 +27,10 @@ instance Hashable Key where
 -- ** Instances
 
 pEq :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pEq xs = (xs ==) `eq` (fromList xs ==)
+pEq xs = (xs ==) `eq` (M.fromList xs ==)
 
 pNeq :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pNeq xs = (xs /=) `eq` (fromList xs /=)
+pNeq xs = (xs /=) `eq` (M.fromList xs /=)
 
 ------------------------------------------------------------------------
 -- ** Basic interface
@@ -64,6 +64,9 @@ tests =
     , testProperty "delete" pDelete
     , testProperty "insertWith" pInsertWith
 
+      -- Transformations
+    , testProperty "map" pMap
+
       -- Folds
     , testProperty "foldr" pFoldr
     , testProperty "foldl'" pFoldl'
@@ -71,6 +74,12 @@ tests =
       -- Conversions
     , testProperty "toList" pToList
     ]
+
+------------------------------------------------------------------------
+-- ** Transformations
+
+pMap :: [(Key, Int)] -> Bool
+pMap = map (\ (k, v) -> (k, v + 1)) `eq` (toAscList . M.map (+ 1))
 
 ------------------------------------------------------------------------
 -- ** Folds
@@ -97,8 +106,8 @@ eq :: (Eq a, Eq k, Hashable k, Ord k)
    -> (M.HashMap k v -> a)  -- ^ Function that modified a 'HashMap'
    -> [(k, v)]              -- ^ Initial content of the 'HashMap' and 'Model'
    -> Bool                  -- ^ True if the functions are equivalent
-eq f g xs = g (fromList ys) == f ys
-  where ys = L.nubBy ((==) `on` fst) $ L.sortBy (compare `on` fst) $ xs
+eq f g xs = g (M.fromList ys) == f ys
+  where ys = fromList xs
 
 insert :: Ord k => (k, v) -> Model k v -> Model k v
 insert x [] = [x]
@@ -121,6 +130,11 @@ insertWith f x@(k, v) (y@(k', v'):xs)
     | k > k'    = y : insertWith f x xs
     | otherwise = x : y : xs
 
+-- | Create a model from a list of key-value pairs.  If the input
+-- contains multiple entries for the same key, the latter one is used.
+fromList :: Ord k => [(k, v)] -> Model k v
+fromList = L.foldl' ( \ m p -> insert p m) []
+
 ------------------------------------------------------------------------
 -- Test harness
 
@@ -129,10 +143,6 @@ main = defaultMain tests
 
 ------------------------------------------------------------------------
 -- Helpers
-
-fromList :: (Eq k, Hashable k) => [(k, v)] -> M.HashMap k v
-fromList = L.foldl' ins M.empty
-  where ins m (k, v) = M.insert k v m
 
 sortByKey :: Ord k => [(k, v)] -> [(k, v)]
 sortByKey = L.sortBy (compare `on` fst)
