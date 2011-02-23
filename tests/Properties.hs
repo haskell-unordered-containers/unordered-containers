@@ -5,6 +5,7 @@
 
 module Main (main) where
 
+import qualified Data.Foldable as Foldable
 import Data.Function (on)
 import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
@@ -32,6 +33,13 @@ pEq xs = (xs ==) `eq` (M.fromList xs ==)
 pNeq :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pNeq xs = (xs /=) `eq` (M.fromList xs /=)
 
+pFunctor :: [(Key, Int)] -> Bool
+pFunctor = fmap (\ (k, v) -> (k, v + 1)) `eq` (toAscList . fmap (+ 1))
+
+pFoldable :: [(Int, Int)] -> Bool
+pFoldable = (L.sort . Foldable.foldr (\ (_, v) z -> v:z) []) `eq`
+            (L.sort . Foldable.foldr (:) [])
+
 ------------------------------------------------------------------------
 -- ** Basic interface
 
@@ -56,22 +64,28 @@ pToList = id `eq` toAscList
 
 tests :: [Test]
 tests =
-    [ testProperty "==" pEq
+    [
+    -- Instances
+      testProperty "==" pEq
     , testProperty "/=" pNeq
+    , testProperty "Functor" pFunctor
+    , testProperty "Foldable" pFoldable
+
+    -- Basic interface
     , testProperty "size" pSize
     , testProperty "lookup" pLookup
     , testProperty "insert" pInsert
     , testProperty "delete" pDelete
     , testProperty "insertWith" pInsertWith
 
-      -- Transformations
+    -- Transformations
     , testProperty "map" pMap
 
-      -- Folds
+    -- Folds
     , testProperty "foldr" pFoldr
     , testProperty "foldl'" pFoldl'
 
-      -- Conversions
+    -- Conversions
     , testProperty "toList" pToList
     ]
 
@@ -133,7 +147,7 @@ insertWith f x@(k, v) (y@(k', v'):xs)
 -- | Create a model from a list of key-value pairs.  If the input
 -- contains multiple entries for the same key, the latter one is used.
 fromList :: Ord k => [(k, v)] -> Model k v
-fromList = L.foldl' ( \ m p -> insert p m) []
+fromList = L.foldl' (\ m p -> insert p m) []
 
 ------------------------------------------------------------------------
 -- Test harness
