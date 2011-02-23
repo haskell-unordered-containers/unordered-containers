@@ -57,7 +57,28 @@ pDelete k = delete k `eq` (toAscList . M.delete k)
 
 pInsertWith :: Key -> [(Key, Int)] -> Bool
 pInsertWith k = insertWith (+) (k, 1) `eq`
-                       (toAscList . M.insertWith (+) k 1)
+                (toAscList . M.insertWith (+) k 1)
+
+------------------------------------------------------------------------
+-- ** Transformations
+
+pMap :: [(Key, Int)] -> Bool
+pMap = map (\ (k, v) -> (k, v + 1)) `eq` (toAscList . M.map (+ 1))
+
+------------------------------------------------------------------------
+-- ** Folds
+
+pFoldr :: [(Int, Int)] -> Bool
+pFoldr = (L.sort . L.foldr (\ (_, v) z -> v:z) []) `eq`
+         (L.sort . M.foldr (:) [])
+
+pFoldrWithKey :: [(Int, Int)] -> Bool
+pFoldrWithKey = (sortByKey . L.foldr (:) []) `eq`
+                (sortByKey . M.foldrWithKey f [])
+  where f k v z = (k, v) : z
+
+pFoldl' :: Int -> [(Int, Int)] -> Bool
+pFoldl' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` M.foldl' (+) z0
 
 ------------------------------------------------------------------------
 -- ** Conversions
@@ -72,7 +93,7 @@ pKeys :: [(Key, Int)] -> Bool
 pKeys = map fst `eq` (L.sort . M.keys)
 
 ------------------------------------------------------------------------
--- Test list
+-- * Test list
 
 tests :: [Test]
 tests =
@@ -105,28 +126,7 @@ tests =
     ]
 
 ------------------------------------------------------------------------
--- ** Transformations
-
-pMap :: [(Key, Int)] -> Bool
-pMap = map (\ (k, v) -> (k, v + 1)) `eq` (toAscList . M.map (+ 1))
-
-------------------------------------------------------------------------
--- ** Folds
-
-pFoldr :: [(Int, Int)] -> Bool
-pFoldr = (L.sort . L.foldr (\ (_, v) z -> v:z) []) `eq`
-         (L.sort . M.foldr (:) [])
-
-pFoldrWithKey :: [(Int, Int)] -> Bool
-pFoldrWithKey = (sortByKey . L.foldr (:) []) `eq`
-                (sortByKey . M.foldrWithKey f [])
-  where f k v z = (k, v) : z
-
-pFoldl' :: Int -> [(Int, Int)] -> Bool
-pFoldl' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` M.foldl' (+) z0
-
-------------------------------------------------------------------------
--- Model
+-- * Model
 
 -- Invariant: the list is sorted in ascending order, by key.
 type Model k v = [(k, v)]
@@ -169,13 +169,13 @@ fromList :: Ord k => [(k, v)] -> Model k v
 fromList = L.foldl' (\ m p -> insert p m) []
 
 ------------------------------------------------------------------------
--- Test harness
+-- * Test harness
 
 main :: IO ()
 main = defaultMain tests
 
 ------------------------------------------------------------------------
--- Helpers
+-- * Helpers
 
 sortByKey :: Ord k => [(k, v)] -> [(k, v)]
 sortByKey = L.sortBy (compare `on` fst)
