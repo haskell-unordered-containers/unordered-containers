@@ -100,7 +100,6 @@ lookup k0 t = go h0 k0 t
   where
     h0 = hash k0
     go !h !k (Bin _ m l r)
-      -- | nomatch h s m = Nothing
       | zero h m  = go h k l
       | otherwise = go h k r
     go h k (Tip h' l)
@@ -150,7 +149,7 @@ delete k0 = go h0 k0
     h0 = hash k0
     go !h !k t@(Bin s m l r)
         | nomatch h s m = t
-        | zero h m      = bin s m (go h k l) r  -- takes this branch
+        | zero h m      = bin s m (go h k l) r
         | otherwise     = bin s m l (go h k r)
     go h k t@(Tip h' l)
         | h == h'       = case FL.delete k l of
