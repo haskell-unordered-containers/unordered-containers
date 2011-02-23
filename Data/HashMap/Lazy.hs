@@ -228,17 +228,6 @@ foldr f = foldrWithKey (const f)
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
--- right-identity of the operator).
-foldrWithKey :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-foldrWithKey f = go
-  where
-    go z (Bin _ _ l r) = go (go z r) l
-    go z (Tip _ l)     = FL.foldrWithKey f z l
-    go z Nil           = z
-{-# INLINE foldrWithKey #-}
-
--- | /O(n)/ Reduce this map by applying a binary operator to all
--- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
 -- is evaluated before before using the result in the next
 -- application.  This function is strict in the starting value.
