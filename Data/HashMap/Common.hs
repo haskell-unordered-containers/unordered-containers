@@ -6,10 +6,6 @@ module Data.HashMap.Common
     (
       -- * Types
       HashMap(..)
-    , size
-    , root
-    , sameSize
-    , Tree(..)
     , Prefix
     , Mask
     , Hash
@@ -45,30 +41,14 @@ import qualified Data.FullList.Lazy as FL
 
 -- | A map from keys to values.  A map cannot contain duplicate keys;
 -- each key can map to at most one value.
-data HashMap k v = HM {-# UNPACK #-} !Int !(Tree k v)
-
--- | /O(n)/ Return the number of key-value mappings in this map.
-size :: HashMap k v -> Int
-size (HM sz _) = sz
-{-# INLINE size #-}
-
-root :: HashMap k v -> Tree k v
-root (HM _ t) = t
-
--- | Takes a function that operates 'Tree's, without changing their
--- size, and lifts it to operate on 'HashMap's.
-sameSize :: (Tree k v -> Tree k v) -> HashMap k v -> HashMap k v
-sameSize f hm = HM (size hm) $ f (root hm)
-{-# INLINE sameSize #-}
-
-data Tree k v
+data HashMap k v
     = Nil
     | Tip {-# UNPACK #-} !Hash
           {-# UNPACK #-} !(FL.FullList k v)
     | Bin {-# UNPACK #-} !Prefix
           {-# UNPACK #-} !Mask
-          !(Tree k v)
-          !(Tree k v)
+          !(HashMap k v)
+          !(HashMap k v)
     deriving Show
 
 type Prefix = Int
@@ -82,17 +62,17 @@ type Hash   = Int
 -- only provide one set of instances.  We provide the lazy ones.
 
 instance (Eq k, Eq v) => Eq (HashMap k v) where
-    t1 == t2 = size t1 == size t2 && equal (root t1) (root t2)
-    t1 /= t2 = size t1 /= size t2 || nequal (root t1) (root t2)
+    t1 == t2 = equal t1 t2
+    t1 /= t2 = nequal t1 t2
 
-equal :: (Eq k, Eq v) => Tree k v -> Tree k v -> Bool
+equal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
 equal (Bin p1 m1 l1 r1) (Bin p2 m2 l2 r2) =
     (m1 == m2) && (p1 == p2) && (equal l1 l2) && (equal r1 r2)
 equal (Tip h1 l1) (Tip h2 l2) = (h1 == h2) && (l1 == l2)
 equal Nil Nil = True
 equal _   _   = False
 
-nequal :: (Eq k, Eq v) => Tree k v -> Tree k v -> Bool
+nequal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
 nequal (Bin p1 m1 l1 r1) (Bin p2 m2 l2 r2) =
     (m1 /= m2) || (p1 /= p2) || (nequal l1 l2) || (nequal r1 r2)
 nequal (Tip h1 l1) (Tip h2 l2) = (h1 /= h2) || (l1 /= l2)
@@ -100,18 +80,16 @@ nequal Nil Nil = False
 nequal _   _   = True
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
-    rnf = go . root
-      where
-        go Nil           = ()
-        go (Tip _ xs)    = rnf xs
-        go (Bin _ _ l r) = go l `seq` go r `seq` ()
+    rnf Nil           = ()
+    rnf (Tip _ xs)    = rnf xs
+    rnf (Bin _ _ l r) = rnf l `seq` rnf r `seq` ()
 
 instance Functor (HashMap k) where
     fmap = map
 
 -- | /O(n)/ Transform this map by applying a function to every value.
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
-map f hm = HM (size hm) $ go $ root hm
+map f = go
   where
     go (Bin p m l r) = Bin p m (go l) (go r)
     go (Tip h l)     = Tip h (FL.map f' l)
@@ -126,7 +104,7 @@ instance Foldable.Foldable (HashMap k) where
 -- elements, using the given starting value (typically the
 -- right-identity of the operator).
 foldrWithKey :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-foldrWithKey f z0 = go z0 . root
+foldrWithKey f = go
   where
     go z (Bin _ _ l r) = go (go z r) l
     go z (Tip _ l)     = FL.foldrWithKey f z l
@@ -137,9 +115,8 @@ instance Traversable (HashMap k) where
   traverse f = traverseWithKey (const f)
 
 -- | /O(n)/ Transform this map by accumulating an Applicative result from every value.
-traverseWithKey :: Applicative f => (k -> v1 -> f v2) -> HashMap k v1
-                -> f (HashMap k v2)
-traverseWithKey f hm = HM (size hm) <$> (go $ root hm)
+traverseWithKey :: Applicative f => (k -> v1 -> f v2) -> HashMap k v1 -> f (HashMap k v2)
+traverseWithKey f = go
   where
     go (Bin p m l r) = Bin p m <$> go l <*> go r
     go (Tip h l) = Tip h <$> FL.traverseWithKey f l
@@ -149,7 +126,7 @@ traverseWithKey f hm = HM (size hm) <$> (go $ root hm)
 ------------------------------------------------------------------------
 -- Helpers
 
-join :: Prefix -> Tree k v -> Prefix -> Tree k v -> Tree k v
+join :: Prefix -> HashMap k v -> Prefix -> HashMap k v -> HashMap k v
 join p1 t1 p2 t2
     | zero p1 m = Bin p m t1 t2
     | otherwise = Bin p m t2 t1
@@ -159,7 +136,7 @@ join p1 t1 p2 t2
 {-# INLINE join #-}
 
 -- | @bin@ assures that we never have empty trees within a tree.
-bin :: Prefix -> Mask -> Tree k v -> Tree k v -> Tree k v
+bin :: Prefix -> Mask -> HashMap k v -> HashMap k v -> HashMap k v
 bin _ _ l Nil = l
 bin _ _ Nil r = r
 bin p m l r   = Bin p m l r
