@@ -80,8 +80,7 @@ pFoldr = (sortByKey . L.foldr (\ p z -> p : z) []) `eq`
   where f k v z = (k, v) : z
 
 pFoldl' :: Int -> [(Int, Int)] -> Bool
-pFoldl' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` M.foldlWithKey' f z0
-  where f _ v z = v + z
+pFoldl' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` M.foldl' (+) z0
 
 ------------------------------------------------------------------------
 -- Model
