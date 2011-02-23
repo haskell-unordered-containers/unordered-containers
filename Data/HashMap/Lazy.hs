@@ -76,27 +76,20 @@ import Prelude hiding (filter, foldr, lookup, map, null, pred)
 import GHC.Exts (build)
 #endif
 
-import Data.HashMap.Common
+import Data.HashMap.Common as Common
+import Data.Sized
 
 ------------------------------------------------------------------------
 -- * Basic interface
 
 -- | /O(1)/ Return 'True' if this map is empty, 'False' otherwise.
 null :: HashMap k v -> Bool
-null Nil = True
-null _   = False
-
--- | /O(n)/ Return the number of key-value mappings in this map.
-size :: HashMap k v -> Int
-size t = case t of
-    Bin _ _ l r -> size l + size r
-    Tip _ l     -> FL.size l
-    Nil         -> 0
+null hm = size hm == 0
 
 -- | /O(min(n,W))/ Return the value to which the specified key is
 -- mapped, or 'Nothing' if this map contains no mapping for the key.
 lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
-lookup k0 t = go h0 k0 t
+lookup k0 hm = go h0 k0 (root hm)
   where
     h0 = hash k0
     go !h !k (Bin _ m l r)
@@ -112,11 +105,11 @@ lookup k0 t = go h0 k0 t
 
 -- | /O(1)/ Construct an empty map.
 empty :: HashMap k v
-empty = Nil
+empty = HM 0 Nil
 
 -- | /O(1)/ Construct a map with a single element.
 singleton :: Hashable k => k -> v -> HashMap k v
-singleton k v = Tip h $ FL.singleton k v
+singleton k v = HM 1 $ Tip h $ FL.singleton k v
   where h = hash k
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE singleton #-}
@@ -126,17 +119,21 @@ singleton k v = Tip h $ FL.singleton k v
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
-insert k0 v0 t0 = go h0 k0 v0 t0
+insert k0 v0 hm = case go h0 k0 v0 (root hm) of
+    sz :!: t -> HM (size hm + sz) t
   where
     h0 = hash k0
     go !h !k v t@(Bin p m l r)
-        | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
-        | zero h m      = Bin p m (go h k v l) r
-        | otherwise     = Bin p m l (go h k v r)
+        | nomatch h p m = 1 :!: join h (Tip h $ FL.singleton k v) p t
+        | zero h m      = case go h k v l of
+            sz :!: t' -> sz :!: Bin p m t' r
+        | otherwise     = case (go h k v r) of
+            sz :!: t' -> sz :!: Bin p m l t'
     go h k v t@(Tip h' l)
-        | h == h'       = Tip h $ FL.insert k v l
-        | otherwise     = join h (Tip h $ FL.singleton k v) h' t
-    go h k v Nil        = Tip h $ FL.singleton k v
+        | h == h'       = case FL.insert k v l of
+            sz :!: l' -> sz :!: Tip h l'
+        | otherwise     = 1 :!: join h (Tip h $ FL.singleton k v) h' t
+    go h k v Nil        = 1 :!: Tip h (FL.singleton k v)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
 #endif
@@ -144,19 +141,22 @@ insert k0 v0 t0 = go h0 k0 v0 t0
 -- | /O(min(n,W))/ Remove the mapping for the specified key from this
 -- map if present.
 delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
-delete k0 = go h0 k0
+delete k0 hm = case go h0 k0 (root hm) of
+    sz :!: t -> HM (size hm - sz) t
   where
     h0 = hash k0
     go !h !k t@(Bin p m l r)
-        | nomatch h p m = t
-        | zero h m      = bin p m (go h k l) r  -- takes this branch
-        | otherwise     = bin p m l (go h k r)
+        | nomatch h p m = 0 :!: t
+        | zero h m      = case go h k l of
+            sz :!: t' -> sz :!: bin p m t' r
+        | otherwise     = case go h k r of
+            sz :!: t' -> sz :!: bin p m l t'
     go h k t@(Tip h' l)
         | h == h'       = case FL.delete k l of
-            Nothing -> Nil
-            Just l' -> Tip h' l'
-        | otherwise     = t
-    go _ _ Nil          = Nil
+            _ :!: Nothing -> 1 :!: Nil
+            sz :!: Just l' -> sz :!: Tip h' l'
+        | otherwise     = 0 :!: t
+    go _ _ Nil          = 0 :!: Nil
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE delete #-}
 #endif
@@ -170,17 +170,21 @@ delete k0 = go h0 k0
 -- >   where f new old = new + old
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
            -> HashMap k v
-insertWith f k0 v0 t0 = go h0 k0 v0 t0
+insertWith f k0 v0 hm = case go h0 k0 v0 (root hm) of
+    sz :!: t -> HM (size hm + sz) t
   where
     h0 = hash k0
     go !h !k v t@(Bin p m l r)
-        | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
-        | zero h m      = Bin p m (go h k v l) r
-        | otherwise     = Bin p m l (go h k v r)
+        | nomatch h p m = 1 :!: join h (Tip h $ FL.singleton k v) p t
+        | zero h m      = case go h k v l of
+            sz :!: t' -> sz :!: Bin p m t' r
+        | otherwise     = case go h k v r of
+            sz :!: t' -> sz :!: Bin p m l t'
     go h k v t@(Tip h' l)
-        | h == h'       = Tip h $ FL.insertWith f k v l
-        | otherwise     = join h (Tip h $ FL.singleton k v) h' t
-    go h k v Nil        = Tip h $ FL.singleton k v
+        | h == h'       = case FL.insertWith f k v l of
+            sz :!: l' -> sz :!: Tip h l'
+        | otherwise     = 1 :!: join h (Tip h $ FL.singleton k v) h' t
+    go h k v Nil        = 1 :!: Tip h (FL.singleton k v)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
 #endif
@@ -188,7 +192,7 @@ insertWith f k0 v0 t0 = go h0 k0 v0 t0
 -- | /O(min(n,W)/ Adjust the value tied to a given key in this map
 -- only if it is present. Otherwise, leave the map alone.
 adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
-adjust f k0 t0 = go h0 k0 t0
+adjust f k0 = sameSize (go h0 k0)
   where
     h0 = hash k0
     go !h !k t@(Bin p m l r)
@@ -208,7 +212,7 @@ adjust f k0 t0 = go h0 k0 t0
 
 -- | /O(n)/ Transform this map by applying a function to every value.
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
-map f = go
+map f hm = HM (size hm) $ go $ root hm
   where
     go (Bin p m l r) = Bin p m (go l) (go r)
     go (Tip h l)     = Tip h (FL.map f' l)
@@ -230,7 +234,7 @@ foldr f = foldrWithKey (const f)
 -- elements, using the given starting value (typically the
 -- right-identity of the operator).
 foldrWithKey :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-foldrWithKey f = go
+foldrWithKey f z0 hm = go z0 (root hm)
   where
     go z (Bin _ _ l r) = go (go z r) l
     go z (Tip _ l)     = FL.foldrWithKey f z l
@@ -252,7 +256,7 @@ foldl' f = foldlWithKey' (\ z _ v -> f z v)
 -- is evaluated before before using the result in the next
 -- application.  This function is strict in the starting value.
 foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
-foldlWithKey' f = go
+foldlWithKey' f z0 hm = go z0 (root hm)
   where
     go !z (Bin _ _ l r) = let z' = go z l
                           in z' `seq` go z' r
@@ -266,13 +270,16 @@ foldlWithKey' f = go
 -- | /O(n)/ Filter this map by retaining only elements satisfying a
 -- predicate.
 filterWithKey :: (k -> v -> Bool) -> HashMap k v -> HashMap k v
-filterWithKey pred = go
+filterWithKey pred hm = case go (root hm) of
+    sz :!: t -> HM sz t
   where
-    go (Bin p m l r) = bin p m (go l) (go r)
+    go (Bin p m l r) = let sz1 :!: l' = go l
+                           sz2 :!: r' = go r
+                       in sz1 + sz2 :!: bin p m l' r'
     go (Tip h l)     = case FL.filterWithKey pred l of
-        Just l' -> Tip h l'
-        Nothing -> Nil
-    go Nil           = Nil
+        sz :!: Just l' -> sz :!: Tip h l'
+        _ :!: Nothing  -> 0 :!: Nil
+    go Nil           = 0 :!: Nil
 {-# INLINE filterWithKey #-}
 
 -- | /O(n)/ Filter this map by retaining only elements which values

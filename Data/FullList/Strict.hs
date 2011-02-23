@@ -39,22 +39,26 @@ module Data.FullList.Strict
 import Prelude hiding (lookup, map)
 
 import Data.FullList.Lazy hiding (insertWith, map, adjust)
+import Data.Sized
 
-insertWith :: Eq k => (v -> v -> v) -> k -> v -> FullList k v -> FullList k v
+insertWith :: Eq k => (v -> v -> v) -> k -> v -> FullList k v
+           -> Sized (FullList k v)
 insertWith f !k v (FL k' v' xs)
-    | k == k'   = let v'' = f v v' in v'' `seq` FL k v'' xs
-    | otherwise = FL k' v' (insertWithL f k v xs)
+    | k == k'   = let v'' = f v v' in v'' `seq` 0 :!: FL k v'' xs
+    | otherwise = case insertWithL f k v xs of
+        sz :!: ys -> sz :!: FL k' v' ys
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
 #endif
 
-insertWithL :: Eq k => (v -> v -> v) -> k -> v -> List k v -> List k v
+insertWithL :: Eq k => (v -> v -> v) -> k -> v -> List k v -> Sized (List k v)
 insertWithL = go
   where
-    go _ !k v Nil = Cons k v Nil
+    go _ !k v Nil = 1 :!: Cons k v Nil
     go f k v (Cons k' v' xs)
-        | k == k'   = let v'' = f v v' in v'' `seq` Cons k v'' xs
-        | otherwise = Cons k' v' (go f k v xs)
+        | k == k'   = let v'' = f v v' in v'' `seq` 0 :!: Cons k v'' xs
+        | otherwise = case go f k v xs of
+            sz :!: ys -> sz :!: Cons k' v' ys
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWithL #-}
 #endif

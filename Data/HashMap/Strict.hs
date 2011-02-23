@@ -76,6 +76,7 @@ import Data.HashMap.Common
 import Data.HashMap.Lazy hiding (fromList, insert, insertWith, adjust, map, singleton)
 import qualified Data.HashMap.Lazy as L
 import qualified Data.List as List
+import Data.Sized
 
 ------------------------------------------------------------------------
 -- * Basic interface
@@ -89,17 +90,21 @@ singleton k !v = L.singleton k v
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
-insert k0 !v0 t0 = go h0 k0 v0 t0
+insert k0 v0 hm = case go h0 k0 v0 (root hm) of
+    sz :!: t -> HM (size hm + sz) t
   where
     h0 = hash k0
     go !h !k v t@(Bin p m l r)
-        | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
-        | zero h m      = Bin p m (go h k v l) r
-        | otherwise     = Bin p m l (go h k v r)
+        | nomatch h p m = 1 :!: join h (Tip h $ FL.singleton k v) p t
+        | zero h m      = case go h k v l of
+            sz :!: t' -> sz :!: Bin p m t' r
+        | otherwise     = case (go h k v r) of
+            sz :!: t' -> sz :!: Bin p m l t'
     go h k v t@(Tip h' l)
-        | h == h'       = Tip h $ FL.insert k v l
-        | otherwise     = join h (Tip h $ FL.singleton k v) h' t
-    go h k v Nil        = Tip h $ FL.singleton k v
+        | h == h'       = case FL.insert k v l of
+            sz :!: l' -> sz :!: Tip h l'
+        | otherwise     = 1 :!: join h (Tip h $ FL.singleton k v) h' t
+    go h k v Nil        = 1 :!: Tip h (FL.singleton k v)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
 #endif
@@ -113,17 +118,21 @@ insert k0 !v0 t0 = go h0 k0 v0 t0
 -- >   where f new old = new + old
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
            -> HashMap k v
-insertWith f k0 !v0 t0 = go h0 k0 v0 t0
+insertWith f k0 v0 hm = case go h0 k0 v0 (root hm) of
+    sz :!: t -> HM (size hm + sz) t
   where
     h0 = hash k0
     go !h !k v t@(Bin p m l r)
-        | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
-        | zero h m      = Bin p m (go h k v l) r
-        | otherwise     = Bin p m l (go h k v r)
+        | nomatch h p m = 1 :!: join h (Tip h $ FL.singleton k v) p t
+        | zero h m      = case go h k v l of
+            sz :!: t' -> sz :!: Bin p m t' r
+        | otherwise     = case go h k v r of
+            sz :!: t' -> sz :!: Bin p m l t'
     go h k v t@(Tip h' l)
-        | h == h'       = Tip h $ FL.insertWith f k v l
-        | otherwise     = join h (Tip h $ FL.singleton k v) h' t
-    go h k v Nil        = Tip h $ FL.singleton k v
+        | h == h'       = case FL.insertWith f k v l of
+            sz :!: l' -> sz :!: Tip h l'
+        | otherwise     = 1 :!: join h (Tip h $ FL.singleton k v) h' t
+    go h k v Nil        = 1 :!: Tip h (FL.singleton k v)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
 #endif
@@ -131,7 +140,7 @@ insertWith f k0 !v0 t0 = go h0 k0 v0 t0
 -- | /O(min(n,W)/ Adjust the value tied to a given key in this map
 -- only if it is present. Otherwise, leave the map alone.
 adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
-adjust f k0 t0 = go h0 k0 t0
+adjust f k0 = sameSize (go h0 k0)
   where
     h0 = hash k0
     go !h !k t@(Bin p m l r)
@@ -152,7 +161,7 @@ adjust f k0 t0 = go h0 k0 t0
 
 -- | /O(n)/ Transform this map by applying a function to every value.
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
-map f = go
+map f hm = HM (size hm) $ go $ root hm
   where
     go (Bin p m l r) = Bin p m (go l) (go r)
     go (Tip h l)     = Tip h (FL.map f' l)
