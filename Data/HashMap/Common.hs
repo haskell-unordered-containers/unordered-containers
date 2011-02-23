@@ -156,20 +156,4 @@ branchMask p1 p2 =
 critBit :: Word -> Word
 critBit w = w' `xor` (w' `shiftR` 1) where
     w' = w `xor` (w-1)
-{-
-critBit x0 =
-    let !x1 = x0 .|. shiftR x0 1
-        !x2 = x1 .|. shiftR x1 2
-        !x3 = x2 .|. shiftR x2 4
-        !x4 = x3 .|. shiftR x3 8
-        !x5 = x4 .|. shiftR x4 16
-#if WORD_SIZE_IN_BITS == 32
-    in x5 `xor` (shiftR x5 1)
-#elif WORD_SIZE_IN_BITS == 64
-        !x6 = x5 .|. shiftR x5 32
-    in x6 `xor` (shiftR x6 1)
-#else
-# error WORD_SIZE_IN_BITS not supported
-#endif
--}
 {-# INLINE critBit #-}
