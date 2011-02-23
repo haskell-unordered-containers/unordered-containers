@@ -52,9 +52,11 @@ library
 
 --   build-depends:
 --     base,
---     hashable >= 1.0.1.1 && < 1.1,
---     unordered-containers,
---     QuickCheck == 1.2.0.*
+--     hashable >= 1.0.1.1 && < 1.2,
+--     QuickCheck >= 2.4.0.1,
+--     test-framework >= 0.3.3 && < 0.4,
+--     test-framework-quickcheck2 >= 0.2.9 && < 0.3,
+--     unordered-containers
 
 --   ghc-options: -Wall
 

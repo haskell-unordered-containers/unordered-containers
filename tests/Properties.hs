@@ -10,7 +10,8 @@ import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
 import qualified Data.HashMap.Lazy as M
 import Test.QuickCheck (Arbitrary)
-import Test.QuickCheck.Batch
+import Test.Framework (Test, defaultMain)
+import Test.Framework.Providers.QuickCheck2 (testProperty)
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
@@ -46,36 +47,36 @@ pInsert k v = insert (k, v) `eq` (toAscList . M.insert k v)
 pDelete :: Key -> [(Key, Int)] -> Bool
 pDelete k = delete k `eq` (toAscList . M.delete k)
 
-pAdjustWithDefault :: Key -> [(Key, Int)] -> Bool
-pAdjustWithDefault k = insertWith (+) (k, 1) `eq`
+pInsertWith :: Key -> [(Key, Int)] -> Bool
+pInsertWith k = insertWith (+) (k, 1) `eq`
                        (toAscList . M.insertWith (+) k 1)
 
 pToList :: [(Key, Int)] -> Bool
 pToList = id `eq` toAscList
 
-tests :: [TestOptions -> IO TestResult]
+tests :: [Test]
 tests =
-    [ run pEq
-    , run pNeq
-    , run pSize
-    , run pLookup
-    , run pInsert
-    , run pDelete
-    , run pAdjustWithDefault
+    [ testProperty "==" pEq
+    , testProperty "/=" pNeq
+    , testProperty "size" pSize
+    , testProperty "lookup" pLookup
+    , testProperty "insert" pInsert
+    , testProperty "delete" pDelete
+    , testProperty "insertWith" pInsertWith
 
       -- Folds
-    , run pFoldr
-    , run pFoldl'
+    , testProperty "foldr" pFoldr
+    , testProperty "foldl'" pFoldl'
 
       -- Conversions
-    , run pToList
+    , testProperty "toList" pToList
     ]
 
 ------------------------------------------------------------------------
 -- ** Folds
 
 pFoldr :: [(Int, Int)] -> Bool
-pFoldr = (sortByKey . L.foldr (\ p z -> p : z) []) `eq`
+pFoldr = (sortByKey . L.foldr (:) []) `eq`
          (sortByKey . M.foldrWithKey f [])
   where f k v z = (k, v) : z
 
@@ -123,15 +124,8 @@ insertWith f x@(k, v) (y@(k', v'):xs)
 ------------------------------------------------------------------------
 -- Test harness
 
-options :: TestOptions
-options = TestOptions
-    { no_of_tests     = 500
-    , length_of_tests = 1
-    , debug_tests     = False
-    }
-
 main :: IO ()
-main = runTests "basics" options tests
+main = defaultMain tests
 
 ------------------------------------------------------------------------
 -- Helpers
