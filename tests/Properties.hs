@@ -83,6 +83,7 @@ tests =
 
     -- Folds
     , testProperty "foldr" pFoldr
+    , testProperty "foldrWithKey" pFoldrWithKey
     , testProperty "foldl'" pFoldl'
 
     -- Conversions
@@ -99,8 +100,12 @@ pMap = map (\ (k, v) -> (k, v + 1)) `eq` (toAscList . M.map (+ 1))
 -- ** Folds
 
 pFoldr :: [(Int, Int)] -> Bool
-pFoldr = (sortByKey . L.foldr (:) []) `eq`
-         (sortByKey . M.foldrWithKey f [])
+pFoldr = (L.sort . L.foldr (\ (_, v) z -> v:z) []) `eq`
+         (L.sort . M.foldr (:) [])
+
+pFoldrWithKey :: [(Int, Int)] -> Bool
+pFoldrWithKey = (sortByKey . L.foldr (:) []) `eq`
+                (sortByKey . M.foldrWithKey f [])
   where f k v z = (k, v) : z
 
 pFoldl' :: Int -> [(Int, Int)] -> Bool
