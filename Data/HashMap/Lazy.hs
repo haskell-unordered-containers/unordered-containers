@@ -99,7 +99,7 @@ lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
 lookup k0 t = go h0 k0 t
   where
     h0 = hash k0
-    go !h !k (Bin s m l r)
+    go !h !k (Bin _ m l r)
       -- | nomatch h s m = Nothing
       | zero h m  = go h k l
       | otherwise = go h k r

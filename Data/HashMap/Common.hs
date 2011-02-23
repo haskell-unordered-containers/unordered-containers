@@ -28,7 +28,7 @@ module Data.HashMap.Common
 
 import Control.Applicative
 import Control.DeepSeq (NFData(rnf))
-import Data.Bits ((.&.), (.|.), complement, shiftR, xor)
+import Data.Bits ((.&.), shiftR, xor)
 import qualified Data.Foldable as Foldable
 import Data.Traversable (Traversable(..))
 import Data.Word (Word)
