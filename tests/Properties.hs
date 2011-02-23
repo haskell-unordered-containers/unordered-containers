@@ -59,8 +59,20 @@ pInsertWith :: Key -> [(Key, Int)] -> Bool
 pInsertWith k = insertWith (+) (k, 1) `eq`
                        (toAscList . M.insertWith (+) k 1)
 
+------------------------------------------------------------------------
+-- ** Conversions
+
 pToList :: [(Key, Int)] -> Bool
 pToList = id `eq` toAscList
+
+pElems :: [(Key, Int)] -> Bool
+pElems = (L.sort . map snd) `eq` (L.sort . M.elems)
+
+pKeys :: [(Key, Int)] -> Bool
+pKeys = map fst `eq` (L.sort . M.keys)
+
+------------------------------------------------------------------------
+-- Test list
 
 tests :: [Test]
 tests =
@@ -87,6 +99,8 @@ tests =
     , testProperty "foldl'" pFoldl'
 
     -- Conversions
+    , testProperty "elems" pElems
+    , testProperty "keys" pKeys
     , testProperty "toList" pToList
     ]
 
