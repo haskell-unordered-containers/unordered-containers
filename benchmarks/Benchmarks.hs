@@ -47,21 +47,36 @@ main = do
             [ bench "String" $ whnf (lookupM keys) m
             , bench "ByteString" $ whnf (lookupM keysBS) mbs
             ]
+          , bgroup "lookup-miss"
+            [ bench "String" $ whnf (lookupM keys') m
+            , bench "ByteString" $ whnf (lookupM keysBS') mbs
+            ]
           , bgroup "insert"
             [ bench "String" $ whnf (insertM elems) M.empty
             , bench "ByteStringString" $ whnf (insertM elemsBS) M.empty
             ]
+          , bgroup "insert-dup"
+            [ bench "String" $ whnf (insertM elems) m
+            , bench "ByteStringString" $ whnf (insertM elemsBS) mbs
+            ]
           , bgroup "delete"
-            [ bench "String" $ whnf (insertM elems) M.empty
-            , bench "ByteString" $ whnf (insertM elemsBS) M.empty
+            [ bench "String" $ whnf (deleteM keys) m
+            , bench "ByteString" $ whnf (deleteM keysBS) mbs
+            ]
+          , bgroup "delete-miss"
+            [ bench "String" $ whnf (deleteM keys') m
+            , bench "ByteString" $ whnf (deleteM keysBS') mbs
             ]
           ]
 
           -- ** IntMap
         , bgroup "IntMap"
           [ bench "lookup" $ whnf (lookupIM keysI) im
+          , bench "lookup-miss" $ whnf (lookupIM keysI') im
           , bench "insert" $ whnf (insertIM elemsI) IM.empty
+          , bench "insert-dup" $ whnf (insertIM elemsI) im
           , bench "delete" $ whnf (deleteIM keysI) im
+          , bench "delete-miss" $ whnf (deleteIM keysI') im
           ]
 
           -- * Basic interface
@@ -70,15 +85,30 @@ main = do
           , bench "ByteString" $ whnf (lookup keysBS) hmbs
           , bench "Int" $ whnf (lookup keysI) hmi
           ]
+        , bgroup "lookup-miss"
+          [ bench "String" $ whnf (lookup keys') hm
+          , bench "ByteString" $ whnf (lookup keysBS') hmbs
+          , bench "Int" $ whnf (lookup keysI') hmi
+          ]
         , bgroup "insert"
           [ bench "String" $ whnf (insert elems) HM.empty
           , bench "ByteString" $ whnf (insert elemsBS) HM.empty
           , bench "Int" $ whnf (insert elemsI) HM.empty
           ]
+        , bgroup "insert-dup"
+          [ bench "String" $ whnf (insert elems) hm
+          , bench "ByteString" $ whnf (insert elemsBS) hmbs
+          , bench "Int" $ whnf (insert elemsI) hmi
+          ]
         , bgroup "delete"
           [ bench "String" $ whnf (delete keys) hm
           , bench "ByteString" $ whnf (delete keysBS) hmbs
           , bench "Int" $ whnf (delete keysI) hmi
+          ]
+        , bgroup "delete-miss"
+          [ bench "String" $ whnf (delete keys') hm
+          , bench "ByteString" $ whnf (delete keysBS') hmbs
+          , bench "Int" $ whnf (delete keysI') hmi
           ]
 
           -- Transformations
@@ -101,7 +131,11 @@ main = do
     elemsBS = zip keysBS [1..n]
     keysBS  = UBS.rnd 8 n
     elemsI  = zip keysI [1..n]
-    keysI   = UI.rnd n n
+    keysI   = UI.rnd (n+n) n
+
+    keys'    = US.rnd' 8 n
+    keysBS'  = UBS.rnd' 8 n
+    keysI'   = UI.rnd' (n+n) n
 
 ------------------------------------------------------------------------
 -- * HashMap

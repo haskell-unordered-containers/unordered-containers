@@ -23,3 +23,12 @@ rnd :: Int  -- ^ Length of each string
 rnd strlen num = take num $ split $ randomRs ('a', 'z') $ mkStdGen 1234
   where
     split cs = case splitAt strlen cs of (str, cs') -> str : split cs'
+
+-- | Generate a number of fixed length strings where the content of
+-- the strings are letters in random order, different from rnd
+rnd' :: Int  -- ^ Length of each string
+     -> Int  -- ^ Number of strings
+     -> [String]
+rnd' strlen num = take num $ split $ randomRs ('a', 'z') $ mkStdGen 5678
+  where
+    split cs = case splitAt strlen cs of (str, cs') -> str : split cs'

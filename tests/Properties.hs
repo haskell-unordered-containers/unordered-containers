@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+ {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
 -- comparing them to a simpler model, an association list.
@@ -10,7 +10,8 @@ import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
 import qualified Data.HashMap.Lazy as M
 import Test.QuickCheck (Arbitrary)
-import Test.QuickCheck.Batch
+import Test.Framework (Test, defaultMain, testGroup)
+import Test.Framework.Providers.QuickCheck2 (testProperty)
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
@@ -53,24 +54,6 @@ pAdjustWithDefault k = insertWith (+) (k, 1) `eq`
 pToList :: [(Key, Int)] -> Bool
 pToList = id `eq` toAscList
 
-tests :: [TestOptions -> IO TestResult]
-tests =
-    [ run pEq
-    , run pNeq
-    , run pSize
-    , run pLookup
-    , run pInsert
-    , run pDelete
-    , run pAdjustWithDefault
-
-      -- Folds
-    , run pFoldr
-    , run pFoldl'
-
-      -- Conversions
-    , run pToList
-    ]
-
 ------------------------------------------------------------------------
 -- ** Folds
 
@@ -81,7 +64,7 @@ pFoldr = (sortByKey . L.foldr (\ p z -> p : z) []) `eq`
 
 pFoldl' :: Int -> [(Int, Int)] -> Bool
 pFoldl' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` M.foldlWithKey' f z0
-  where f _ v z = v + z
+  where f z _ v = v + z
 
 ------------------------------------------------------------------------
 -- Model
@@ -124,15 +107,28 @@ insertWith f x@(k, v) (y@(k', v'):xs)
 ------------------------------------------------------------------------
 -- Test harness
 
-options :: TestOptions
-options = TestOptions
-    { no_of_tests     = 500
-    , length_of_tests = 1
-    , debug_tests     = False
-    }
+tests :: [Test]
+tests =
+    [ testGroup "basic"
+      [ testProperty "==" pEq
+      , testProperty "/=" pNeq
+      , testProperty "size" pSize
+      , testProperty "lookup" pLookup
+      , testProperty "insert" pInsert
+      , testProperty "delete" pDelete
+      , testProperty "adjustWithDefault" pAdjustWithDefault
+      ]
+    , testGroup "Folds"
+      [ testProperty "foldr" pFoldr
+      , testProperty "foldl'" pFoldl'
+      ]
+    , testGroup "Conversions"
+      [ testProperty "toList" pToList
+      ]
+    ]
 
 main :: IO ()
-main = runTests "basics" options tests
+main = defaultMain tests
 
 ------------------------------------------------------------------------
 -- Helpers
