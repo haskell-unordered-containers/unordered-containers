@@ -5,6 +5,7 @@
 
 module Main (main) where
 
+import qualified Data.Foldable as Foldable
 import Data.Function (on)
 import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
@@ -27,10 +28,17 @@ instance Hashable Key where
 -- ** Instances
 
 pEq :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pEq xs = (xs ==) `eq` (fromList xs ==)
+pEq xs = (xs ==) `eq` (M.fromList xs ==)
 
 pNeq :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pNeq xs = (xs /=) `eq` (fromList xs /=)
+pNeq xs = (xs /=) `eq` (M.fromList xs /=)
+
+pFunctor :: [(Key, Int)] -> Bool
+pFunctor = fmap (\ (k, v) -> (k, v + 1)) `eq` (toAscList . fmap (+ 1))
+
+pFoldable :: [(Int, Int)] -> Bool
+pFoldable = (L.sort . Foldable.foldr (\ (_, v) z -> v:z) []) `eq`
+            (L.sort . Foldable.foldr (:) [])
 
 ------------------------------------------------------------------------
 -- ** Basic interface
@@ -47,27 +55,82 @@ pInsert k v = insert (k, v) `eq` (toAscList . M.insert k v)
 pDelete :: Key -> [(Key, Int)] -> Bool
 pDelete k = delete k `eq` (toAscList . M.delete k)
 
-pAdjustWithDefault :: Key -> [(Key, Int)] -> Bool
-pAdjustWithDefault k = insertWith (+) (k, 1) `eq`
-                       (toAscList . M.insertWith (+) k 1)
+pInsertWith :: Key -> [(Key, Int)] -> Bool
+pInsertWith k = insertWith (+) (k, 1) `eq`
+                (toAscList . M.insertWith (+) k 1)
 
-pToList :: [(Key, Int)] -> Bool
-pToList = id `eq` toAscList
+------------------------------------------------------------------------
+-- ** Transformations
+
+pMap :: [(Key, Int)] -> Bool
+pMap = map (\ (k, v) -> (k, v + 1)) `eq` (toAscList . M.map (+ 1))
 
 ------------------------------------------------------------------------
 -- ** Folds
 
 pFoldr :: [(Int, Int)] -> Bool
-pFoldr = (sortByKey . L.foldr (\ p z -> p : z) []) `eq`
-         (sortByKey . M.foldrWithKey f [])
+pFoldr = (L.sort . L.foldr (\ (_, v) z -> v:z) []) `eq`
+         (L.sort . M.foldr (:) [])
+
+pFoldrWithKey :: [(Int, Int)] -> Bool
+pFoldrWithKey = (sortByKey . L.foldr (:) []) `eq`
+                (sortByKey . M.foldrWithKey f [])
   where f k v z = (k, v) : z
 
 pFoldl' :: Int -> [(Int, Int)] -> Bool
-pFoldl' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` M.foldlWithKey' f z0
-  where f z _ v = v + z
+pFoldl' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` M.foldl' (+) z0
 
 ------------------------------------------------------------------------
--- Model
+-- ** Conversions
+
+pToList :: [(Key, Int)] -> Bool
+pToList = id `eq` toAscList
+
+pElems :: [(Key, Int)] -> Bool
+pElems = (L.sort . map snd) `eq` (L.sort . M.elems)
+
+pKeys :: [(Key, Int)] -> Bool
+pKeys = map fst `eq` (L.sort . M.keys)
+
+------------------------------------------------------------------------
+-- * Test list
+
+tests :: [Test]
+tests =
+    [
+    -- Instances
+      testGroup "instances"
+      [ testProperty "==" pEq
+      , testProperty "/=" pNeq
+      , testProperty "Functor" pFunctor
+      , testProperty "Foldable" pFoldable
+      ]
+    -- Basic interface
+    , testGroup "basic interface"
+      [ testProperty "size" pSize
+      , testProperty "lookup" pLookup
+      , testProperty "insert" pInsert
+      , testProperty "delete" pDelete
+      , testProperty "insertWith" pInsertWith
+      ]
+    -- Transformations
+    , testProperty "map" pMap
+    -- Folds
+    , testGroup "folds"
+      [ testProperty "foldr" pFoldr
+      , testProperty "foldrWithKey" pFoldrWithKey
+      , testProperty "foldl'" pFoldl'
+      ]
+    -- Conversions
+    , testGroup "conversions"
+      [ testProperty "elems" pElems
+      , testProperty "keys" pKeys
+      , testProperty "toList" pToList
+      ]
+    ]
+
+------------------------------------------------------------------------
+-- * Model
 
 -- Invariant: the list is sorted in ascending order, by key.
 type Model k v = [(k, v)]
@@ -80,8 +143,8 @@ eq :: (Eq a, Eq k, Hashable k, Ord k)
    -> (M.HashMap k v -> a)  -- ^ Function that modified a 'HashMap'
    -> [(k, v)]              -- ^ Initial content of the 'HashMap' and 'Model'
    -> Bool                  -- ^ True if the functions are equivalent
-eq f g xs = g (fromList ys) == f ys
-  where ys = L.nubBy ((==) `on` fst) $ L.sortBy (compare `on` fst) $ xs
+eq f g xs = g (M.fromList ys) == f ys
+  where ys = fromList xs
 
 insert :: Ord k => (k, v) -> Model k v -> Model k v
 insert x [] = [x]
@@ -104,38 +167,19 @@ insertWith f x@(k, v) (y@(k', v'):xs)
     | k > k'    = y : insertWith f x xs
     | otherwise = x : y : xs
 
-------------------------------------------------------------------------
--- Test harness
+-- | Create a model from a list of key-value pairs.  If the input
+-- contains multiple entries for the same key, the latter one is used.
+fromList :: Ord k => [(k, v)] -> Model k v
+fromList = L.foldl' (\ m p -> insert p m) []
 
-tests :: [Test]
-tests =
-    [ testGroup "basic"
-      [ testProperty "==" pEq
-      , testProperty "/=" pNeq
-      , testProperty "size" pSize
-      , testProperty "lookup" pLookup
-      , testProperty "insert" pInsert
-      , testProperty "delete" pDelete
-      , testProperty "adjustWithDefault" pAdjustWithDefault
-      ]
-    , testGroup "Folds"
-      [ testProperty "foldr" pFoldr
-      , testProperty "foldl'" pFoldl'
-      ]
-    , testGroup "Conversions"
-      [ testProperty "toList" pToList
-      ]
-    ]
+------------------------------------------------------------------------
+-- * Test harness
 
 main :: IO ()
 main = defaultMain tests
 
 ------------------------------------------------------------------------
--- Helpers
-
-fromList :: (Eq k, Hashable k) => [(k, v)] -> M.HashMap k v
-fromList = L.foldl' ins M.empty
-  where ins m (k, v) = M.insert k v m
+-- * Helpers
 
 sortByKey :: Ord k => [(k, v)] -> [(k, v)]
 sortByKey = L.sortBy (compare `on` fst)

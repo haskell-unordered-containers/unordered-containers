@@ -42,9 +42,11 @@ module Data.HashMap.Lazy
     , insert
     , delete
     , insertWith
+    , adjust
 
       -- * Transformations
     , map
+    , traverseWithKey
 
       -- * Folds
     , foldl'
@@ -127,10 +129,10 @@ insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k0 v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin p m l r)
-        | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
-        | zero h m      = Bin p m (go h k v l) r
-        | otherwise     = Bin p m l (go h k v r)
+    go !h !k v t@(Bin s m l r)
+        | nomatch h s m = join h (Tip h $ FL.singleton k v) s t
+        | zero h m      = Bin s m (go h k v l) r
+        | otherwise     = Bin s m l (go h k v r)
     go h k v t@(Tip h' l)
         | h == h'       = Tip h $ FL.insert k v l
         | otherwise     = join h (Tip h $ FL.singleton k v) h' t
@@ -145,10 +147,10 @@ delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
 delete k0 = go h0 k0
   where
     h0 = hash k0
-    go !h !k t@(Bin p m l r)
-        | nomatch h p m = t
-        | zero h m      = bin p m (go h k l) r  -- takes this branch
-        | otherwise     = bin p m l (go h k r)
+    go !h !k t@(Bin s m l r)
+        | nomatch h s m = t
+        | zero h m      = bin s m (go h k l) r
+        | otherwise     = bin s m l (go h k r)
     go h k t@(Tip h' l)
         | h == h'       = case FL.delete k l of
             Nothing -> Nil
@@ -171,16 +173,34 @@ insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
 insertWith f k0 v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin p m l r)
-        | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
-        | zero h m      = Bin p m (go h k v l) r
-        | otherwise     = Bin p m l (go h k v r)
+    go !h !k v t@(Bin s m l r)
+        | nomatch h s m = join h (Tip h $ FL.singleton k v) s t
+        | zero h m      = Bin s m (go h k v l) r
+        | otherwise     = Bin s m l (go h k v r)
     go h k v t@(Tip h' l)
         | h == h'       = Tip h $ FL.insertWith f k v l
         | otherwise     = join h (Tip h $ FL.singleton k v) h' t
     go h k v Nil        = Tip h $ FL.singleton k v
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
+#endif
+
+-- | /O(min(n,W)/ Adjust the value tied to a given key in this map
+-- only if it is present. Otherwise, leave the map alone.
+adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
+adjust f k0 t0 = go h0 k0 t0
+  where
+    h0 = hash k0
+    go !h !k t@(Bin p m l r)
+      | nomatch h p m = t
+      | zero h m      = Bin p m (go h k l) r
+      | otherwise     = Bin p m l (go h k r)
+    go h k t@(Tip h' l)
+      | h == h'       = Tip h $ FL.adjust f k l
+      | otherwise     = t
+    go _ _ Nil        = Nil
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE adjust #-}
 #endif
 
 ------------------------------------------------------------------------
@@ -190,7 +210,7 @@ insertWith f k0 v0 t0 = go h0 k0 v0 t0
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = go
   where
-    go (Bin p m l r) = Bin p m (go l) (go r)
+    go (Bin s m l r) = Bin s m (go l) (go r)
     go (Tip h l)     = Tip h (FL.map f' l)
     go Nil           = Nil
     f' k v = (k, f v)
@@ -205,17 +225,6 @@ map f = go
 foldr :: (v -> a -> a) -> a -> HashMap k v -> a
 foldr f = foldrWithKey (const f)
 {-# INLINE foldr #-}
-
--- | /O(n)/ Reduce this map by applying a binary operator to all
--- elements, using the given starting value (typically the
--- right-identity of the operator).
-foldrWithKey :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-foldrWithKey f = go
-  where
-    go z (Bin _ _ l r) = go (go z r) l
-    go z (Tip _ l)     = FL.foldrWithKey f z l
-    go z Nil           = z
-{-# INLINE foldrWithKey #-}
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
@@ -248,7 +257,7 @@ foldlWithKey' f = go
 filterWithKey :: (k -> v -> Bool) -> HashMap k v -> HashMap k v
 filterWithKey pred = go
   where
-    go (Bin p m l r) = bin p m (go l) (go r)
+    go (Bin s m l r) = bin s m (go l) (go r)
     go (Tip h l)     = case FL.filterWithKey pred l of
         Just l' -> Tip h l'
         Nothing -> Nil

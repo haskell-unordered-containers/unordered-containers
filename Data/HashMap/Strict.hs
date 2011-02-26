@@ -43,9 +43,11 @@ module Data.HashMap.Strict
     , insert
     , delete
     , insertWith
+    , adjust
 
       -- * Transformations
     , map
+    , traverseWithKey
 
       -- * Folds
     , foldl'
@@ -71,7 +73,7 @@ import Prelude hiding (filter, foldr, lookup, map, null)
 
 import qualified Data.FullList.Strict as FL
 import Data.HashMap.Common
-import Data.HashMap.Lazy hiding (fromList, insert, insertWith, map, singleton)
+import Data.HashMap.Lazy hiding (fromList, insert, insertWith, adjust, map, singleton)
 import qualified Data.HashMap.Lazy as L
 import qualified Data.List as List
 
@@ -90,10 +92,10 @@ insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k0 !v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin p m l r)
-        | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
-        | zero h m      = Bin p m (go h k v l) r
-        | otherwise     = Bin p m l (go h k v r)
+    go !h !k v t@(Bin s m l r)
+        | nomatch h s m = join h (Tip h $ FL.singleton k v) s t
+        | zero h m      = Bin s m (go h k v l) r
+        | otherwise     = Bin s m l (go h k v r)
     go h k v t@(Tip h' l)
         | h == h'       = Tip h $ FL.insert k v l
         | otherwise     = join h (Tip h $ FL.singleton k v) h' t
@@ -114,10 +116,10 @@ insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
 insertWith f k0 !v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin p m l r)
-        | nomatch h p m = join h (Tip h $ FL.singleton k v) p t
-        | zero h m      = Bin p m (go h k v l) r
-        | otherwise     = Bin p m l (go h k v r)
+    go !h !k v t@(Bin s m l r)
+        | nomatch h s m = join h (Tip h $ FL.singleton k v) s t
+        | zero h m      = Bin s m (go h k v l) r
+        | otherwise     = Bin s m l (go h k v r)
     go h k v t@(Tip h' l)
         | h == h'       = Tip h $ FL.insertWith f k v l
         | otherwise     = join h (Tip h $ FL.singleton k v) h' t
@@ -126,6 +128,25 @@ insertWith f k0 !v0 t0 = go h0 k0 v0 t0
 {-# INLINABLE insertWith #-}
 #endif
 
+-- | /O(min(n,W)/ Adjust the value tied to a given key in this map
+-- only if it is present. Otherwise, leave the map alone.
+adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
+adjust f k0 t0 = go h0 k0 t0
+  where
+    h0 = hash k0
+    go !h !k t@(Bin p m l r)
+      | nomatch h p m = t
+      | zero h m      = Bin p m (go h k l) r
+      | otherwise     = Bin p m l (go h k r)
+    go h k t@(Tip h' l)
+      | h == h'       = Tip h $ FL.adjust f k l
+      | otherwise     = t
+    go _ _ Nil        = Nil
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE adjust #-}
+#endif
+
+
 ------------------------------------------------------------------------
 -- * Transformations
 
@@ -133,7 +154,7 @@ insertWith f k0 !v0 t0 = go h0 k0 v0 t0
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = go
   where
-    go (Bin p m l r) = Bin p m (go l) (go r)
+    go (Bin s m l r) = Bin s m (go l) (go r)
     go (Tip h l)     = Tip h (FL.map f' l)
     go Nil           = Nil
     f' k v = (k, f v)
