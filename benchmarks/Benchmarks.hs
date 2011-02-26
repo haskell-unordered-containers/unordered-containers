@@ -31,9 +31,9 @@ instance NFData B where
 
 main :: IO ()
 main = do
-    let hm   = fromList elems :: HM.HashMap String Int
-        hmbs = fromList elemsBS :: HM.HashMap BS.ByteString Int
-        hmi  = fromList elemsI :: HM.HashMap Int Int
+    let hm   = HM.fromList elems :: HM.HashMap String Int
+        hmbs = HM.fromList elemsBS :: HM.HashMap BS.ByteString Int
+        hmi  = HM.fromList elemsI :: HM.HashMap Int Int
         m    = M.fromList elems :: M.Map String Int
         mbs  = M.fromList elemsBS :: M.Map BS.ByteString Int
         im   = IM.fromList elemsI :: IM.IntMap Int
@@ -67,6 +67,10 @@ main = do
             [ bench "String" $ whnf (deleteM keys') m
             , bench "ByteString" $ whnf (deleteM keysBS') mbs
             ]
+          , bgroup "size"
+            [ bench "String" $ whnf M.size m
+            , bench "ByteString" $ whnf M.size mbs
+            ]
           ]
 
           -- ** IntMap
@@ -77,6 +81,7 @@ main = do
           , bench "insert-dup" $ whnf (insertIM elemsI) im
           , bench "delete" $ whnf (deleteIM keysI) im
           , bench "delete-miss" $ whnf (deleteIM keysI') im
+          , bench "size" $ whnf IM.size im
           ]
 
           -- * Basic interface
@@ -121,6 +126,13 @@ main = do
           -- Filter
         , bench "filter" $ whnf (HM.filter (\ v -> v .&. 1 == 0)) hmi
         , bench "filterWithKey" $ whnf (HM.filterWithKey (\ k _ -> k .&. 1 == 0)) hmi
+
+          -- Size
+        , bgroup "size"
+          [ bench "String" $ whnf HM.size hm
+          , bench "ByteString" $ whnf HM.size hmbs
+          , bench "Int" $ whnf HM.size hmi
+          ]
         ]
   where
     n :: Int
@@ -197,9 +209,3 @@ insertIM xs m0 = foldl' (\m (k, v) -> IM.insert k v m) m0 xs
 
 deleteIM :: [Int] -> IM.IntMap Int -> IM.IntMap Int
 deleteIM xs m0 = foldl' (\m k -> IM.delete k m) m0 xs
-
-------------------------------------------------------------------------
--- * Helpers
-
-fromList :: (Eq k, Hashable k) => [(k, v)] -> HM.HashMap k v
-fromList = foldl' (\m (k, v) -> HM.insert k v m) HM.empty
