@@ -16,9 +16,6 @@ module Data.HashMap.Common
     , zero
     , nomatch
     , mask
-    , maskW
-    , branchMask
-    , critBit
 
     -- * Transformations
     , traverseWithKey
@@ -31,7 +28,7 @@ module Data.HashMap.Common
 
 import Control.Applicative
 import Control.DeepSeq (NFData(rnf))
-import Data.Bits ((.&.), shiftR, xor)
+import Data.Bits ((.&.), xor)
 import qualified Data.Foldable as Foldable
 import Data.Traversable (Traversable(..))
 import Data.Word (Word)
@@ -85,7 +82,7 @@ nequal _   _   = True
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Nil           = ()
     rnf (Tip _ xs)    = rnf xs
-    rnf (Bin _ _ l r) = rnf l `seq` rnf r `seq` ()
+    rnf (Bin _ _ l r) = rnf l `seq` rnf r
 
 instance Functor (HashMap k) where
     fmap = map
@@ -174,8 +171,7 @@ branchMask p1 p2 =
     fromIntegral (critBit (fromIntegral p1 `xor` fromIntegral p2 :: Word))
 {-# INLINE branchMask #-}
 
--- | Return a 'Word' where only the highest bit is set.
+-- | Return a 'Word' whose single set bit corresponds to the lowest set bit of w.
 critBit :: Word -> Word
-critBit w = w' `xor` (w' `shiftR` 1) where
-    w' = w `xor` (w-1)
+critBit w = w .&. (negate w)
 {-# INLINE critBit #-}

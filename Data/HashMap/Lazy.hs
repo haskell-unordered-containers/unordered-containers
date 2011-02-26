@@ -65,6 +65,10 @@ module Data.HashMap.Lazy
       -- ** Lists
     , toList
     , fromList
+
+      -- * Behavioral metadata
+    , collisions
+    , collisionHistogram
     ) where
 
 import qualified Data.FullList.Lazy as FL
@@ -88,10 +92,11 @@ null _   = False
 
 -- | /O(n)/ Return the number of key-value mappings in this map.
 size :: HashMap k v -> Int
-size t = case t of
-    Bin _ _ l r -> size l + size r
-    Tip _ l     -> FL.size l
-    Nil         -> 0
+size t = go t 0
+  where
+    go (Bin _ _ l r) !sz = go r (go l sz)
+    go (Tip _ l)     !sz = sz + FL.size l
+    go Nil           !sz = sz
 
 -- | /O(min(n,W))/ Return the value to which the specified key is
 -- mapped, or 'Nothing' if this map contains no mapping for the key.
@@ -299,3 +304,29 @@ keys = List.map fst . toList
 elems :: HashMap k v -> [v]
 elems = List.map snd . toList
 {-# INLINE elems #-}
+
+
+-------------------------------------------------------------------
+-- Metadata about map behavior
+
+-- | /O(n)/ Return the number of hash collisions in this map.
+collisions :: HashMap k v -> Int
+collisions t = go t 0
+  where
+    go (Bin _ _ l r) !sz = go r (go l sz)
+    go (Tip _ l)     !sz
+      | fl_sz <= 1 = sz
+      | otherwise  = sz + fl_sz
+      where fl_sz = FL.size l
+    go Nil           !sz = sz
+
+-- | /O(n)/ Return histogram of hash collisions in this map.
+-- Keys are number of entries in bucket, values are number of buckets
+-- of that size.
+collisionHistogram :: HashMap k v -> HashMap Int Int
+collisionHistogram t = go t Nil
+  where
+    go (Bin _ _ l r) h = go r (go l h)
+    go (Tip _ l)     h = (insert sz $! maybe 1 (1+) (lookup sz h)) h
+      where sz = FL.size l
+    go Nil           h = h
