@@ -72,6 +72,10 @@ main = do
             [ bench "String" $ whnf M.size m
             , bench "ByteString" $ whnf M.size mbs
             ]
+          , bgroup "fromList"
+            [ bench "String" $ whnf M.fromList elems
+            , bench "ByteString" $ whnf M.fromList elemsBS
+            ]
           ]
 
           -- ** IntMap
@@ -83,6 +87,7 @@ main = do
           , bench "delete" $ whnf (deleteIM keysI) im
           , bench "delete-miss" $ whnf (deleteIM keysI') im
           , bench "size" $ whnf IM.size im
+          , bench "fromList" $ whnf IM.fromList elemsI
           ]
 
           -- * Basic interface
@@ -136,6 +141,13 @@ main = do
           [ bench "String" $ whnf HM.size hm
           , bench "ByteString" $ whnf HM.size hmbs
           , bench "Int" $ whnf HM.size hmi
+          ]
+
+          -- fromList
+        , bgroup "fromList"
+          [ bench "String" $ whnf HM.fromList elems
+          , bench "ByteString" $ whnf HM.fromList elemsBS
+          , bench "Int" $ whnf HM.fromList elemsI
           ]
         ]
   where
