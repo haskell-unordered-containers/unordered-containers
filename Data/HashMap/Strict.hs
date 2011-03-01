@@ -66,10 +66,6 @@ module Data.HashMap.Strict
       -- ** Lists
     , toList
     , fromList
-
-      -- * Behavioral metadata
-    , collisions
-    , collisionHistogram
     ) where
 
 import Data.Hashable (Hashable(hash))

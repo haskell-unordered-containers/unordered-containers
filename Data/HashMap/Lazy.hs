@@ -65,10 +65,6 @@ module Data.HashMap.Lazy
       -- ** Lists
     , toList
     , fromList
-
-      -- * Behavioral metadata
-    , collisions
-    , collisionHistogram
     ) where
 
 import qualified Data.FullList.Lazy as FL
