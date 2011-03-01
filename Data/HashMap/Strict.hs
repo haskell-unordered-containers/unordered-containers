@@ -40,6 +40,7 @@ module Data.HashMap.Strict
     , null
     , size
     , lookup
+    , lookupDefault
     , insert
     , delete
     , insertWith
