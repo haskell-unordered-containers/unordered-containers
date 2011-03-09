@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP #-}
+{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable #-}
 
 -- | Code shared between the lazy and strict versions.
 
@@ -31,6 +31,7 @@ import Control.DeepSeq (NFData(rnf))
 import Data.Bits ((.&.), xor)
 import qualified Data.Foldable as Foldable
 import Data.Traversable (Traversable(..))
+import Data.Typeable (Typeable)
 import Data.Word (Word)
 import Prelude hiding (foldr, map)
 
@@ -49,7 +50,7 @@ data HashMap k v
           {-# UNPACK #-} !Mask
           !(HashMap k v)
           !(HashMap k v)
-    deriving Show
+    deriving (Show, Typeable)
 
 type Suffix = Int
 type Mask   = Int
