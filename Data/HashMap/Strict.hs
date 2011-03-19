@@ -67,6 +67,7 @@ module Data.HashMap.Strict
       -- ** Lists
     , toList
     , fromList
+    , fromListWith
     ) where
 
 import Data.Hashable (Hashable(hash))
@@ -168,3 +169,8 @@ map f = go
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = List.foldl' (\ m (k, v) -> insert k v m) empty
 {-# INLINE fromList #-}
+
+-- | /O(n*min(W, n))/ Construct a map from a list of elements.
+fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
+fromListWith f = List.foldl' (\ m (k, v) -> insertWith f k v m) empty
+{-# INLINE fromListWith #-}
