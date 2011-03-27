@@ -66,6 +66,7 @@ module Data.HashMap.Lazy
       -- ** Lists
     , toList
     , fromList
+    , fromListWith
     ) where
 
 import qualified Data.FullList.Lazy as FL
@@ -300,6 +301,12 @@ toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = List.foldl' (\ m (k, v) -> insert k v m) empty
 {-# INLINE fromList #-}
+
+-- | /O(n*min(W, n))/ Construct a map from a list of elements.  Uses
+-- the provided function to merge duplicate entries.
+fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
+fromListWith f = List.foldl' (\ m (k, v) -> insertWith f k v m) empty
+{-# INLINE fromListWith #-}
 
 -- | /O(n)/ Return a list of this map's keys.  The list is produced
 -- lazily.

@@ -75,7 +75,8 @@ import Prelude hiding (filter, foldr, lookup, map, null)
 
 import qualified Data.FullList.Strict as FL
 import Data.HashMap.Common
-import Data.HashMap.Lazy hiding (fromList, insert, insertWith, adjust, map, singleton)
+import Data.HashMap.Lazy hiding (fromList, fromListWith, insert, insertWith,
+                                 adjust, map, singleton)
 import qualified Data.HashMap.Lazy as L
 import qualified Data.List as List
 
@@ -170,7 +171,8 @@ fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = List.foldl' (\ m (k, v) -> insert k v m) empty
 {-# INLINE fromList #-}
 
--- | /O(n*min(W, n))/ Construct a map from a list of elements.
+-- | /O(n*min(W, n))/ Construct a map from a list of elements.  Uses
+-- the provided function to merge duplicate entries.
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = List.foldl' (\ m (k, v) -> insertWith f k v m) empty
 {-# INLINE fromListWith #-}
