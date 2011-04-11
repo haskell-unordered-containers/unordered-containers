@@ -30,6 +30,9 @@ module Data.HashSet
     , empty
     , singleton
 
+    -- * Combine
+    , union
+
     -- * Basic interface
     , null
     , size
@@ -55,6 +58,7 @@ module Data.HashSet
 import Control.DeepSeq (NFData(..))
 import Data.HashMap.Common (HashMap, foldrWithKey)
 import Data.Hashable (Hashable)
+import Data.Monoid (Monoid(..))
 import Prelude hiding (filter, foldr, map, null)
 import qualified Data.Foldable as Foldable
 import qualified Data.HashMap.Lazy as H
@@ -83,6 +87,12 @@ instance Foldable.Foldable HashSet where
     foldr = Data.HashSet.foldr
     {-# INLINE foldr #-}
 
+instance (Hashable a, Eq a) => Monoid (HashSet a) where
+    mempty = empty
+    {-# INLINE mempty #-}
+    mappend = union
+    {-# INLINE mappend #-}
+
 -- | /O(1)/ Construct an empty set.
 empty :: HashSet a
 empty = HashSet H.empty
@@ -93,6 +103,11 @@ singleton a = HashSet (H.singleton a ())
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE singleton #-}
 #endif
+
+-- | /O(n)/ Construct a set containing all elements from both sets.
+union :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
+union = foldl' (flip insert)
+{-# INLINE union #-}
 
 -- | /O(1)/ Return 'True' if this set is empty, 'False' otherwise.
 null :: HashSet a -> Bool
