@@ -20,7 +20,10 @@ cabal-version:  >=1.8
 -- The test files shouldn't have to go here, but the source files for
 -- the test-suite stanzas don't get picked up by `cabal sdist`.
 Extra-source-files:
-  tests/Properties.hs, benchmarks/Benchmarks.hs benchmarks/Makefile
+  tests/MapProperties.hs
+  tests/SetProperties.hs
+  benchmarks/Benchmarks.hs
+  benchmarks/Makefile
   benchmarks/Util/*.hs
 
 library
@@ -48,11 +51,11 @@ library
     ghc-options: -fregs-graph
 
 -- -- Commented out until cabal-install release.
--- test-suite properties
+-- test-suite map-properties
 --   hs-source-dirs: tests
---   main-is: Properties.hs
+--   main-is: MapProperties.hs
 --   type: exitcode-stdio-1.0
-
+--
 --   build-depends:
 --     base,
 --     hashable >= 1.0.1.1 && < 1.2,
@@ -60,7 +63,23 @@ library
 --     test-framework >= 0.3.3 && < 0.4,
 --     test-framework-quickcheck2 >= 0.2.9 && < 0.3,
 --     unordered-containers
+--
+--   ghc-options: -Wall
 
+--
+-- test-suite set-properties
+--   hs-source-dirs: tests
+--   main-is: SetProperties.hs
+--   type: exitcode-stdio-1.0
+--
+--   build-depends:
+--     base,
+--     hashable >= 1.0.1.1 && < 1.2,
+--     QuickCheck >= 2.4.0.1,
+--     test-framework >= 0.3.3 && < 0.4,
+--     test-framework-quickcheck2 >= 0.2.9 && < 0.3,
+--     unordered-containers
+--
 --   ghc-options: -Wall
 
 source-repository head
