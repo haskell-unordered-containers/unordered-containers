@@ -37,6 +37,9 @@ module Data.HashSet
     , insert
     , delete
 
+    -- * Transformations
+    , map
+
     -- * Folds
     , foldl'
     , foldr
@@ -52,7 +55,8 @@ module Data.HashSet
 import Control.DeepSeq (NFData(..))
 import Data.HashMap.Common (HashMap, foldrWithKey)
 import Data.Hashable (Hashable)
-import Prelude hiding (filter, foldr, null)
+import Prelude hiding (filter, foldr, map, null)
+import qualified Data.Foldable as Foldable
 import qualified Data.HashMap.Lazy as H
 import qualified Data.List as List
 
@@ -73,6 +77,11 @@ instance (Hashable a, Eq a) => Eq (HashSet a) where
     -- This performs two passes over the tree.
     a == b = foldr f True b && size a == size b
         where f i = (&& i `member` a)
+    {-# INLINE (==) #-}
+
+instance Foldable.Foldable HashSet where
+    foldr = Data.HashSet.foldr
+    {-# INLINE foldr #-}
 
 -- | /O(1)/ Construct an empty set.
 empty :: HashSet a
@@ -113,6 +122,14 @@ insert a = HashSet . H.insert a () . asMap
 delete :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 delete a = HashSet . H.delete a . asMap
 {-# INLINE delete #-}
+
+-- | /O(n)/ Transform this set by applying a function to every value.
+-- The resulting set may be smaller than the source.
+map :: (Hashable b, Eq b) => (a -> b) -> HashSet a -> HashSet b
+map f = fromList . List.map f . toList
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE map #-}
+#endif
 
 -- | /O(n)/ Reduce this set by applying a binary operator to all
 -- elements, using the given starting value (typically the
