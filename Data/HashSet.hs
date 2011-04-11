@@ -105,6 +105,9 @@ singleton a = HashSet (H.singleton a ())
 #endif
 
 -- | /O(n)/ Construct a set containing all elements from both sets.
+--
+-- To obtain good performance, the smaller set must be presented as
+-- the first argument.
 union :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 union = foldl' (flip insert)
 {-# INLINE union #-}
