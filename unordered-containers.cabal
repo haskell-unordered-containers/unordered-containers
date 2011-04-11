@@ -27,6 +27,7 @@ library
   exposed-modules:
     Data.HashMap.Lazy
     Data.HashMap.Strict
+    Data.HashSet
 
   build-depends:
     base < 4.4,

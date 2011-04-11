@@ -1,0 +1,155 @@
+{-# LANGUAGE CPP #-}
+
+------------------------------------------------------------------------
+-- |
+-- Module      :  Data.HashSet
+-- Copyright   :  2011 Bryan O'Sullivan
+-- License     :  BSD-style
+-- Maintainer  :  johan.tibell@gmail.com
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- A set of /hashable/ values.  A set cannot contain duplicate items.
+-- A 'HashSet' makes no guarantees as to the order of its elements.
+--
+-- The implementation is based on /big-endian patricia trees/, indexed
+-- by a hash of the original value.  A 'HashSet' is often faster than
+-- other tree-based set types, especially when value comparison is
+-- expensive, as in the case of strings.
+--
+-- Many operations have a worst-case complexity of /O(min(n,W))/.
+-- This means that the operation can become linear in the number of
+-- elements with a maximum of /W/ -- the number of bits in an 'Int'
+-- (32 or 64).
+
+module Data.HashSet
+    (
+      HashSet
+
+    -- * Construction
+    , empty
+    , singleton
+
+    -- * Basic interface
+    , null
+    , size
+    , member
+    , insert
+    , delete
+
+    -- * Folds
+    , foldl'
+    , foldr
+
+    -- * Filter
+    , filter
+
+    -- ** Lists
+    , toList
+    , fromList
+    ) where
+
+import Control.DeepSeq (NFData(..))
+import Data.HashMap.Common (HashMap, foldrWithKey)
+import Data.Hashable (Hashable)
+import Prelude hiding (filter, foldr, null)
+import qualified Data.HashMap.Lazy as H
+import qualified Data.List as List
+
+#if defined(__GLASGOW_HASKELL__)
+import GHC.Exts (build)
+#endif
+
+-- | A set of values.  A set cannot contain duplicate values.
+newtype HashSet a = HashSet {
+      asMap :: HashMap a ()
+    }
+
+instance (NFData a) => NFData (HashSet a) where
+    rnf = rnf . asMap
+    {-# INLINE rnf #-}
+
+instance (Hashable a, Eq a) => Eq (HashSet a) where
+    -- This performs two passes over the tree.
+    a == b = foldr f True b && size a == size b
+        where f i = (&& i `member` a)
+
+-- | /O(1)/ Construct an empty set.
+empty :: HashSet a
+empty = HashSet H.empty
+
+-- | /O(1)/ Construct a set with a single element.
+singleton :: Hashable a => a -> HashSet a
+singleton a = HashSet (H.singleton a ())
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE singleton #-}
+#endif
+
+-- | /O(1)/ Return 'True' if this set is empty, 'False' otherwise.
+null :: HashSet a -> Bool
+null = H.null . asMap
+{-# INLINE null #-}
+
+-- | /O(n)/ Return the number of elements in this set.
+size :: HashSet a -> Int
+size = H.size . asMap
+{-# INLINE size #-}
+
+-- | /O(min(n,W))/ Return 'True' if the given value is present in this
+-- set, 'False' otherwise.
+member :: (Eq a, Hashable a) => a -> HashSet a -> Bool
+member a s = case H.lookup a (asMap s) of
+               Just _ -> True
+               _      -> False
+{-# INLINE member #-}
+
+-- | /O(min(n,W))/ Add the specified value to this set.
+insert :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
+insert a = HashSet . H.insert a () . asMap
+{-# INLINE insert #-}
+
+-- | /O(min(n,W))/ Remove the specified value from this set if
+-- present.
+delete :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
+delete a = HashSet . H.delete a . asMap
+{-# INLINE delete #-}
+
+-- | /O(n)/ Reduce this set by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- left-identity of the operator).  Each application of the operator
+-- is evaluated before before using the result in the next
+-- application.  This function is strict in the starting value.
+foldl' :: (a -> b -> a) -> a -> HashSet b -> a
+foldl' f z0 = H.foldlWithKey' g z0 . asMap
+  where g z k _ = f z k
+{-# INLINE foldl' #-}
+
+-- | /O(n)/ Reduce this set by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- right-identity of the operator).
+foldr :: (b -> a -> a) -> a -> HashSet b -> a
+foldr f z0 = foldrWithKey g z0 . asMap
+  where g k _ z = f k z
+{-# INLINE foldr #-}
+
+-- | /O(n)/ Filter this set by retaining only elements satisfying a
+-- predicate.
+filter :: (a -> Bool) -> HashSet a -> HashSet a
+filter p = HashSet . H.filterWithKey q . asMap
+  where q k _ = p k
+{-# INLINE filter #-}
+
+-- | /O(n)/ Return a list of this set's elements.  The list is
+-- produced lazily.
+toList :: HashSet a -> [a]
+#if defined(__GLASGOW_HASKELL__)
+toList t = build (\ c z -> foldrWithKey ((const .) c) z (asMap t))
+#else
+toList = foldrWithKey (\ k _ xs -> k : xs) [] . asMap
+#endif
+{-# INLINE toList #-}
+
+-- | /O(n*min(W, n))/ Construct a set from a list of elements.
+fromList :: (Eq a, Hashable a) => [a] -> HashSet a
+fromList = HashSet . List.foldl' (\ m k -> H.insert k () m) H.empty
+{-# INLINE fromList #-}
