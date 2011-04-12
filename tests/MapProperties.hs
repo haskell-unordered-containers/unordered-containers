@@ -60,6 +60,16 @@ pInsertWith k = insertWith (+) (k, 1) `eq`
                 (toAscList . M.insertWith (+) k 1)
 
 ------------------------------------------------------------------------
+-- ** Combine
+
+pUnion :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pUnion xs ys = L.sort (unionByKey as bs) == 
+               toAscList (M.union (M.fromList as) (M.fromList bs))
+  where
+    as = fromList xs
+    bs = fromList ys
+
+------------------------------------------------------------------------
 -- ** Transformations
 
 pMap :: [(Key, Int)] -> Bool
@@ -113,6 +123,8 @@ tests =
       , testProperty "delete" pDelete
       , testProperty "insertWith" pInsertWith
       ]
+    -- Combine
+    , testProperty "union" pUnion
     -- Transformations
     , testProperty "map" pMap
     -- Folds
@@ -184,5 +196,8 @@ main = defaultMain tests
 sortByKey :: Ord k => [(k, v)] -> [(k, v)]
 sortByKey = L.sortBy (compare `on` fst)
 
-toAscList :: Ord k => M.HashMap k v -> [(k, v)]
-toAscList = sortByKey . M.toList
+unionByKey :: (Eq k, Eq v) => [(k, v)] -> [(k, v)] -> [(k, v)]
+unionByKey = L.unionBy ((==) `on` fst)
+
+toAscList :: (Ord k, Ord v) => M.HashMap k v -> [(k, v)]
+toAscList = L.sort . M.toList

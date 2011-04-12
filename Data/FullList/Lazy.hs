@@ -25,6 +25,10 @@ module Data.FullList.Lazy
     , insertWith
     , adjust
 
+      -- * Combine
+      -- * Union
+    , union
+
       -- * Transformations
     , map
     , traverseWithKey
@@ -115,6 +119,25 @@ lookupL = go
 {-# INLINABLE lookupL #-}
 #endif
 
+member :: Eq k => k -> FullList k v -> Bool
+member !k (FL k' _ xs)
+    | k == k'   = True
+    | otherwise = memberL k xs
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE member #-}
+#endif
+
+memberL :: Eq k => k -> List k v -> Bool
+memberL = go
+  where
+    go !_ Nil = False
+    go k (Cons k' _ xs)
+        | k == k'   = True
+        | otherwise = go k xs
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE memberL #-}
+#endif
+
 insert :: Eq k => k -> v -> FullList k v -> FullList k v
 insert !k v (FL k' v' xs)
     | k == k'   = FL k v xs
@@ -194,6 +217,30 @@ adjustL f = go
       | otherwise = Cons k' v (go k xs)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE adjustL #-}
+#endif
+
+------------------------------------------------------------------------
+-- * Combine
+
+-- | /O(n^2)/ Left biased union.
+union :: Eq k => FullList k v -> FullList k v -> FullList k v
+union xs (FL k v ys)
+    | k `member` xs = unionL xs ys
+    | otherwise     = case unionL xs ys of
+        FL k' v' zs -> FL k v $ Cons k' v' zs
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE union #-}
+#endif
+
+unionL :: Eq k => FullList k v -> List k v -> FullList k v
+unionL xs@(FL k v zs) = FL k v . go
+  where
+    go Nil = zs
+    go (Cons k' v' ys)
+        | k' `member` xs = go ys
+        | otherwise      = Cons k' v' $ go ys
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE unionL #-}
 #endif
 
 ------------------------------------------------------------------------

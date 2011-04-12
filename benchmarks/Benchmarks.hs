@@ -34,6 +34,7 @@ main = do
     let hm   = HM.fromList elems :: HM.HashMap String Int
         hmbs = HM.fromList elemsBS :: HM.HashMap BS.ByteString Int
         hmi  = HM.fromList elemsI :: HM.HashMap Int Int
+        hmi2 = HM.fromList elemsI2 :: HM.HashMap Int Int
         m    = M.fromList elems :: M.Map String Int
         mbs  = M.fromList elemsBS :: M.Map BS.ByteString Int
         im   = IM.fromList elemsI :: IM.IntMap Int
@@ -116,6 +117,9 @@ main = do
           , bench "Int" $ whnf (delete keysI') hmi
           ]
 
+          -- Combine
+        , bench "union" $ whnf (HM.union hmi) hmi2
+
           -- Transformations
         , bench "map" $ whnf (HM.map (\ v -> v + 1)) hmi
 
@@ -144,6 +148,7 @@ main = do
     keysBS  = UBS.rnd 8 n
     elemsI  = zip keysI [1..n]
     keysI   = UI.rnd (n+n) n
+    elemsI2 = zip [n `div` 2..n + (n `div` 2)] [1..n]  -- for union
 
     keys'    = US.rnd' 8 n
     keysBS'  = UBS.rnd' 8 n
