@@ -28,7 +28,9 @@ instance Hashable Key where
 -- ** Instances
 
 pEq :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pEq xs = (xs ==) `eq` (M.fromList xs ==)
+pEq xs ys = (as ==) `eq` (M.fromList as ==) $ bs
+  where as = fromList xs
+        bs = fromList ys
 
 pNeq :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pNeq xs = (xs /=) `eq` (M.fromList xs /=)
