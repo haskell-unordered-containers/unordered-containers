@@ -121,7 +121,9 @@ foldrWithKey f = go
 
 instance Eq k => Monoid (HashMap k v) where
   mempty = empty
+  {-# INLINE mempty #-}
   mappend = union
+  {-# INLINE mappend #-}
 
 -- | /O(1)/ Construct an empty map.
 empty :: HashMap k v

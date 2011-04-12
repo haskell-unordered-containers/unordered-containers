@@ -53,6 +53,16 @@ pDelete :: Key -> [Key] -> Bool
 pDelete a = delete a `eq` (toAscList . S.delete a)
 
 ------------------------------------------------------------------------
+-- ** Combine
+
+pUnion :: [Key] -> [Key] -> Bool
+pUnion xs ys = L.sort (L.union as bs) ==
+               toAscList (S.union (S.fromList as) (S.fromList bs))
+  where
+    as = fromList xs
+    bs = fromList ys
+
+------------------------------------------------------------------------
 -- ** Transformations
 
 pMap :: [Key] -> Bool
@@ -94,6 +104,8 @@ tests =
       , testProperty "insert" pInsert
       , testProperty "delete" pDelete
       ]
+    -- Combine
+    , testProperty "union" pUnion
     -- Transformations
     , testProperty "map" pMap
     -- Folds

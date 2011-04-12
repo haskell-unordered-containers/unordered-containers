@@ -106,7 +106,7 @@ singleton a = HashSet (H.singleton a ())
 
 -- | /O(n)/ Construct a set containing all elements from both sets.
 union :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
-union = foldl' (flip insert)
+union s1 s2 = HashSet $ H.union (asMap s1) (asMap s2)
 {-# INLINE union #-}
 
 -- | /O(1)/ Return 'True' if this set is empty, 'False' otherwise.
