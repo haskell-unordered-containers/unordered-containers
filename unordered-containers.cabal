@@ -50,37 +50,38 @@ library
   if impl(ghc > 6.10)
     ghc-options: -fregs-graph
 
--- -- Commented out until cabal-install release.
--- test-suite map-properties
---   hs-source-dirs: tests
---   main-is: MapProperties.hs
---   type: exitcode-stdio-1.0
---
---   build-depends:
---     base,
---     hashable >= 1.0.1.1 && < 1.2,
---     QuickCheck >= 2.4.0.1,
---     test-framework >= 0.3.3 && < 0.4,
---     test-framework-quickcheck2 >= 0.2.9 && < 0.3,
---     unordered-containers
---
---   ghc-options: -Wall
+-- Commented out until cabal-install release.
+test-suite map-properties
+  hs-source-dirs: tests
+  main-is: MapProperties.hs
+  type: exitcode-stdio-1.0
 
---
--- test-suite set-properties
---   hs-source-dirs: tests
---   main-is: SetProperties.hs
---   type: exitcode-stdio-1.0
---
---   build-depends:
---     base,
---     hashable >= 1.0.1.1 && < 1.2,
---     QuickCheck >= 2.4.0.1,
---     test-framework >= 0.3.3 && < 0.4,
---     test-framework-quickcheck2 >= 0.2.9 && < 0.3,
---     unordered-containers
---
---   ghc-options: -Wall
+  build-depends:
+    base,
+    hashable >= 1.0.1.1 && < 1.2,
+    QuickCheck >= 2.4.0.1,
+    test-framework >= 0.3.3 && < 0.4,
+    test-framework-quickcheck2 >= 0.2.9 && < 0.3,
+    unordered-containers
+
+  ghc-options: -Wall
+
+
+test-suite set-properties
+  hs-source-dirs: tests
+  main-is: SetProperties.hs
+  type: exitcode-stdio-1.0
+
+  build-depends:
+    base,
+    containers,
+    hashable >= 1.0.1.1 && < 1.2,
+    QuickCheck >= 2.4.0.1,
+    test-framework >= 0.3.3 && < 0.4,
+    test-framework-quickcheck2 >= 0.2.9 && < 0.3,
+    unordered-containers
+
+  ghc-options: -Wall
 
 source-repository head
   type:     git
