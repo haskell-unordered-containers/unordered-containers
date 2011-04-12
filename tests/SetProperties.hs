@@ -6,7 +6,6 @@
 module Main (main) where
 
 import qualified Data.Foldable as Foldable
-import Data.Function (on)
 import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
 import qualified Data.HashSet as S
