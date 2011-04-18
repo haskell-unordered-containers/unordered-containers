@@ -96,9 +96,9 @@ null _   = False
 size :: HashMap k v -> Int
 size t = go t 0
   where
-    go (Bin _ _ l r) !sz = go r (go l sz)
-    go (Tip _ l)     !sz = sz + FL.size l
-    go Nil           !sz = sz
+    go (Bin _ l r) !sz = go r (go l sz)
+    go (Tip _ l)   !sz = sz + FL.size l
+    go Nil         !sz = sz
 
 -- | /O(min(n,W))/ Return the value to which the specified key is
 -- mapped, or 'Nothing' if this map contains no mapping for the key.
@@ -106,8 +106,8 @@ lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
 lookup k0 t = go h0 k0 t
   where
     h0 = hash k0
-    go !h !k (Bin _ m l r)
-      | zero h m  = go h k l
+    go !h !k (Bin sm l r)
+      | zero h sm = go h k l
       | otherwise = go h k r
     go h k (Tip h' l)
       | h == h'   = FL.lookup k l
@@ -143,14 +143,14 @@ insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k0 v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin s m l r)
-        | nomatch h s m = join h (Tip h $ FL.singleton k v) s t
-        | zero h m      = Bin s m (go h k v l) r
-        | otherwise     = Bin s m l (go h k v r)
+    go !h !k v t@(Bin sm l r)
+        | nomatch h sm = join h (Tip h $ FL.singleton k v) sm t
+        | zero h sm    = Bin sm (go h k v l) r
+        | otherwise    = Bin sm l (go h k v r)
     go h k v t@(Tip h' l)
-        | h == h'       = Tip h $ FL.insert k v l
-        | otherwise     = join h (Tip h $ FL.singleton k v) h' t
-    go h k v Nil        = Tip h $ FL.singleton k v
+        | h == h'      = Tip h $ FL.insert k v l
+        | otherwise    = join h (Tip h $ FL.singleton k v) h' t
+    go h k v Nil       = Tip h $ FL.singleton k v
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
 #endif
@@ -161,10 +161,10 @@ delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
 delete k0 = go h0 k0
   where
     h0 = hash k0
-    go !h !k t@(Bin s m l r)
-        | nomatch h s m = t
-        | zero h m      = bin s m (go h k l) r
-        | otherwise     = bin s m l (go h k r)
+    go !h !k t@(Bin sm l r)
+        | nomatch h sm = t
+        | zero h sm    = bin sm (go h k l) r
+        | otherwise    = bin sm l (go h k r)
     go h k t@(Tip h' l)
         | h == h'       = case FL.delete k l of
             Nothing -> Nil
@@ -187,10 +187,10 @@ insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
 insertWith f k0 v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin s m l r)
-        | nomatch h s m = join h (Tip h $ FL.singleton k v) s t
-        | zero h m      = Bin s m (go h k v l) r
-        | otherwise     = Bin s m l (go h k v r)
+    go !h !k v t@(Bin sm l r)
+        | nomatch h sm = join h (Tip h $ FL.singleton k v) sm t
+        | zero h sm    = Bin sm (go h k v l) r
+        | otherwise    = Bin sm l (go h k v r)
     go h k v t@(Tip h' l)
         | h == h'       = Tip h $ FL.insertWith f k v l
         | otherwise     = join h (Tip h $ FL.singleton k v) h' t
@@ -205,14 +205,14 @@ adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
 adjust f k0 t0 = go h0 k0 t0
   where
     h0 = hash k0
-    go !h !k t@(Bin p m l r)
-      | nomatch h p m = t
-      | zero h m      = Bin p m (go h k l) r
-      | otherwise     = Bin p m l (go h k r)
+    go !h !k t@(Bin sm l r)
+      | nomatch h sm = t
+      | zero h sm    = Bin sm (go h k l) r
+      | otherwise    = Bin sm l (go h k r)
     go h k t@(Tip h' l)
-      | h == h'       = Tip h $ FL.adjust f k l
-      | otherwise     = t
-    go _ _ Nil        = Nil
+      | h == h'      = Tip h $ FL.adjust f k l
+      | otherwise    = t
+    go _ _ Nil       = Nil
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE adjust #-}
 #endif
@@ -224,9 +224,9 @@ adjust f k0 t0 = go h0 k0 t0
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = go
   where
-    go (Bin s m l r) = Bin s m (go l) (go r)
-    go (Tip h l)     = Tip h (FL.map f' l)
-    go Nil           = Nil
+    go (Bin sm l r) = Bin sm (go l) (go r)
+    go (Tip h l)    = Tip h (FL.map f' l)
+    go Nil          = Nil
     f' k v = (k, f v)
 {-# INLINE map #-}
 
@@ -257,10 +257,10 @@ foldl' f = foldlWithKey' (\ z _ v -> f z v)
 foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
 foldlWithKey' f = go
   where
-    go !z (Bin _ _ l r) = let z' = go z l
-                          in z' `seq` go z' r
-    go z (Tip _ l)      = FL.foldlWithKey' f z l
-    go z Nil            = z
+    go !z (Bin _ l r) = let z' = go z l
+                        in z' `seq` go z' r
+    go z (Tip _ l)    = FL.foldlWithKey' f z l
+    go z Nil          = z
 {-# INLINE foldlWithKey' #-}
 
 ------------------------------------------------------------------------
@@ -271,11 +271,11 @@ foldlWithKey' f = go
 filterWithKey :: (k -> v -> Bool) -> HashMap k v -> HashMap k v
 filterWithKey pred = go
   where
-    go (Bin s m l r) = bin s m (go l) (go r)
-    go (Tip h l)     = case FL.filterWithKey pred l of
+    go (Bin sm l r) = bin sm (go l) (go r)
+    go (Tip h l)    = case FL.filterWithKey pred l of
         Just l' -> Tip h l'
         Nothing -> Nil
-    go Nil           = Nil
+    go Nil          = Nil
 {-# INLINE filterWithKey #-}
 
 -- | /O(n)/ Filter this map by retaining only elements which values
