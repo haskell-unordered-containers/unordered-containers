@@ -99,7 +99,7 @@ insert k0 !v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
     go !h !k v t@(Bin sm l r)
-        | nomatch h sm = join h (Tip h $ FL.singleton k v) (fromIntegral sm) t
+        | nomatch h sm = join h (Tip h $ FL.singleton k v) sm t
         | zero h sm    = Bin sm (go h k v l) r
         | otherwise    = Bin sm l (go h k v r)
     go h k v t@(Tip h' l)
@@ -123,7 +123,7 @@ insertWith f k0 !v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
     go !h !k v t@(Bin sm l r)
-        | nomatch h sm = join h (Tip h $ FL.singleton k v) (fromIntegral sm) t
+        | nomatch h sm = join h (Tip h $ FL.singleton k v) sm t
         | zero h sm    = Bin sm (go h k v l) r
         | otherwise    = Bin sm l (go h k v r)
     go h k v t@(Tip h' l)
