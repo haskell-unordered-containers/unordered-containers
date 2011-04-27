@@ -98,14 +98,14 @@ insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k0 !v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin s m l r)
-        | nomatch h s m = join h (Tip h $ FL.singleton k v) s t
-        | zero h m      = Bin s m (go h k v l) r
-        | otherwise     = Bin s m l (go h k v r)
+    go !h !k v t@(Bin sm l r)
+        | nomatch h sm = join h (Tip h $ FL.singleton k v) sm t
+        | zero h sm    = Bin sm (go h k v l) r
+        | otherwise    = Bin sm l (go h k v r)
     go h k v t@(Tip h' l)
-        | h == h'       = Tip h $ FL.insert k v l
-        | otherwise     = join h (Tip h $ FL.singleton k v) h' t
-    go h k v Nil        = Tip h $ FL.singleton k v
+        | h == h'      = Tip h $ FL.insert k v l
+        | otherwise    = join h (Tip h $ FL.singleton k v) h' t
+    go h k v Nil       = Tip h $ FL.singleton k v
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
 #endif
@@ -122,14 +122,14 @@ insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
 insertWith f k0 !v0 t0 = go h0 k0 v0 t0
   where
     h0 = hash k0
-    go !h !k v t@(Bin s m l r)
-        | nomatch h s m = join h (Tip h $ FL.singleton k v) s t
-        | zero h m      = Bin s m (go h k v l) r
-        | otherwise     = Bin s m l (go h k v r)
+    go !h !k v t@(Bin sm l r)
+        | nomatch h sm = join h (Tip h $ FL.singleton k v) sm t
+        | zero h sm    = Bin sm (go h k v l) r
+        | otherwise    = Bin sm l (go h k v r)
     go h k v t@(Tip h' l)
-        | h == h'       = Tip h $ FL.insertWith f k v l
-        | otherwise     = join h (Tip h $ FL.singleton k v) h' t
-    go h k v Nil        = Tip h $ FL.singleton k v
+        | h == h'      = Tip h $ FL.insertWith f k v l
+        | otherwise    = join h (Tip h $ FL.singleton k v) h' t
+    go h k v Nil       = Tip h $ FL.singleton k v
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
 #endif
@@ -140,14 +140,14 @@ adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
 adjust f k0 t0 = go h0 k0 t0
   where
     h0 = hash k0
-    go !h !k t@(Bin p m l r)
-      | nomatch h p m = t
-      | zero h m      = Bin p m (go h k l) r
-      | otherwise     = Bin p m l (go h k r)
+    go !h !k t@(Bin sm l r)
+      | nomatch h sm = t
+      | zero h sm    = Bin sm (go h k l) r
+      | otherwise    = Bin sm l (go h k r)
     go h k t@(Tip h' l)
-      | h == h'       = Tip h $ FL.adjust f k l
-      | otherwise     = t
-    go _ _ Nil        = Nil
+      | h == h'      = Tip h $ FL.adjust f k l
+      | otherwise    = t
+    go _ _ Nil       = Nil
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE adjust #-}
 #endif
@@ -160,9 +160,9 @@ adjust f k0 t0 = go h0 k0 t0
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = go
   where
-    go (Bin s m l r) = Bin s m (go l) (go r)
-    go (Tip h l)     = Tip h (FL.map f' l)
-    go Nil           = Nil
+    go (Bin sm l r) = Bin sm (go l) (go r)
+    go (Tip h l)    = Tip h (FL.map f' l)
+    go Nil          = Nil
     f' k v = (k, f v)
 {-# INLINE map #-}
 
