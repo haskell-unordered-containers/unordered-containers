@@ -46,6 +46,9 @@ module Data.HashMap.Strict
     , insertWith
     , adjust
 
+      -- * Combine
+    , union
+
       -- * Transformations
     , map
     , traverseWithKey

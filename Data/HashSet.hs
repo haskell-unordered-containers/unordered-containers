@@ -109,7 +109,7 @@ singleton a = HashSet (H.singleton a ())
 -- To obtain good performance, the smaller set must be presented as
 -- the first argument.
 union :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
-union = foldl' (flip insert)
+union s1 s2 = HashSet $ H.union (asMap s1) (asMap s2)
 {-# INLINE union #-}
 
 -- | /O(1)/ Return 'True' if this set is empty, 'False' otherwise.

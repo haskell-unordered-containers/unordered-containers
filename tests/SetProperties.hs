@@ -6,7 +6,6 @@
 module Main (main) where
 
 import qualified Data.Foldable as Foldable
-import Data.Function (on)
 import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
 import qualified Data.HashSet as S
@@ -54,6 +53,16 @@ pDelete :: Key -> [Key] -> Bool
 pDelete a = delete a `eq` (toAscList . S.delete a)
 
 ------------------------------------------------------------------------
+-- ** Combine
+
+pUnion :: [Key] -> [Key] -> Bool
+pUnion xs ys = L.sort (L.union as bs) ==
+               toAscList (S.union (S.fromList as) (S.fromList bs))
+  where
+    as = fromList xs
+    bs = fromList ys
+
+------------------------------------------------------------------------
 -- ** Transformations
 
 pMap :: [Key] -> Bool
@@ -95,6 +104,8 @@ tests =
       , testProperty "insert" pInsert
       , testProperty "delete" pDelete
       ]
+    -- Combine
+    , testProperty "union" pUnion
     -- Transformations
     , testProperty "map" pMap
     -- Folds

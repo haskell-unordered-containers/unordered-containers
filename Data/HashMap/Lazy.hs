@@ -45,6 +45,10 @@ module Data.HashMap.Lazy
     , insertWith
     , adjust
 
+      -- * Combine
+      -- * Union
+    , union
+
       -- * Transformations
     , map
     , traverseWithKey
@@ -123,10 +127,6 @@ lookupDefault def k t = case lookup k t of
                           Just v -> v
                           _      -> def
 {-# INLINE lookupDefault #-}
-
--- | /O(1)/ Construct an empty map.
-empty :: HashMap k v
-empty = Nil
 
 -- | /O(1)/ Construct a map with a single element.
 singleton :: Hashable k => k -> v -> HashMap k v
