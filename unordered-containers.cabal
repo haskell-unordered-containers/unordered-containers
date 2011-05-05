@@ -13,7 +13,9 @@ license-file:   LICENSE
 author:         Johan Tibell <johan.tibell@gmail.com>
 maintainer:     johan.tibell@gmail.com
 bug-reports:    https://github.com/tibbe/unordered-containers/issues
-copyright:      (c) 2010-2011 Johan Tibell
+copyright:      (c) Daan Leijen 2002
+                (c) Andriy Palamarchuk 2008
+                (c) 2010-2011 Johan Tibell
 category:       Data
 build-type:     Simple
 cabal-version:  >=1.8
