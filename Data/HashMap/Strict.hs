@@ -47,6 +47,7 @@ module Data.HashMap.Strict
     , adjust
 
       -- * Combine
+      -- ** Union
     , union
 
       -- * Transformations
