@@ -29,7 +29,7 @@ import Data.HashMap.Lazy (insert, lookup)
 collisions :: HashMap k v -> Int
 collisions t = go t 0
   where
-    go (Bin _ _ l r) !sz = go r (go l sz)
+    go (Bin _ l r) !sz = go r (go l sz)
     go (Tip _ l)     !sz
       | fl_sz <= 1 = sz
       | otherwise  = sz + fl_sz
@@ -42,7 +42,7 @@ collisions t = go t 0
 collisionHistogram :: HashMap k v -> HashMap Int Int
 collisionHistogram t = go t Nil
   where
-    go (Bin _ _ l r) h = go r (go l h)
+    go (Bin _ l r) h = go r (go l h)
     go (Tip _ l)     h = (insert sz $! maybe 1 (1+) (lookup sz h)) h
       where sz = FL.size l
     go Nil           h = h
