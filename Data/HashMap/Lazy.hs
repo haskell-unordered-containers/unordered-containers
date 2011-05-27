@@ -78,10 +78,6 @@ import Data.Hashable (Hashable(hash))
 import qualified Data.List as List
 import Prelude hiding (filter, foldr, lookup, map, null, pred)
 
-#if defined(__GLASGOW_HASKELL__)
-import GHC.Exts (build)
-#endif
-
 import Data.HashMap.Common
 
 ------------------------------------------------------------------------
@@ -286,16 +282,6 @@ filter p = filterWithKey (\_ v -> p v)
 
 ------------------------------------------------------------------------
 -- Conversions
-
--- | /O(n)/ Return a list of this map's elements.  The list is
--- produced lazily.
-toList :: HashMap k v -> [(k, v)]
-#if defined(__GLASGOW_HASKELL__)
-toList t = build (\ c z -> foldrWithKey (curry c) z t)
-#else
-toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
-#endif
-{-# INLINE toList #-}
 
 -- | /O(n*min(W, n))/ Construct a map from a list of elements.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
