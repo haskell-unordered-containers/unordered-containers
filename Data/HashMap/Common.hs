@@ -20,6 +20,7 @@ module Data.HashMap.Common
     , union
 
     -- * Transformations
+    , toList
     , filterMapWithKey
     , traverseWithKey
 
@@ -39,6 +40,10 @@ import Data.Typeable (Typeable)
 import Data.Word (Word)
 import Prelude hiding (foldr, map)
 
+#if defined(__GLASGOW_HASKELL__)
+import GHC.Exts (build)
+#endif
+
 import qualified Data.FullList.Lazy as FL
 
 ------------------------------------------------------------------------
@@ -53,7 +58,7 @@ data HashMap k v
     | Tip {-# UNPACK #-} !Hash
           {-# UNPACK #-} !(FL.FullList k v)
     | Nil
-    deriving (Show, Typeable)
+    deriving (Typeable)
 
 type Suffix = Int
 type Hash   = Int
@@ -78,6 +83,16 @@ instance (Eq k, Eq v) => Eq (HashMap k v) where
     t1 == t2 = equal t1 t2
     t1 /= t2 = nequal t1 t2
 
+-- | /O(n)/ Return a list of this map's elements.  The list is
+-- produced lazily.
+toList :: HashMap k v -> [(k, v)]
+#if defined(__GLASGOW_HASKELL__)
+toList t = build (\ c z -> foldrWithKey (curry c) z t)
+#else
+toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
+#endif
+{-# INLINE toList #-}
+
 equal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
 equal (Bin sm1 l1 r1) (Bin sm2 l2 r2) =
     (sm1 == sm2) && (equal l1 l2) && (equal r1 r2)
@@ -99,6 +114,10 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
 
 instance Functor (HashMap k) where
     fmap = map
+
+instance (Show k, Show v) => Show (HashMap k v) where
+    showsPrec d m = showParen (d > 10) $
+      showString "fromList " . shows (toList m)
 
 -- | /O(n)/ Transform this map by applying a function to every value.
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
