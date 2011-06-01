@@ -53,6 +53,10 @@ module Data.HashMap.Lazy
     , map
     , traverseWithKey
 
+      -- * Difference and intersection
+    , difference
+    , intersection
+
       -- * Folds
     , foldl'
     , foldlWithKey'
@@ -225,6 +229,30 @@ map f = go
     go Nil          = Nil
     f' k v = (k, f v)
 {-# INLINE map #-}
+
+-- | /O(n)/ Difference of two maps. Return elements of the first map
+-- not existing in the second.
+difference :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
+difference a b = foldlWithKey' go empty a
+  where
+    go m k v = case lookup k b of
+                 Nothing -> insert k v m
+                 _       -> m
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE difference #-}
+#endif
+
+-- | /O(n)/ Intersection of two maps. Return elements of the first map
+-- for keys existing in the second.
+intersection :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
+intersection a b = foldlWithKey' go empty a
+  where
+    go m k v = case lookup k b of
+                 Just _ -> insert k v m
+                 _      -> m
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE intersection #-}
+#endif
 
 ------------------------------------------------------------------------
 -- * Folds

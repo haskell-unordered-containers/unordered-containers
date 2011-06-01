@@ -54,6 +54,10 @@ module Data.HashMap.Strict
     , map
     , traverseWithKey
 
+      -- * Difference and intersection
+    , difference
+    , intersection
+
       -- * Folds
     , foldl'
     , foldlWithKey'

@@ -43,6 +43,10 @@ module Data.HashSet
     -- * Transformations
     , map
 
+      -- * Difference and intersection
+    , difference
+    , intersection
+
     -- * Folds
     , foldl'
     , foldr
@@ -144,6 +148,22 @@ map :: (Hashable b, Eq b) => (a -> b) -> HashSet a -> HashSet b
 map f = fromList . List.map f . toList
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE map #-}
+#endif
+
+-- | /O(n)/ Difference of two sets. Return elements of the first set
+-- not existing in the second.
+difference :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
+difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE difference #-}
+#endif
+
+-- | /O(n)/ Intersection of two sets. Return elements present in both
+-- the first set and the second.
+intersection :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
+intersection (HashSet a) (HashSet b) = HashSet (H.intersection a b)
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE intersection #-}
 #endif
 
 -- | /O(n)/ Reduce this set by applying a binary operator to all
