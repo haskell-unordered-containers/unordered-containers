@@ -8,7 +8,7 @@ module Main (main) where
 import Data.Function (on)
 import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
-import qualified Data.HashMap as M
+import qualified Data.HashMap.Strict as M
 import Test.QuickCheck (Arbitrary)
 import Test.QuickCheck.Batch
 

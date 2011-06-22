@@ -9,7 +9,7 @@ import Criterion.Config
 import Criterion.Main
 import Data.Hashable (Hashable)
 import qualified Data.ByteString as BS
-import qualified Data.HashMap as HM
+import qualified Data.HashMap.Strict as HM
 import qualified Data.IntMap as IM
 import qualified Data.Map as M
 import Data.List (foldl')
