@@ -40,9 +40,50 @@ if (_actual_) /= (_expected_) then error ("Data.HashMap.Array." ++ (_func_) ++ "
 #endif
 
 data Array a = Array {
-    unArray :: !(Array# a), length :: {-# UNPACK #-} !Int }
+      unArray :: !(Array# a)
+#if __GLASGOW_HASKELL__ < 701
+    , length :: {-# UNPACK #-} !Int
+#endif
+    }
+
+#if __GLASGOW_HASKELL__ >= 701
+length :: Array a -> Int
+length ary = I# (sizeofArray# (unArray ary))
+{-# INLINE length #-}
+#endif
+
+-- | Smart constructor
+array :: Array# a -> Int -> Array a
+#if __GLASGOW_HASKELL__ >= 701
+array ary _n = Array ary
+#else
+array = Array
+#endif
+{-# INLINE array #-}
+
 data MArray s a = MArray {
-    unMArray :: !(MutableArray# s a), lengthM :: {-# UNPACK #-} !Int }
+      unMArray :: !(MutableArray# s a)
+#if __GLASGOW_HASKELL__ < 701
+    , lengthM :: {-# UNPACK #-} !Int
+#endif
+    }
+
+#if __GLASGOW_HASKELL__ >= 701
+lengthM :: MArray s a -> Int
+lengthM mary = I# (sizeofMutableArray# (unMArray mary))
+{-# INLINE lengthM #-}
+#endif
+
+-- | Smart constructor
+marray :: MutableArray# s a -> Int -> MArray s a
+#if __GLASGOW_HASKELL__ >= 701
+marray mary _n = MArray mary
+#else
+marray = MArray
+#endif
+{-# INLINE marray #-}
+
+------------------------------------------------------------------------
 
 instance NFData a => NFData (Array a) where
     rnf = rnfArray
@@ -61,7 +102,7 @@ rnfArray ary0 = go ary0 n0 0
 -- value.
 new :: Int -> a -> ST s (MArray s a)
 new n@(I# n#) b = ST $ \s -> case newArray# n# b s of
-    (# s', ary #) -> (# s', MArray ary n #)
+    (# s', ary #) -> (# s', marray ary n #)
 {-# INLINE new #-}
 
 singleton :: a -> Array a
@@ -94,9 +135,9 @@ unsafeIndexM ary _i@(I# i#) =
 {-# INLINE unsafeIndexM #-}
 
 unsafeFreeze :: MArray s a -> ST s (Array a)
-unsafeFreeze (MArray mary n)
-    = ST $ \s -> case unsafeFreezeArray# mary s of
-                   (# s', ary #) -> (# s', Array ary n #)
+unsafeFreeze mary
+    = ST $ \s -> case unsafeFreezeArray# (unMArray mary) s of
+                   (# s', ary #) -> (# s', array ary (lengthM mary) #)
 {-# INLINE unsafeFreeze #-}
 
 run :: (forall s . ST s (MArray s e)) -> Array e
