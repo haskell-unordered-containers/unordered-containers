@@ -212,6 +212,10 @@ unsafeUpdate32 ary idx b =
 unsafeClone32 :: Array e -> ST s (MArray s e)
 unsafeClone32 ary =
     CHECK_LENGTH("unsafeClone32", 32, length ary)
+#if __GLASGOW_HASKELL__ >= 701
+        ST $ \ s -> case thawArray# (unArray ary) 0# 32# s of
+            (# s2, ary# #) -> (# s2, marray ary# 32 #)
+#else
         do mary <- new 32 undefinedElem
            unsafeIndexM ary 0 >>= unsafeWrite mary 0
            unsafeIndexM ary 1 >>= unsafeWrite mary 1
@@ -246,3 +250,4 @@ unsafeClone32 ary =
            unsafeIndexM ary 30 >>= unsafeWrite mary 30
            unsafeIndexM ary 31 >>= unsafeWrite mary 31
            return mary
+#endif
