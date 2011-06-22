@@ -27,7 +27,7 @@ library
   build-depends:
     base,
     deepseq == 1.1.*,
-    hashable >= 1.0.1.1 && < 1.1
+    hashable >= 1.0.1.1 && < 1.2
 
   c-sources: cbits/popc.c
 
@@ -38,8 +38,6 @@ library
     ghc-options: -fregs-graph
   if flag(debug)
     cpp-options: -DASSERTS
-
-  default-language: Haskell98
 
 test-suite properties
   hs-source-dirs: tests
@@ -53,5 +51,3 @@ test-suite properties
     QuickCheck == 1.2.0.*
 
   ghc-options: -Wall
-
-  default-language: Haskell98
