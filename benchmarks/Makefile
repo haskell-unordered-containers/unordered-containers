@@ -6,11 +6,7 @@ else
 	lib-suffix :=
 endif
 
-ifdef GHC
-	ghc:= $(GHC)
-else
-	ghc := ghc
-endif
+ghc := ghc
 
 package := unordered-containers
 version := $(shell awk '/^version:/{print $$2}' ../$(package).cabal)
