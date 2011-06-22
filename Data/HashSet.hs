@@ -97,6 +97,10 @@ instance (Hashable a, Eq a) => Monoid (HashSet a) where
     mappend = union
     {-# INLINE mappend #-}
 
+instance (Show a) => Show (HashSet a) where
+    showsPrec d m = showParen (d > 10) $
+      showString "fromList " . shows (toList m)
+
 -- | /O(1)/ Construct an empty set.
 empty :: HashSet a
 empty = HashSet H.empty
@@ -109,6 +113,9 @@ singleton a = HashSet (H.singleton a ())
 #endif
 
 -- | /O(n)/ Construct a set containing all elements from both sets.
+--
+-- To obtain good performance, the smaller set must be presented as
+-- the first argument.
 union :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 union s1 s2 = HashSet $ H.union (asMap s1) (asMap s2)
 {-# INLINE union #-}
