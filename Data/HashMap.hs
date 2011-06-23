@@ -6,7 +6,6 @@ module Data.HashMap
     , singleton
     , null
     , insert
-    , updateWithDefault
     , lookup
     , fromList
     , toList
@@ -47,9 +46,9 @@ lookupInArray h0 k0 ary0 = go h0 k0 ary0 0 (A.length ary0)
                 | otherwise -> go h k ary (i+1) n
 {-# INLINABLE lookupInArray #-}
 
-updateOrSnoc :: Eq k => (v -> v -> v) -> Hash -> k -> v
-             -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-updateOrSnoc f h0 k0 v0 ary0 = go h0 k0 v0 ary0 0 (A.length ary0)
+updateOrSnoc :: Eq k => Hash -> k -> v -> A.Array (Leaf k v)
+             -> A.Array (Leaf k v)
+updateOrSnoc h0 k0 v0 ary0 = go h0 k0 v0 ary0 0 (A.length ary0)
   where
     go !h !k v !ary !i !n
         | i >= n = A.run $ do
@@ -60,8 +59,7 @@ updateOrSnoc f h0 k0 v0 ary0 = go h0 k0 v0 ary0 0 (A.length ary0)
             return mary
         | otherwise = case A.unsafeIndex ary i of
             (L hx kx vx)
-                | h == hx && k == kx -> let !v' = f v vx
-                                        in A.unsafeUpdate ary i (L h k v')
+                | h == hx && k == kx -> A.unsafeUpdate ary i (L h k v)
                 | otherwise -> go h k v ary (i+1) n
 {-# INLINABLE updateOrSnoc #-}
 
@@ -118,36 +116,13 @@ singleton k v = Leaf (L (hash k) k v)
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
-insert k v = updateWithDefault const k v
-{-# INLINE insert #-}
-
--- | /O(log n)/ Update the entry at the given key in the map using the
--- supplied function @f@ and value @v@.
---
--- * If a value is already present at the given key, we'll refer to it
---   as @e@.
---
--- * If @e@ is present, the function @f@ is used to combine the
---   existing and new values, and the location is updated with the
---   result of @f v e@.
---
--- * The value @v@ is supplied as the first argument to the function,
---   and the existing value @e@ as the second.  The result of @f v e@
---   will be evaluated to weak head normal form before the map is
---   updated.
---
--- * If no existing value @e@ is present at the given key, the new
---   value @v@ is inserted, and the function @f@ is not used.
-updateWithDefault :: (Eq k, Hashable k) =>
-                     (v -> v -> v) -> k -> v -> HashMap k v -> HashMap k v
-updateWithDefault f k0 v0 = go h0 k0 v0 0
+insert k0 v0 = go h0 k0 v0 0
   where
     h0 = hash k0
     go !h !k x !_ Empty = Leaf (L h k x)
     go h k x s t@(Leaf l@(L hy ky y))
         | hy == h = if ky == k
-                    then let !x' = f x y
-                         in Leaf (L h k x')
+                    then Leaf (L h k x)
                     else collision h l (L h k x)
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
     go h k x s (BitmapIndexed b ary) =
@@ -171,9 +146,9 @@ updateWithDefault f k0 v0 = go h0 k0 v0 0
             ary' = A.unsafeUpdate32 ary i $! st'
         in Full ary'
     go h k x s t@(Collision hy v)
-        | h == hy = Collision h (updateOrSnoc f h k x v)
+        | h == hy = Collision h (updateOrSnoc h k x v)
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
-{-# INLINABLE updateWithDefault #-}
+{-# INLINABLE insert #-}
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the identity of
