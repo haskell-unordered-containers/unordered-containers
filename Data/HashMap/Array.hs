@@ -23,13 +23,14 @@ module Data.HashMap.Array
     , foldr
     , thaw
     , delete
+    , map
     ) where
 
 import Control.DeepSeq
 import Control.Monad.ST
 import GHC.Exts
 import GHC.ST (ST(..))
-import Prelude hiding (foldr, length, read)
+import Prelude hiding (foldr, length, map, read)
 
 ------------------------------------------------------------------------
 
@@ -235,3 +236,17 @@ delete ary idx =
         return mary
   where !count = length ary
 {-# INLINE delete #-}
+
+map :: (a -> b) -> Array a -> Array b
+map f = \ ary ->
+    let !n = length ary
+    in run $ do
+        mary <- new n undefinedElem
+        go ary mary 0 n
+  where
+    go ary mary i n
+        | i >= n    = return mary
+        | otherwise = do
+             write mary i $ f (index ary i)
+             go ary mary (i+1) n
+{-# INLINE map #-}

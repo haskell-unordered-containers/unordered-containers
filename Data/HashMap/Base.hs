@@ -18,6 +18,9 @@ module Data.HashMap.Base
       -- * Union
     , union
 
+      -- * Transformations
+    , map
+
       -- * Folds
     , foldl'
     , foldlWithKey'
@@ -38,7 +41,7 @@ import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement)
 import qualified Data.List as L
 import Data.Word (Word)
-import Prelude hiding (lookup, null, foldr)
+import Prelude hiding (foldr, lookup, map, null)
 
 import qualified Data.HashMap.Array as A
 import qualified Data.Hashable as H
@@ -221,6 +224,21 @@ delete k0 = go h0 k0 0
 -- the mapping from the first will be the mapping in the result.
 union :: (Eq k, Hashable k) => HashMap k v -> HashMap k v -> HashMap k v
 union m1 m2 = foldlWithKey' (\ m k v -> insert k v m) m2 m1
+
+------------------------------------------------------------------------
+-- * Transformations
+
+-- | /O(n)/ Transform this map by applying a function to every value.
+map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
+map f = go
+  where
+    go Empty = Empty
+    go (Leaf (L h k v)) = Leaf $ L h k (f v)
+    go (BitmapIndexed b ary) = BitmapIndexed b $ A.map go ary
+    go (Full ary) = Full $ A.map go ary
+    go (Collision h ary) = Collision h $
+                           A.map (\ (L h' k v) -> L h' k (f v)) ary
+{-# INLINE map #-}
 
 ------------------------------------------------------------------------
 -- * Folds
