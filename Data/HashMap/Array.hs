@@ -146,16 +146,22 @@ run act = runST $ act >>= unsafeFreeze
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
 unsafeCopy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
-unsafeCopy !src !sidx !dest !didx count =
-    CHECK_BOUNDS("unsafeCopy", length src, sidx + count)
-    CHECK_BOUNDS("unsafeCopy", lengthM dest, didx + count)
+unsafeCopy !src !sidx@(I# sidx#) !dst !didx@(I# didx#) n@(I# n#) =
+    CHECK_BOUNDS("unsafeCopy", length src, sidx + n)
+    CHECK_BOUNDS("unsafeCopy", lengthM dst, didx + n)
+#if __GLASGOW_HASKELL__ >= 701
+        ST $ \ s# ->
+        case copyArray# (unArray src) sidx# (unMArray dst) didx# n# s# of
+            s2 -> (# s2, () #)
+#else
         copy_loop sidx didx 0
   where
     copy_loop !i !j !c
-        | c >= count = return ()
+        | c >= n = return ()
         | otherwise = do b <- unsafeIndexM src i
-                         unsafeWrite dest j b
+                         unsafeWrite dst j b
                          copy_loop (i+1) (j+1) (c+1)
+#endif
 
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
