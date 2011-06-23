@@ -24,6 +24,9 @@ module Data.HashMap.Base
     , foldrWithKey
 
       -- * Conversions
+    , keys
+    , elems
+
       -- ** Lists
     , toList
     , fromList
@@ -262,6 +265,18 @@ foldrWithKey f = go
 
 ------------------------------------------------------------------------
 -- * Conversions
+
+-- | /O(n)/ Return a list of this map's keys.  The list is produced
+-- lazily.
+keys :: HashMap k v -> [k]
+keys = L.map fst . toList
+{-# INLINE keys #-}
+
+-- | /O(n)/ Return a list of this map's values.  The list is produced
+-- lazily.
+elems :: HashMap k v -> [v]
+elems = L.map snd . toList
+{-# INLINE elems #-}
 
 ------------------------------------------------------------------------
 -- ** Lists
