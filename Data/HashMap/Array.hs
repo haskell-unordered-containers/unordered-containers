@@ -10,6 +10,7 @@ module Data.HashMap.Array
     , unsafeRead
     , unsafeWrite
     , unsafeIndex
+    , unsafeIndexM
     , unsafeFreeze
     , run
     , unsafeCopy
@@ -146,14 +147,17 @@ run act = runST $ act >>= unsafeFreeze
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
 unsafeCopy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
-unsafeCopy !src !sidx@(I# sidx#) !dst !didx@(I# didx#) n@(I# n#) =
-    CHECK_BOUNDS("unsafeCopy", length src, sidx + n)
-    CHECK_BOUNDS("unsafeCopy", lengthM dst, didx + n)
 #if __GLASGOW_HASKELL__ >= 701
+unsafeCopy !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
+    CHECK_BOUNDS("unsafeCopy", length src, _sidx + _n)
+    CHECK_BOUNDS("unsafeCopy", lengthM dst, _didx + _n)
         ST $ \ s# ->
         case copyArray# (unArray src) sidx# (unMArray dst) didx# n# s# of
             s2 -> (# s2, () #)
 #else
+unsafeCopy !src !sidx !dst !didx n =
+    CHECK_BOUNDS("unsafeCopy", length src, sidx + n)
+    CHECK_BOUNDS("unsafeCopy", lengthM dst, didx + n)
         copy_loop sidx didx 0
   where
     copy_loop !i !j !c
@@ -201,8 +205,8 @@ undefinedElem :: a
 undefinedElem = error "Undefined element!"
 
 thaw :: Array e -> Int -> Int -> ST s (MArray s e)
-thaw !ary !o@(I# o#) !n@(I# n#) =
-    CHECK_BOUNDS("thaw", length ary, o + n)
+thaw !ary !_o@(I# o#) !n@(I# n#) =
+    CHECK_BOUNDS("thaw", length ary, _o + n)
         ST $ \ s -> case thawArray# (unArray ary) o# n# s of
             (# s2, mary# #) -> (# s2, marray mary# n #)
 {-# INLINE thaw #-}

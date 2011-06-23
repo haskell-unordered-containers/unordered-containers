@@ -73,13 +73,6 @@ insert x@(k, _) (y@(k', _):xs)
 singleton :: k -> v -> Model k v
 singleton k v = [(k,v)]
 
-delete :: Ord k => k -> Model k v -> Model k v
-delete _ [] = []
-delete k ys@(y@(k', _):xs)
-    | k == k'   = xs
-    | k > k'    = y : delete k xs
-    | otherwise = ys
-
 fromList :: Ord k => [(k, v)] -> [(k, v)]
 fromList = L.sortBy (compare `on` fst)
 

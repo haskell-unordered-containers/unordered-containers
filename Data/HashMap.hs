@@ -58,7 +58,7 @@ updateOrSnoc h0 k0 v0 ary0 = go h0 k0 v0 ary0 0 (A.length ary0)
             A.unsafeWrite mary n (L h k v)
             return mary
         | otherwise = case A.unsafeIndex ary i of
-            (L hx kx vx)
+            (L hx kx _)
                 | h == hx && k == kx -> A.unsafeUpdate ary i (L h k v)
                 | otherwise -> go h k v ary (i+1) n
 {-# INLINABLE updateOrSnoc #-}
@@ -120,7 +120,7 @@ insert k0 v0 = go h0 k0 v0 0
   where
     h0 = hash k0
     go !h !k x !_ Empty = Leaf (L h k x)
-    go h k x s t@(Leaf l@(L hy ky y))
+    go h k x s t@(Leaf l@(L hy ky _))
         | hy == h = if ky == k
                     then Leaf (L h k x)
                     else collision h l (L h k x)
