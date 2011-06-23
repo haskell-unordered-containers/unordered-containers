@@ -1,18 +1,8 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable #-}
 
 module Data.HashMap.Base
-    ( hash
-    , Leaf(..)
-    , HashMap(..)
-    , Hash
-    , Bitmap
-    , Shift
-    , bitsPerSubkey
-    , subkeyMask
-    , index
-    , bitpos
-    , mask
-    , fullNodeMask
+    (
+      HashMap
 
       -- * Construction
     , empty
