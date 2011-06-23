@@ -141,7 +141,7 @@ insert k0 v0 = go h0 k0 v0 0
                then let l    = Leaf (L h k x)
                         ary' = A.unsafeInsert ary i $! l
                         b'   = b .|. m
-                    in if b' == 0xFFFF
+                    in if b' == fullNodeMask
                        then Full ary'
                        else BitmapIndexed b' ary'
                else let  st   = A.unsafeIndex ary i
