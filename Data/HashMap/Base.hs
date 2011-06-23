@@ -19,6 +19,7 @@ module Data.HashMap.Base
     , singleton
     , null
     , insert
+    , delete
     , lookup
     , toList
     , fromList
@@ -161,6 +162,47 @@ insert k0 v0 = go h0 k0 v0 0
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
 {-# INLINABLE insert #-}
 
+delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
+delete k0 = go h0 k0 0
+  where
+    h0 = hash k0
+    go !_ !_ !_ Empty = Empty
+    go h k _ t@(Leaf (L hy ky _))
+        | hy == h && ky == k = Empty
+        | otherwise = t
+    go h k s t@(BitmapIndexed b ary) =
+        let m = bitpos h s
+        in if b .&. m == 0
+               then t
+               else let i    = index b m
+                        st   = A.unsafeIndex ary i
+                        st'  = go h k (s+bitsPerSubkey) st
+                    in case st' of
+                            Empty -> let ary' = unsafeDelete ary i
+                                     in BitmapIndexed (b .&. complement m) ary'
+                            _ -> let ary' = A.unsafeUpdate ary i $! st'
+                                 in BitmapIndexed b ary'
+    go h k s (Full ary) =
+        let i    = mask h s
+            st   = A.unsafeIndex ary i
+            st'  = go h k (s+bitsPerSubkey) st
+        in case st' of 
+            Empty -> let ary' = unsafeDelete ary i
+                     in BitmapIndexed (bitpos h s) ary'
+            _ -> let ary' = A.unsafeUpdate ary i $! st'
+                 in Full ary'
+    go h k _ t@(Collision hy v)
+        | h == hy = case indexOf h k v of
+            Just i
+                | A.length v == 2 ->
+                    if i == 0
+                    then Leaf (A.unsafeIndex v 1)
+                    else Leaf (A.unsafeIndex v 0)
+                | otherwise -> Collision h (unsafeDelete v i)
+            Nothing -> t
+        | otherwise = t
+{-# INLINABLE delete #-}
+
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the identity of
 -- the operator).
@@ -202,6 +244,19 @@ lookupInArray h0 k0 ary0 = go h0 k0 ary0 0 (A.length ary0)
                 | otherwise -> go h k ary (i+1) n
 {-# INLINABLE lookupInArray #-}
 
+-- | /O(n)/ Lookup the value associated with the given key in this
+-- array.  Returns 'Nothing' if the key wasn't found.
+indexOf :: Eq k => Hash -> k -> A.Array (Leaf k v) -> Maybe Int
+indexOf h0 k0 ary0 = go h0 k0 ary0 0 (A.length ary0)
+  where
+    go !h !k !ary !i !n
+        | i >= n = Nothing
+        | otherwise = case A.unsafeIndex ary i of
+            (L hx kx _)
+                | h == hx && k == kx -> Just i
+                | otherwise -> go h k ary (i+1) n
+{-# INLINABLE indexOf #-}
+
 updateOrSnoc :: Eq k => Hash -> k -> v -> A.Array (Leaf k v)
              -> A.Array (Leaf k v)
 updateOrSnoc h0 k0 v0 ary0 = go h0 k0 v0 ary0 0 (A.length ary0)
@@ -221,6 +276,18 @@ updateOrSnoc h0 k0 v0 ary0 = go h0 k0 v0 ary0 0 (A.length ary0)
 
 undefinedElem :: a
 undefinedElem = error "Undefined element!"
+
+-- | /O(n)/ Delete an element at the given position in this array,
+-- decreasing its size by one.
+unsafeDelete :: A.Array e -> Int -> A.Array e
+unsafeDelete ary idx =
+    A.run $ do
+        mary <- A.new (count-1) undefinedElem
+        A.unsafeCopy ary 0 mary 0 idx
+        A.unsafeCopy ary (idx+1) mary idx (count-(idx+1))
+        return mary
+  where !count = A.length ary
+{-# INLINE unsafeDelete #-}
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops

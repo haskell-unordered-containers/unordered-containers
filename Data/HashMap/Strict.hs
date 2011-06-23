@@ -4,6 +4,7 @@ module Data.HashMap.Strict
     , singleton
     , HM.null
     , insert
+    , delete
     , HM.lookup
     , fromList
     , toList

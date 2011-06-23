@@ -4,6 +4,7 @@ module Data.HashMap
     , singleton
     , M.null
     , insert
+    , delete
     , M.lookup
     , fromList
     , toList
