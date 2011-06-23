@@ -10,4 +10,4 @@ module Data.HashMap.Strict
     , toList
     ) where
 
-import Data.HashMap as HM
+import Data.HashMap.Base as HM

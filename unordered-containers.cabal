@@ -18,7 +18,6 @@ library
   exposed-modules:
     Data.HashMap.Strict
   other-modules:
-    Data.HashMap
     Data.HashMap.Array
     Data.HashMap.Base
     Data.HashMap.PopCount
