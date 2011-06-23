@@ -50,10 +50,6 @@ main = do
             [ bench "String" $ whnf (insertM elems) M.empty
             , bench "ByteStringString" $ whnf (insertM elemsBS) M.empty
             ]
-          , bgroup "updateDef"
-            [ bench "String" $ whnf (updateDefM elems) M.empty
-            , bench "ByteStringString" $ whnf (updateDefM elemsBS) M.empty
-            ]
           , bgroup "delete"
             [ bench "String" $ whnf (insertM elems) M.empty
             , bench "ByteString" $ whnf (insertM elemsBS) M.empty
@@ -64,7 +60,6 @@ main = do
         , bgroup "IntMap"
           [ bench "lookup" $ whnf (lookupIM keysI) im
           , bench "insert" $ whnf (insertIM elemsI) IM.empty
-          , bench "updateDef" $ whnf (updateDefIM elemsI) IM.empty
           , bench "delete" $ whnf (deleteIM keysI) im
           ]
 
@@ -78,11 +73,6 @@ main = do
           [ bench "String" $ whnf (insert elems) HM.empty
           , bench "ByteString" $ whnf (insert elemsBS) HM.empty
           , bench "Int" $ whnf (insert elemsI) HM.empty
-          ]
-        , bgroup "updateDef"
-          [ bench "String" $ whnf (updateWithDefault elems) HM.empty
-          , bench "ByteString" $ whnf (updateWithDefault elemsBS) HM.empty
-          , bench "Int" $ whnf (updateWithDefault elemsI) HM.empty
           ]
         , bgroup "fromList"
           [ bench "pure" $ whnf fromList elemsI
@@ -120,18 +110,6 @@ insert xs m0 = foldl' (\m (k, v) -> HM.insert k v m) m0 xs
 {-# SPECIALIZE insert :: [(BS.ByteString, Int)] -> HM.HashMap BS.ByteString Int
                       -> HM.HashMap BS.ByteString Int #-}
 
-updateWithDefault :: (Eq k, Hashable k) => [(k, Int)] -> HM.HashMap k Int
-                  -> HM.HashMap k Int
-updateWithDefault xs m0 =
-    foldl' (\m (k, v) -> HM.updateWithDefault (+) k v m) m0 xs
-{-# SPECIALIZE updateWithDefault :: [(Int, Int)] -> HM.HashMap Int Int
-                                 -> HM.HashMap Int Int #-}
-{-# SPECIALIZE updateWithDefault :: [(String, Int)] -> HM.HashMap String Int
-                                 -> HM.HashMap String Int #-}
-{-# SPECIALIZE updateWithDefault :: [(BS.ByteString, Int)]
-                                 -> HM.HashMap BS.ByteString Int
-                                 -> HM.HashMap BS.ByteString Int #-}
-
 fromList :: [(Int, Int)] -> HM.HashMap Int Int
 fromList xs = foldl' (\ m (k, v) -> HM.insert k v m) HM.empty xs
 
@@ -150,13 +128,6 @@ insertM xs m0 = foldl' (\m (k, v) -> M.insert k v m) m0 xs
 {-# SPECIALIZE insertM :: [(BS.ByteString, Int)] -> M.Map BS.ByteString Int
                        -> M.Map BS.ByteString Int #-}
 
-updateDefM :: Ord k => [(k, Int)] -> M.Map k Int -> M.Map k Int
-updateDefM xs m0 = foldl' (\m (k, v) -> M.insertWith' (+) k v m) m0 xs
-{-# SPECIALIZE updateDefM :: [(String, Int)] -> M.Map String Int
-                          -> M.Map String Int #-}
-{-# SPECIALIZE updateDefM :: [(BS.ByteString, Int)] -> M.Map BS.ByteString Int
-                          -> M.Map BS.ByteString Int #-}
-
 deleteM :: Ord k => [k] -> M.Map k Int -> M.Map k Int
 deleteM xs m0 = foldl' (\m k -> M.delete k m) m0 xs
 {-# SPECIALIZE deleteM :: [String] -> M.Map String Int -> M.Map String Int #-}
@@ -171,9 +142,6 @@ lookupIM xs m = foldl' (\z k -> fromMaybe z (IM.lookup k m)) 0 xs
 
 insertIM :: [(Int, Int)] -> IM.IntMap Int -> IM.IntMap Int
 insertIM xs m0 = foldl' (\m (k, v) -> IM.insert k v m) m0 xs
-
-updateDefIM :: [(Int, Int)] -> IM.IntMap Int -> IM.IntMap Int
-updateDefIM xs m0 = foldl' (\m (k, v) -> IM.insertWith (+) k v m) m0 xs
 
 deleteIM :: [Int] -> IM.IntMap Int -> IM.IntMap Int
 deleteIM xs m0 = foldl' (\m k -> IM.delete k m) m0 xs
