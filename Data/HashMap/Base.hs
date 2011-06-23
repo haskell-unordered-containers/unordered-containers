@@ -104,8 +104,8 @@ lookup k0 = go h0 k0 0
         let m = bitpos h s
         in if b .&. m == 0
            then Nothing
-           else go h k (s+bitsPerSubkey) (A.unsafeIndex v (index b m))
-    go h k s (Full v) = go h k (s+bitsPerSubkey) (A.unsafeIndex v (mask h s))
+           else go h k (s+bitsPerSubkey) (A.index v (index b m))
+    go h k s (Full v) = go h k (s+bitsPerSubkey) (A.index v (mask h s))
     go h k _ (Collision hx v)
         | h == hx   = lookupInArray h k v
         | otherwise = Nothing
@@ -115,7 +115,7 @@ lookup k0 = go h0 k0 0
 collision :: Hash -> Leaf k v -> Leaf k v -> HashMap k v
 collision h e1 e2 =
     let v = A.run $ do mary <- A.new 2 e1
-                       A.unsafeWrite mary 1 e2
+                       A.write mary 1 e2
                        return mary
     in Collision h v
 {-# INLINE collision #-}
@@ -142,20 +142,20 @@ insert k0 v0 = go h0 k0 v0 0
             i = index b m
         in if b .&. m == 0
                then let l    = Leaf (L h k x)
-                        ary' = A.unsafeInsert ary i $! l
+                        ary' = A.insert ary i $! l
                         b'   = b .|. m
                     in if b' == fullNodeMask
                        then Full ary'
                        else BitmapIndexed b' ary'
-               else let  st   = A.unsafeIndex ary i
+               else let  st   = A.index ary i
                          st'  = go h k x (s+bitsPerSubkey) st
-                         ary' = A.unsafeUpdate ary i $! st'
+                         ary' = A.update ary i $! st'
                     in BitmapIndexed b ary'
     go h k x s (Full ary) =
         let i    = mask h s
-            st   = A.unsafeIndex ary i
+            st   = A.index ary i
             st'  = go h k x (s+bitsPerSubkey) st
-            ary' = unsafeUpdate16 ary i $! st'
+            ary' = update16 ary i $! st'
         in Full ary'
     go h k x s t@(Collision hy v)
         | h == hy = Collision h (updateOrSnoc h k x v)
@@ -175,30 +175,30 @@ delete k0 = go h0 k0 0
         in if b .&. m == 0
                then t
                else let i    = index b m
-                        st   = A.unsafeIndex ary i
+                        st   = A.index ary i
                         st'  = go h k (s+bitsPerSubkey) st
                     in case st' of
-                            Empty -> let ary' = unsafeDelete ary i
+                            Empty -> let ary' = A.delete ary i
                                      in BitmapIndexed (b .&. complement m) ary'
-                            _ -> let ary' = A.unsafeUpdate ary i $! st'
+                            _ -> let ary' = A.update ary i $! st'
                                  in BitmapIndexed b ary'
     go h k s (Full ary) =
         let i    = mask h s
-            st   = A.unsafeIndex ary i
+            st   = A.index ary i
             st'  = go h k (s+bitsPerSubkey) st
         in case st' of 
-            Empty -> let ary' = unsafeDelete ary i
+            Empty -> let ary' = A.delete ary i
                      in BitmapIndexed (bitpos h s) ary'
-            _ -> let ary' = A.unsafeUpdate ary i $! st'
+            _ -> let ary' = A.update ary i $! st'
                  in Full ary'
     go h k _ t@(Collision hy v)
         | h == hy = case indexOf h k v of
             Just i
                 | A.length v == 2 ->
                     if i == 0
-                    then Leaf (A.unsafeIndex v 1)
-                    else Leaf (A.unsafeIndex v 0)
-                | otherwise -> Collision h (unsafeDelete v i)
+                    then Leaf (A.index v 1)
+                    else Leaf (A.index v 0)
+                | otherwise -> Collision h (A.delete v i)
             Nothing -> t
         | otherwise = t
 {-# INLINABLE delete #-}
@@ -238,7 +238,7 @@ lookupInArray h0 k0 ary0 = go h0 k0 ary0 0 (A.length ary0)
   where
     go !h !k !ary !i !n
         | i >= n = Nothing
-        | otherwise = case A.unsafeIndex ary i of
+        | otherwise = case A.index ary i of
             (L hx kx v)
                 | h == hx && k == kx -> Just v
                 | otherwise -> go h k ary (i+1) n
@@ -251,7 +251,7 @@ indexOf h0 k0 ary0 = go h0 k0 ary0 0 (A.length ary0)
   where
     go !h !k !ary !i !n
         | i >= n = Nothing
-        | otherwise = case A.unsafeIndex ary i of
+        | otherwise = case A.index ary i of
             (L hx kx _)
                 | h == hx && k == kx -> Just i
                 | otherwise -> go h k ary (i+1) n
@@ -265,66 +265,54 @@ updateOrSnoc h0 k0 v0 ary0 = go h0 k0 v0 ary0 0 (A.length ary0)
         | i >= n = A.run $ do
             -- Not found, append to the end.
             mary <- A.new (n + 1) undefinedElem
-            A.unsafeCopy ary 0 mary 0 n
-            A.unsafeWrite mary n (L h k v)
+            A.copy ary 0 mary 0 n
+            A.write mary n (L h k v)
             return mary
-        | otherwise = case A.unsafeIndex ary i of
+        | otherwise = case A.index ary i of
             (L hx kx _)
-                | h == hx && k == kx -> A.unsafeUpdate ary i (L h k v)
+                | h == hx && k == kx -> A.update ary i (L h k v)
                 | otherwise -> go h k v ary (i+1) n
 {-# INLINABLE updateOrSnoc #-}
 
 undefinedElem :: a
 undefinedElem = error "Undefined element!"
 
--- | /O(n)/ Delete an element at the given position in this array,
--- decreasing its size by one.
-unsafeDelete :: A.Array e -> Int -> A.Array e
-unsafeDelete ary idx =
-    A.run $ do
-        mary <- A.new (count-1) undefinedElem
-        A.unsafeCopy ary 0 mary 0 idx
-        A.unsafeCopy ary (idx+1) mary idx (count-(idx+1))
-        return mary
-  where !count = A.length ary
-{-# INLINE unsafeDelete #-}
-
 ------------------------------------------------------------------------
 -- Manually unrolled loops
 
 -- | /O(n)/ Update the element at the given position in this array.
-unsafeUpdate16 :: A.Array e -> Int -> e -> A.Array e
-unsafeUpdate16 ary idx b =
+update16 :: A.Array e -> Int -> e -> A.Array e
+update16 ary idx b =
     A.run $ do
-        mary <- unsafeClone16 ary
-        A.unsafeWrite mary idx b
+        mary <- clone16 ary
+        A.write mary idx b
         return mary
-{-# INLINE unsafeUpdate16 #-}
+{-# INLINE update16 #-}
 
 -- | Unsafely clone an array of 16 elements.  The length of the input
 -- array is not checked.
-unsafeClone16 :: A.Array e -> ST s (A.MArray s e)
-unsafeClone16 ary =
+clone16 :: A.Array e -> ST s (A.MArray s e)
+clone16 ary =
 #if __GLASGOW_HASKELL__ >= 701
     A.thaw ary 0 16
 #else
     do mary <- new 16 undefinedElem
-       A.unsafeIndexM ary 0 >>= A.unsafeWrite mary 0
-       A.unsafeIndexM ary 1 >>= A.unsafeWrite mary 1
-       A.unsafeIndexM ary 2 >>= A.unsafeWrite mary 2
-       A.unsafeIndexM ary 3 >>= A.unsafeWrite mary 3
-       A.unsafeIndexM ary 4 >>= A.unsafeWrite mary 4
-       A.unsafeIndexM ary 5 >>= A.unsafeWrite mary 5
-       A.unsafeIndexM ary 6 >>= A.unsafeWrite mary 6
-       A.unsafeIndexM ary 7 >>= A.unsafeWrite mary 7
-       A.unsafeIndexM ary 8 >>= A.unsafeWrite mary 8
-       A.unsafeIndexM ary 9 >>= A.unsafeWrite mary 9
-       A.unsafeIndexM ary 10 >>= A.unsafeWrite mary 10
-       A.unsafeIndexM ary 11 >>= A.unsafeWrite mary 11
-       A.unsafeIndexM ary 12 >>= A.unsafeWrite mary 12
-       A.unsafeIndexM ary 13 >>= A.unsafeWrite mary 13
-       A.unsafeIndexM ary 14 >>= A.unsafeWrite mary 14
-       A.unsafeIndexM ary 15 >>= A.unsafeWrite mary 15
+       A.indexM ary 0 >>= A.write mary 0
+       A.indexM ary 1 >>= A.write mary 1
+       A.indexM ary 2 >>= A.write mary 2
+       A.indexM ary 3 >>= A.write mary 3
+       A.indexM ary 4 >>= A.write mary 4
+       A.indexM ary 5 >>= A.write mary 5
+       A.indexM ary 6 >>= A.write mary 6
+       A.indexM ary 7 >>= A.write mary 7
+       A.indexM ary 8 >>= A.write mary 8
+       A.indexM ary 9 >>= A.write mary 9
+       A.indexM ary 10 >>= A.write mary 10
+       A.indexM ary 11 >>= A.write mary 11
+       A.indexM ary 12 >>= A.write mary 12
+       A.indexM ary 13 >>= A.write mary 13
+       A.indexM ary 14 >>= A.write mary 14
+       A.indexM ary 15 >>= A.write mary 15
        return mary
 #endif
 

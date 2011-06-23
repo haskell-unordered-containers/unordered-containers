@@ -1,5 +1,8 @@
 {-# LANGUAGE BangPatterns, CPP, MagicHash, Rank2Types, UnboxedTuples #-}
 
+-- | Zero based arrays.
+--
+-- Note that no bounds checking are performed.
 module Data.HashMap.Array
     ( Array
     , MArray
@@ -7,24 +10,25 @@ module Data.HashMap.Array
     , singleton
     , length
     , lengthM
-    , unsafeRead
-    , unsafeWrite
-    , unsafeIndex
-    , unsafeIndexM
+    , read
+    , write
+    , index
+    , indexM
     , unsafeFreeze
     , run
-    , unsafeCopy
-    , unsafeUpdate
-    , unsafeInsert
+    , copy
+    , update
+    , insert
     , foldr
     , thaw
+    , delete
     ) where
 
 import Control.DeepSeq
 import Control.Monad.ST
 import GHC.Exts
 import GHC.ST (ST(..))
-import Prelude hiding (foldr, length)
+import Prelude hiding (foldr, length, read)
 
 ------------------------------------------------------------------------
 
@@ -95,7 +99,7 @@ rnfArray ary0 = go ary0 n0 0
     n0 = length ary0
     go !ary !n !i
         | i >= n = ()
-        | otherwise = rnf (unsafeIndex ary i) `seq` go ary n (i+1)
+        | otherwise = rnf (index ary i) `seq` go ary n (i+1)
 {-# INLINE rnfArray #-}
 
 -- | Create a new mutable array of specified size, in the specified
@@ -110,30 +114,30 @@ singleton :: a -> Array a
 singleton x = run (new 1 x)
 {-# INLINE singleton #-}
 
-unsafeRead :: MArray s a -> Int -> ST s a
-unsafeRead ary _i@(I# i#) = ST $ \ s ->
-    CHECK_BOUNDS("unsafeRead", lengthM ary, _i)
+read :: MArray s a -> Int -> ST s a
+read ary _i@(I# i#) = ST $ \ s ->
+    CHECK_BOUNDS("read", lengthM ary, _i)
         readArray# (unMArray ary) i# s
-{-# INLINE unsafeRead #-}
+{-# INLINE read #-}
 
-unsafeWrite :: MArray s a -> Int -> a -> ST s ()
-unsafeWrite ary _i@(I# i#) b = ST $ \ s ->
-    CHECK_BOUNDS("unsafeWrite", lengthM ary, _i)
+write :: MArray s a -> Int -> a -> ST s ()
+write ary _i@(I# i#) b = ST $ \ s ->
+    CHECK_BOUNDS("write", lengthM ary, _i)
         case writeArray# (unMArray ary) i# b s of
             s' -> (# s' , () #)
-{-# INLINE unsafeWrite #-}
+{-# INLINE write #-}
 
-unsafeIndex :: Array a -> Int -> a
-unsafeIndex ary _i@(I# i#) =
-    CHECK_BOUNDS("unsafeIndex", length ary, _i)
+index :: Array a -> Int -> a
+index ary _i@(I# i#) =
+    CHECK_BOUNDS("index", length ary, _i)
         case indexArray# (unArray ary) i# of (# b #) -> b
-{-# INLINE unsafeIndex #-}
+{-# INLINE index #-}
 
-unsafeIndexM :: Array a -> Int -> ST s a
-unsafeIndexM ary _i@(I# i#) =
-    CHECK_BOUNDS("unsafeIndexM", length ary, _i)
+indexM :: Array a -> Int -> ST s a
+indexM ary _i@(I# i#) =
+    CHECK_BOUNDS("indexM", length ary, _i)
         case indexArray# (unArray ary) i# of (# b #) -> return b
-{-# INLINE unsafeIndexM #-}
+{-# INLINE indexM #-}
 
 unsafeFreeze :: MArray s a -> ST s (Array a)
 unsafeFreeze mary
@@ -146,59 +150,59 @@ run act = runST $ act >>= unsafeFreeze
 {-# INLINE run #-}
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
-unsafeCopy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
+copy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
 #if __GLASGOW_HASKELL__ >= 701
-unsafeCopy !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
-    CHECK_BOUNDS("unsafeCopy", length src, _sidx + _n)
-    CHECK_BOUNDS("unsafeCopy", lengthM dst, _didx + _n)
+copy !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
+    CHECK_BOUNDS("copy", length src, _sidx + _n)
+    CHECK_BOUNDS("copy", lengthM dst, _didx + _n)
         ST $ \ s# ->
         case copyArray# (unArray src) sidx# (unMArray dst) didx# n# s# of
             s2 -> (# s2, () #)
 #else
-unsafeCopy !src !sidx !dst !didx n =
-    CHECK_BOUNDS("unsafeCopy", length src, sidx + n)
-    CHECK_BOUNDS("unsafeCopy", lengthM dst, didx + n)
+copy !src !sidx !dst !didx n =
+    CHECK_BOUNDS("copy", length src, sidx + n)
+    CHECK_BOUNDS("copy", lengthM dst, didx + n)
         copy_loop sidx didx 0
   where
     copy_loop !i !j !c
         | c >= n = return ()
-        | otherwise = do b <- unsafeIndexM src i
-                         unsafeWrite dst j b
+        | otherwise = do b <- indexM src i
+                         write dst j b
                          copy_loop (i+1) (j+1) (c+1)
 #endif
 
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
-unsafeInsert :: Array e -> Int -> e -> Array e
-unsafeInsert ary idx b =
-    CHECK_BOUNDS("unsafeInsert", count + 1, idx)
+insert :: Array e -> Int -> e -> Array e
+insert ary idx b =
+    CHECK_BOUNDS("insert", count + 1, idx)
         run $ do
             mary <- new (count+1) undefinedElem
-            unsafeCopy ary 0 mary 0 idx
-            unsafeWrite mary idx b
-            unsafeCopy ary idx mary (idx+1) (count-idx)
+            copy ary 0 mary 0 idx
+            write mary idx b
+            copy ary idx mary (idx+1) (count-idx)
             return mary
   where !count = length ary
-{-# INLINE unsafeInsert #-}
+{-# INLINE insert #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
-unsafeUpdate :: Array e -> Int -> e -> Array e
-unsafeUpdate ary idx b =
-    CHECK_BOUNDS("unsafeUpdate", count, idx)
+update :: Array e -> Int -> e -> Array e
+update ary idx b =
+    CHECK_BOUNDS("update", count, idx)
         run $ do
             mary <- new count undefinedElem
-            unsafeCopy ary 0 mary 0 count
-            unsafeWrite mary idx b
+            copy ary 0 mary 0 count
+            write mary idx b
             return mary
   where !count = length ary
-{-# INLINE unsafeUpdate #-}
+{-# INLINE update #-}
 
 foldr :: (a -> b -> b) -> b -> Array a -> b
 foldr f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
   where
     go ary n i z
         | i >= n    = z
-        | otherwise = f (unsafeIndex ary i) (go ary n (i+1) z)
+        | otherwise = f (index ary i) (go ary n (i+1) z)
 {-# INLINE foldr #-}
 
 undefinedElem :: a
@@ -210,3 +214,15 @@ thaw !ary !_o@(I# o#) !n@(I# n#) =
         ST $ \ s -> case thawArray# (unArray ary) o# n# s of
             (# s2, mary# #) -> (# s2, marray mary# n #)
 {-# INLINE thaw #-}
+
+-- | /O(n)/ Delete an element at the given position in this array,
+-- decreasing its size by one.
+delete :: Array e -> Int -> Array e
+delete ary idx =
+    run $ do
+        mary <- new (count-1) undefinedElem
+        copy ary 0 mary 0 idx
+        copy ary (idx+1) mary idx (count-(idx+1))
+        return mary
+  where !count = length ary
+{-# INLINE delete #-}
