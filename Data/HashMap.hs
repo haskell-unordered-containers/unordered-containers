@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, CPP #-}
 
 module Data.HashMap
     ( HashMap
@@ -11,7 +11,7 @@ module Data.HashMap
     , toList
     ) where
 
-import Control.Monad.ST (runST)
+import Control.Monad.ST (ST, runST)
 import Data.Bits ((.&.), (.|.))
 import Data.Hashable (Hashable)
 import Prelude hiding (lookup, null)
@@ -143,7 +143,7 @@ insert k0 v0 = go h0 k0 v0 0
         let i    = mask h s
             st   = A.unsafeIndex ary i
             st'  = go h k x (s+bitsPerSubkey) st
-            ary' = A.unsafeUpdate32 ary i $! st'
+            ary' = unsafeUpdate32 ary i $! st'
         in Full ary'
     go h k x s t@(Collision hy v)
         | h == hy = Collision h (updateOrSnoc h k x v)
@@ -174,3 +174,58 @@ fromList xs = runST (M.freeze =<< M.fromList xs)
 toList :: HashMap k v -> [(k, v)]
 toList = fold (\ k v xs -> (k, v) : xs) []
 {-# INLINABLE toList #-}
+
+------------------------------------------------------------------------
+-- Manually unrolled loops
+
+-- | /O(n)/ Update the element at the given position in this array.
+unsafeUpdate32 :: A.Array e -> Int -> e -> A.Array e
+unsafeUpdate32 ary idx b =
+    A.run $ do
+        mary <- unsafeClone32 ary
+        A.unsafeWrite mary idx b
+        return mary
+{-# INLINE unsafeUpdate32 #-}
+
+-- | Unsafely clone an array of 32 elements.  The length of the input
+-- array is not checked.
+unsafeClone32 :: A.Array e -> ST s (A.MArray s e)
+unsafeClone32 ary =
+#if __GLASGOW_HASKELL__ >= 701
+    A.thaw ary 0 32
+#else
+    do mary <- new 32 undefinedElem
+       A.unsafeIndexM ary 0 >>= A.unsafeWrite mary 0
+       A.unsafeIndexM ary 1 >>= A.unsafeWrite mary 1
+       A.unsafeIndexM ary 2 >>= A.unsafeWrite mary 2
+       A.unsafeIndexM ary 3 >>= A.unsafeWrite mary 3
+       A.unsafeIndexM ary 4 >>= A.unsafeWrite mary 4
+       A.unsafeIndexM ary 5 >>= A.unsafeWrite mary 5
+       A.unsafeIndexM ary 6 >>= A.unsafeWrite mary 6
+       A.unsafeIndexM ary 7 >>= A.unsafeWrite mary 7
+       A.unsafeIndexM ary 8 >>= A.unsafeWrite mary 8
+       A.unsafeIndexM ary 9 >>= A.unsafeWrite mary 9
+       A.unsafeIndexM ary 10 >>= A.unsafeWrite mary 10
+       A.unsafeIndexM ary 11 >>= A.unsafeWrite mary 11
+       A.unsafeIndexM ary 12 >>= A.unsafeWrite mary 12
+       A.unsafeIndexM ary 13 >>= A.unsafeWrite mary 13
+       A.unsafeIndexM ary 14 >>= A.unsafeWrite mary 14
+       A.unsafeIndexM ary 15 >>= A.unsafeWrite mary 15
+       A.unsafeIndexM ary 16 >>= A.unsafeWrite mary 16
+       A.unsafeIndexM ary 17 >>= A.unsafeWrite mary 17
+       A.unsafeIndexM ary 18 >>= A.unsafeWrite mary 18
+       A.unsafeIndexM ary 19 >>= A.unsafeWrite mary 19
+       A.unsafeIndexM ary 20 >>= A.unsafeWrite mary 20
+       A.unsafeIndexM ary 21 >>= A.unsafeWrite mary 21
+       A.unsafeIndexM ary 22 >>= A.unsafeWrite mary 22
+       A.unsafeIndexM ary 23 >>= A.unsafeWrite mary 23
+       A.unsafeIndexM ary 24 >>= A.unsafeWrite mary 24
+       A.unsafeIndexM ary 25 >>= A.unsafeWrite mary 25
+       A.unsafeIndexM ary 26 >>= A.unsafeWrite mary 26
+       A.unsafeIndexM ary 27 >>= A.unsafeWrite mary 27
+       A.unsafeIndexM ary 28 >>= A.unsafeWrite mary 28
+       A.unsafeIndexM ary 29 >>= A.unsafeWrite mary 29
+       A.unsafeIndexM ary 30 >>= A.unsafeWrite mary 30
+       A.unsafeIndexM ary 31 >>= A.unsafeWrite mary 31
+       return mary
+#endif
