@@ -57,7 +57,7 @@ type Bitmap = Word
 type Shift  = Int
 
 bitsPerSubkey :: Int
-bitsPerSubkey = 5
+bitsPerSubkey = 4
 
 subkeyMask :: Bitmap
 subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1

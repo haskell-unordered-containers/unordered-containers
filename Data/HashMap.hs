@@ -132,7 +132,7 @@ insert k0 v0 = go h0 k0 v0 0
                then let l    = Leaf (L h k x)
                         ary' = A.unsafeInsert ary i $! l
                         b'   = b .|. m
-                    in if b' == 0xFFFFFFFF
+                    in if b' == 0xFFFF
                        then Full ary'
                        else BitmapIndexed b' ary'
                else let  st   = A.unsafeIndex ary i
@@ -143,7 +143,7 @@ insert k0 v0 = go h0 k0 v0 0
         let i    = mask h s
             st   = A.unsafeIndex ary i
             st'  = go h k x (s+bitsPerSubkey) st
-            ary' = unsafeUpdate32 ary i $! st'
+            ary' = unsafeUpdate16 ary i $! st'
         in Full ary'
     go h k x s t@(Collision hy v)
         | h == hy = Collision h (updateOrSnoc h k x v)
@@ -179,22 +179,22 @@ toList = fold (\ k v xs -> (k, v) : xs) []
 -- Manually unrolled loops
 
 -- | /O(n)/ Update the element at the given position in this array.
-unsafeUpdate32 :: A.Array e -> Int -> e -> A.Array e
-unsafeUpdate32 ary idx b =
+unsafeUpdate16 :: A.Array e -> Int -> e -> A.Array e
+unsafeUpdate16 ary idx b =
     A.run $ do
-        mary <- unsafeClone32 ary
+        mary <- unsafeClone16 ary
         A.unsafeWrite mary idx b
         return mary
-{-# INLINE unsafeUpdate32 #-}
+{-# INLINE unsafeUpdate16 #-}
 
--- | Unsafely clone an array of 32 elements.  The length of the input
+-- | Unsafely clone an array of 16 elements.  The length of the input
 -- array is not checked.
-unsafeClone32 :: A.Array e -> ST s (A.MArray s e)
-unsafeClone32 ary =
+unsafeClone16 :: A.Array e -> ST s (A.MArray s e)
+unsafeClone16 ary =
 #if __GLASGOW_HASKELL__ >= 701
-    A.thaw ary 0 32
+    A.thaw ary 0 16
 #else
-    do mary <- new 32 undefinedElem
+    do mary <- new 16 undefinedElem
        A.unsafeIndexM ary 0 >>= A.unsafeWrite mary 0
        A.unsafeIndexM ary 1 >>= A.unsafeWrite mary 1
        A.unsafeIndexM ary 2 >>= A.unsafeWrite mary 2
@@ -211,21 +211,5 @@ unsafeClone32 ary =
        A.unsafeIndexM ary 13 >>= A.unsafeWrite mary 13
        A.unsafeIndexM ary 14 >>= A.unsafeWrite mary 14
        A.unsafeIndexM ary 15 >>= A.unsafeWrite mary 15
-       A.unsafeIndexM ary 16 >>= A.unsafeWrite mary 16
-       A.unsafeIndexM ary 17 >>= A.unsafeWrite mary 17
-       A.unsafeIndexM ary 18 >>= A.unsafeWrite mary 18
-       A.unsafeIndexM ary 19 >>= A.unsafeWrite mary 19
-       A.unsafeIndexM ary 20 >>= A.unsafeWrite mary 20
-       A.unsafeIndexM ary 21 >>= A.unsafeWrite mary 21
-       A.unsafeIndexM ary 22 >>= A.unsafeWrite mary 22
-       A.unsafeIndexM ary 23 >>= A.unsafeWrite mary 23
-       A.unsafeIndexM ary 24 >>= A.unsafeWrite mary 24
-       A.unsafeIndexM ary 25 >>= A.unsafeWrite mary 25
-       A.unsafeIndexM ary 26 >>= A.unsafeWrite mary 26
-       A.unsafeIndexM ary 27 >>= A.unsafeWrite mary 27
-       A.unsafeIndexM ary 28 >>= A.unsafeWrite mary 28
-       A.unsafeIndexM ary 29 >>= A.unsafeWrite mary 29
-       A.unsafeIndexM ary 30 >>= A.unsafeWrite mary 30
-       A.unsafeIndexM ary 31 >>= A.unsafeWrite mary 31
        return mary
 #endif
