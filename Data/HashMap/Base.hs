@@ -14,7 +14,7 @@ module Data.HashMap.Base
     , mask
     , fullNodeMask
 
-    -- * Basic interface
+      -- * Basic interface
     , empty
     , singleton
     , null
@@ -23,6 +23,10 @@ module Data.HashMap.Base
     , lookup
     , toList
     , fromList
+
+      -- * Folds
+    , foldr
+    , foldrWithKey
     ) where
 
 import Control.DeepSeq (NFData(rnf))
@@ -30,7 +34,7 @@ import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement)
 import qualified Data.List as L
 import Data.Word (Word)
-import Prelude hiding (lookup, null)
+import Prelude hiding (lookup, null, foldr)
 
 import qualified Data.HashMap.Array as A
 import qualified Data.Hashable as H
@@ -186,7 +190,7 @@ delete k0 = go h0 k0 0
         let i    = mask h s
             st   = A.index ary i
             st'  = go h k (s+bitsPerSubkey) st
-        in case st' of 
+        in case st' of
             Empty -> let ary' = A.delete ary i
                      in BitmapIndexed (bitpos h s) ary'
             _ -> let ary' = A.update ary i $! st'
@@ -203,23 +207,33 @@ delete k0 = go h0 k0 0
         | otherwise = t
 {-# INLINABLE delete #-}
 
+------------------------------------------------------------------------
+-- * Folds
+
 -- | /O(n)/ Reduce this map by applying a binary operator to all
--- elements, using the given starting value (typically the identity of
--- the operator).
-fold :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-fold f = go
+-- elements, using the given starting value (typically the
+-- right-identity of the operator).
+foldr :: (v -> a -> a) -> a -> HashMap k v -> a
+foldr f = foldrWithKey (const f)
+{-# INLINE foldr #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- right-identity of the operator).
+foldrWithKey :: (k -> v -> a -> a) -> a -> HashMap k v -> a
+foldrWithKey f = go
   where
     go z Empty = z
     go z (Leaf (L _ k v)) = f k v z
     go z (BitmapIndexed _ ary) = A.foldr (flip go) z ary
     go z (Full ary) = A.foldr (flip go) z ary
     go z (Collision _ ary) = A.foldr (\ (L _ k v) z' -> f k v z') z ary
-{-# INLINE fold #-}
+{-# INLINE foldrWithKey #-}
 
 -- | /O(n)/ Return a list of this map's elements.  The list is
 -- produced lazily.
 toList :: HashMap k v -> [(k, v)]
-toList = fold (\ k v xs -> (k, v) : xs) []
+toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
 {-# INLINABLE toList #-}
 
 -- | /O(n)/ Construct a map with the supplied mappings.  If the list
