@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Data.HashMap.Internal
+module Data.HashMap.Base
     ( hash
     , Leaf(..)
     , HashMap(..)

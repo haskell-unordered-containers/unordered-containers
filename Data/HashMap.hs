@@ -17,13 +17,13 @@ import Data.Hashable (Hashable)
 import Prelude hiding (lookup, null)
 
 import qualified Data.HashMap.Array as A
-import Data.HashMap.Internal
+import Data.HashMap.Base
 import qualified Data.HashMap.Mutable as M
 
 ------------------------------------------------------------------------
 
 -- These two instances are here to avoid having
--- 'Data.HashMap.Internal' having to depend on 'Data.HashMap.Mutable',
+-- 'Data.HashMap.Base' having to depend on 'Data.HashMap.Mutable',
 -- which would create an import cycle.
 
 instance (Show k, Show v) => Show (HashMap k v) where

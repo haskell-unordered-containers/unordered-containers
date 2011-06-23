@@ -14,8 +14,8 @@ import Data.Hashable (Hashable)
 import Prelude hiding (map)
 
 import qualified Data.HashMap.Array as A
-import Data.HashMap.Internal hiding (HashMap(..), Leaf(..))
-import qualified Data.HashMap.Internal as I
+import Data.HashMap.Base hiding (HashMap(..), Leaf(..))
+import qualified Data.HashMap.Base as I
 
 data Leaf k v = L {-# UNPACK #-} !Hash !k v
 

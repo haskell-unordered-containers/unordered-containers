@@ -20,7 +20,7 @@ library
   other-modules:
     Data.HashMap
     Data.HashMap.Array
-    Data.HashMap.Internal
+    Data.HashMap.Base
     Data.HashMap.Mutable
     Data.HashMap.PopCount
     Data.HashMap.UnsafeShift
