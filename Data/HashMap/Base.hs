@@ -21,11 +21,13 @@ module Data.HashMap.Base
     , insert
     , lookup
     , toList
+    , fromList
     ) where
 
 import Control.DeepSeq (NFData(rnf))
 import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement)
+import qualified Data.List as L
 import Data.Word (Word)
 import Prelude hiding (lookup, null)
 
@@ -177,6 +179,12 @@ fold f = go
 toList :: HashMap k v -> [(k, v)]
 toList = fold (\ k v xs -> (k, v) : xs) []
 {-# INLINABLE toList #-}
+
+-- | /O(n)/ Construct a map with the supplied mappings.  If the list
+-- contains duplicate mappings, the later mappings take precedence.
+fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
+fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
+{-# INLINABLE fromList #-}
 
 ------------------------------------------------------------------------
 -- Array operations

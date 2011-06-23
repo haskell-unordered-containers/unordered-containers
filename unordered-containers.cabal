@@ -21,7 +21,6 @@ library
     Data.HashMap
     Data.HashMap.Array
     Data.HashMap.Base
-    Data.HashMap.Mutable
     Data.HashMap.PopCount
     Data.HashMap.UnsafeShift
 
