@@ -14,19 +14,27 @@ module Data.HashMap.Base
     , mask
     , fullNodeMask
 
-      -- * Basic interface
+      -- * Construction
     , empty
     , singleton
+
+      -- * Basic interface
     , null
+    , lookup
     , insert
     , delete
-    , lookup
-    , toList
-    , fromList
+
+      -- * Combine
+      -- * Union
 
       -- * Folds
     , foldr
     , foldrWithKey
+
+      -- * Conversions
+      -- ** Lists
+    , toList
+    , fromList
     ) where
 
 import Control.DeepSeq (NFData(rnf))
@@ -54,8 +62,8 @@ data Leaf k v = L {-# UNPACK #-} !Hash !k v
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L _ k v) = rnf k `seq` rnf v
 
--- | A mapping from keys to values.  Keys are required to be
--- 'H.Hashable'.
+-- | A map from keys to values.  A map cannot contain duplicate keys;
+-- each key can map to at most one value.
 data HashMap k v
     = Empty
     | BitmapIndexed {-# UNPACK #-} !Bitmap {-# UNPACK #-} !(A.Array (HashMap k v))
@@ -83,11 +91,18 @@ instance (Eq k, Eq v) => Eq (HashMap k v) where
     a == b = toList a == toList b
 
 ------------------------------------------------------------------------
--- Basic interface
+-- * Construction
 
 -- | /O(1)/ Construct an empty map.
 empty :: HashMap k v
 empty = Empty
+
+-- | /O(1)/ Construct a map with a single element.
+singleton :: (Hashable k) => k -> v -> HashMap k v
+singleton k v = Leaf (L (hash k) k v)
+
+------------------------------------------------------------------------
+-- * Basic interface
 
 -- | /O(1)/ Return 'True' if this map is empty, 'False' otherwise.
 null :: HashMap k v -> Bool
@@ -123,10 +138,6 @@ collision h e1 e2 =
                        return mary
     in Collision h v
 {-# INLINE collision #-}
-
--- | /O(1)/ Construct a map with a single element.
-singleton :: (Hashable k) => k -> v -> HashMap k v
-singleton k v = Leaf (L (hash k) k v)
 
 -- | /O(log n)/ Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
@@ -208,6 +219,9 @@ delete k0 = go h0 k0 0
 {-# INLINABLE delete #-}
 
 ------------------------------------------------------------------------
+-- * Combine
+
+------------------------------------------------------------------------
 -- * Folds
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
@@ -229,6 +243,12 @@ foldrWithKey f = go
     go z (Full ary) = A.foldr (flip go) z ary
     go z (Collision _ ary) = A.foldr (\ (L _ k v) z' -> f k v z') z ary
 {-# INLINE foldrWithKey #-}
+
+------------------------------------------------------------------------
+-- * Conversions
+
+------------------------------------------------------------------------
+-- ** Lists
 
 -- | /O(n)/ Return a list of this map's elements.  The list is
 -- produced lazily.
