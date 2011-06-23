@@ -10,6 +10,7 @@ module Data.HashMap.Base
 
       -- * Basic interface
     , null
+    , size
     , lookup
     , insert
     , delete
@@ -107,6 +108,16 @@ singleton k v = Leaf (L (hash k) k v)
 null :: HashMap k v -> Bool
 null Empty = True
 null _   = False
+
+-- | /O(n)/ Return the number of key-value mappings in this map.
+size :: HashMap k v -> Int
+size t = go t 0
+  where
+    go Empty                !n = n
+    go (Leaf _)              n = n + 1
+    go (BitmapIndexed _ ary) n = A.foldl' (flip go) n ary
+    go (Full ary)            n = A.foldl' (flip go) n ary
+    go (Collision _ ary)     n = n + A.length ary
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.
