@@ -18,6 +18,8 @@ module Data.HashMap.Base
       -- * Union
 
       -- * Folds
+    , foldl'
+    , foldlWithKey'
     , foldr
     , foldrWithKey
 
@@ -213,6 +215,30 @@ delete k0 = go h0 k0 0
 
 ------------------------------------------------------------------------
 -- * Folds
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- left-identity of the operator).  Each application of the operator
+-- is evaluated before before using the result in the next
+-- application.  This function is strict in the starting value.
+foldl' :: (a -> v -> a) -> a -> HashMap k v -> a
+foldl' f = foldlWithKey' (\ z _ v -> f z v)
+{-# INLINE foldl' #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- left-identity of the operator).  Each application of the operator
+-- is evaluated before before using the result in the next
+-- application.  This function is strict in the starting value.
+foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
+foldlWithKey' f = go
+  where
+    go !z Empty = z
+    go z (Leaf (L _ k v)) = f z k v
+    go z (BitmapIndexed _ ary) = A.foldl' go z ary
+    go z (Full ary) = A.foldl' go z ary
+    go z (Collision _ ary) = A.foldl' (\ z' (L _ k v) -> f z' k v) z ary
+{-# INLINE foldlWithKey' #-}
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the

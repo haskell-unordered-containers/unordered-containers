@@ -19,6 +19,7 @@ module Data.HashMap.Array
     , copy
     , update
     , insert
+    , foldl'
     , foldr
     , thaw
     , delete
@@ -196,6 +197,14 @@ update ary idx b =
             return mary
   where !count = length ary
 {-# INLINE update #-}
+        
+foldl' :: (b -> a -> b) -> b -> Array a -> b
+foldl' f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
+  where
+    go ary n i !z
+        | i >= n    = z
+        | otherwise = go ary n (i+1) (f z (index ary i))
+{-# INLINE foldl' #-}
 
 foldr :: (a -> b -> b) -> b -> Array a -> b
 foldr f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
