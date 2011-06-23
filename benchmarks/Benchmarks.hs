@@ -74,6 +74,11 @@ main = do
           , bench "ByteString" $ whnf (insert elemsBS) HM.empty
           , bench "Int" $ whnf (insert elemsI) HM.empty
           ]
+        , bgroup "delete"
+          [ bench "String" $ whnf (delete keys) hm
+          , bench "ByteString" $ whnf (delete keysBS) hmbs
+          , bench "Int" $ whnf (delete keysI) hmi
+          ]
         , bgroup "fromList"
           [ bench "pure" $ whnf fromList elemsI
           , bench "mutating" $ whnf HM.fromList elemsI
@@ -108,6 +113,14 @@ insert xs m0 = foldl' (\m (k, v) -> HM.insert k v m) m0 xs
 {-# SPECIALIZE insert :: [(String, Int)] -> HM.HashMap String Int
                       -> HM.HashMap String Int #-}
 {-# SPECIALIZE insert :: [(BS.ByteString, Int)] -> HM.HashMap BS.ByteString Int
+                      -> HM.HashMap BS.ByteString Int #-}
+
+delete :: (Eq k, Hashable k) => [k] -> HM.HashMap k Int -> HM.HashMap k Int
+delete xs m0 = foldl' (\m k -> HM.delete k m) m0 xs
+{-# SPECIALIZE delete :: [Int] -> HM.HashMap Int Int -> HM.HashMap Int Int #-}
+{-# SPECIALIZE delete :: [String] -> HM.HashMap String Int
+                      -> HM.HashMap String Int #-}
+{-# SPECIALIZE delete :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
                       -> HM.HashMap BS.ByteString Int #-}
 
 fromList :: [(Int, Int)] -> HM.HashMap Int Int
