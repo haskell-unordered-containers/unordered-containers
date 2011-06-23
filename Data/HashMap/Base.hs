@@ -16,6 +16,7 @@ module Data.HashMap.Base
 
       -- * Combine
       -- * Union
+    , union
 
       -- * Folds
     , foldl'
@@ -215,6 +216,11 @@ delete k0 = go h0 k0 0
 
 ------------------------------------------------------------------------
 -- * Combine
+
+-- | /O(n+m)/ The union of two maps. If a key occurs in both maps,
+-- the mapping from the first will be the mapping in the result.
+union :: (Eq k, Hashable k) => HashMap k v -> HashMap k v -> HashMap k v
+union m1 m2 = foldlWithKey' (\ m k v -> insert k v m) m2 m1
 
 ------------------------------------------------------------------------
 -- * Folds
