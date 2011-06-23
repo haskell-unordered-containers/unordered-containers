@@ -12,10 +12,11 @@ module Data.HashMap.Base
     , index
     , bitpos
     , mask
+    , fullNodeMask
     ) where
 
 import Control.DeepSeq (NFData(rnf))
-import Data.Bits ((.&.))
+import Data.Bits ((.&.), complement)
 import Data.Word (Word)
 
 import qualified Data.HashMap.Array as A
@@ -52,6 +53,9 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf (Full ary)            = rnf ary
     rnf (Collision _ ary)     = rnf ary
 
+------------------------------------------------------------------------
+-- Bit twiddling
+
 type Hash   = Word
 type Bitmap = Word
 type Shift  = Int
@@ -72,3 +76,9 @@ bitpos h s = 1 `unsafeShiftL` mask h s
 mask :: Word -> Shift -> Int
 mask h s = fromIntegral $ unsafeShiftR h s .&. subkeyMask
 {-# INLINE mask #-}
+
+-- | A bitmask with the 'bitsPerSubkey' least significant bits set.
+fullNodeMask :: Bitmap
+fullNodeMask = complement (complement 0 `unsafeshiftL`
+                           (1 `unsafeshiftL` bitsPerSubkey))
+{-# INLINE fullNodeMask #-}

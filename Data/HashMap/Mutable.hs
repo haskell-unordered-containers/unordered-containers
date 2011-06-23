@@ -87,7 +87,7 @@ insert k0 v0 = go h0 k0 v0 0
                then let l     = Leaf (L h k x)
                         b'    = b .|. m
                     in do mary' <- unsafeInsert mary i $! l
-                          if b' == 0xFFFFFFFF
+                          if b' == fullNodeMask
                               then return $! Full mary'
                               else return $! BitmapIndexed b' mary'
                else do st <- A.unsafeRead mary i
