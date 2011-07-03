@@ -22,11 +22,19 @@ module Data.HashMap.Base
       -- * Transformations
     , map
 
+      -- * Difference and intersection
+    , difference
+    , intersection
+
       -- * Folds
     , foldl'
     , foldlWithKey'
     , foldr
     , foldrWithKey
+
+      -- * Filter
+    , filter
+    , filterWithKey
 
       -- * Conversions
     , keys
@@ -42,7 +50,7 @@ import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement)
 import qualified Data.List as L
 import Data.Word (Word)
-import Prelude hiding (foldr, lookup, map, null)
+import Prelude hiding (filter, foldr, lookup, map, null)
 
 import qualified Data.HashMap.Array as A
 import qualified Data.Hashable as H
@@ -57,6 +65,7 @@ import Data.Typeable (Typeable)
 hash :: H.Hashable a => a -> Hash
 hash = fromIntegral . H.hash
 
+-- TODO: Shouldn't contain hash.
 data Leaf k v = L {-# UNPACK #-} !Hash !k v
 
 instance (NFData k, NFData v) => NFData (Leaf k v) where
@@ -252,6 +261,33 @@ map f = go
 {-# INLINE map #-}
 
 ------------------------------------------------------------------------
+-- * Difference and intersection
+
+-- | /O(n)/ Difference of two maps. Return elements of the first map
+-- not existing in the second.
+difference :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
+difference a b = foldlWithKey' go empty a
+  where
+    go m k v = case lookup k b of
+                 Nothing -> insert k v m
+                 _       -> m
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE difference #-}
+#endif
+
+-- | /O(n)/ Intersection of two maps. Return elements of the first map
+-- for keys existing in the second.
+intersection :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
+intersection a b = foldlWithKey' go empty a
+  where
+    go m k v = case lookup k b of
+                 Just _ -> insert k v m
+                 _      -> m
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE intersection #-}
+#endif
+
+------------------------------------------------------------------------
 -- * Folds
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
@@ -297,6 +333,75 @@ foldrWithKey f = go
     go z (Full ary) = A.foldr (flip go) z ary
     go z (Collision _ ary) = A.foldr (\ (L _ k v) z' -> f k v z') z ary
 {-# INLINE foldrWithKey #-}
+
+------------------------------------------------------------------------
+-- * Filter
+
+-- Helper for filtering a sparse array.
+filterA :: (a -> Bool) -> A.Array a -> Bitmap -> (A.Array a, Bitmap)
+filterA p = \ary b0 ->
+    let !n = A.length ary
+    in A.run2 $ do
+        mary <- A.new_ n
+        go ary mary b0 0 0 0 n
+  where
+    go !ary !mary !b i !j !bi n
+        | i >= n || bi > 1 `unsafeShiftL` n =  -- TODO: Verify
+            if i == j
+            then return (mary, b)
+            else do mary2 <- A.new j undefinedElem
+                    A.copyM mary 0 mary2 0 j
+                    return (mary2, b)
+        | bi .&. b == 0 = go ary mary b i j (bi `unsafeShiftL` 1) n
+        | otherwise =
+            let el = A.index ary i
+            in if p el
+               then do A.write mary j el
+                       go ary mary b (i+1) (j+1) (bi `unsafeShiftL` 1) n
+               else go ary mary (b .&. complement bi) (i+1) j
+                    (bi `unsafeShiftL` 1) n
+
+-- | /O(n)/ Filter this map by retaining only elements satisfying a
+-- predicate.
+filterWithKey :: (k -> v -> Bool) -> HashMap k v -> HashMap k v
+filterWithKey pred = go
+  where
+    go Empty = Empty
+    go t@(Leaf (L _ k v))
+        | pred k v = t
+        | otherwise = Empty
+    go (BitmapIndexed b ary) =
+        let (ary', b2) = filterEmpty ary b
+            n          = A.length ary'
+        in case n of
+            0 -> Empty
+            1 -> A.index ary' 0
+            _ -> BitmapIndexed b2 ary'
+    go (Full ary) =
+        let (ary', b) = filterEmpty ary fullNodeMask
+            n         = A.length ary'
+        in case n of
+            0 -> Empty
+            1 -> A.index ary' 0
+            _ | fromIntegral n == 1 `unsafeShiftL` bitsPerSubkey -> Full ary'
+              | otherwise -> BitmapIndexed b ary'
+    go (Collision h ary) = let ary' = A.filter (\ (L _ k v) -> pred k v) ary
+                           in case A.length ary' of
+                               0 -> Empty
+                               1 -> Leaf $ A.index ary' 0
+                               _ -> Collision h ary'
+
+    isEmpty Empty = True
+    isEmpty _     = False
+
+    filterEmpty = filterA (not . isEmpty . go)  -- Reduces code duplication
+{-# INLINE filterWithKey #-}
+
+-- | /O(n)/ Filter this map by retaining only elements which values
+-- satisfy a predicate.
+filter :: (v -> Bool) -> HashMap k v -> HashMap k v
+filter p = filterWithKey (\_ v -> p v)
+{-# INLINE filter #-}
 
 ------------------------------------------------------------------------
 -- * Conversions

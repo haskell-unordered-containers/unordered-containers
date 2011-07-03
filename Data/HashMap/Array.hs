@@ -7,6 +7,7 @@ module Data.HashMap.Array
     ( Array
     , MArray
     , new
+    , new_
     , singleton
     , length
     , lengthM
@@ -16,7 +17,9 @@ module Data.HashMap.Array
     , indexM
     , unsafeFreeze
     , run
+    , run2
     , copy
+    , copyM
     , update
     , insert
     , foldl'
@@ -24,13 +27,14 @@ module Data.HashMap.Array
     , thaw
     , delete
     , map
+    , filter
     ) where
 
 import Control.DeepSeq
 import Control.Monad.ST
 import GHC.Exts
 import GHC.ST (ST(..))
-import Prelude hiding (foldr, length, map, read)
+import Prelude hiding (filter, foldr, length, map, read)
 
 ------------------------------------------------------------------------
 
@@ -112,6 +116,9 @@ new n@(I# n#) b = ST $ \s -> case newArray# n# b s of
     (# s', ary #) -> (# s', marray ary n #)
 {-# INLINE new #-}
 
+new_ :: Int -> ST s (MArray s a)
+new_ n = new n undefinedElem
+
 singleton :: a -> Array a
 singleton x = run (new 1 x)
 {-# INLINE singleton #-}
@@ -151,6 +158,12 @@ run :: (forall s . ST s (MArray s e)) -> Array e
 run act = runST $ act >>= unsafeFreeze
 {-# INLINE run #-}
 
+run2 :: (forall s. ST s (MArray s e, a)) -> (Array e, a)
+run2 k = runST (do
+                 (marr,b) <- k
+                 arr <- unsafeFreeze marr
+                 return (arr,b))
+
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
 copy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
 #if __GLASGOW_HASKELL__ >= 701
@@ -165,6 +178,28 @@ copy !src !sidx !dst !didx n =
     CHECK_BOUNDS("copy", length src, sidx + n)
     CHECK_BOUNDS("copy", lengthM dst, didx + n)
         copy_loop sidx didx 0
+  where
+    copy_loop !i !j !c
+        | c >= n = return ()
+        | otherwise = do b <- indexM src i
+                         write dst j b
+                         copy_loop (i+1) (j+1) (c+1)
+#endif
+
+-- | Unsafely copy the elements of an array. Array bounds are not checked.
+copyM :: MArray s e -> Int -> MArray s e -> Int -> Int -> ST s ()
+#if __GLASGOW_HASKELL__ >= 701
+copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
+    CHECK_BOUNDS("copyM", lengthM src, _sidx + _n)
+    CHECK_BOUNDS("copyM", lengthM dst, _didx + _n)
+    ST $ \ s# ->
+    case copyMutableArray# (unMArray src) sidx# (unMArray dst) didx# n# s# of
+        s2 -> (# s2, () #)
+#else
+copyM !src !sidx !dst !didx n =
+    CHECK_BOUNDS("copyM", lengthM src, sidx + n)
+    CHECK_BOUNDS("copyM", lengthM dst, didx + n)
+    copy_loop sidx didx 0
   where
     copy_loop !i !j !c
         | c >= n = return ()
@@ -250,3 +285,22 @@ map f = \ ary ->
              write mary i $ f (index ary i)
              go ary mary (i+1) n
 {-# INLINE map #-}
+
+
+filter :: (a -> Bool) -> Array a -> Array a
+filter p = \ ary ->
+    let !n = length ary
+    in run $ do
+        mary <- new n undefinedElem
+        go ary mary 0 0 n
+  where
+    go ary mary i j n
+        | i >= n    = if i == j
+                      then return mary
+                      else do mary2 <- new j undefinedElem
+                              copyM mary 0 mary2 0 j
+                              return mary2
+        | p el      = write mary j el >> go ary mary (i+1) (j+1) n
+        | otherwise = go ary mary (i+1) j n
+      where el = index ary i
+{-# INLINE filter #-}
