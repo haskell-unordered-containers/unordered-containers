@@ -50,7 +50,7 @@ import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement)
 import qualified Data.List as L
 import Data.Word (Word)
-import Prelude hiding (filter, foldr, lookup, map, null)
+import Prelude hiding (filter, foldr, lookup, map, null, pred)
 
 import qualified Data.HashMap.Array as A
 import qualified Data.Hashable as H
@@ -65,18 +65,17 @@ import Data.Typeable (Typeable)
 hash :: H.Hashable a => a -> Hash
 hash = fromIntegral . H.hash
 
--- TODO: Shouldn't contain hash.
-data Leaf k v = L {-# UNPACK #-} !Hash !k v
+data Leaf k v = L !k v
 
 instance (NFData k, NFData v) => NFData (Leaf k v) where
-    rnf (L _ k v) = rnf k `seq` rnf v
+    rnf (L k v) = rnf k `seq` rnf v
 
 -- | A map from keys to values.  A map cannot contain duplicate keys;
 -- each key can map to at most one value.
 data HashMap k v
     = Empty
     | BitmapIndexed {-# UNPACK #-} !Bitmap {-# UNPACK #-} !(A.Array (HashMap k v))
-    | Leaf {-# UNPACK #-} !(Leaf k v)
+    | Leaf {-# UNPACK #-} !Hash {-# UNPACK #-} !(Leaf k v)
     | Full {-# UNPACK #-} !(A.Array (HashMap k v))
     | Collision {-# UNPACK #-} !Hash {-# UNPACK #-} !(A.Array (Leaf k v))
       deriving (Typeable)
@@ -84,7 +83,7 @@ data HashMap k v
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Empty                 = ()
     rnf (BitmapIndexed _ ary) = rnf ary
-    rnf (Leaf (L _ k v))      = rnf k `seq` rnf v
+    rnf (Leaf _ (L k v))      = rnf k `seq` rnf v
     rnf (Full ary)            = rnf ary
     rnf (Collision _ ary)     = rnf ary
 
@@ -108,7 +107,7 @@ empty = Empty
 
 -- | /O(1)/ Construct a map with a single element.
 singleton :: (Hashable k) => k -> v -> HashMap k v
-singleton k v = Leaf (L (hash k) k v)
+singleton k v = Leaf (hash k) (L k v)
 
 ------------------------------------------------------------------------
 -- * Basic interface
@@ -123,7 +122,7 @@ size :: HashMap k v -> Int
 size t = go t 0
   where
     go Empty                !n = n
-    go (Leaf _)              n = n + 1
+    go (Leaf _ _)            n = n + 1
     go (BitmapIndexed _ ary) n = A.foldl' (flip go) n ary
     go (Full ary)            n = A.foldl' (flip go) n ary
     go (Collision _ ary)     n = n + A.length ary
@@ -135,7 +134,7 @@ lookup k0 = go h0 k0 0
   where
     h0 = hash k0
     go !_ !_ !_ Empty = Nothing
-    go h k _ (Leaf (L hx kx x))
+    go h k _ (Leaf hx (L kx x))
         | h == hx && k == kx = Just x
         | otherwise = Nothing
     go h k s (BitmapIndexed b v) =
@@ -145,7 +144,7 @@ lookup k0 = go h0 k0 0
            else go h k (s+bitsPerSubkey) (A.index v (index b m))
     go h k s (Full v) = go h k (s+bitsPerSubkey) (A.index v (mask h s))
     go h k _ (Collision hx v)
-        | h == hx   = lookupInArray h k v
+        | h == hx   = lookupInArray k v
         | otherwise = Nothing
 {-# INLINABLE lookup #-}
 
@@ -165,17 +164,17 @@ insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k0 v0 = go h0 k0 v0 0
   where
     h0 = hash k0
-    go !h !k x !_ Empty = Leaf (L h k x)
-    go h k x s t@(Leaf l@(L hy ky _))
+    go !h !k x !_ Empty = Leaf h (L k x)
+    go h k x s t@(Leaf hy l@(L ky _))
         | hy == h = if ky == k
-                    then Leaf (L h k x)
-                    else collision h l (L h k x)
+                    then Leaf h (L k x)
+                    else collision h l (L k x)
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
     go h k x s (BitmapIndexed b ary) =
         let m = bitpos h s
             i = index b m
         in if b .&. m == 0
-               then let l    = Leaf (L h k x)
+               then let l    = Leaf h (L k x)
                         ary' = A.insert ary i $! l
                         b'   = b .|. m
                     in if b' == fullNodeMask
@@ -192,7 +191,7 @@ insert k0 v0 = go h0 k0 v0 0
             ary' = update16 ary i $! st'
         in Full ary'
     go h k x s t@(Collision hy v)
-        | h == hy = Collision h (updateOrSnoc h k x v)
+        | h == hy = Collision h (updateOrSnoc k x v)
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
 {-# INLINABLE insert #-}
 
@@ -201,7 +200,7 @@ delete k0 = go h0 k0 0
   where
     h0 = hash k0
     go !_ !_ !_ Empty = Empty
-    go h k _ t@(Leaf (L hy ky _))
+    go h k _ t@(Leaf hy (L ky _))
         | hy == h && ky == k = Empty
         | otherwise = t
     go h k s t@(BitmapIndexed b ary) =
@@ -226,12 +225,12 @@ delete k0 = go h0 k0 0
             _ -> let ary' = A.update ary i $! st'
                  in Full ary'
     go h k _ t@(Collision hy v)
-        | h == hy = case indexOf h k v of
+        | h == hy = case indexOf k v of
             Just i
                 | A.length v == 2 ->
                     if i == 0
-                    then Leaf (A.index v 1)
-                    else Leaf (A.index v 0)
+                    then Leaf h (A.index v 1)
+                    else Leaf h (A.index v 0)
                 | otherwise -> Collision h (A.delete v i)
             Nothing -> t
         | otherwise = t
@@ -253,11 +252,11 @@ map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = go
   where
     go Empty = Empty
-    go (Leaf (L h k v)) = Leaf $ L h k (f v)
+    go (Leaf h (L k v)) = Leaf h $ L k (f v)
     go (BitmapIndexed b ary) = BitmapIndexed b $ A.map go ary
     go (Full ary) = Full $ A.map go ary
     go (Collision h ary) = Collision h $
-                           A.map (\ (L h' k v) -> L h' k (f v)) ary
+                           A.map (\ (L k v) -> L k (f v)) ary
 {-# INLINE map #-}
 
 ------------------------------------------------------------------------
@@ -308,10 +307,10 @@ foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
 foldlWithKey' f = go
   where
     go !z Empty = z
-    go z (Leaf (L _ k v)) = f z k v
+    go z (Leaf _ (L k v)) = f z k v
     go z (BitmapIndexed _ ary) = A.foldl' go z ary
     go z (Full ary) = A.foldl' go z ary
-    go z (Collision _ ary) = A.foldl' (\ z' (L _ k v) -> f z' k v) z ary
+    go z (Collision _ ary) = A.foldl' (\ z' (L k v) -> f z' k v) z ary
 {-# INLINE foldlWithKey' #-}
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
@@ -328,10 +327,10 @@ foldrWithKey :: (k -> v -> a -> a) -> a -> HashMap k v -> a
 foldrWithKey f = go
   where
     go z Empty = z
-    go z (Leaf (L _ k v)) = f k v z
+    go z (Leaf _ (L k v)) = f k v z
     go z (BitmapIndexed _ ary) = A.foldr (flip go) z ary
     go z (Full ary) = A.foldr (flip go) z ary
-    go z (Collision _ ary) = A.foldr (\ (L _ k v) z' -> f k v z') z ary
+    go z (Collision _ ary) = A.foldr (\ (L k v) z' -> f k v z') z ary
 {-# INLINE foldrWithKey #-}
 
 ------------------------------------------------------------------------
@@ -367,7 +366,7 @@ filterWithKey :: (k -> v -> Bool) -> HashMap k v -> HashMap k v
 filterWithKey pred = go
   where
     go Empty = Empty
-    go t@(Leaf (L _ k v))
+    go t@(Leaf _ (L k v))
         | pred k v = t
         | otherwise = Empty
     go (BitmapIndexed b ary) =
@@ -385,10 +384,10 @@ filterWithKey pred = go
             1 -> A.index ary' 0
             _ | fromIntegral n == 1 `unsafeShiftL` bitsPerSubkey -> Full ary'
               | otherwise -> BitmapIndexed b ary'
-    go (Collision h ary) = let ary' = A.filter (\ (L _ k v) -> pred k v) ary
+    go (Collision h ary) = let ary' = A.filter (\ (L k v) -> pred k v) ary
                            in case A.length ary' of
                                0 -> Empty
-                               1 -> Leaf $ A.index ary' 0
+                               1 -> Leaf h $ A.index ary' 0
                                _ -> Collision h ary'
 
     isEmpty Empty = True
@@ -438,45 +437,43 @@ fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
 
 -- | /O(n)/ Lookup the value associated with the given key in this
 -- array.  Returns 'Nothing' if the key wasn't found.
-lookupInArray :: Eq k => Hash -> k -> A.Array (Leaf k v) -> Maybe v
-lookupInArray h0 k0 ary0 = go h0 k0 ary0 0 (A.length ary0)
+lookupInArray :: Eq k => k -> A.Array (Leaf k v) -> Maybe v
+lookupInArray k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
-    go !h !k !ary !i !n
+    go !k !ary !i !n
         | i >= n = Nothing
         | otherwise = case A.index ary i of
-            (L hx kx v)
-                | h == hx && k == kx -> Just v
-                | otherwise -> go h k ary (i+1) n
+            (L kx v)
+                | k == kx -> Just v
+                | otherwise -> go k ary (i+1) n
 {-# INLINABLE lookupInArray #-}
 
 -- | /O(n)/ Lookup the value associated with the given key in this
 -- array.  Returns 'Nothing' if the key wasn't found.
-indexOf :: Eq k => Hash -> k -> A.Array (Leaf k v) -> Maybe Int
-indexOf h0 k0 ary0 = go h0 k0 ary0 0 (A.length ary0)
+indexOf :: Eq k => k -> A.Array (Leaf k v) -> Maybe Int
+indexOf k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
-    go !h !k !ary !i !n
+    go !k !ary !i !n
         | i >= n = Nothing
         | otherwise = case A.index ary i of
-            (L hx kx _)
-                | h == hx && k == kx -> Just i
-                | otherwise -> go h k ary (i+1) n
+            (L kx _)
+                | k == kx -> Just i
+                | otherwise -> go k ary (i+1) n
 {-# INLINABLE indexOf #-}
 
-updateOrSnoc :: Eq k => Hash -> k -> v -> A.Array (Leaf k v)
-             -> A.Array (Leaf k v)
-updateOrSnoc h0 k0 v0 ary0 = go h0 k0 v0 ary0 0 (A.length ary0)
+updateOrSnoc :: Eq k => k -> v -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+updateOrSnoc k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
   where
-    go !h !k v !ary !i !n
+    go !k v !ary !i !n
         | i >= n = A.run $ do
             -- Not found, append to the end.
             mary <- A.new (n + 1) undefinedElem
             A.copy ary 0 mary 0 n
-            A.write mary n (L h k v)
+            A.write mary n (L k v)
             return mary
         | otherwise = case A.index ary i of
-            (L hx kx _)
-                | h == hx && k == kx -> A.update ary i (L h k v)
-                | otherwise -> go h k v ary (i+1) n
+            (L kx _) | k == kx -> A.update ary i (L k v)
+                     | otherwise -> go k v ary (i+1) n
 {-# INLINABLE updateOrSnoc #-}
 
 undefinedElem :: a
