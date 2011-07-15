@@ -203,27 +203,25 @@ delete k0 = go h0 k0 0
     go h k _ t@(Leaf hy (L ky _))
         | hy == h && ky == k = Empty
         | otherwise = t
-    go h k s t@(BitmapIndexed b ary) =
-        let m = bitpos h s
-        in if b .&. m == 0
-               then t
-               else let i    = index b m
-                        st   = A.index ary i
-                        st'  = go h k (s+bitsPerSubkey) st
-                    in case st' of
-                            Empty -> let ary' = A.delete ary i
-                                     in BitmapIndexed (b .&. complement m) ary'
-                            _ -> let ary' = A.update ary i $! st'
-                                 in BitmapIndexed b ary'
+    go h k s t@(BitmapIndexed b ary)
+        | b .&. m == 0 = t
+        | otherwise =
+            let i   = index b m
+                st  = A.index ary i
+                st' = go h k (s+bitsPerSubkey) st
+            in case st' of
+                Empty -> BitmapIndexed (b .&. complement m) (A.delete ary i)
+                _     -> BitmapIndexed b (A.update ary i $! st')
+      where m = bitpos h s
     go h k s (Full ary) =
         let i    = mask h s
             st   = A.index ary i
             st'  = go h k (s+bitsPerSubkey) st
         in case st' of
-            Empty -> let ary' = A.delete ary i
-                     in BitmapIndexed (bitpos h s) ary'
-            _ -> let ary' = A.update ary i $! st'
-                 in Full ary'
+            Empty -> if A.length ary == 2
+                     then if i == 0 then A.index ary 1 else A.index ary 0
+                     else BitmapIndexed (bitpos h s) (A.delete ary i)
+            _     -> Full (A.update ary i $! st')
     go h k _ t@(Collision hy v)
         | h == hy = case indexOf k v of
             Just i
