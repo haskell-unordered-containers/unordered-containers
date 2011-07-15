@@ -13,6 +13,7 @@ module Data.HashMap.Base
     , size
     , lookup
     , insert
+    , insertWith
     , delete
 
       -- * Combine
@@ -161,13 +162,32 @@ collision h e1 e2 =
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
-insert k0 v0 = go h0 k0 v0 0
+insert = insertWith' (\ new _old -> new)
+{-# INLINABLE insert #-}
+
+-- | /O(min(n,W))/ Associate the value with the key in this map.  If
+-- this map previously contained a mapping for the key, the old value
+-- is replaced by the result of applying the given function to the new
+-- and old value.  Example:
+--
+-- > insertWith f k v map
+-- >   where f new old = new + old
+insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
+          -> HashMap k v
+insertWith = insertWith'
+{-# INLINABLE insertWith #-}
+
+-- Always inlined to the implementation of 'insert' doesn't have to
+-- pay the cost of using the higher-order argument.
+insertWith' :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
+            -> HashMap k v
+insertWith' f k0 v0 = go h0 k0 v0 0
   where
     h0 = hash k0
     go !h !k x !_ Empty = Leaf h (L k x)
-    go h k x s t@(Leaf hy l@(L ky _))
+    go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
-                    then Leaf h (L k x)
+                    then Leaf h (L k (f x y))
                     else collision h l (L k x)
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
     go h k x s (BitmapIndexed b ary) =
@@ -191,9 +211,9 @@ insert k0 v0 = go h0 k0 v0 0
             ary' = update16 ary i $! st'
         in Full ary'
     go h k x s t@(Collision hy v)
-        | h == hy = Collision h (updateOrSnoc k x v)
+        | h == hy = Collision h (updateOrSnocWith f k x v)
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
-{-# INLINABLE insert #-}
+{-# INLINE insertWith' #-}
 
 delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
 delete k0 = go h0 k0 0
@@ -459,8 +479,9 @@ indexOf k0 ary0 = go k0 ary0 0 (A.length ary0)
                 | otherwise -> go k ary (i+1) n
 {-# INLINABLE indexOf #-}
 
-updateOrSnoc :: Eq k => k -> v -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-updateOrSnoc k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
+updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
+                 -> A.Array (Leaf k v)
+updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
   where
     go !k v !ary !i !n
         | i >= n = A.run $ do
@@ -470,9 +491,9 @@ updateOrSnoc k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
             A.write mary n (L k v)
             return mary
         | otherwise = case A.index ary i of
-            (L kx _) | k == kx -> A.update ary i (L k v)
+            (L kx y) | k == kx -> A.update ary i (L k (f v y))
                      | otherwise -> go k v ary (i+1) n
-{-# INLINABLE updateOrSnoc #-}
+{-# INLINABLE updateOrSnocWith #-}
 
 undefinedElem :: a
 undefinedElem = error "Undefined element!"
