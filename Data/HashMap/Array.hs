@@ -168,15 +168,15 @@ run2 k = runST (do
 copy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
 #if __GLASGOW_HASKELL__ >= 701
 copy !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
-    CHECK_BOUNDS("copy", length src, _sidx + _n)
-    CHECK_BOUNDS("copy", lengthM dst, _didx + _n)
+    CHECK_BOUNDS("copy: src", length src, _sidx + _n - 1)
+    CHECK_BOUNDS("copy: dst", lengthM dst, _didx + _n - 1)
         ST $ \ s# ->
         case copyArray# (unArray src) sidx# (unMArray dst) didx# n# s# of
             s2 -> (# s2, () #)
 #else
 copy !src !sidx !dst !didx n =
-    CHECK_BOUNDS("copy", length src, sidx + n)
-    CHECK_BOUNDS("copy", lengthM dst, didx + n)
+    CHECK_BOUNDS("copy: src", length src, sidx + n - 1)
+    CHECK_BOUNDS("copy: dst", lengthM dst, didx + n - 1)
         copy_loop sidx didx 0
   where
     copy_loop !i !j !c
@@ -190,15 +190,15 @@ copy !src !sidx !dst !didx n =
 copyM :: MArray s e -> Int -> MArray s e -> Int -> Int -> ST s ()
 #if __GLASGOW_HASKELL__ >= 701
 copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
-    CHECK_BOUNDS("copyM", lengthM src, _sidx + _n)
-    CHECK_BOUNDS("copyM", lengthM dst, _didx + _n)
+    CHECK_BOUNDS("copyM: src", lengthM src, _sidx + _n - 1)
+    CHECK_BOUNDS("copyM: dst", lengthM dst, _didx + _n - 1)
     ST $ \ s# ->
     case copyMutableArray# (unMArray src) sidx# (unMArray dst) didx# n# s# of
         s2 -> (# s2, () #)
 #else
 copyM !src !sidx !dst !didx n =
-    CHECK_BOUNDS("copyM", lengthM src, sidx + n)
-    CHECK_BOUNDS("copyM", lengthM dst, didx + n)
+    CHECK_BOUNDS("copyM: src", lengthM src, sidx + n - 1)
+    CHECK_BOUNDS("copyM: dst", lengthM dst, didx + n - 1)
     copy_loop sidx didx 0
   where
     copy_loop !i !j !c
