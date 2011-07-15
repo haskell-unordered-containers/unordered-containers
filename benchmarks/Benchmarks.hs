@@ -51,8 +51,8 @@ main = do
             , bench "ByteStringString" $ whnf (insertM elemsBS) M.empty
             ]
           , bgroup "delete"
-            [ bench "String" $ whnf (deleteM elems) M.empty
-            , bench "ByteString" $ whnf (deleteM elemsBS) M.empty
+            [ bench "String" $ whnf (deleteM keys) m
+            , bench "ByteString" $ whnf (deleteM keysBS) mbs
             ]
           ]
 
