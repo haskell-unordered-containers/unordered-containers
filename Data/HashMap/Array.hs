@@ -52,12 +52,12 @@ if (_actual_) /= (_expected_) then error ("Data.HashMap.Array." ++ (_func_) ++ "
 
 data Array a = Array {
       unArray :: !(Array# a)
-#if __GLASGOW_HASKELL__ < 701
+#if __GLASGOW_HASKELL__ < 702
     , length :: {-# UNPACK #-} !Int
 #endif
     }
 
-#if __GLASGOW_HASKELL__ >= 701
+#if __GLASGOW_HASKELL__ >= 702
 length :: Array a -> Int
 length ary = I# (sizeofArray# (unArray ary))
 {-# INLINE length #-}
@@ -65,7 +65,7 @@ length ary = I# (sizeofArray# (unArray ary))
 
 -- | Smart constructor
 array :: Array# a -> Int -> Array a
-#if __GLASGOW_HASKELL__ >= 701
+#if __GLASGOW_HASKELL__ >= 702
 array ary _n = Array ary
 #else
 array = Array
@@ -74,12 +74,12 @@ array = Array
 
 data MArray s a = MArray {
       unMArray :: !(MutableArray# s a)
-#if __GLASGOW_HASKELL__ < 701
+#if __GLASGOW_HASKELL__ < 702
     , lengthM :: {-# UNPACK #-} !Int
 #endif
     }
 
-#if __GLASGOW_HASKELL__ >= 701
+#if __GLASGOW_HASKELL__ >= 702
 lengthM :: MArray s a -> Int
 lengthM mary = I# (sizeofMutableArray# (unMArray mary))
 {-# INLINE lengthM #-}
@@ -87,7 +87,7 @@ lengthM mary = I# (sizeofMutableArray# (unMArray mary))
 
 -- | Smart constructor
 marray :: MutableArray# s a -> Int -> MArray s a
-#if __GLASGOW_HASKELL__ >= 701
+#if __GLASGOW_HASKELL__ >= 702
 marray mary _n = MArray mary
 #else
 marray = MArray
@@ -166,7 +166,7 @@ run2 k = runST (do
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
 copy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
-#if __GLASGOW_HASKELL__ >= 701
+#if __GLASGOW_HASKELL__ >= 702
 copy !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
     CHECK_BOUNDS("copy: src", length src, _sidx + _n - 1)
     CHECK_BOUNDS("copy: dst", lengthM dst, _didx + _n - 1)
@@ -188,7 +188,7 @@ copy !src !sidx !dst !didx n =
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
 copyM :: MArray s e -> Int -> MArray s e -> Int -> Int -> ST s ()
-#if __GLASGOW_HASKELL__ >= 701
+#if __GLASGOW_HASKELL__ >= 702
 copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
     CHECK_BOUNDS("copyM: src", lengthM src, _sidx + _n - 1)
     CHECK_BOUNDS("copyM: dst", lengthM dst, _didx + _n - 1)

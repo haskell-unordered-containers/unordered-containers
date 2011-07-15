@@ -493,7 +493,7 @@ update16 ary idx b =
 -- array is not checked.
 clone16 :: A.Array e -> ST s (A.MArray s e)
 clone16 ary =
-#if __GLASGOW_HASKELL__ >= 701
+#if __GLASGOW_HASKELL__ >= 702
     A.thaw ary 0 16
 #else
     do mary <- new 16 undefinedElem
