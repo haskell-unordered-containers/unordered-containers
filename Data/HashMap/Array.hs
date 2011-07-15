@@ -214,7 +214,7 @@ insert :: Array e -> Int -> e -> Array e
 insert ary idx b =
     CHECK_BOUNDS("insert", count + 1, idx)
         run $ do
-            mary <- new (count+1) undefinedElem
+            mary <- new_ (count+1)
             copy ary 0 mary 0 idx
             write mary idx b
             copy ary idx mary (idx+1) (count-idx)
@@ -227,7 +227,7 @@ update :: Array e -> Int -> e -> Array e
 update ary idx b =
     CHECK_BOUNDS("update", count, idx)
         run $ do
-            mary <- new count undefinedElem
+            mary <- new_ count
             copy ary 0 mary 0 count
             write mary idx b
             return mary
@@ -265,7 +265,7 @@ thaw !ary !_o@(I# o#) !n@(I# n#) =
 delete :: Array e -> Int -> Array e
 delete ary idx =
     run $ do
-        mary <- new (count-1) undefinedElem
+        mary <- new_ (count-1)
         copy ary 0 mary 0 idx
         copy ary (idx+1) mary idx (count-(idx+1))
         return mary
@@ -291,13 +291,13 @@ filter :: (a -> Bool) -> Array a -> Array a
 filter p = \ ary ->
     let !n = length ary
     in run $ do
-        mary <- new n undefinedElem
+        mary <- new_ n
         go ary mary 0 0 n
   where
     go ary mary i j n
         | i >= n    = if i == j
                       then return mary
-                      else do mary2 <- new j undefinedElem
+                      else do mary2 <- new_ j
                               copyM mary 0 mary2 0 j
                               return mary2
         | p el      = write mary j el >> go ary mary (i+1) (j+1) n
