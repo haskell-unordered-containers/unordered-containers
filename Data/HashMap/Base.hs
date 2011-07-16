@@ -44,6 +44,7 @@ module Data.HashMap.Base
       -- ** Lists
     , toList
     , fromList
+    , fromListWith
     ) where
 
 import Control.DeepSeq (NFData(rnf))
@@ -165,7 +166,7 @@ insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert = insertWith' (\ new _old -> new)
 {-# INLINABLE insert #-}
 
--- | /O(min(n,W))/ Associate the value with the key in this map.  If
+-- | /O(log n)/ Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
 -- is replaced by the result of applying the given function to the new
 -- and old value.  Example:
@@ -449,6 +450,12 @@ toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
 {-# INLINABLE fromList #-}
+
+-- | /O(n*log n)/ Construct a map from a list of elements.  Uses
+-- the provided function to merge duplicate entries.
+fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
+fromListWith f = L.foldl' (\ m (k, v) -> insertWith f k v m) empty
+{-# INLINE fromListWith #-}
 
 ------------------------------------------------------------------------
 -- Array operations
