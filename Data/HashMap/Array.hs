@@ -6,26 +6,34 @@
 module Data.HashMap.Array
     ( Array
     , MArray
+
+      -- * Creation
     , new
     , new_
     , singleton
+
+      -- * Basic interface
     , length
     , lengthM
     , read
     , write
     , index
     , indexM
+    , update
+    , insert
+    , delete
+
     , unsafeFreeze
     , run
     , run2
     , copy
     , copyM
-    , update
-    , insert
+
+      -- * Folds
     , foldl'
     , foldr
+
     , thaw
-    , delete
     , map
     , filter
     ) where
@@ -233,7 +241,7 @@ update ary idx b =
             return mary
   where !count = length ary
 {-# INLINE update #-}
-        
+
 foldl' :: (b -> a -> b) -> b -> Array a -> b
 foldl' f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
   where
