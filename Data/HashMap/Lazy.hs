@@ -48,6 +48,7 @@ module Data.HashMap.Lazy
       -- * Combine
       -- ** Union
     , union
+    , unionWith
 
       -- * Transformations
     , map
@@ -229,6 +230,30 @@ map f = go
     go Nil          = Nil
     f' k v = (k, f v)
 {-# INLINE map #-}
+
+-- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
+-- the provided function (first argument) will be used to compute the result.
+unionWith :: Eq k => (v -> v -> v) -> HashMap k v -> HashMap k v -> HashMap k v
+unionWith f t1@(Bin sm1 l1 r1) t2@(Bin sm2 l2 r2)
+    | sm1 == sm2      = Bin sm1 (unionWith f l1 l2) (unionWith f r1 r2)
+    | shorter sm1 sm2 = union1
+    | shorter sm2 sm1 = union2
+    | otherwise       = join sm1 t1 sm2 t2
+  where
+    union1 | nomatch sm2 sm1 = join sm1 t1 sm2 t2
+           | zero sm2 sm1    = Bin sm1 (unionWith f l1 t2) r1
+           | otherwise       = Bin sm1 l1 (unionWith f r1 t2)
+
+    union2 | nomatch sm1 sm2 = join sm1 t1 sm2 t2
+           | zero sm1 sm2    = Bin sm2 (unionWith f t1 l2) r2
+           | otherwise       = Bin sm2 l2 (unionWith f t1 r2)
+unionWith f (Tip h l) t = insertCollidingWith (FL.unionWith f) h l t
+unionWith f t (Tip h l) = insertCollidingWith (FL.unionWith f) h l t  -- right bias
+unionWith _ Nil t       = t
+unionWith _ t Nil       = t
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE unionWith #-}
+#endif
 
 -- | /O(n)/ Difference of two maps. Return elements of the first map
 -- not existing in the second.
