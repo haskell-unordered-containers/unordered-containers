@@ -18,7 +18,7 @@ module Data.HashMap.Array
     , read
     , write
     , index
-    , indexM
+    , index_
     , update
     , insert
     , delete
@@ -150,11 +150,17 @@ index ary _i@(I# i#) =
         case indexArray# (unArray ary) i# of (# b #) -> b
 {-# INLINE index #-}
 
-indexM :: Array a -> Int -> ST s a
-indexM ary _i@(I# i#) =
-    CHECK_BOUNDS("indexM", length ary, _i)
+index_ :: Array a -> Int -> ST s a
+index_ ary _i@(I# i#) =
+    CHECK_BOUNDS("index_", length ary, _i)
         case indexArray# (unArray ary) i# of (# b #) -> return b
-{-# INLINE indexM #-}
+{-# INLINE index_ #-}
+
+indexM_ :: MArray s a -> Int -> ST s a
+indexM_ ary _i@(I# i#) =
+    CHECK_BOUNDS("index_", length ary, _i)
+        ST $ \ s# -> readArray# (unMArray ary) i# s#
+{-# INLINE indexM_ #-}
 
 unsafeFreeze :: MArray s a -> ST s (Array a)
 unsafeFreeze mary
@@ -189,7 +195,7 @@ copy !src !sidx !dst !didx n =
   where
     copy_loop !i !j !c
         | c >= n = return ()
-        | otherwise = do b <- indexM src i
+        | otherwise = do b <- index_ src i
                          write dst j b
                          copy_loop (i+1) (j+1) (c+1)
 #endif
@@ -211,7 +217,7 @@ copyM !src !sidx !dst !didx n =
   where
     copy_loop !i !j !c
         | c >= n = return ()
-        | otherwise = do b <- indexM src i
+        | otherwise = do b <- indexM_ src i
                          write dst j b
                          copy_loop (i+1) (j+1) (c+1)
 #endif
@@ -262,10 +268,18 @@ undefinedElem :: a
 undefinedElem = error "Undefined element!"
 
 thaw :: Array e -> Int -> Int -> ST s (MArray s e)
+#if __GLASGOW_HASKELL__ >= 702
 thaw !ary !_o@(I# o#) !n@(I# n#) =
     CHECK_BOUNDS("thaw", length ary, _o + n)
         ST $ \ s -> case thawArray# (unArray ary) o# n# s of
             (# s2, mary# #) -> (# s2, marray mary# n #)
+#else
+thaw !ary !o !n =
+    CHECK_BOUNDS("thaw", length ary, o + n)
+        do mary <- new_ n
+           copy ary o mary 0 n
+           return mary
+#endif
 {-# INLINE thaw #-}
 
 -- | /O(n)/ Delete an element at the given position in this array,

@@ -524,23 +524,23 @@ clone16 ary =
 #if __GLASGOW_HASKELL__ >= 702
     A.thaw ary 0 16
 #else
-    do mary <- new 16 undefinedElem
-       A.indexM ary 0 >>= A.write mary 0
-       A.indexM ary 1 >>= A.write mary 1
-       A.indexM ary 2 >>= A.write mary 2
-       A.indexM ary 3 >>= A.write mary 3
-       A.indexM ary 4 >>= A.write mary 4
-       A.indexM ary 5 >>= A.write mary 5
-       A.indexM ary 6 >>= A.write mary 6
-       A.indexM ary 7 >>= A.write mary 7
-       A.indexM ary 8 >>= A.write mary 8
-       A.indexM ary 9 >>= A.write mary 9
-       A.indexM ary 10 >>= A.write mary 10
-       A.indexM ary 11 >>= A.write mary 11
-       A.indexM ary 12 >>= A.write mary 12
-       A.indexM ary 13 >>= A.write mary 13
-       A.indexM ary 14 >>= A.write mary 14
-       A.indexM ary 15 >>= A.write mary 15
+    do mary <- A.new_ 16
+       A.index_ ary 0 >>= A.write mary 0
+       A.index_ ary 1 >>= A.write mary 1
+       A.index_ ary 2 >>= A.write mary 2
+       A.index_ ary 3 >>= A.write mary 3
+       A.index_ ary 4 >>= A.write mary 4
+       A.index_ ary 5 >>= A.write mary 5
+       A.index_ ary 6 >>= A.write mary 6
+       A.index_ ary 7 >>= A.write mary 7
+       A.index_ ary 8 >>= A.write mary 8
+       A.index_ ary 9 >>= A.write mary 9
+       A.index_ ary 10 >>= A.write mary 10
+       A.index_ ary 11 >>= A.write mary 11
+       A.index_ ary 12 >>= A.write mary 12
+       A.index_ ary 13 >>= A.write mary 13
+       A.index_ ary 14 >>= A.write mary 14
+       A.index_ ary 15 >>= A.write mary 15
        return mary
 #endif
 
