@@ -93,3 +93,36 @@ mapL f = go
     go (Cons k v xs) = let !(k', !v') = f k v
                        in Cons k' v' (go xs)
 {-# INLINE mapL #-}
+
+unionWith :: Eq k => (v -> v -> v) -> FullList k v -> FullList k v -> FullList k v
+unionWith f xs (FL k vy ys) =
+    case lookup k xs of
+      Just vx ->
+        let !vFinal = f vx vy
+            flCon = FL k vFinal
+        in case delete k xs of
+          Nothing -> flCon ys
+          Just xs' ->
+            case unionWithL f xs' ys of
+              FL k' v' zs -> flCon $ Cons k' v' zs
+      Nothing ->
+        case unionWithL f xs ys of
+          FL k' v' zs -> FL k vy $ Cons k' v' zs
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE unionWith #-}
+#endif
+
+unionWithL :: Eq k => (v -> v -> v) -> FullList k v -> List k v -> FullList k v
+unionWithL f (FL k v zs) ys =
+  case lookupL k ys of
+    Just vy -> let !vFinal = f v vy in FL k vFinal $ go zs (deleteL k ys)
+    Nothing -> FL k v (go zs ys)
+  where
+    go ws Nil = ws
+    go ws (Cons k' vy ys') =
+      case lookupL k' ws of
+        Just vx -> let !vFinal = f vx vy in Cons k' vFinal $ go (deleteL k' ws) ys'
+        Nothing -> Cons k' vy $ go ws ys'
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE unionWithL #-}
+#endif
