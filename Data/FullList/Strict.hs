@@ -114,13 +114,16 @@ unionWith f xs (FL k vy ys) =
 #endif
 
 unionWithL :: Eq k => (v -> v -> v) -> FullList k v -> List k v -> FullList k v
-unionWithL f xs@(FL k v zs) = FL k v . go
+unionWithL f (FL k v zs) ys =
+  case lookupL k ys of
+    Just vy -> let !vFinal = f v vy in FL k vFinal $ go zs (deleteL k ys)
+    Nothing -> FL k v (go zs ys)
   where
-    go Nil = zs
-    go (Cons k' v' ys) =
-      case lookup k' xs of
-        Just vx -> let !vFinal = f vx v' in Cons k' vFinal $ go ys
-        Nothing -> Cons k' v' $ go ys
+    go ws Nil = ws
+    go ws (Cons k' vy ys') =
+      case lookupL k' ws of
+        Just vx -> let !vFinal = f vx vy in Cons k' vFinal $ go (deleteL k' ws) ys'
+        Nothing -> Cons k' vy $ go ws ys'
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE unionWithL #-}
 #endif

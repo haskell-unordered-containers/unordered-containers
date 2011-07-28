@@ -72,8 +72,8 @@ pUnion xs ys = L.sort (unionByKey as bs) ==
     bs = fromList ys
 
 pUnionWith :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pUnionWith xs ys = L.sort (unionByKeyWith (+) as bs) ==
-                   toAscList (M.unionWith (+) (M.fromList as) (M.fromList bs))
+pUnionWith xs ys = L.sort (unionByKeyWith (-) as bs) ==
+                   toAscList (M.unionWith (-) (M.fromList as) (M.fromList bs))
   where
     as = fromList xs
     bs = fromList ys

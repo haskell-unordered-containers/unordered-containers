@@ -248,7 +248,7 @@ unionWith f t1@(Bin sm1 l1 r1) t2@(Bin sm2 l2 r2)
            | zero sm1 sm2    = Bin sm2 (unionWith f t1 l2) r2
            | otherwise       = Bin sm2 l2 (unionWith f t1 r2)
 unionWith f (Tip h l) t = insertCollidingWith (FL.unionWith f) h l t
-unionWith f t (Tip h l) = insertCollidingWith (FL.unionWith f) h l t  -- right bias
+unionWith f t (Tip h l) = insertCollidingWith (flip (FL.unionWith f)) h l t  -- right bias
 unionWith _ Nil t       = t
 unionWith _ t Nil       = t
 #if __GLASGOW_HASKELL__ >= 700

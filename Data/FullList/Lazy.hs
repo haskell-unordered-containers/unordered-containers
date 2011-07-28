@@ -40,6 +40,9 @@ module Data.FullList.Lazy
 
       -- * Filter
     , filterWithKey
+      -- * For use by FL.Strict
+    , lookupL
+    , deleteL
     ) where
 
 import Control.Applicative
@@ -262,13 +265,16 @@ unionWith f xs (FL k vy ys) =
 #endif
 
 unionWithL :: Eq k => (v -> v -> v) -> FullList k v -> List k v -> FullList k v
-unionWithL f xs@(FL k v zs) = FL k v . go
+unionWithL f (FL k v zs) ys =
+  case lookupL k ys of 
+    Just vy -> FL k (f v vy) $ go zs (deleteL k ys)
+    Nothing -> FL k v (go zs ys)
   where
-    go Nil = zs
-    go (Cons k' v' ys) =
-      case lookup k' xs of
-        Just vx -> Cons k' (f vx v') $ go ys
-        Nothing -> Cons k' v' $ go ys
+    go ws Nil = ws
+    go ws (Cons k' vy ys') =
+      case lookupL k' ws of
+        Just vx -> Cons k' (f vx vy) $ go (deleteL k' ws) ys'
+        Nothing -> Cons k' vy $ go ws ys'
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE unionWithL #-}
 #endif
