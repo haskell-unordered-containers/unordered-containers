@@ -27,7 +27,6 @@ module Data.FullList.Strict
       -- * Transformations
     , map
     , traverseWithKey
-    , unionWith
 
       -- * Folds
     , foldlWithKey'
@@ -39,7 +38,7 @@ module Data.FullList.Strict
 
 import Prelude hiding (lookup, map)
 
-import Data.FullList.Lazy hiding (insertWith, unionWith, map, adjust)
+import Data.FullList.Lazy hiding (insertWith, map, adjust)
 
 insertWith :: Eq k => (v -> v -> v) -> k -> v -> FullList k v -> FullList k v
 insertWith f !k v (FL k' v' xs)
@@ -94,34 +93,3 @@ mapL f = go
     go (Cons k v xs) = let !(k', !v') = f k v
                        in Cons k' v' (go xs)
 {-# INLINE mapL #-}
-
-unionWith :: Eq k => (v -> v -> v) -> FullList k v -> FullList k v -> FullList k v
-unionWith f xs (FL k vy ys) =
-    case lookup k xs of
-      Just vx ->
-        let !vFinal = f vx vy
-            flCon = FL k vFinal
-        in case delete k xs of
-          Nothing -> flCon ys
-          Just xs' ->
-            case unionWithL f xs' ys of
-              FL k' v' zs -> flCon $ Cons k' v' zs
-      Nothing ->
-        case unionWithL f xs ys of
-          FL k' v' zs -> FL k vy $ Cons k' v' zs
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE unionWith #-}
-#endif
-
-unionWithL :: Eq k => (v -> v -> v) -> FullList k v -> List k v -> FullList k v
-unionWithL f xs@(FL k v zs) = FL k v . go
-  where
-    go Nil = zs
-    go (Cons k' v' ys) =
-      case lookup k' xs of
-        Just vx -> let !vFinal = f vx v' in Cons k' vFinal $ go ys
-        Nothing -> Cons k' v' $ go ys
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE unionWithL #-}
-#endif
-

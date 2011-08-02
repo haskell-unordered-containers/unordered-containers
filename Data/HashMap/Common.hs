@@ -12,8 +12,6 @@ module Data.HashMap.Common
     , bin
     , zero
     , nomatch
-    , shorter
-    , insertCollidingWith
 
     -- * Construction
     , empty

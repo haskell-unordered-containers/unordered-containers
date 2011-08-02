@@ -28,7 +28,6 @@ module Data.FullList.Lazy
       -- * Combine
       -- * Union
     , union
-    , unionWith
 
       -- * Transformations
     , map
@@ -242,35 +241,6 @@ unionL xs@(FL k v zs) = FL k v . go
         | otherwise      = Cons k' v' $ go ys
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE unionL #-}
-#endif
-
-unionWith :: Eq k => (v -> v -> v) -> FullList k v -> FullList k v -> FullList k v
-unionWith f xs (FL k vy ys) =
-    case lookup k xs of
-      Just vx ->
-        let flCon = FL k (f vx vy)
-        in case delete k xs of
-          Nothing  -> flCon ys
-          Just xs' ->
-            case unionWithL f xs' ys of
-              FL k' v' zs -> flCon $ Cons k' v' zs
-      Nothing ->
-        case unionWithL f xs ys of
-          FL k' v' zs -> FL k vy $ Cons k' v' zs
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE unionWith #-}
-#endif
-
-unionWithL :: Eq k => (v -> v -> v) -> FullList k v -> List k v -> FullList k v
-unionWithL f xs@(FL k v zs) = FL k v . go
-  where
-    go Nil = zs
-    go (Cons k' v' ys) =
-      case lookup k' xs of
-        Just vx -> Cons k' (f vx v') $ go ys
-        Nothing -> Cons k' v' $ go ys
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE unionWithL #-}
 #endif
 
 ------------------------------------------------------------------------
