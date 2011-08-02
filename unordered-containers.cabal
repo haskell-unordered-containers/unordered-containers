@@ -35,7 +35,7 @@ library
     Data.HashSet
 
   build-depends:
-    base < 4.4,
+    base < 4.5,
     deepseq == 1.1.*,
     hashable >= 1.0.1.1 && < 1.2
 
