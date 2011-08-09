@@ -134,6 +134,7 @@ tests =
       ]
     -- Combine
     , testProperty "union" pUnion
+    , testProperty "unionWith" pUnionWith
     -- Transformations
     , testProperty "map" pMap
     -- Folds
@@ -207,6 +208,15 @@ sortByKey = L.sortBy (compare `on` fst)
 
 unionByKey :: (Eq k, Eq v) => [(k, v)] -> [(k, v)] -> [(k, v)]
 unionByKey = L.unionBy ((==) `on` fst)
+
+unionByKeyWith :: (Eq k, Eq v) => (v -> v -> v) -> [(k,v)] -> [(k,v)] -> [(k,v)]
+unionByKeyWith f a b = go a b
+  where
+   go [] ys = ys
+   go (x:xs) ys =
+     case L.lookup (fst x) ys of
+       Just z -> (fst x, f (snd x) z) : go xs (filter ((/= fst x) . fst) ys)
+       Nothing -> x : go xs ys
 
 toAscList :: (Ord k, Ord v) => M.HashMap k v -> [(k, v)]
 toAscList = L.sort . M.toList
