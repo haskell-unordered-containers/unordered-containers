@@ -19,6 +19,7 @@ module Data.HashMap.Array
     , write
     , index
     , index_
+    , indexM_
     , update
     , insert
     , delete
