@@ -269,3 +269,5 @@ popcount(uint32_t x)
        popcount_table_8[(uint8_t)(x >> 16)] +
        popcount_table_8[(uint8_t)(x >> 24)];
 }
+
+/* TODO: Add a 16-bit variant */
