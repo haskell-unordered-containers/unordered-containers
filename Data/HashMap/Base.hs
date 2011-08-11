@@ -12,6 +12,7 @@ module Data.HashMap.Base
     , null
     , size
     , lookup
+    , lookupDefault
     , insert
     , insertWith
     , delete
@@ -150,6 +151,16 @@ lookup k0 = go h0 k0 0
         | h == hx   = lookupInArray k v
         | otherwise = Nothing
 {-# INLINABLE lookup #-}
+
+-- | /O(log n)/ Return the value to which the specified key is mapped,
+-- or the default value if this map contains no mapping for the key.
+lookupDefault :: (Eq k, Hashable k)
+              => v          -- ^ Default value to return.
+              -> k -> HashMap k v -> v
+lookupDefault def k t = case lookup k t of
+    Just v -> v
+    _      -> def
+{-# INLINE lookupDefault #-}
 
 -- | Create a 'Collision' value with two 'Leaf' values.
 collision :: Hash -> Leaf k v -> Leaf k v -> HashMap k v
