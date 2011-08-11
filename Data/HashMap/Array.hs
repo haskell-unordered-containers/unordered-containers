@@ -242,8 +242,7 @@ update :: Array e -> Int -> e -> Array e
 update ary idx b =
     CHECK_BOUNDS("update", count, idx)
         run $ do
-            mary <- new_ count
-            copy ary 0 mary 0 count
+            mary <- thaw ary 0 count
             write mary idx b
             return mary
   where !count = length ary
