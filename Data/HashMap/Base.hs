@@ -21,6 +21,7 @@ module Data.HashMap.Base
       -- * Combine
       -- * Union
     , union
+    , unionWith
 
       -- * Transformations
     , map
@@ -298,10 +299,17 @@ adjust f k0 = go h0 k0 0
 ------------------------------------------------------------------------
 -- * Combine
 
--- | /O(n+m)/ The union of two maps. If a key occurs in both maps,
+-- | /O(n*log m)/ The union of two maps. If a key occurs in both maps,
 -- the mapping from the first will be the mapping in the result.
 union :: (Eq k, Hashable k) => HashMap k v -> HashMap k v -> HashMap k v
 union m1 m2 = foldlWithKey' (\ m k v -> insert k v m) m2 m1
+
+-- | /O(n*log m)/ The union of two maps.  If a key occurs in both maps,
+-- the provided function (first argument) will be used to compute the result.
+unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
+          -> HashMap k v
+unionWith f m1 m2 = foldlWithKey' (\ m k v -> insertWith f k v m) m2 m1
+{-# INLINE unionWith #-}
 
 ------------------------------------------------------------------------
 -- * Transformations
