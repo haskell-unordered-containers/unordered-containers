@@ -233,6 +233,8 @@ insertWith' f k0 v0 = go h0 k0 v0 0
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
 {-# INLINE insertWith' #-}
 
+-- | /O(log n)/ Remove the mapping for the specified key from this map
+-- if present.
 delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
 delete k0 = go h0 k0 0
   where
@@ -272,6 +274,8 @@ delete k0 = go h0 k0 0
         | otherwise = t
 {-# INLINABLE delete #-}
 
+-- | /O(log n)/ Adjust the value tied to a given key in this map only
+-- if it is present. Otherwise, leave the map alone.
 adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
 adjust f k0 = go h0 k0 0
   where
