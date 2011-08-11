@@ -64,6 +64,10 @@ import Data.HashMap.PopCount (popCount)
 import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
 import Data.Typeable (Typeable)
 
+#if defined(__GLASGOW_HASKELL__)
+import GHC.Exts (build)
+#endif
+
 ------------------------------------------------------------------------
 
 -- | Convenience function.  Compute a hash value for the given value.
@@ -490,8 +494,12 @@ elems = L.map snd . toList
 -- | /O(n)/ Return a list of this map's elements.  The list is
 -- produced lazily.
 toList :: HashMap k v -> [(k, v)]
+#if defined(__GLASGOW_HASKELL__)
+toList t = build (\ c z -> foldrWithKey (curry c) z t)
+#else
 toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
-{-# INLINABLE toList #-}
+#endif
+{-# INLINE toList #-}
 
 -- | /O(n)/ Construct a map with the supplied mappings.  If the list
 -- contains duplicate mappings, the later mappings take precedence.
