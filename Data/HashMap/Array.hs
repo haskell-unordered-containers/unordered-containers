@@ -298,7 +298,7 @@ map :: (a -> b) -> Array a -> Array b
 map f = \ ary ->
     let !n = length ary
     in run $ do
-        mary <- new n undefinedElem
+        mary <- new_ n
         go ary mary 0 n
   where
     go ary mary i n
