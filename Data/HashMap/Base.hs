@@ -25,6 +25,7 @@ module Data.HashMap.Base
 
       -- * Transformations
     , map
+    , traverseWithKey
 
       -- * Difference and intersection
     , difference
@@ -50,6 +51,7 @@ module Data.HashMap.Base
     , fromListWith
     ) where
 
+import Control.Applicative ((<$>), Applicative(pure))
 import Control.DeepSeq (NFData(rnf))
 import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement)
@@ -333,6 +335,20 @@ map f = go
     go (Collision h ary) = Collision h $
                            A.map (\ (L k v) -> L k (f v)) ary
 {-# INLINE map #-}
+
+-- | /O(n)/ Transform this map by accumulating an Applicative result
+-- from every value.
+traverseWithKey :: Applicative f => (k -> v1 -> f v2) -> HashMap k v1
+                -> f (HashMap k v2)
+traverseWithKey f = go
+  where
+    go Empty = pure Empty
+    go (Leaf h (L k v)) = Leaf h . L k <$> f k v
+    go (BitmapIndexed b ary) = BitmapIndexed b <$> A.traverse go ary
+    go (Full ary) = Full <$> A.traverse go ary
+    go (Collision h ary) = Collision h <$>
+                           A.traverse (\ (L k v) -> L k <$> f k v) ary
+{-# INLINE traverseWithKey #-}
 
 ------------------------------------------------------------------------
 -- * Difference and intersection

@@ -36,9 +36,12 @@ module Data.HashMap.Array
 
     , thaw
     , map
+    , traverse
     , filter
     ) where
 
+import qualified Data.Traversable as Traversable
+import Control.Applicative ((<$>), (<*>), Applicative(pure))
 import Control.DeepSeq
 import Control.Monad.ST
 import GHC.Exts
@@ -308,6 +311,22 @@ map f = \ ary ->
              go ary mary (i+1) n
 {-# INLINE map #-}
 
+fromList :: Int -> [a] -> Array a
+fromList n xs0 = run $ do
+    mary <- new_ n
+    go xs0 mary 0
+  where
+    go [] !mary !_   = return mary
+    go (x:xs) mary i = do write mary i x
+                          go xs mary (i+1)
+
+toList :: Array a -> [a]
+toList = foldr (:) []
+
+traverse :: Applicative f => (a -> f b) -> Array a -> f (Array b)
+traverse f = \ ary -> fromList (length ary) <$>
+                      Traversable.traverse f (toList ary)
+{-# INLINE traverse #-}
 
 filter :: (a -> Bool) -> Array a -> Array a
 filter p = \ ary ->
