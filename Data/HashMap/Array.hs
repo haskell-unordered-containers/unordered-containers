@@ -41,7 +41,7 @@ module Data.HashMap.Array
     ) where
 
 import qualified Data.Traversable as Traversable
-import Control.Applicative ((<$>), (<*>), Applicative(pure))
+import Control.Applicative (Applicative)
 import Control.DeepSeq
 import Control.Monad.ST
 import GHC.Exts
@@ -324,7 +324,7 @@ toList :: Array a -> [a]
 toList = foldr (:) []
 
 traverse :: Applicative f => (a -> f b) -> Array a -> f (Array b)
-traverse f = \ ary -> fromList (length ary) <$>
+traverse f = \ ary -> fromList (length ary) `fmap`
                       Traversable.traverse f (toList ary)
 {-# INLINE traverse #-}
 
