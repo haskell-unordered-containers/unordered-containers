@@ -271,10 +271,12 @@ delete k0 = go h0 k0 0
         | otherwise =
             let i   = index b m
                 st  = A.index ary i
-                st' = go h k (s+bitsPerSubkey) st
-            in case st' of
-                Empty -> BitmapIndexed (b .&. complement m) (A.delete ary i)
-                _     -> BitmapIndexed b (A.update ary i $! st')
+            in case go h k (s+bitsPerSubkey) st of
+                Empty ->
+                    if A.length ary == 1
+                    then Empty
+                    else BitmapIndexed (b .&. complement m) (A.delete ary i)
+                st'   -> BitmapIndexed b (A.update ary i $! st')
       where m = bitpos h s
     go h k s (Full ary) =
         let i    = mask h s
