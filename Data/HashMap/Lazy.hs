@@ -7,9 +7,9 @@ module Data.HashMap.Lazy
     , singleton
 
       -- * Basic interface
-    , null
+    , HM.null
     , size
-    , lookup
+    , HM.lookup
     , lookupDefault
     , insert
     , insertWith
@@ -22,7 +22,7 @@ module Data.HashMap.Lazy
     , unionWith
 
       -- * Transformations
-    , map
+    , HM.map
     , traverseWithKey
 
       -- * Difference and intersection
@@ -32,11 +32,11 @@ module Data.HashMap.Lazy
       -- * Folds
     , foldl'
     , foldlWithKey'
-    , foldr
+    , HM.foldr
     , foldrWithKey
 
       -- * Filter
-    , filter
+    , HM.filter
     , filterWithKey
 
       -- * Conversions
@@ -49,6 +49,4 @@ module Data.HashMap.Lazy
     , fromListWith
     ) where
 
-import Prelude hiding (filter, foldr, lookup, map, null)
-
-import Data.HashMap.Base
+import Data.HashMap.Base as HM
