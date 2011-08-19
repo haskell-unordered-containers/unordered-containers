@@ -20,3 +20,10 @@ rnd :: Int  -- ^ Length of each string
     -> Int  -- ^ Number of strings
     -> [S.ByteString]
 rnd strlen num = map C.pack $ String.rnd strlen num
+
+-- | Generate a number of fixed length 'ByteString's where the content
+-- of the strings are letters in random order, different from @rnd@.
+rnd' :: Int  -- ^ Length of each string
+     -> Int  -- ^ Number of strings
+     -> [S.ByteString]
+rnd' strlen num = map C.pack $ String.rnd' strlen num

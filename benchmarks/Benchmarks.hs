@@ -7,6 +7,7 @@ import Control.Exception (evaluate)
 import Control.Monad.Trans (liftIO)
 import Criterion.Config
 import Criterion.Main
+import Data.Bits ((.&.))
 import Data.Hashable (Hashable)
 import qualified Data.ByteString as BS
 import qualified Data.HashMap.Strict as HM
@@ -33,6 +34,7 @@ main = do
     let hm   = HM.fromList elems :: HM.HashMap String Int
         hmbs = HM.fromList elemsBS :: HM.HashMap BS.ByteString Int
         hmi  = HM.fromList elemsI :: HM.HashMap Int Int
+        hmi2 = HM.fromList elemsI2 :: HM.HashMap Int Int
         m    = M.fromList elems :: M.Map String Int
         mbs  = M.fromList elemsBS :: M.Map BS.ByteString Int
         im   = IM.fromList elemsI :: IM.IntMap Int
@@ -46,21 +48,46 @@ main = do
             [ bench "String" $ whnf (lookupM keys) m
             , bench "ByteString" $ whnf (lookupM keysBS) mbs
             ]
+          , bgroup "lookup-miss"
+            [ bench "String" $ whnf (lookupM keys') m
+            , bench "ByteString" $ whnf (lookupM keysBS') mbs
+            ]
           , bgroup "insert"
             [ bench "String" $ whnf (insertM elems) M.empty
             , bench "ByteStringString" $ whnf (insertM elemsBS) M.empty
             ]
+          , bgroup "insert-dup"
+            [ bench "String" $ whnf (insertM elems) m
+            , bench "ByteStringString" $ whnf (insertM elemsBS) mbs
+            ]
           , bgroup "delete"
             [ bench "String" $ whnf (deleteM keys) m
             , bench "ByteString" $ whnf (deleteM keysBS) mbs
+            ]
+          , bgroup "delete-miss"
+            [ bench "String" $ whnf (deleteM keys') m
+            , bench "ByteString" $ whnf (deleteM keysBS') mbs
+            ]
+          , bgroup "size"
+            [ bench "String" $ whnf M.size m
+            , bench "ByteString" $ whnf M.size mbs
+            ]
+          , bgroup "fromList"
+            [ bench "String" $ whnf M.fromList elems
+            , bench "ByteString" $ whnf M.fromList elemsBS
             ]
           ]
 
           -- ** IntMap
         , bgroup "IntMap"
           [ bench "lookup" $ whnf (lookupIM keysI) im
+          , bench "lookup-miss" $ whnf (lookupIM keysI') im
           , bench "insert" $ whnf (insertIM elemsI) IM.empty
+          , bench "insert-dup" $ whnf (insertIM elemsI) im
           , bench "delete" $ whnf (deleteIM keysI) im
+          , bench "delete-miss" $ whnf (deleteIM keysI') im
+          , bench "size" $ whnf IM.size im
+          , bench "fromList" $ whnf IM.fromList elemsI
           ]
 
           -- * Basic interface
@@ -69,19 +96,58 @@ main = do
           , bench "ByteString" $ whnf (lookup keysBS) hmbs
           , bench "Int" $ whnf (lookup keysI) hmi
           ]
+        , bgroup "lookup-miss"
+          [ bench "String" $ whnf (lookup keys') hm
+          , bench "ByteString" $ whnf (lookup keysBS') hmbs
+          , bench "Int" $ whnf (lookup keysI') hmi
+          ]
         , bgroup "insert"
           [ bench "String" $ whnf (insert elems) HM.empty
           , bench "ByteString" $ whnf (insert elemsBS) HM.empty
           , bench "Int" $ whnf (insert elemsI) HM.empty
+          ]
+        , bgroup "insert-dup"
+          [ bench "String" $ whnf (insert elems) hm
+          , bench "ByteString" $ whnf (insert elemsBS) hmbs
+          , bench "Int" $ whnf (insert elemsI) hmi
           ]
         , bgroup "delete"
           [ bench "String" $ whnf (delete keys) hm
           , bench "ByteString" $ whnf (delete keysBS) hmbs
           , bench "Int" $ whnf (delete keysI) hmi
           ]
+        , bgroup "delete-miss"
+          [ bench "String" $ whnf (delete keys') hm
+          , bench "ByteString" $ whnf (delete keysBS') hmbs
+          , bench "Int" $ whnf (delete keysI') hmi
+          ]
+
+          -- Combine
+        , bench "union" $ whnf (HM.union hmi) hmi2
+
+          -- Transformations
+        , bench "map" $ whnf (HM.map (\ v -> v + 1)) hmi
+
+          -- Folds
+        , bench "foldl'" $ whnf (HM.foldl' (+) 0) hmi
+        , bench "foldr" $ whnf (HM.foldr (:) []) hmi
+
+          -- Filter
+        , bench "filter" $ whnf (HM.filter (\ v -> v .&. 1 == 0)) hmi
+        , bench "filterWithKey" $ whnf (HM.filterWithKey (\ k _ -> k .&. 1 == 0)) hmi
+
+          -- Size
+        , bgroup "size"
+          [ bench "String" $ whnf HM.size hm
+          , bench "ByteString" $ whnf HM.size hmbs
+          , bench "Int" $ whnf HM.size hmi
+          ]
+
+          -- fromList
         , bgroup "fromList"
-          [ bench "pure" $ whnf fromList elemsI
-          , bench "mutating" $ whnf HM.fromList elemsI
+          [ bench "String" $ whnf HM.fromList elems
+          , bench "ByteString" $ whnf HM.fromList elemsBS
+          , bench "Int" $ whnf HM.fromList elemsI
           ]
         ]
   where
@@ -93,7 +159,12 @@ main = do
     elemsBS = zip keysBS [1..n]
     keysBS  = UBS.rnd 8 n
     elemsI  = zip keysI [1..n]
-    keysI   = UI.rnd n n
+    keysI   = UI.rnd (n+n) n
+    elemsI2 = zip [n `div` 2..n + (n `div` 2)] [1..n]  -- for union
+
+    keys'    = US.rnd' 8 n
+    keysBS'  = UBS.rnd' 8 n
+    keysI'   = UI.rnd' (n+n) n
 
 ------------------------------------------------------------------------
 -- * HashMap
@@ -122,9 +193,6 @@ delete xs m0 = foldl' (\m k -> HM.delete k m) m0 xs
                       -> HM.HashMap String Int #-}
 {-# SPECIALIZE delete :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
                       -> HM.HashMap BS.ByteString Int #-}
-
-fromList :: [(Int, Int)] -> HM.HashMap Int Int
-fromList xs = foldl' (\ m (k, v) -> HM.insert k v m) HM.empty xs
 
 ------------------------------------------------------------------------
 -- * Map
