@@ -163,7 +163,7 @@ index_ ary _i@(I# i#) =
 
 indexM_ :: MArray s a -> Int -> ST s a
 indexM_ ary _i@(I# i#) =
-    CHECK_BOUNDS("index_", length ary, _i)
+    CHECK_BOUNDS("index_", lengthM ary, _i)
         ST $ \ s# -> readArray# (unMArray ary) i# s#
 {-# INLINE indexM_ #-}
 
