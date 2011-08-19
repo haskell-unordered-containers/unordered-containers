@@ -72,8 +72,8 @@ pUnion xs ys = L.sort (unionByKey as bs) ==
     bs = fromList ys
 
 pUnionWith :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pUnionWith xs ys = L.sort (unionByKeyWith (+) as bs) ==
-                   toAscList (M.unionWith (+) (M.fromList as) (M.fromList bs))
+pUnionWith xs ys = L.sort (unionByKeyWith (-) as bs) ==
+                   toAscList (M.unionWith (-) (M.fromList as) (M.fromList bs))
   where
     as = fromList xs
     bs = fromList ys
@@ -134,7 +134,6 @@ tests =
       ]
     -- Combine
     , testProperty "union" pUnion
-    , testProperty "unionWith" pUnionWith
     -- Transformations
     , testProperty "map" pMap
     -- Folds
@@ -211,12 +210,3 @@ unionByKey = L.unionBy ((==) `on` fst)
 
 toAscList :: (Ord k, Ord v) => M.HashMap k v -> [(k, v)]
 toAscList = L.sort . M.toList
-
-unionByKeyWith :: (Eq k, Eq v) => (v -> v -> v) -> [(k,v)] -> [(k,v)] -> [(k,v)]
-unionByKeyWith f a b = go a b
-  where
-   go [] ys = ys
-   go (x:xs) ys =
-     case L.lookup (fst x) ys of
-       Just z -> (fst x, f (snd x) z) : go xs (filter ((/= fst x) . fst) ys)
-       Nothing -> x : go xs ys
