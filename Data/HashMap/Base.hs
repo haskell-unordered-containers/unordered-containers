@@ -281,9 +281,7 @@ delete k0 = go h0 k0 0
             st   = A.index ary i
             st'  = go h k (s+bitsPerSubkey) st
         in case st' of
-            Empty -> if A.length ary == 2
-                     then if i == 0 then A.index ary 1 else A.index ary 0
-                     else BitmapIndexed (bitpos h s) (A.delete ary i)
+            Empty -> BitmapIndexed (bitpos h s) (A.delete ary i)
             _     -> Full (A.update ary i $! st')
     go h k _ t@(Collision hy v)
         | h == hy = case indexOf k v of
