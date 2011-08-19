@@ -56,11 +56,11 @@ import Prelude hiding (filter, foldr, length, map, read)
 -- with MagicHash and UnboxedTuples when inferring types. Eek!
 # define CHECK_BOUNDS(_func_,_len_,_k_) \
 if (_k_) < 0 || (_k_) >= (_len_) then error ("Data.HashMap.Array." ++ (_func_) ++ ": bounds error, offset " ++ show (_k_) ++ ", length " ++ show (_len_)) else
-# define CHECK_LENGTH(_func_,_expected_,_actual_) \
-if (_actual_) /= (_expected_) then error ("Data.HashMap.Array." ++ (_func_) ++ ": expected length " ++ show (_expected_) ++ ", actual length " ++ show (_actual_)) else
+# define CHECK_LE(_func_,_lhs_,_rhs_) \
+if (_lhs_) > (_rhs_) then error ("Data.HashMap.Array." ++ (_func_) ++ ": Check failed: _lhs_ <= _rhs_ (" ++ show (_lhs_) ++ " vs. " ++ show (_rhs_) ++ ")") else
 #else
 # define CHECK_BOUNDS(_func_,_len_,_k_)
-# define CHECK_LENGTH(_func_,_len_,_actual_)
+# define CHECK_LE(_func_,_lhs_,_rhs_)
 #endif
 
 data Array a = Array {
@@ -187,15 +187,15 @@ run2 k = runST (do
 copy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
 #if __GLASGOW_HASKELL__ >= 702
 copy !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
-    CHECK_BOUNDS("copy: src", length src, _sidx + _n - 1)
-    CHECK_BOUNDS("copy: dst", lengthM dst, _didx + _n - 1)
+    CHECK_LE("copy", _sidx + _n, length src)
+    CHECK_LE("copy", _didx + _n, lengthM dst)
         ST $ \ s# ->
         case copyArray# (unArray src) sidx# (unMArray dst) didx# n# s# of
             s2 -> (# s2, () #)
 #else
 copy !src !sidx !dst !didx n =
-    CHECK_BOUNDS("copy: src", length src, sidx + n - 1)
-    CHECK_BOUNDS("copy: dst", lengthM dst, didx + n - 1)
+    CHECK_LE("copy", sidx + n, length src)
+    CHECK_LE("copy", didx + n, lengthM dst)
         copy_loop sidx didx 0
   where
     copy_loop !i !j !c
@@ -274,12 +274,12 @@ undefinedElem = error "Undefined element!"
 thaw :: Array e -> Int -> Int -> ST s (MArray s e)
 #if __GLASGOW_HASKELL__ >= 702
 thaw !ary !_o@(I# o#) !n@(I# n#) =
-    CHECK_BOUNDS("thaw", length ary, _o + n)
+    CHECK_LE("thaw", _o + n, length ary)
         ST $ \ s -> case thawArray# (unArray ary) o# n# s of
             (# s2, mary# #) -> (# s2, marray mary# n #)
 #else
 thaw !ary !o !n =
-    CHECK_BOUNDS("thaw", length ary, o + n)
+    CHECK_LE("thaw", o + n, length ary)
         do mary <- new_ n
            copy ary o mary 0 n
            return mary
