@@ -2,7 +2,8 @@
 
 module Data.HashMap.Base
     (
-      HashMap
+      HashMap(..)
+    , Leaf(..)
 
       -- * Construction
     , empty
@@ -49,6 +50,16 @@ module Data.HashMap.Base
     , toList
     , fromList
     , fromListWith
+
+      -- Used by the strict version
+    , collision
+    , hash
+    , bitpos
+    , mask
+    , bitsPerSubkey
+    , fullNodeMask
+    , index
+    , update16
     ) where
 
 import Control.Applicative ((<$>), Applicative(pure))
@@ -337,10 +348,10 @@ map f = go
   where
     go Empty = Empty
     go (Leaf h (L k v)) = Leaf h $ L k (f v)
-    go (BitmapIndexed b ary) = BitmapIndexed b $ A.map go ary
-    go (Full ary) = Full $ A.map go ary
+    go (BitmapIndexed b ary) = BitmapIndexed b $ A.map' go ary
+    go (Full ary) = Full $ A.map' go ary
     go (Collision h ary) = Collision h $
-                           A.map (\ (L k v) -> L k (f v)) ary
+                           A.map' (\ (L k v) -> L k (f v)) ary
 {-# INLINE map #-}
 
 -- | /O(n)/ Transform this map by accumulating an Applicative result

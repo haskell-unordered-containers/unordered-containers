@@ -36,6 +36,7 @@ module Data.HashMap.Array
 
     , thaw
     , map
+    , map'
     , traverse
     , filter
     ) where
@@ -310,6 +311,21 @@ map f = \ ary ->
              write mary i $ f (index ary i)
              go ary mary (i+1) n
 {-# INLINE map #-}
+
+-- | Strict version of 'map'.
+map' :: (a -> b) -> Array a -> Array b
+map' f = \ ary ->
+    let !n = length ary
+    in run $ do
+        mary <- new_ n
+        go ary mary 0 n
+  where
+    go ary mary i n
+        | i >= n    = return mary
+        | otherwise = do
+             write mary i $! f (index ary i)
+             go ary mary (i+1) n
+{-# INLINE map' #-}
 
 fromList :: Int -> [a] -> Array a
 fromList n xs0 = run $ do
