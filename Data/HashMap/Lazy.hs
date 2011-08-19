@@ -1,4 +1,4 @@
-module Data.HashMap.Strict
+module Data.HashMap.Lazy
     (
       HashMap
 

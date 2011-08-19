@@ -16,6 +16,7 @@ flag debug
 
 library
   exposed-modules:
+    Data.HashMap.Lazy
     Data.HashMap.Strict
   other-modules:
     Data.HashMap.Array
@@ -46,7 +47,9 @@ test-suite properties
   build-depends:
     base,
     hashable >= 1.0.1.1 && < 1.2,
-    unordered-containers,
-    QuickCheck == 1.2.0.*
+    QuickCheck >= 2.4.0.1,
+    test-framework >= 0.3.3 && < 0.5,
+    test-framework-quickcheck2 >= 0.2.9 && < 0.3,
+    unordered-containers
 
   ghc-options: -Wall
