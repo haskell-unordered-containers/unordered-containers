@@ -93,6 +93,9 @@ data Leaf k v = L !k v
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L k v) = rnf k `seq` rnf v
 
+-- Invariant: The length of the 1st argument to 'Full' is
+-- 2^bitsPerSubkey
+
 -- | A map from keys to values.  A map cannot contain duplicate keys;
 -- each key can map to at most one value.
 data HashMap k v
@@ -660,12 +663,15 @@ subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
 index :: Bitmap -> Bitmap -> Int
 index b m = popCount (b .&. (m - 1))
 
+-- | A word with the 's'th bit set.
 bitpos :: Word -> Shift -> Bitmap
 bitpos h s = 1 `unsafeShiftL` mask h s
 {-# INLINE bitpos #-}
 
+-- | Mask out the 'bitsPerSubkey' bits used for indexing at this level
+-- of the tree.
 mask :: Word -> Shift -> Int
-mask h s = fromIntegral $ unsafeShiftR h s .&. subkeyMask
+mask w s = fromIntegral $ unsafeShiftR w s .&. subkeyMask
 {-# INLINE mask #-}
 
 -- | A bitmask with the 'bitsPerSubkey' least significant bits set.
