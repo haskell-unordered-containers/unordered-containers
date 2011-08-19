@@ -24,6 +24,10 @@ module Data.FullList.Strict
     , insertWith
     , adjust
 
+      -- * Combine
+      -- * Union
+    , unionWith
+
       -- * Transformations
     , map
     , traverseWithKey
@@ -38,7 +42,7 @@ module Data.FullList.Strict
 
 import Prelude hiding (lookup, map)
 
-import Data.FullList.Lazy hiding (insertWith, map, adjust)
+import Data.FullList.Lazy hiding (insertWith, map, adjust, unionWith)
 
 insertWith :: Eq k => (v -> v -> v) -> k -> v -> FullList k v -> FullList k v
 insertWith f !k v (FL k' v' xs)

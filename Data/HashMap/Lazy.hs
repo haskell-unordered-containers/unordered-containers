@@ -48,6 +48,7 @@ module Data.HashMap.Lazy
       -- * Combine
       -- ** Union
     , union
+    , unionWith
 
       -- * Transformations
     , map

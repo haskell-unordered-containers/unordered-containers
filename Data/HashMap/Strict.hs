@@ -49,6 +49,7 @@ module Data.HashMap.Strict
       -- * Combine
       -- ** Union
     , union
+    , unionWith
 
       -- * Transformations
     , map
@@ -84,7 +85,7 @@ import Prelude hiding (filter, foldr, lookup, map, null)
 import qualified Data.FullList.Strict as FL
 import Data.HashMap.Common
 import Data.HashMap.Lazy hiding (fromList, fromListWith, insert, insertWith,
-                                 adjust, map, singleton)
+                                 adjust, map, singleton, unionWith)
 import qualified Data.HashMap.Lazy as L
 import qualified Data.List as List
 

@@ -28,6 +28,7 @@ module Data.FullList.Lazy
       -- * Combine
       -- * Union
     , union
+    , unionWith
 
       -- * Transformations
     , map

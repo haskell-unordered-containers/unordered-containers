@@ -26,6 +26,9 @@ module Data.HashMap.Common
 
     -- * Folds
     , foldrWithKey
+
+    , shorter
+    , insertCollidingWith
     ) where
 
 #include "MachDeps.h"
