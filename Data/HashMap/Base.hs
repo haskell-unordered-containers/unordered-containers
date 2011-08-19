@@ -55,6 +55,7 @@ import Control.Applicative ((<$>), Applicative(pure))
 import Control.DeepSeq (NFData(rnf))
 import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement)
+import qualified Data.Foldable as Foldable
 import qualified Data.List as L
 import Data.Word (Word)
 import Prelude hiding (filter, foldr, lookup, map, null, pred)
@@ -97,6 +98,12 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf (Leaf _ (L k v))      = rnf k `seq` rnf v
     rnf (Full ary)            = rnf ary
     rnf (Collision _ ary)     = rnf ary
+
+instance Functor (HashMap k) where
+    fmap = map
+
+instance Foldable.Foldable (HashMap k) where
+    foldr f = foldrWithKey (const f)
 
 type Hash   = Word
 type Bitmap = Word
