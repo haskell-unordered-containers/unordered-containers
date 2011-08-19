@@ -281,10 +281,9 @@ delete k0 = go h0 k0 0
     go h k s (Full ary) =
         let i    = mask h s
             st   = A.index ary i
-            st'  = go h k (s+bitsPerSubkey) st
-        in case st' of
+        in case go h k (s+bitsPerSubkey) st of
             Empty -> BitmapIndexed (bitpos h s) (A.delete ary i)
-            _     -> Full (A.update ary i $! st')
+            st'   -> Full (A.update ary i $! st')
     go h k _ t@(Collision hy v)
         | h == hy = case indexOf k v of
             Just i
