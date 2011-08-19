@@ -40,7 +40,7 @@ library
 
 test-suite properties
   hs-source-dirs: tests
-  main-is: Properties.hs
+  main-is: MapProperties.hs
   type: exitcode-stdio-1.0
 
   build-depends:
