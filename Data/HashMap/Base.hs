@@ -460,7 +460,7 @@ filterA p = \ary b0 ->
         | i >= n || bi > 1 `unsafeShiftL` n =  -- TODO: Verify
             if i == j
             then return (mary, b)
-            else do mary2 <- A.new j undefinedElem
+            else do mary2 <- A.new_ j
                     A.copyM mary 0 mary2 0 j
                     return (mary2, b)
         | bi .&. b == 0 = go ary mary b i j (bi `unsafeShiftL` 1) n
@@ -600,7 +600,7 @@ updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
     go !k v !ary !i !n
         | i >= n = A.run $ do
             -- Not found, append to the end.
-            mary <- A.new (n + 1) undefinedElem
+            mary <- A.new_ (n + 1)
             A.copy ary 0 mary 0 n
             A.write mary n (L k v)
             return mary
@@ -608,9 +608,6 @@ updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
             (L kx y) | k == kx -> A.update ary i (L k (f v y))
                      | otherwise -> go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWith #-}
-
-undefinedElem :: a
-undefinedElem = error "Undefined element!"
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops
