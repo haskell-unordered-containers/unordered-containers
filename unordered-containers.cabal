@@ -53,3 +53,4 @@ test-suite properties
     unordered-containers
 
   ghc-options: -Wall
+  cpp-options: -DASSERTS
