@@ -35,7 +35,7 @@ library
     Data.HashSet
 
   build-depends:
-    base < 4.5,
+    base >= 4 && < 4.5,
     deepseq == 1.1.*,
     hashable >= 1.0.1.1 && < 1.2
 
@@ -59,7 +59,7 @@ test-suite map-properties
   type: exitcode-stdio-1.0
 
   build-depends:
-    base,
+    base >= 4 && < 4.5,
     hashable >= 1.0.1.1 && < 1.2,
     QuickCheck >= 2.4.0.1,
     test-framework >= 0.3.3 && < 0.5,
@@ -75,7 +75,7 @@ test-suite set-properties
   type: exitcode-stdio-1.0
 
   build-depends:
-    base,
+    base >= 4 && < 4.5,
     containers,
     hashable >= 1.0.1.1 && < 1.2,
     QuickCheck >= 2.4.0.1,
