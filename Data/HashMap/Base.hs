@@ -82,6 +82,8 @@ import Data.Typeable (Typeable)
 import GHC.Exts (build)
 #endif
 
+import Debug.Trace
+
 ------------------------------------------------------------------------
 
 -- | Convenience function.  Compute a hash value for the given value.
@@ -453,10 +455,10 @@ filterA p = \ary b0 ->
     let !n = A.length ary
     in A.run2 $ do
         mary <- A.new_ n
-        go ary mary b0 0 0 0 n
+        go ary mary b0 0 0 1 n
   where
     go !ary !mary !b i !j !bi n
-        | i >= n || bi > 1 `unsafeShiftL` n =  -- TODO: Verify
+        | i >= n =
             if i == j
             then return (mary, b)
             else do mary2 <- A.new_ j
