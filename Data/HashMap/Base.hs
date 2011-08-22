@@ -82,8 +82,6 @@ import Data.Typeable (Typeable)
 import GHC.Exts (build)
 #endif
 
-import Debug.Trace
-
 ------------------------------------------------------------------------
 
 -- | Convenience function.  Compute a hash value for the given value.
