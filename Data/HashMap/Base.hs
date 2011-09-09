@@ -168,12 +168,11 @@ lookup k0 = go h0 k0 0
     go !_ !_ !_ Empty = Nothing
     go h k _ (Leaf hx (L kx x))
         | h == hx && k == kx = Just x
-        | otherwise = Nothing
-    go h k s (BitmapIndexed b v) =
-        let m = bitpos h s
-        in if b .&. m == 0
-           then Nothing
-           else go h k (s+bitsPerSubkey) (A.index v (index b m))
+        | otherwise          = Nothing
+    go h k s (BitmapIndexed b v)
+        | b .&. m == 0 = Nothing
+        | otherwise    = go h k (s+bitsPerSubkey) (A.index v (index b m))
+      where m = bitpos h s
     go h k s (Full v) = go h k (s+bitsPerSubkey) (A.index v (mask h s))
     go h k _ (Collision hx v)
         | h == hx   = lookupInArray k v
@@ -231,20 +230,19 @@ insertWith' f k0 v0 = go h0 k0 v0 0
                     then Leaf h (L k (f x y))
                     else collision h l (L k x)
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
-    go h k x s (BitmapIndexed b ary) =
-        let m = bitpos h s
+    go h k x s (BitmapIndexed b ary)
+        | b .&. m == 0 = let l    = Leaf h (L k x)
+                             ary' = A.insert ary i $! l
+                             b'   = b .|. m
+                         in if b' == fullNodeMask
+                            then Full ary'
+                            else BitmapIndexed b' ary'
+        | otherwise = let  st   = A.index ary i
+                           st'  = go h k x (s+bitsPerSubkey) st
+                           ary' = A.update ary i $! st'
+                      in BitmapIndexed b ary'
+      where m = bitpos h s
             i = index b m
-        in if b .&. m == 0
-               then let l    = Leaf h (L k x)
-                        ary' = A.insert ary i $! l
-                        b'   = b .|. m
-                    in if b' == fullNodeMask
-                       then Full ary'
-                       else BitmapIndexed b' ary'
-               else let  st   = A.index ary i
-                         st'  = go h k x (s+bitsPerSubkey) st
-                         ary' = A.update ary i $! st'
-                    in BitmapIndexed b ary'
     go h k x s (Full ary) =
         let i    = mask h s
             st   = A.index ary i
@@ -252,7 +250,7 @@ insertWith' f k0 v0 = go h0 k0 v0 0
             ary' = update16 ary i $! st'
         in Full ary'
     go h k x s t@(Collision hy v)
-        | h == hy = Collision h (updateOrSnocWith f k x v)
+        | h == hy   = Collision h (updateOrSnocWith f k x v)
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
 {-# INLINE insertWith' #-}
 
@@ -265,7 +263,7 @@ delete k0 = go h0 k0 0
     go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky _))
         | hy == h && ky == k = Empty
-        | otherwise = t
+        | otherwise          = t
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 = t
         | otherwise =
@@ -279,8 +277,8 @@ delete k0 = go h0 k0 0
                 st'   -> BitmapIndexed b (A.update ary i $! st')
       where m = bitpos h s
     go h k s (Full ary) =
-        let i    = mask h s
-            st   = A.index ary i
+        let i  = mask h s
+            st = A.index ary i
         in case go h k (s+bitsPerSubkey) st of
             Empty -> BitmapIndexed (bitpos h s) (A.delete ary i)
             st'   -> Full (A.update ary i $! st')
@@ -305,16 +303,15 @@ adjust f k0 = go h0 k0 0
     go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky y))
         | hy == h && ky == k = Leaf h (L k (f y))
-        | otherwise = t
-    go h k s t@(BitmapIndexed b ary) =
-        let m = bitpos h s
+        | otherwise          = t
+    go h k s t@(BitmapIndexed b ary)
+        | b .&. m == 0 = t
+        | otherwise = let st   = A.index ary i
+                          st'  = go h k (s+bitsPerSubkey) st
+                          ary' = A.update ary i $! st'
+                      in BitmapIndexed b ary'
+      where m = bitpos h s
             i = index b m
-        in if b .&. m == 0
-               then t
-               else let st   = A.index ary i
-                        st'  = go h k (s+bitsPerSubkey) st
-                        ary' = A.update ary i $! st'
-                    in BitmapIndexed b ary'
     go h k s (Full ary) =
         let i    = mask h s
             st   = A.index ary i
@@ -322,7 +319,7 @@ adjust f k0 = go h0 k0 0
             ary' = update16 ary i $! st'
         in Full ary'
     go h k _ t@(Collision hy v)
-        | h == hy = Collision h (updateWith f k v)
+        | h == hy   = Collision h (updateWith f k v)
         | otherwise = t
 {-# INLINABLE adjust #-}
 
@@ -362,12 +359,12 @@ traverseWithKey :: Applicative f => (k -> v1 -> f v2) -> HashMap k v1
                 -> f (HashMap k v2)
 traverseWithKey f = go
   where
-    go Empty = pure Empty
-    go (Leaf h (L k v)) = Leaf h . L k <$> f k v
+    go Empty                 = pure Empty
+    go (Leaf h (L k v))      = Leaf h . L k <$> f k v
     go (BitmapIndexed b ary) = BitmapIndexed b <$> A.traverse go ary
-    go (Full ary) = Full <$> A.traverse go ary
-    go (Collision h ary) = Collision h <$>
-                           A.traverse (\ (L k v) -> L k <$> f k v) ary
+    go (Full ary)            = Full <$> A.traverse go ary
+    go (Collision h ary)     =
+        Collision h <$> A.traverse (\ (L k v) -> L k <$> f k v) ary
 {-# INLINE traverseWithKey #-}
 
 ------------------------------------------------------------------------
@@ -417,11 +414,11 @@ foldl' f = foldlWithKey' (\ z _ v -> f z v)
 foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
 foldlWithKey' f = go
   where
-    go !z Empty = z
-    go z (Leaf _ (L k v)) = f z k v
+    go !z Empty                = z
+    go z (Leaf _ (L k v))      = f z k v
     go z (BitmapIndexed _ ary) = A.foldl' go z ary
-    go z (Full ary) = A.foldl' go z ary
-    go z (Collision _ ary) = A.foldl' (\ z' (L k v) -> f z' k v) z ary
+    go z (Full ary)            = A.foldl' go z ary
+    go z (Collision _ ary)     = A.foldl' (\ z' (L k v) -> f z' k v) z ary
 {-# INLINE foldlWithKey' #-}
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
@@ -437,11 +434,11 @@ foldr f = foldrWithKey (const f)
 foldrWithKey :: (k -> v -> a -> a) -> a -> HashMap k v -> a
 foldrWithKey f = go
   where
-    go z Empty = z
-    go z (Leaf _ (L k v)) = f k v z
+    go z Empty                 = z
+    go z (Leaf _ (L k v))      = f k v z
     go z (BitmapIndexed _ ary) = A.foldr (flip go) z ary
-    go z (Full ary) = A.foldr (flip go) z ary
-    go z (Collision _ ary) = A.foldr (\ (L k v) z' -> f k v z') z ary
+    go z (Full ary)            = A.foldr (flip go) z ary
+    go z (Collision _ ary)     = A.foldr (\ (L k v) z' -> f k v z') z ary
 {-# INLINE foldrWithKey #-}
 
 ------------------------------------------------------------------------
@@ -478,7 +475,7 @@ filterWithKey pred = go
   where
     go Empty = Empty
     go t@(Leaf _ (L k v))
-        | pred k v = t
+        | pred k v  = t
         | otherwise = Empty
     go (BitmapIndexed b ary) =
         let (ary', b2) = filterEmpty ary b
@@ -562,10 +559,10 @@ lookupInArray :: Eq k => k -> A.Array (Leaf k v) -> Maybe v
 lookupInArray k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
-        | i >= n = Nothing
+        | i >= n    = Nothing
         | otherwise = case A.index ary i of
             (L kx v)
-                | k == kx -> Just v
+                | k == kx   -> Just v
                 | otherwise -> go k ary (i+1) n
 {-# INLINABLE lookupInArray #-}
 
@@ -575,10 +572,10 @@ indexOf :: Eq k => k -> A.Array (Leaf k v) -> Maybe Int
 indexOf k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
-        | i >= n = Nothing
+        | i >= n    = Nothing
         | otherwise = case A.index ary i of
             (L kx _)
-                | k == kx -> Just i
+                | k == kx   -> Just i
                 | otherwise -> go k ary (i+1) n
 {-# INLINABLE indexOf #-}
 
@@ -586,7 +583,7 @@ updateWith :: Eq k => (v -> v) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
 updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
-        | i >= n = ary
+        | i >= n    = ary
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> A.update ary i (L k (f y))
                      | otherwise -> go k ary (i+1) n
@@ -604,7 +601,7 @@ updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
             A.write mary n (L k v)
             return mary
         | otherwise = case A.index ary i of
-            (L kx y) | k == kx -> A.update ary i (L k (f v y))
+            (L kx y) | k == kx   -> A.update ary i (L k (f v y))
                      | otherwise -> go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWith #-}
 

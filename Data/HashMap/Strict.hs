@@ -100,26 +100,24 @@ insertWith' f k0 !v0 = go h0 k0 v0 0
     go !h !k x !_ Empty = Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
-                    then let !v' = f x y
-                         in Leaf h (L k v')
+                    then let !v' = f x y in Leaf h (L k v')
                     else collision h l (L k x)
         -- TODO: Could we avoid creating a one element array that will
         -- most likely be reallocated as a two element array?
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
-    go h k x s (BitmapIndexed b ary) =
-        let m = bitpos h s
+    go h k x s (BitmapIndexed b ary)
+        | b .&. m == 0 = let l    = Leaf h (L k x)
+                             ary' = A.insert ary i $! l
+                             b'   = b .|. m
+                         in if b' == fullNodeMask
+                            then Full ary'
+                            else BitmapIndexed b' ary'
+        | otherwise = let st   = A.index ary i
+                          st'  = go h k x (s+bitsPerSubkey) st
+                          ary' = A.update ary i $! st'
+                      in BitmapIndexed b ary'
+      where m = bitpos h s
             i = index b m
-        in if b .&. m == 0
-               then let l    = Leaf h (L k x)
-                        ary' = A.insert ary i $! l
-                        b'   = b .|. m
-                    in if b' == fullNodeMask
-                       then Full ary'
-                       else BitmapIndexed b' ary'
-               else let  st   = A.index ary i
-                         st'  = go h k x (s+bitsPerSubkey) st
-                         ary' = A.update ary i $! st'
-                    in BitmapIndexed b ary'
     go h k x s (Full ary) =
         let i    = mask h s
             st   = A.index ary i
@@ -140,18 +138,16 @@ adjust f k0 = go h0 k0 0
     h0 = hash k0
     go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky y))
-        | hy == h && ky == k = let !v' = f y
-                               in Leaf h (L k v')
-        | otherwise = t
-    go h k s t@(BitmapIndexed b ary) =
-        let m = bitpos h s
+        | hy == h && ky == k = let !v' = f y in Leaf h (L k v')
+        | otherwise          = t
+    go h k s t@(BitmapIndexed b ary)
+        | b .&. m == 0 = t
+        | otherwise = let st   = A.index ary i
+                          st'  = go h k (s+bitsPerSubkey) st
+                          ary' = A.update ary i $! st'
+                      in BitmapIndexed b ary'
+      where m = bitpos h s
             i = index b m
-        in if b .&. m == 0
-               then t
-               else let st   = A.index ary i
-                        st'  = go h k (s+bitsPerSubkey) st
-                        ary' = A.update ary i $! st'
-                    in BitmapIndexed b ary'
     go h k s (Full ary) =
         let i    = mask h s
             st   = A.index ary i
@@ -159,7 +155,7 @@ adjust f k0 = go h0 k0 0
             ary' = update16 ary i $! st'
         in Full ary'
     go h k _ t@(Collision hy v)
-        | h == hy = Collision h (updateWith f k v)
+        | h == hy   = Collision h (updateWith f k v)
         | otherwise = t
 {-# INLINABLE adjust #-}
 
@@ -180,13 +176,12 @@ unionWith f m1 m2 = foldlWithKey' (\ m k v -> insertWith f k v m) m2 m1
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = go
   where
-    go Empty = Empty
-    go (Leaf h (L k v)) = let !v' = f v
-                          in Leaf h $ L k v'
+    go Empty                 = Empty
+    go (Leaf h (L k v))      = let !v' = f v in Leaf h $ L k v'
     go (BitmapIndexed b ary) = BitmapIndexed b $ A.map' go ary
-    go (Full ary) = Full $ A.map' go ary
-    go (Collision h ary) = Collision h $
-                           A.map' (\ (L k v) -> let !v' = f v in L k v') ary
+    go (Full ary)            = Full $ A.map' go ary
+    go (Collision h ary)     =
+        Collision h $ A.map' (\ (L k v) -> let !v' = f v in L k v') ary
 {-# INLINE map #-}
 
 -- TODO: Should we add a strict traverseWithKey?
@@ -213,10 +208,9 @@ updateWith :: Eq k => (v -> v) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
 updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
-        | i >= n = ary
+        | i >= n    = ary
         | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> let !v' = f y
-                                    in A.update ary i (L k v')
+            (L kx y) | k == kx   -> let !v' = f y in A.update ary i (L k v')
                      | otherwise -> go k ary (i+1) n
 {-# INLINABLE updateWith #-}
 
@@ -232,7 +226,6 @@ updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
             A.write mary n (L k v)
             return mary
         | otherwise = case A.index ary i of
-            (L kx y) | k == kx -> let !v' = f v y
-                                  in A.update ary i (L k v')
+            (L kx y) | k == kx   -> let !v' = f v y in A.update ary i (L k v')
                      | otherwise -> go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWith #-}
