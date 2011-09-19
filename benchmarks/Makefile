@@ -19,7 +19,7 @@ ghc-flags := -Wall -O2 -hide-all-packages \
 	-package-conf ../dist/package.conf.inplace -package base -package mtl \
 	-package unordered-containers -package containers -package criterion \
 	-package deepseq -package hashable -package random -package bytestring \
-	$(ghc-prof-flags)
+	$(ghc-prof-flags) -rtsopts
 
 %.o: %.hs
 	$(ghc) $(ghc-flags) -c -o $@ $<
