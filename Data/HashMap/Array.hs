@@ -276,7 +276,8 @@ foldr f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
 {-# INLINE foldr #-}
 
 undefinedElem :: a
-undefinedElem = error "Undefined element!"
+undefinedElem = error "Data.HashMap.Array: Undefined element"
+{-# NOINLINE undefinedElem #-}
 
 thaw :: Array e -> Int -> Int -> ST s (MArray s e)
 #if __GLASGOW_HASKELL__ >= 702
