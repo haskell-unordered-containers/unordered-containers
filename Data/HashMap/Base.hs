@@ -656,9 +656,8 @@ subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
 index :: Bitmap -> Bitmap -> Int
 index b m = popCount (b .&. (m - 1))
 
--- | A word with the 's'th bit set.
 bitpos :: Word -> Shift -> Bitmap
-bitpos h s = 1 `unsafeShiftL` mask h s
+bitpos w s = 1 `unsafeShiftL` mask w s
 {-# INLINE bitpos #-}
 
 -- | Mask out the 'bitsPerSubkey' bits used for indexing at this level
