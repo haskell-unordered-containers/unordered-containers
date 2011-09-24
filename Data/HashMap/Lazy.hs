@@ -17,7 +17,7 @@ module Data.HashMap.Lazy
     , adjust
 
       -- * Combine
-      -- * Union
+      -- ** Union
     , union
     , unionWith
 

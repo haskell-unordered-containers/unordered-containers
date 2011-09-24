@@ -20,7 +20,7 @@ module Data.HashMap.Base
     , adjust
 
       -- * Combine
-      -- * Union
+      -- ** Union
     , union
     , unionWith
 
