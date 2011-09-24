@@ -59,6 +59,9 @@ pDelete k = M.delete k `eq_` HM.delete k
 pInsertWith :: Key -> [(Key, Int)] -> Bool
 pInsertWith k = M.insertWith (+) k 1 `eq_` HM.insertWith (+) k 1
 
+pAdjust :: Key -> [(Key, Int)] -> Bool
+pAdjust k = M.adjust succ k `eq_` HM.adjust succ k
+
 ------------------------------------------------------------------------
 -- ** Combine
 
@@ -142,6 +145,7 @@ tests =
       , testProperty "insert" pInsert
       , testProperty "delete" pDelete
       , testProperty "insertWith" pInsertWith
+      , testProperty "adjust" pAdjust
       ]
     -- Combine
     , testProperty "union" pUnion
