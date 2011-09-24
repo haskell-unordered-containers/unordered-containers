@@ -10,6 +10,7 @@ import Data.Function (on)
 import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Map as M
 import Test.QuickCheck (Arbitrary)
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
@@ -28,89 +29,77 @@ instance Hashable Key where
 -- ** Instances
 
 pEq :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pEq xs ys = (as ==) `eq` (HM.fromList as ==) $ bs
-  where as = fromList xs
-        bs = fromList ys
+pEq xs ys = (M.fromList xs ==) `eq` (HM.fromList xs ==) $ ys
 
 pNeq :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pNeq xs = (xs /=) `eq` (HM.fromList xs /=)
+pNeq xs = (M.fromList xs /=) `eq` (HM.fromList xs /=)
 
 pFunctor :: [(Key, Int)] -> Bool
-pFunctor = fmap (\ (k, v) -> (k, v + 1)) `eq` (toAscList . fmap (+ 1))
+pFunctor = fmap (+ 1) `eq_` fmap (+ 1)
 
 pFoldable :: [(Int, Int)] -> Bool
-pFoldable = (L.sort . Foldable.foldr (\ (_, v) z -> v:z) []) `eq`
+pFoldable = (L.sort . Foldable.foldr (:) []) `eq`
             (L.sort . Foldable.foldr (:) [])
 
 ------------------------------------------------------------------------
 -- ** Basic interface
 
 pSize :: [(Key, Int)] -> Bool
-pSize = length `eq` HM.size
+pSize = M.size `eq` HM.size
 
 pLookup :: Key -> [(Key, Int)] -> Bool
-pLookup k = L.lookup k `eq` HM.lookup k
+pLookup k = M.lookup k `eq` HM.lookup k
 
 pInsert :: Key -> Int -> [(Key, Int)] -> Bool
-pInsert k v = insert (k, v) `eq` (toAscList . HM.insert k v)
+pInsert k v = M.insert k v `eq_` HM.insert k v
 
 pDelete :: Key -> [(Key, Int)] -> Bool
-pDelete k = delete k `eq` (toAscList . HM.delete k)
+pDelete k = M.delete k `eq_` HM.delete k
 
 pInsertWith :: Key -> [(Key, Int)] -> Bool
-pInsertWith k = insertWith (+) (k, 1) `eq`
-                (toAscList . HM.insertWith (+) k 1)
+pInsertWith k = M.insertWith (+) k 1 `eq_` HM.insertWith (+) k 1
 
 ------------------------------------------------------------------------
 -- ** Combine
 
 pUnion :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pUnion xs ys = L.sort (unionByKey as bs) == 
-               toAscList (HM.union (HM.fromList as) (HM.fromList bs))
-  where
-    as = fromList xs
-    bs = fromList ys
+pUnion xs ys = M.union (M.fromList xs) `eq_` HM.union (HM.fromList xs) $ ys
 
 pUnionWith :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pUnionWith xs ys =
-    L.sort (unionByKeyWith (-) as bs) ==
-    toAscList (HM.unionWith (-) (HM.fromList as) (HM.fromList bs))
-  where
-    as = fromList xs
-    bs = fromList ys
+pUnionWith xs ys = M.unionWith (-) (M.fromList xs) `eq_`
+                   HM.unionWith (-) (HM.fromList xs) $ ys
 
 ------------------------------------------------------------------------
 -- ** Transformations
 
 pMap :: [(Key, Int)] -> Bool
-pMap = map (\ (k, v) -> (k, v + 1)) `eq` (toAscList . HM.map (+ 1))
+pMap = M.map (+1 ) `eq_` HM.map (+ 1)
 
 ------------------------------------------------------------------------
 -- ** Folds
 
 pFoldr :: [(Int, Int)] -> Bool
-pFoldr = (L.sort . L.foldr (\ (_, v) z -> v:z) []) `eq`
-         (L.sort . HM.foldr (:) [])
+pFoldr = (L.sort . M.fold (:) []) `eq` (L.sort . HM.foldr (:) [])
 
 pFoldrWithKey :: [(Int, Int)] -> Bool
-pFoldrWithKey = (sortByKey . L.foldr (:) []) `eq`
+pFoldrWithKey = (sortByKey . M.foldrWithKey f []) `eq`
                 (sortByKey . HM.foldrWithKey f [])
   where f k v z = (k, v) : z
 
 pFoldl' :: Int -> [(Int, Int)] -> Bool
-pFoldl' z0 = L.foldl' (\ z (_, v) -> z + v) z0 `eq` HM.foldl' (+) z0
+pFoldl' z0 = M.foldlWithKey' (\ z _ v -> v + z) z0 `eq` HM.foldl' (+) z0
 
 ------------------------------------------------------------------------
 -- ** Conversions
 
 pToList :: [(Key, Int)] -> Bool
-pToList = id `eq` toAscList
+pToList = M.toAscList `eq` toAscList
 
 pElems :: [(Key, Int)] -> Bool
-pElems = (L.sort . map snd) `eq` (L.sort . HM.elems)
+pElems = (L.sort . M.elems) `eq` (L.sort . HM.elems)
 
 pKeys :: [(Key, Int)] -> Bool
-pKeys = map fst `eq` (L.sort . HM.keys)
+pKeys = (L.sort . M.keys) `eq` (L.sort . HM.keys)
 
 ------------------------------------------------------------------------
 -- * Test list
@@ -155,8 +144,7 @@ tests =
 ------------------------------------------------------------------------
 -- * Model
 
--- Invariant: the list is sorted in ascending order, by key.
-type Model k v = [(k, v)]
+type Model k v = M.Map k v
 
 -- | Check that a function operating on a 'HashMap' is equivalent to
 -- one operating on a 'Model'.
@@ -166,34 +154,15 @@ eq :: (Eq a, Eq k, Hashable k, Ord k)
    -> (HM.HashMap k v -> a)  -- ^ Function that modified a 'HashMap'
    -> [(k, v)]              -- ^ Initial content of the 'HashMap' and 'Model'
    -> Bool                  -- ^ True if the functions are equivalent
-eq f g xs = g (HM.fromList ys) == f ys
-  where ys = fromList xs
+eq f g xs = g (HM.fromList xs) == f (M.fromList xs)
 
-insert :: Ord k => (k, v) -> Model k v -> Model k v
-insert x [] = [x]
-insert x@(k, _) (y@(k', _):xs)
-    | k == k'   = x : xs
-    | k > k'    = y : insert x xs
-    | otherwise = x : y : xs
-
-delete :: Ord k => k -> Model k v -> Model k v
-delete _ [] = []
-delete k ys@(y@(k', _):xs)
-    | k == k'   = xs
-    | k > k'    = y : delete k xs
-    | otherwise = ys
-
-insertWith :: Ord k => (v -> v -> v) -> (k, v) -> Model k v -> Model k v
-insertWith _ x [] = [x]
-insertWith f x@(k, v) (y@(k', v'):xs)
-    | k == k'   = (k', f v v') : xs
-    | k > k'    = y : insertWith f x xs
-    | otherwise = x : y : xs
-
--- | Create a model from a list of key-value pairs.  If the input
--- contains multiple entries for the same key, the latter one is used.
-fromList :: Ord k => [(k, v)] -> Model k v
-fromList = L.foldl' (\ m p -> insert p m) []
+eq_ :: (Eq k, Eq v, Hashable k, Ord k)
+   => (Model k v -> Model k v)      -- ^ Function that modifies a 'Model' in the same
+                            -- way
+   -> (HM.HashMap k v -> HM.HashMap k v)  -- ^ Function that modified a 'HashMap'
+   -> [(k, v)]              -- ^ Initial content of the 'HashMap' and 'Model'
+   -> Bool                  -- ^ True if the functions are equivalent
+eq_ f g = (M.toAscList . f) `eq` (toAscList . g)
 
 ------------------------------------------------------------------------
 -- * Test harness
@@ -207,17 +176,5 @@ main = defaultMain tests
 sortByKey :: Ord k => [(k, v)] -> [(k, v)]
 sortByKey = L.sortBy (compare `on` fst)
 
-unionByKey :: (Eq k, Eq v) => [(k, v)] -> [(k, v)] -> [(k, v)]
-unionByKey = L.unionBy ((==) `on` fst)
-
-unionByKeyWith :: (Eq k, Eq v) => (v -> v -> v) -> [(k,v)] -> [(k,v)] -> [(k,v)]
-unionByKeyWith f a b = go a b
-  where
-   go [] ys = ys
-   go (x:xs) ys =
-     case L.lookup (fst x) ys of
-       Just z -> (fst x, f (snd x) z) : go xs (filter ((/= fst x) . fst) ys)
-       Nothing -> x : go xs ys
-
-toAscList :: (Ord k, Ord v) => HM.HashMap k v -> [(k, v)]
-toAscList = L.sort . HM.toList
+toAscList :: Ord k => HM.HashMap k v -> [(k, v)]
+toAscList = L.sortBy (compare `on` fst) . HM.toList
