@@ -106,12 +106,12 @@ pFoldl' z0 = M.foldlWithKey' (\ z _ v -> v + z) z0 `eq` HM.foldl' (+) z0
 ------------------------------------------------------------------------
 -- ** Filter
 
-pFilter :: [(Int, Int)] -> Bool
+pFilter :: [(Key, Int)] -> Bool
 pFilter = M.filter odd `eq_` HM.filter odd
 
-pFilterWithKey :: [(Int, Int)] -> Bool
+pFilterWithKey :: [(Key, Int)] -> Bool
 pFilterWithKey = M.filterWithKey p `eq_` HM.filterWithKey p
-  where p k v = odd (k + v)
+  where p k v = odd (unK k + v)
 
 ------------------------------------------------------------------------
 -- ** Conversions
