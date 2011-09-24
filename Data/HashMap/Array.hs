@@ -74,6 +74,9 @@ data Array a = Array {
 #endif
     }
 
+instance Show a => Show (Array a) where
+    show = show . toList
+
 #if __GLASGOW_HASKELL__ >= 702
 length :: Array a -> Int
 length ary = I# (sizeofArray# (unArray ary))
