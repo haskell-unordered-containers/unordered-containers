@@ -64,7 +64,7 @@ module Data.HashMap.Base
 
 import Control.Applicative ((<$>), Applicative(pure))
 import Control.DeepSeq (NFData(rnf))
-import Control.Monad.ST (ST)
+import Control.Monad.ST (ST, runST)
 import Data.Bits ((.&.), (.|.), complement)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as L
@@ -444,30 +444,6 @@ foldrWithKey f = go
 ------------------------------------------------------------------------
 -- * Filter
 
--- Helper for filtering a sparse array.
-filterA :: (a -> Bool) -> A.Array a -> Bitmap -> (A.Array a, Bitmap)
-filterA p = \ary b0 ->
-    let !n = A.length ary
-    in A.run2 $ do
-        mary <- A.new_ n
-        go ary mary b0 0 0 1 n
-  where
-    go !ary !mary !b i !j !bi n
-        | i >= n =
-            if i == j
-            then return (mary, b)
-            else do mary2 <- A.new_ j
-                    A.copyM mary 0 mary2 0 j
-                    return (mary2, b)
-        | bi .&. b == 0 = go ary mary b i j (bi `unsafeShiftL` 1) n
-        | otherwise =
-            let el = A.index ary i
-            in if p el
-               then do A.write mary j el
-                       go ary mary b (i+1) (j+1) (bi `unsafeShiftL` 1) n
-               else go ary mary (b .&. complement bi) (i+1) j
-                    (bi `unsafeShiftL` 1) n
-
 -- | /O(n)/ Filter this map by retaining only elements satisfying a
 -- predicate.
 filterWithKey :: (k -> v -> Bool) -> HashMap k v -> HashMap k v
@@ -477,31 +453,54 @@ filterWithKey pred = go
     go t@(Leaf _ (L k v))
         | pred k v  = t
         | otherwise = Empty
-    go (BitmapIndexed b ary) =
-        let (ary', b2) = filterEmpty ary b
-            n          = A.length ary'
-        in case n of
-            0 -> Empty
-            1 -> A.index ary' 0
-            _ -> BitmapIndexed b2 ary'
-    go (Full ary) =
-        let (ary', b) = filterEmpty ary fullNodeMask
-            n         = A.length ary'
-        in case n of
-            0 -> Empty
-            1 -> A.index ary' 0
-            _ | fromIntegral n == 1 `unsafeShiftL` bitsPerSubkey -> Full ary'
-              | otherwise -> BitmapIndexed b ary'
-    go (Collision h ary) = let ary' = A.filter (\ (L k v) -> pred k v) ary
-                           in case A.length ary' of
-                               0 -> Empty
-                               1 -> Leaf h $ A.index ary' 0
-                               _ -> Collision h ary'
+    go (BitmapIndexed b ary) = filterA ary b
+    go (Full ary) = filterA ary fullNodeMask
+    go (Collision h ary) = filterC ary h
 
-    isEmpty Empty = True
-    isEmpty _     = False
+    filterA ary0 b0 =
+        let !n = A.length ary0
+        in runST $ do
+            mary <- A.new_ n
+            step ary0 mary b0 0 0 1 n
+      where
+        step !ary !mary !b i !j !bi n
+            | i >= n = case j of
+                0 -> return Empty
+                1 -> A.read mary 0
+                _ -> do
+                    mary2 <- A.new_ j
+                    A.copyM mary 0 mary2 0 j
+                    ary2 <- A.unsafeFreeze mary2
+                    return $! if j == maxChildren
+                              then Full ary2
+                              else BitmapIndexed b ary2
+            | bi .&. b == 0 = step ary mary b i j (bi `unsafeShiftL` 1) n
+            | otherwise = case go (A.index ary i) of
+                Empty -> step ary mary (b .&. complement bi) (i+1) j
+                         (bi `unsafeShiftL` 1) n
+                t     -> do A.write mary j t
+                            step ary mary b (i+1) (j+1) (bi `unsafeShiftL` 1) n
 
-    filterEmpty = filterA (not . isEmpty . go)  -- Reduces code duplication
+    filterC ary0 h =
+        let !n = A.length ary0
+        in runST $ do
+            mary <- A.new_ n
+            step ary0 mary 0 0 n
+      where
+        step ary mary i j n
+            | i >= n    = case j of
+                0 -> return Empty
+                1 -> do l <- A.read mary 0
+                        return $! Leaf h l
+                _ | i == j -> do ary2 <- A.unsafeFreeze mary
+                                 return $! Collision h ary2
+                  | otherwise -> do mary2 <- A.new_ j
+                                    A.copyM mary 0 mary2 0 j
+                                    ary2 <- A.unsafeFreeze mary2
+                                    return $! Collision h ary2
+            | pred k v  = A.write mary j el >> step ary mary (i+1) (j+1) n
+            | otherwise = step ary mary (i+1) j n
+          where el@(L k v) = A.index ary i
 {-# INLINE filterWithKey #-}
 
 -- | /O(n)/ Filter this map by retaining only elements which values
@@ -649,6 +648,9 @@ clone16 ary =
 
 bitsPerSubkey :: Int
 bitsPerSubkey = 4
+
+maxChildren :: Int
+maxChildren = fromIntegral $ 1 `unsafeShiftL` bitsPerSubkey
 
 subkeyMask :: Bitmap
 subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
