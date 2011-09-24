@@ -164,19 +164,21 @@ type Model k v = M.Map k v
 -- | Check that a function operating on a 'HashMap' is equivalent to
 -- one operating on a 'Model'.
 eq :: (Eq a, Eq k, Hashable k, Ord k)
-   => (Model k v -> a)      -- ^ Function that modifies a 'Model' in the same
-                            -- way
-   -> (HM.HashMap k v -> a)  -- ^ Function that modified a 'HashMap'
-   -> [(k, v)]              -- ^ Initial content of the 'HashMap' and 'Model'
-   -> Bool                  -- ^ True if the functions are equivalent
+   => (Model k v -> a)       -- ^ Function that modifies a 'Model'
+   -> (HM.HashMap k v -> a)  -- ^ Function that modified a 'HashMap' in the same
+                             -- way
+   -> [(k, v)]               -- ^ Initial content of the 'HashMap' and 'Model'
+   -> Bool                   -- ^ True if the functions are equivalent
 eq f g xs = g (HM.fromList xs) == f (M.fromList xs)
 
 eq_ :: (Eq k, Eq v, Hashable k, Ord k)
-   => (Model k v -> Model k v)      -- ^ Function that modifies a 'Model' in the same
-                            -- way
-   -> (HM.HashMap k v -> HM.HashMap k v)  -- ^ Function that modified a 'HashMap'
-   -> [(k, v)]              -- ^ Initial content of the 'HashMap' and 'Model'
-   -> Bool                  -- ^ True if the functions are equivalent
+    => (Model k v -> Model k v)            -- ^ Function that modifies a 'Model'
+    -> (HM.HashMap k v -> HM.HashMap k v)  -- ^ Function that modified a
+                                           -- 'HashMap' in the same way
+    -> [(k, v)]                            -- ^ Initial content of the 'HashMap'
+                                           -- and 'Model'
+    -> Bool                                -- ^ True if the functions are
+                                           -- equivalent
 eq_ f g = (M.toAscList . f) `eq` (toAscList . g)
 
 ------------------------------------------------------------------------
