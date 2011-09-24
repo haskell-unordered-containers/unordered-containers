@@ -76,6 +76,17 @@ pMap :: [(Key, Int)] -> Bool
 pMap = M.map (+1 ) `eq_` HM.map (+ 1)
 
 ------------------------------------------------------------------------
+-- ** Difference and intersection
+
+pDifference :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pDifference xs ys = M.difference (M.fromList xs) `eq_`
+                    HM.difference (HM.fromList xs) $ ys
+
+pIntersection :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pIntersection xs ys = M.intersection (M.fromList xs) `eq_`
+                      HM.intersection (HM.fromList xs) $ ys
+
+------------------------------------------------------------------------
 -- ** Folds
 
 pFoldr :: [(Int, Int)] -> Bool
@@ -143,9 +154,13 @@ tests =
       , testProperty "foldrWithKey" pFoldrWithKey
       , testProperty "foldl'" pFoldl'
       ]
+    , testGroup "difference and intersection"
+      [ testProperty "difference" pDifference
+      , testProperty "intersection" pIntersection
+      ]
     -- Filter
     , testGroup "filter"
-      [ testProperty "filterWithKey" pFilter
+      [ testProperty "filter" pFilter
       , testProperty "filterWithKey" pFilterWithKey
       ]
     -- Conversions
