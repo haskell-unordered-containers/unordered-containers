@@ -90,6 +90,16 @@ pFoldl' :: Int -> [(Int, Int)] -> Bool
 pFoldl' z0 = M.foldlWithKey' (\ z _ v -> v + z) z0 `eq` HM.foldl' (+) z0
 
 ------------------------------------------------------------------------
+-- ** Filter
+
+pFilter :: [(Int, Int)] -> Bool
+pFilter = M.filter odd `eq_` HM.filter odd
+
+pFilterWithKey :: [(Int, Int)] -> Bool
+pFilterWithKey = M.filterWithKey p `eq_` HM.filterWithKey p
+  where p k v = odd (k + v)
+
+------------------------------------------------------------------------
 -- ** Conversions
 
 pToList :: [(Key, Int)] -> Bool
@@ -132,6 +142,11 @@ tests =
       [ testProperty "foldr" pFoldr
       , testProperty "foldrWithKey" pFoldrWithKey
       , testProperty "foldl'" pFoldl'
+      ]
+    -- Filter
+    , testGroup "filter"
+      [ testProperty "filterWithKey" pFilter
+      , testProperty "filterWithKey" pFilterWithKey
       ]
     -- Conversions
     , testGroup "conversions"
