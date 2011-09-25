@@ -128,6 +128,10 @@ main = do
           -- Transformations
         , bench "map" $ whnf (HM.map (\ v -> v + 1)) hmi
 
+          -- * Difference and intersection
+        , bench "difference" $ whnf (HM.difference hmi) hmi2
+        , bench "intersection" $ whnf (HM.intersection hmi) hmi2
+
           -- Folds
         , bench "foldl'" $ whnf (HM.foldl' (+) 0) hmi
         , bench "foldr" $ whnf (HM.foldr (:) []) hmi
