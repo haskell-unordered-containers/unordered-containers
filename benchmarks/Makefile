@@ -6,11 +6,8 @@ else
 	lib-suffix :=
 endif
 
-ifdef GHC
-	ghc:= $(GHC)
-else
-	ghc := ghc
-endif
+ghc := ghc
+extra-ghc-flags :=
 
 package := unordered-containers
 version := $(shell awk '/^version:/{print $$2}' ../$(package).cabal)
@@ -20,6 +17,7 @@ ghc-flags := -Wall -O2 -hide-all-packages \
 	-package unordered-containers -package containers -package criterion \
 	-package deepseq -package hashable -package random -package bytestring \
 	$(ghc-prof-flags) -rtsopts
+ghc-flags += $(extra-ghc-flags)
 
 %.o: %.hs
 	$(ghc) $(ghc-flags) -c -o $@ $<
