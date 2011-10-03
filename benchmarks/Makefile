@@ -17,6 +17,7 @@ ghc-flags := -Wall -hide-all-packages \
 	-package unordered-containers -package containers -package criterion \
 	-package deepseq -package hashable -package random -package bytestring \
 	$(ghc-prof-flags) $(ghc-opt-flags) -rtsopts
+criterion-flags :=
 
 %.o: %.hs
 	$(ghc) $(ghc-flags) -c -o $@ $<
@@ -29,6 +30,10 @@ all: $(programs)
 bench: $(lib) Benchmarks.o Util/Int.o Util/ByteString.o Util/String.o
 	ranlib $(lib)
 	$(ghc) $(ghc-flags) -threaded -o $@ $(filter %.o,$^) $(lib)
+
+.PHONY: bench-all
+bench-all: bench
+	./bench -l | grep -v "Benchmarks:\|IntMap\|Map" | tr '\n' ' ' | xargs -d ' ' ./bench $(criterion-flags) +RTS -H -RTS
 
 .PHONY: clean
 clean:
