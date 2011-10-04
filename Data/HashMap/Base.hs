@@ -177,7 +177,9 @@ lookup k0 = go h0 k0 0
     go h k _ (Collision hx v)
         | h == hx   = lookupInArray k v
         | otherwise = Nothing
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE lookup #-}
+#endif
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
@@ -203,7 +205,9 @@ collision h e1 e2 =
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert = insertWith' (\ new _old -> new)
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
+#endif
 
 -- | /O(log n)/ Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
@@ -215,7 +219,9 @@ insert = insertWith' (\ new _old -> new)
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
           -> HashMap k v
 insertWith = insertWith'
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
+#endif
 
 -- Always inlined to the implementation of 'insert' doesn't have to
 -- pay the cost of using the higher-order argument.
@@ -292,7 +298,9 @@ delete k0 = go h0 k0 0
                 | otherwise -> Collision h (A.delete v i)
             Nothing -> t
         | otherwise = t
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE delete #-}
+#endif
 
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
@@ -321,7 +329,9 @@ adjust f k0 = go h0 k0 0
     go h k _ t@(Collision hy v)
         | h == hy   = Collision h (updateWith f k v)
         | otherwise = t
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE adjust #-}
+#endif
 
 ------------------------------------------------------------------------
 -- * Combine
@@ -541,13 +551,17 @@ toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
 -- contains duplicate mappings, the later mappings take precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE fromList #-}
+#endif
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
 -- the provided function to merge duplicate entries.
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = L.foldl' (\ m (k, v) -> insertWith f k v m) empty
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINE fromListWith #-}
+#endif
 
 ------------------------------------------------------------------------
 -- Array operations
@@ -563,7 +577,9 @@ lookupInArray k0 ary0 = go k0 ary0 0 (A.length ary0)
             (L kx v)
                 | k == kx   -> Just v
                 | otherwise -> go k ary (i+1) n
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE lookupInArray #-}
+#endif
 
 -- | /O(n)/ Lookup the value associated with the given key in this
 -- array.  Returns 'Nothing' if the key wasn't found.
@@ -576,7 +592,9 @@ indexOf k0 ary0 = go k0 ary0 0 (A.length ary0)
             (L kx _)
                 | k == kx   -> Just i
                 | otherwise -> go k ary (i+1) n
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE indexOf #-}
+#endif
 
 updateWith :: Eq k => (v -> v) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
 updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
@@ -586,7 +604,9 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> A.update ary i (L k (f y))
                      | otherwise -> go k ary (i+1) n
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE updateWith #-}
+#endif
 
 updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
@@ -602,7 +622,9 @@ updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> A.update ary i (L k (f v y))
                      | otherwise -> go k v ary (i+1) n
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE updateOrSnocWith #-}
+#endif
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops

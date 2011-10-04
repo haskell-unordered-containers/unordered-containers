@@ -76,7 +76,9 @@ singleton k !v = HM.singleton k v
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k !v = HM.insert k v
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
+#endif
 
 -- | /O(log n)/ Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
@@ -88,7 +90,9 @@ insert k !v = HM.insert k v
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
           -> HashMap k v
 insertWith = insertWith'
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
+#endif
 
 -- Always inlined to the implementation of 'insert' doesn't have to
 -- pay the cost of using the higher-order argument.
@@ -157,7 +161,9 @@ adjust f k0 = go h0 k0 0
     go h k _ t@(Collision hy v)
         | h == hy   = Collision h (updateWith f k v)
         | otherwise = t
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE adjust #-}
+#endif
 
 ------------------------------------------------------------------------
 -- * Combine
@@ -193,7 +199,9 @@ map f = go
 -- contains duplicate mappings, the later mappings take precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE fromList #-}
+#endif
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
 -- the provided function to merge duplicate entries.
@@ -212,7 +220,9 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> let !v' = f y in A.update ary i (L k v')
                      | otherwise -> go k ary (i+1) n
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE updateWith #-}
+#endif
 
 updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
@@ -228,4 +238,6 @@ updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> let !v' = f v y in A.update ary i (L k v')
                      | otherwise -> go k v ary (i+1) n
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE updateOrSnocWith #-}
+#endif
