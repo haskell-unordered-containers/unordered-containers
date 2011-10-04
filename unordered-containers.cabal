@@ -31,7 +31,7 @@ library
 
   c-sources: cbits/popc.c
 
-  ghc-options: -Wall -O2 -fno-warn-orphans
+  ghc-options: -Wall -O2
   if impl(ghc >= 6.8)
     ghc-options: -fwarn-tabs
   if impl(ghc > 6.10)
