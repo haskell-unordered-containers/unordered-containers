@@ -33,7 +33,7 @@ bench: $(lib) Benchmarks.o Util/Int.o Util/ByteString.o Util/String.o
 
 .PHONY: bench-all
 bench-all: bench
-	./bench -l | grep -v "Benchmarks:\|IntMap\|Map" | tr '\n' ' ' | xargs -d ' ' ./bench $(criterion-flags) +RTS -H -RTS
+	./bench $(criterion-flags) +RTS -H -RTS `./bench -l | sed 's/ *\(.*\)/\1/' | grep -v "Benchmarks:\|IntMap\|Map"`
 
 .PHONY: clean
 clean:
