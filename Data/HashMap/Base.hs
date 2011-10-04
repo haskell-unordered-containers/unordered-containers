@@ -109,7 +109,7 @@ data HashMap k v
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Empty                 = ()
     rnf (BitmapIndexed _ ary) = rnf ary
-    rnf (Leaf _ (L k v))      = rnf k `seq` rnf v
+    rnf (Leaf _ l)            = rnf l
     rnf (Full ary)            = rnf ary
     rnf (Collision _ ary)     = rnf ary
 
