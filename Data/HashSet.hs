@@ -136,26 +136,30 @@ member :: (Eq a, Hashable a) => a -> HashSet a -> Bool
 member a s = case H.lookup a (asMap s) of
                Just _ -> True
                _      -> False
-{-# INLINE member #-}
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE member #-}
+#endif
 
 -- | /O(min(n,W))/ Add the specified value to this set.
 insert :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 insert a = HashSet . H.insert a () . asMap
-{-# INLINE insert #-}
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE insert #-}
+#endif
 
 -- | /O(min(n,W))/ Remove the specified value from this set if
 -- present.
 delete :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 delete a = HashSet . H.delete a . asMap
-{-# INLINE delete #-}
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE delete #-}
+#endif
 
 -- | /O(n)/ Transform this set by applying a function to every value.
 -- The resulting set may be smaller than the source.
 map :: (Hashable b, Eq b) => (a -> b) -> HashSet a -> HashSet b
 map f = fromList . List.map f . toList
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE map #-}
-#endif
+{-# INLINE map #-}
 
 -- | /O(n)/ Difference of two sets. Return elements of the first set
 -- not existing in the second.

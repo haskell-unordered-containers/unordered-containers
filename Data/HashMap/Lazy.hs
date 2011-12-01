@@ -127,7 +127,7 @@ lookupDefault :: (Eq k, Hashable k)
 lookupDefault def k t = case lookup k t of
                           Just v -> v
                           _      -> def
-{-# INLINE lookupDefault #-}
+{-# INLINABLE lookupDefault #-}
 
 -- | /O(1)/ Construct a map with a single element.
 singleton :: Hashable k => k -> v -> HashMap k v
