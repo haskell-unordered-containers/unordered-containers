@@ -58,11 +58,11 @@ test-suite map-properties
   type: exitcode-stdio-1.0
 
   build-depends:
-    base >= 4 && < 4.6,
-    hashable >= 1.0.1.1 && < 1.2,
+    base >= 4,
+    hashable >= 1.0.1.1,
     QuickCheck >= 2.4.0.1,
-    test-framework >= 0.3.3 && < 0.5,
-    test-framework-quickcheck2 >= 0.2.9 && < 0.3,
+    test-framework >= 0.3.3,
+    test-framework-quickcheck2 >= 0.2.9,
     unordered-containers
 
   ghc-options: -Wall
@@ -74,12 +74,12 @@ test-suite set-properties
   type: exitcode-stdio-1.0
 
   build-depends:
-    base >= 4 && < 4.6,
+    base >= 4,
     containers,
-    hashable >= 1.0.1.1 && < 1.2,
+    hashable >= 1.0.1.1,
     QuickCheck >= 2.4.0.1,
-    test-framework >= 0.3.3 && < 0.5,
-    test-framework-quickcheck2 >= 0.2.9 && < 0.3,
+    test-framework >= 0.3.3,
+    test-framework-quickcheck2 >= 0.2.9,
     unordered-containers
 
   ghc-options: -Wall
