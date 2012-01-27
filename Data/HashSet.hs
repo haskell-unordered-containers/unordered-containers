@@ -1,4 +1,10 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 {-# LANGUAGE CPP #-}
+
+#if __GLASGOW_HASKELL__ >= 702
+{-# LANGUAGE Trustworthy #-}
+#endif
 
 ------------------------------------------------------------------------
 -- |
@@ -60,7 +66,8 @@ module Data.HashSet
     ) where
 
 import Control.DeepSeq (NFData(..))
-import Data.HashMap.Common (HashMap, foldrWithKey)
+import Data.HashMap.Common (foldrWithKey)
+import Data.HashSet.Internal (HashSet(..))
 import Data.Hashable (Hashable)
 import Data.Monoid (Monoid(..))
 import Prelude hiding (filter, foldr, map, null)
@@ -71,11 +78,6 @@ import qualified Data.List as List
 #if defined(__GLASGOW_HASKELL__)
 import GHC.Exts (build)
 #endif
-
--- | A set of values.  A set cannot contain duplicate values.
-newtype HashSet a = HashSet {
-      asMap :: HashMap a ()
-    }
 
 instance (NFData a) => NFData (HashSet a) where
     rnf = rnf . asMap
