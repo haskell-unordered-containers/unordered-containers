@@ -1,5 +1,9 @@
 {-# LANGUAGE BangPatterns, CPP #-}
 
+#if __GLASGOW_HASKELL__ >= 702
+{-# LANGUAGE Trustworthy #-}
+#endif
+
 ------------------------------------------------------------------------
 -- |
 -- Module      :  Data.HashMap.Lazy

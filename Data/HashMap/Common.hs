@@ -1,5 +1,9 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable #-}
 
+#if __GLASGOW_HASKELL__ >= 702
+{-# LANGUAGE Trustworthy #-}
+#endif
+
 -- | Code shared between the lazy and strict versions.
 
 module Data.HashMap.Common
