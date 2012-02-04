@@ -219,9 +219,10 @@ insertLookupWithKey f k0 v0 t0 = go h0 k0 v0 t0
         | zero h sm    = let (found, l') = go h k v l in (found, Bin sm l' r)
         | otherwise    = let (found, r') = go h k v r in (found, Bin sm l  r')
     go h k v t@(Tip h' l)
-        | h == h'       = (Just v, Tip h $ FL.insertWith (f k) k v l)
+        | h == h'       = let (found, fl) = FL.insertLookupWith (f k) k v l
+                          in (found, Tip h fl)
         | otherwise     = (Nothing, join h (Tip h $ FL.singleton k v) h' t)
-    go h k v Nil        = (Nothing, Tip h $ FL.singleton k v)
+    go h k v Empty      = (Nothing, Tip h $ FL.singleton k v)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertLookupWithKey #-}
 #endif
