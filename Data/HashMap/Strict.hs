@@ -1,5 +1,9 @@
 {-# LANGUAGE BangPatterns, CPP #-}
 
+#if __GLASGOW_HASKELL__ >= 702
+{-# LANGUAGE Trustworthy #-}
+#endif
+
 ------------------------------------------------------------------------
 -- |
 -- Module      :  Data.HashMap.Strict
@@ -113,7 +117,7 @@ insert k0 !v0 t0 = go h0 k0 v0 t0
     go h k v t@(Tip h' l)
         | h == h'      = Tip h $ FL.insert k v l
         | otherwise    = join h (Tip h $ FL.singleton k v) h' t
-    go h k v Nil       = Tip h $ FL.singleton k v
+    go h k v Empty     = Tip h $ FL.singleton k v
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
 #endif
@@ -137,7 +141,7 @@ insertWith f k0 !v0 t0 = go h0 k0 v0 t0
     go h k v t@(Tip h' l)
         | h == h'      = Tip h $ FL.insertWith f k v l
         | otherwise    = join h (Tip h $ FL.singleton k v) h' t
-    go h k v Nil       = Tip h $ FL.singleton k v
+    go h k v Empty     = Tip h $ FL.singleton k v
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
 #endif
@@ -176,7 +180,7 @@ adjust f k0 t0 = go h0 k0 t0
     go h k t@(Tip h' l)
       | h == h'      = Tip h $ FL.adjust f k l
       | otherwise    = t
-    go _ _ Nil       = Nil
+    go _ _ Empty     = Empty
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE adjust #-}
 #endif
@@ -191,7 +195,7 @@ map f = go
   where
     go (Bin sm l r) = Bin sm (go l) (go r)
     go (Tip h l)    = Tip h (FL.map f' l)
-    go Nil          = Nil
+    go Empty        = Empty
     f' k v = (k, f v)
 {-# INLINE map #-}
 
@@ -213,8 +217,8 @@ unionWith f t1@(Bin sm1 l1 r1) t2@(Bin sm2 l2 r2)
            | otherwise       = Bin sm2 l2 (unionWith f t1 r2)
 unionWith f (Tip h l) t = insertCollidingWith (FL.unionWith f) h l t
 unionWith f t (Tip h l) = insertCollidingWith (flip (FL.unionWith f)) h l t  -- right bias
-unionWith _ Nil t       = t
-unionWith _ t Nil       = t
+unionWith _ Empty t     = t
+unionWith _ t Empty     = t
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE unionWith #-}
 #endif

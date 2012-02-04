@@ -1,5 +1,9 @@
 {-# LANGUAGE BangPatterns, CPP #-}
 
+#if __GLASGOW_HASKELL__ >= 702
+{-# LANGUAGE Trustworthy #-}
+#endif
+
 ------------------------------------------------------------------------
 -- |
 -- Module      :  Data.HashMap.Lazy
@@ -91,8 +95,8 @@ import Data.HashMap.Common
 
 -- | /O(1)/ Return 'True' if this map is empty, 'False' otherwise.
 null :: HashMap k v -> Bool
-null Nil = True
-null _   = False
+null Empty = True
+null _     = False
 
 -- | /O(n)/ Return the number of key-value mappings in this map.
 size :: HashMap k v -> Int
@@ -100,7 +104,7 @@ size t = go t 0
   where
     go (Bin _ l r) !sz = go r (go l sz)
     go (Tip _ l)   !sz = sz + FL.size l
-    go Nil         !sz = sz
+    go Empty       !sz = sz
 
 -- | /O(min(n,W))/ Return the value to which the specified key is
 -- mapped, or 'Nothing' if this map contains no mapping for the key.
@@ -114,7 +118,7 @@ lookup k0 t = go h0 k0 t
     go h k (Tip h' l)
       | h == h'   = FL.lookup k l
       | otherwise = Nothing
-    go _ _ Nil    = Nothing
+    go _ _ Empty  = Nothing
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE lookup #-}
 #endif
@@ -152,7 +156,7 @@ insert k0 v0 t0 = go h0 k0 v0 t0
     go h k v t@(Tip h' l)
         | h == h'      = Tip h $ FL.insert k v l
         | otherwise    = join h (Tip h $ FL.singleton k v) h' t
-    go h k v Nil       = Tip h $ FL.singleton k v
+    go h k v Empty     = Tip h $ FL.singleton k v
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
 #endif
@@ -169,10 +173,10 @@ delete k0 = go h0 k0
         | otherwise    = bin sm l (go h k r)
     go h k t@(Tip h' l)
         | h == h'       = case FL.delete k l of
-            Nothing -> Nil
+            Nothing -> Empty
             Just l' -> Tip h' l'
         | otherwise     = t
-    go _ _ Nil          = Nil
+    go _ _ Empty        = Empty
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE delete #-}
 #endif
@@ -196,7 +200,7 @@ insertWith f k0 v0 t0 = go h0 k0 v0 t0
     go h k v t@(Tip h' l)
         | h == h'       = Tip h $ FL.insertWith f k v l
         | otherwise     = join h (Tip h $ FL.singleton k v) h' t
-    go h k v Nil        = Tip h $ FL.singleton k v
+    go h k v Empty      = Tip h $ FL.singleton k v
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
 #endif
@@ -235,7 +239,7 @@ adjust f k0 t0 = go h0 k0 t0
     go h k t@(Tip h' l)
       | h == h'      = Tip h $ FL.adjust f k l
       | otherwise    = t
-    go _ _ Nil       = Nil
+    go _ _ Empty     = Empty
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE adjust #-}
 #endif
@@ -249,7 +253,7 @@ map f = go
   where
     go (Bin sm l r) = Bin sm (go l) (go r)
     go (Tip h l)    = Tip h (FL.map f' l)
-    go Nil          = Nil
+    go Empty        = Empty
     f' k v = (k, f v)
 {-# INLINE map #-}
 
@@ -271,8 +275,8 @@ unionWith f t1@(Bin sm1 l1 r1) t2@(Bin sm2 l2 r2)
            | otherwise       = Bin sm2 l2 (unionWith f t1 r2)
 unionWith f (Tip h l) t = insertCollidingWith (FL.unionWith f) h l t
 unionWith f t (Tip h l) = insertCollidingWith (flip (FL.unionWith f)) h l t  -- right bias
-unionWith _ Nil t       = t
-unionWith _ t Nil       = t
+unionWith _ Empty t     = t
+unionWith _ t Empty     = t
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE unionWith #-}
 #endif
@@ -331,7 +335,7 @@ foldlWithKey' f = go
     go !z (Bin _ l r) = let z' = go z l
                         in z' `seq` go z' r
     go z (Tip _ l)    = FL.foldlWithKey' f z l
-    go z Nil          = z
+    go z Empty        = z
 {-# INLINE foldlWithKey' #-}
 
 ------------------------------------------------------------------------
@@ -345,8 +349,8 @@ filterWithKey pred = go
     go (Bin sm l r) = bin sm (go l) (go r)
     go (Tip h l)    = case FL.filterWithKey pred l of
         Just l' -> Tip h l'
-        Nothing -> Nil
-    go Nil          = Nil
+        Nothing -> Empty
+    go Empty        = Empty
 {-# INLINE filterWithKey #-}
 
 -- | /O(n)/ Filter this map by retaining only elements which values

@@ -1,11 +1,15 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable #-}
 
+#if __GLASGOW_HASKELL__ >= 702
+{-# LANGUAGE Trustworthy #-}
+#endif
+
 -- | Code shared between the lazy and strict versions.
 
 module Data.HashMap.Common
     (
       -- * Types
-      HashMap(..)
+      HashMap(..), SuffixMask, Hash
 
       -- * Helpers
     , join
@@ -61,7 +65,7 @@ data HashMap k v
           !(HashMap k v)
     | Tip {-# UNPACK #-} !Hash
           {-# UNPACK #-} !(FL.FullList k v)
-    | Nil
+    | Empty
     deriving (Typeable)
 
 type Suffix = Int
@@ -101,19 +105,19 @@ equal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
 equal (Bin sm1 l1 r1) (Bin sm2 l2 r2) =
     (sm1 == sm2) && (equal l1 l2) && (equal r1 r2)
 equal (Tip h1 l1) (Tip h2 l2) = (h1 == h2) && (l1 == l2)
-equal Nil Nil = True
-equal _   _   = False
+equal Empty Empty = True
+equal _     _     = False
 
 nequal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
 nequal (Bin sm1 l1 r1) (Bin sm2 l2 r2) =
     (sm1 /= sm2) || (nequal l1 l2) || (nequal r1 r2)
 nequal (Tip h1 l1) (Tip h2 l2) = (h1 /= h2) || (l1 /= l2)
-nequal Nil Nil = False
-nequal _   _   = True
+nequal Empty Empty = False
+nequal _     _     = True
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
-    rnf Nil           = ()
-    rnf (Tip _ xs)    = rnf xs
+    rnf Empty       = ()
+    rnf (Tip _ xs)  = rnf xs
     rnf (Bin _ l r) = rnf l `seq` rnf r
 
 instance Functor (HashMap k) where
@@ -129,7 +133,7 @@ map f = go
   where
     go (Bin sm l r) = Bin sm (go l) (go r)
     go (Tip h l)    = Tip h (FL.map f' l)
-    go Nil          = Nil
+    go Empty        = Empty
     f' k v = (k, f v)
 {-# INLINE map #-}
 
@@ -144,7 +148,7 @@ foldrWithKey f = go
   where
     go z (Bin _ l r) = go (go z r) l
     go z (Tip _ l)   = FL.foldrWithKey f z l
-    go z Nil         = z
+    go z Empty       = z
 {-# INLINE foldrWithKey #-}
 
 instance Eq k => Monoid (HashMap k v) where
@@ -155,7 +159,7 @@ instance Eq k => Monoid (HashMap k v) where
 
 -- | /O(1)/ Construct an empty map.
 empty :: HashMap k v
-empty = Nil
+empty = Empty
 
 -- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
 -- the mapping from the first will be the mapping in the result.
@@ -175,8 +179,8 @@ union t1@(Bin sm1 l1 r1) t2@(Bin sm2 l2 r2)
            | otherwise       = Bin sm2 l2 (union t1 r2)
 union (Tip h l) t = insertCollidingL h l t
 union t (Tip h l) = insertCollidingR h l t  -- right bias
-union Nil t       = t
-union t Nil       = t
+union Empty t     = t
+union t Empty     = t
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE union #-}
 #endif
@@ -215,7 +219,7 @@ insertCollidingWith f h0 l0 t0 = go h0 l0 t0
     go h xs t@(Tip h' l)
         | h == h'       = Tip h $ f xs l
         | otherwise     = join h (Tip h xs) h' t
-    go h xs Nil         = Tip h xs
+    go h xs Empty       = Tip h xs
 {-# INLINE insertCollidingWith #-}
 
 instance Traversable (HashMap k) where
@@ -230,9 +234,9 @@ filterMapWithKey f = go
     go (Bin sm l r) = bin sm (go l) (go r)
     go (Tip h vs) =
       case FL.foldrWithKey ff FL.Nil vs of
-        FL.Nil -> Nil
+        FL.Nil -> Empty
         FL.Cons k v xs -> Tip h (FL.FL k v xs)
-    go Nil = Nil
+    go Empty = Empty
     ff k v xs =
       case f k v of
         Nothing -> xs
@@ -247,7 +251,7 @@ traverseWithKey f = go
   where
     go (Bin sm l r) = Bin sm <$> go l <*> go r
     go (Tip h l) = Tip h <$> FL.traverseWithKey f l
-    go Nil = pure Nil
+    go Empty = pure Empty
 {-# INLINE traverseWithKey #-}
 
 ------------------------------------------------------------------------
@@ -263,8 +267,8 @@ join s1 t1 s2 t2
 
 -- | @bin@ assures that we never have empty trees within a tree.
 bin :: SuffixMask -> HashMap k v -> HashMap k v -> HashMap k v
-bin _ l Nil = l
-bin _ Nil r = r
+bin _ l Empty = l
+bin _ Empty r = r
 bin sm  l r = Bin sm l r
 {-# INLINE bin #-}
 

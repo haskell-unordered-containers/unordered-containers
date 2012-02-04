@@ -1,5 +1,9 @@
 {-# LANGUAGE BangPatterns, CPP #-}
 
+#if __GLASGOW_HASKELL__ >= 702
+{-# LANGUAGE Trustworthy #-}
+#endif
+
 ------------------------------------------------------------------------
 -- |
 -- Module      :  Data.FullList.Lazy
@@ -266,7 +270,7 @@ unionWith f xs (FL k vy ys) =
 
 unionWithL :: Eq k => (v -> v -> v) -> FullList k v -> List k v -> FullList k v
 unionWithL f (FL k v zs) ys =
-  case lookupL k ys of 
+  case lookupL k ys of
     Just vy -> FL k (f v vy) $ go zs (deleteL k ys)
     Nothing -> FL k v (go zs ys)
   where
