@@ -1,0 +1,38 @@
+name:           unordered-containers-benchmarks
+version:        0.1.0.0
+license:        BSD3
+author:         Johan Tibell
+maintainer:     johan.tibell@gmail.com
+copyright:      2010-2011 Johan Tibell
+category:       Data
+build-type:     Simple
+cabal-version:  >=1.8
+
+flag debug
+  description:  Enable debug support
+  default:      False
+
+executable benchmarks
+  hs-source-dirs: . ..
+
+  main-is: Benchmarks.hs
+
+  build-depends:
+    base,
+    bytestring,
+    containers,
+    criterion,
+    deepseq >= 1.1 && < 1.4,
+    hashable >= 1.0.1.1 && < 1.2,
+    mtl,
+    random
+
+  ghc-options: -Wall -O2 -rtsopts
+  if impl(ghc >= 6.8)
+    ghc-options: -fwarn-tabs
+  if impl(ghc > 6.10)
+    ghc-options: -fregs-graph
+  if flag(debug)
+    cpp-options: -DASSERTS
+
+  c-sources: ../cbits/popc.c
