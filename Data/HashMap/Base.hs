@@ -437,7 +437,7 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
     let b' = b1 .|. b2
     mary <- A.new_ (popCount b')
     -- iterate over nonzero bits of b1 .|. b2
-    -- it would be nice if we could shit m by more than 1 each time
+    -- it would be nice if we could shift m by more than 1 each time
     let hasBit b m = b .&. m /= 0
     let go !i !i1 !i2 !m
           | m > b'                     = do return ()
@@ -757,6 +757,7 @@ updateOrConcatWith f ary1 ary2 = A.run $ do
                              go (iEnd+1) (i2+1)
     go n1 0
     return mary
+{-# INLINABLE updateOrConcatWith #-}
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops
