@@ -11,6 +11,7 @@ module Data.HashMap.Array
     , new
     , new_
     , singleton
+    , pair
 
       -- * Basic interface
     , length
@@ -21,6 +22,7 @@ module Data.HashMap.Array
     , index_
     , indexM_
     , update
+    , updateWith
     , insert
     , delete
 
@@ -146,6 +148,13 @@ singleton :: a -> Array a
 singleton x = run (new 1 x)
 {-# INLINE singleton #-}
 
+pair :: a -> a -> Array a
+pair x y = run $ do
+    ary <- new 2 x
+    write ary 1 y
+    return ary
+{-# INLINE pair #-}
+
 read :: MArray s a -> Int -> ST s a
 read ary _i@(I# i#) = ST $ \ s ->
     CHECK_BOUNDS("read", lengthM ary, _i)
@@ -261,6 +270,11 @@ update ary idx b =
             return mary
   where !count = length ary
 {-# INLINE update #-}
+
+-- | /O(n)/ Update the element at the given positio in this array, by applying a function to it.
+updateWith :: Array e -> Int -> (e -> e) -> Array e
+updateWith ary idx f = update ary idx $! f (index ary idx)
+{-# INLINE updateWith #-}
 
 foldl' :: (b -> a -> b) -> b -> Array a -> b
 foldl' f = \ z0 ary0 -> go ary0 (length ary0) 0 z0

@@ -200,6 +200,13 @@ collision h e1 e2 =
     in Collision h v
 {-# INLINE collision #-}
 
+-- | Create a 'BitmapIndexed' or 'Full' node.
+bitmapIndexedOrFull :: Bitmap -> A.Array (HashMap k v) -> HashMap k v
+bitmapIndexedOrFull b ary
+    | b == fullNodeMask = Full ary
+    | otherwise         = BitmapIndexed b ary
+{-# INLINE bitmapIndexedOrFull #-}
+
 -- | /O(log n)/ Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
@@ -240,9 +247,7 @@ insertWith' f k0 v0 = go h0 k0 v0 0
         | b .&. m == 0 = let l    = Leaf h (L k x)
                              ary' = A.insert ary i $! l
                              b'   = b .|. m
-                         in if b' == fullNodeMask
-                            then Full ary'
-                            else BitmapIndexed b' ary'
+                         in bitmapIndexedOrFull b' ary'
         | otherwise = let  st   = A.index ary i
                            st'  = go h k x (s+bitsPerSubkey) st
                            ary' = A.update ary i $! st'
@@ -339,7 +344,7 @@ adjust f k0 = go h0 k0 0
 -- | /O(n*log m)/ The union of two maps. If a key occurs in both maps,
 -- the mapping from the first will be the mapping in the result.
 union :: (Eq k, Hashable k) => HashMap k v -> HashMap k v -> HashMap k v
-union m1 m2 = foldlWithKey' (\ m k v -> insert k v m) m2 m1
+union = unionWith const
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE union #-}
 #endif
@@ -348,8 +353,105 @@ union m1 m2 = foldlWithKey' (\ m k v -> insert k v m) m2 m1
 -- the provided function (first argument) will be used to compute the result.
 unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
-unionWith f m1 m2 = foldlWithKey' (\ m k v -> insertWith f k v m) m2 m1
+unionWith f = go 0
+  where
+    -- empty vs. anything
+    go !_ t1 Empty = t1
+    go _ Empty t2 = t2
+    -- leaf vs. leaf
+    go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
+        | h1 == h2  = if k1 == k2
+                      then Leaf h1 (L k1 (f v1 v2))
+                      else collision h1 l1 l2
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
+        | h1 == h2  = Collision h1 (updateOrSnocWith f k1 v1 ls2)
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    go s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
+        | h1 == h2  = Collision h1 (updateOrSnocWith (flip f) k2 v2 ls1)
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
+        | h1 == h2  = Collision h1 (updateOrConcatWith f ls1 ls2)
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    -- branch vs. branch
+    go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
+        = let b'   = b1 .|. b2
+              ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 b2 ary1 ary2
+          in bitmapIndexedOrFull b' ary'
+    go s (BitmapIndexed b1 ary1) (Full ary2)
+        = let ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 fullNodeMask ary1 ary2
+          in Full ary'
+    go s (Full ary1) (BitmapIndexed b2 ary2)
+        = let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask b2 ary1 ary2
+          in Full ary'
+    go s (Full ary1) (Full ary2)
+        = let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask fullNodeMask ary1 ary2
+          in Full ary'
+    -- leaf vs. branch
+    go s (BitmapIndexed b1 ary1) t2
+        | b1 .&. m2 == 0 = let ary' = A.insert ary1 i $! t2
+                               b'   = b1 .|. m2
+                           in bitmapIndexedOrFull b' ary'
+        | otherwise      = let ary' = A.updateWith ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
+                           in BitmapIndexed b1 ary'
+        where
+          h2 = leafHashCode t2
+          m2 = bitpos h2 s
+          i = index b1 m2
+    go s t1 (BitmapIndexed b2 ary2)
+        | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
+                               b'   = b2 .|. m1
+                           in bitmapIndexedOrFull b' ary'
+        | otherwise      = let ary' = A.updateWith ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
+                           in BitmapIndexed b2 ary'
+        where
+          h1 = leafHashCode t1
+          m1 = bitpos h1 s
+          i = index b2 m1
+    go s (Full ary1) t2
+        = let h2   = leafHashCode t2
+              i    = mask h2 s
+              ary' = update16With ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
+          in Full ary'
+    go s t1 (Full ary2)
+        = let h1   = leafHashCode t1
+              i    = mask h1 s
+              ary' = update16With ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
+          in Full ary'
+    
+    leafHashCode (Leaf h _) = h
+    leafHashCode (Collision h _) = h
+    leafHashCode _ = error "leafHashCode"
+    
+    goDifferentHash s h1 h2 t1 t2
+        | m1 == m2  = BitmapIndexed m1 (A.singleton $ go (s+bitsPerSubkey) t1 t2)
+        | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
+        | otherwise = BitmapIndexed (m1 .|. m2) (A.pair t2 t1)
+      where
+        m1 = bitpos h1 s
+        m2 = bitpos h2 s
 {-# INLINE unionWith #-}
+
+unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.Array a -> A.Array a -> A.Array a
+unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
+    let b' = b1 .|. b2
+    mary <- A.new_ (popCount b')
+    -- iterate over nonzero bits of b1 .|. b2
+    -- it would be nice if we could shit m by more than 1 each time
+    let hasBit b m = b .&. m /= 0
+    let go !i !i1 !i2 !m
+          | m > b'                     = do return ()
+          | hasBit b1 m && hasBit b2 m = do A.write mary i (f (A.index ary1 i1) (A.index ary2 i2))
+                                            go (i+1) (i1+1) (i2+1) (m `unsafeShiftL` 1)
+          | hasBit b1 m                = do A.write mary i =<< A.index_ ary1 i1
+                                            go (i+1) (i1+1) (i2  ) (m `unsafeShiftL` 1)
+          | hasBit b2 m                = do A.write mary i =<< A.index_ ary2 i2
+                                            go (i+1) (i1  ) (i2+1) (m `unsafeShiftL` 1)
+          | otherwise                  = do go i i1 i2 (m `unsafeShiftL` 1)
+    go 0 0 0 1
+    return mary
+    -- TODO: for the case where b1 .&. b2 == b1, i.e. when one is a subset of the other,
+    --       we could use a slightly simpler algorithm, where we copy one array, and then update
 
 ------------------------------------------------------------------------
 -- * Transformations
@@ -629,6 +731,33 @@ updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
 {-# INLINABLE updateOrSnocWith #-}
 #endif
 
+updateOrConcatWith :: Eq k => (v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+updateOrConcatWith f ary1 ary2 = A.run $ do
+    -- first: look up the position of each element of ary2 in ary1
+    let indices = A.map (\(L k _) -> indexOf k ary1) ary2
+    -- that tells us how large the overlap is:
+    -- count number of Nothing constructors
+    let nOnly2 = A.foldl' (\n -> maybe (n+1) (const n)) 0 indices
+    let n1 = A.length ary1
+    let n2 = A.length ary2
+    -- copy over all elements from ary1
+    mary <- A.new_ (n1 + nOnly2)
+    A.copy ary1 0 mary 0 n1
+    -- append or update all elements from ary2
+    let go !iEnd !i2
+          | i2 >= n2 = return ()
+          | otherwise = case A.index indices i2 of
+               Just i1 -> do -- key occurs in both arrays, store combination in position i1
+                             L k v1 <- A.index_ ary1 i1
+                             L _ v2 <- A.index_ ary2 i2
+                             A.write mary i1 (L k (f v1 v2))
+                             go iEnd (i2+1)
+               Nothing -> do -- key is only in ary2, append to end
+                             A.write mary iEnd =<< A.index_ ary2 i2
+                             go (iEnd+1) (i2+1)
+    go n1 0
+    return mary
+
 ------------------------------------------------------------------------
 -- Manually unrolled loops
 
@@ -640,6 +769,11 @@ update16 ary idx b =
         A.write mary idx b
         return mary
 {-# INLINE update16 #-}
+
+-- | /O(n)/ Update the element at the given position in this array, by applying a function to it.
+update16With :: A.Array e -> Int -> (e -> e) -> A.Array e
+update16With ary idx f = update16 ary idx $! f (A.index ary idx)
+{-# INLINE update16With #-}
 
 -- | Unsafely clone an array of 16 elements.  The length of the input
 -- array is not checked.
@@ -698,3 +832,4 @@ fullNodeMask :: Bitmap
 fullNodeMask = complement (complement 0 `unsafeShiftL`
                            fromIntegral (1 `unsafeShiftL` bitsPerSubkey))
 {-# INLINE fullNodeMask #-}
+
