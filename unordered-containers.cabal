@@ -18,6 +18,7 @@ library
   exposed-modules:
     Data.HashMap.Lazy
     Data.HashMap.Strict
+    Data.HashSet
   other-modules:
     Data.HashMap.Array
     Data.HashMap.Base
