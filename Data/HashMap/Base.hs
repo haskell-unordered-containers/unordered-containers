@@ -385,25 +385,27 @@ unionWith f = go 0
         | h1 == h2  = Collision h1 (updateOrConcatWith f ls1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     -- branch vs. branch
-    go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
-        = let b'   = b1 .|. b2
-              ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 b2 ary1 ary2
-          in bitmapIndexedOrFull b' ary'
-    go s (BitmapIndexed b1 ary1) (Full ary2)
-        = let ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 fullNodeMask ary1 ary2
-          in Full ary'
-    go s (Full ary1) (BitmapIndexed b2 ary2)
-        = let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask b2 ary1 ary2
-          in Full ary'
-    go s (Full ary1) (Full ary2)
-        = let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask fullNodeMask ary1 ary2
-          in Full ary'
+    go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
+        let b'   = b1 .|. b2
+            ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 b2 ary1 ary2
+        in bitmapIndexedOrFull b' ary'
+    go s (BitmapIndexed b1 ary1) (Full ary2) =
+        let ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 fullNodeMask ary1 ary2
+        in Full ary'
+    go s (Full ary1) (BitmapIndexed b2 ary2) =
+        let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask b2 ary1 ary2
+        in Full ary'
+    go s (Full ary1) (Full ary2) =
+        let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask fullNodeMask
+                   ary1 ary2
+        in Full ary'
     -- leaf vs. branch
     go s (BitmapIndexed b1 ary1) t2
         | b1 .&. m2 == 0 = let ary' = A.insert ary1 i $! t2
                                b'   = b1 .|. m2
                            in bitmapIndexedOrFull b' ary'
-        | otherwise      = let ary' = A.updateWith ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
+        | otherwise      = let ary' = A.updateWith ary1 i $ \st1 ->
+                                   go (s+bitsPerSubkey) st1 t2
                            in BitmapIndexed b1 ary'
         where
           h2 = leafHashCode t2
@@ -413,22 +415,23 @@ unionWith f = go 0
         | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
                                b'   = b2 .|. m1
                            in bitmapIndexedOrFull b' ary'
-        | otherwise      = let ary' = A.updateWith ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
+        | otherwise      = let ary' = A.updateWith ary2 i $ \st2 ->
+                                   go (s+bitsPerSubkey) t1 st2
                            in BitmapIndexed b2 ary'
-        where
-          h1 = leafHashCode t1
-          m1 = bitpos h1 s
-          i = index b2 m1
-    go s (Full ary1) t2
-        = let h2   = leafHashCode t2
-              i    = mask h2 s
-              ary' = update16With ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
-          in Full ary'
-    go s t1 (Full ary2)
-        = let h1   = leafHashCode t1
-              i    = mask h1 s
-              ary' = update16With ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
-          in Full ary'
+      where
+        h1 = leafHashCode t1
+        m1 = bitpos h1 s
+        i = index b2 m1
+    go s (Full ary1) t2 =
+        let h2   = leafHashCode t2
+            i    = mask h2 s
+            ary' = update16With ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
+        in Full ary'
+    go s t1 (Full ary2) =
+        let h1   = leafHashCode t1
+            i    = mask h1 s
+            ary' = update16With ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
+        in Full ary'
 
     leafHashCode (Leaf h _) = h
     leafHashCode (Collision h _) = h
@@ -444,26 +447,31 @@ unionWith f = go 0
 {-# INLINE unionWith #-}
 
 -- | Strict in the result of @f@.
-unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.Array a -> A.Array a -> A.Array a
+unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.Array a -> A.Array a
+             -> A.Array a
 unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
     let b' = b1 .|. b2
     mary <- A.new_ (popCount b')
     -- iterate over nonzero bits of b1 .|. b2
     -- it would be nice if we could shift m by more than 1 each time
     let hasBit b m = b .&. m /= 0
-    let go !i !i1 !i2 !m
-          | m > b'                     = do return ()
-          | hasBit b1 m && hasBit b2 m = do A.write mary i $! f (A.index ary1 i1) (A.index ary2 i2)
-                                            go (i+1) (i1+1) (i2+1) (m `unsafeShiftL` 1)
-          | hasBit b1 m                = do A.write mary i =<< A.index_ ary1 i1
-                                            go (i+1) (i1+1) (i2  ) (m `unsafeShiftL` 1)
-          | hasBit b2 m                = do A.write mary i =<< A.index_ ary2 i2
-                                            go (i+1) (i1  ) (i2+1) (m `unsafeShiftL` 1)
-          | otherwise                  = do go i i1 i2 (m `unsafeShiftL` 1)
+        go !i !i1 !i2 !m
+            | m > b'                     = do return ()
+            | hasBit b1 m && hasBit b2 m = do
+                A.write mary i $! f (A.index ary1 i1) (A.index ary2 i2)
+                go (i+1) (i1+1) (i2+1) (m `unsafeShiftL` 1)
+            | hasBit b1 m                = do
+                A.write mary i =<< A.index_ ary1 i1
+                go (i+1) (i1+1) (i2  ) (m `unsafeShiftL` 1)
+            | hasBit b2 m                = do
+                A.write mary i =<< A.index_ ary2 i2
+                go (i+1) (i1  ) (i2+1) (m `unsafeShiftL` 1)
+            | otherwise                  = do go i i1 i2 (m `unsafeShiftL` 1)
     go 0 0 0 1
     return mary
-    -- TODO: for the case where b1 .&. b2 == b1, i.e. when one is a subset of the other,
-    --       we could use a slightly simpler algorithm, where we copy one array, and then update
+    -- TODO: For the case where b1 .&. b2 == b1, i.e. when one is a
+    -- subset of the other, we could use a slightly simpler algorithm,
+    -- where we copy one array, and then update.
 
 ------------------------------------------------------------------------
 -- * Transformations
