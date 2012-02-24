@@ -472,6 +472,7 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
     -- TODO: For the case where b1 .&. b2 == b1, i.e. when one is a
     -- subset of the other, we could use a slightly simpler algorithm,
     -- where we copy one array, and then update.
+{-# INLINE unionArrayBy #-}
 
 ------------------------------------------------------------------------
 -- * Transformations
