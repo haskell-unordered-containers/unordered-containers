@@ -367,7 +367,7 @@ unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
 unionWith f = go 0
   where
     -- empty vs. anything
-    go !_ !t1 Empty = t1
+    go !_ t1 Empty = t1
     go _ Empty t2 = t2
     -- leaf vs. leaf
     go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
@@ -438,7 +438,7 @@ unionWith f = go 0
     leafHashCode _ = error "leafHashCode"
 
     goDifferentHash s h1 h2 t1 t2
-        | m1 == m2  = BitmapIndexed m1 (A.singleton $ go (s+bitsPerSubkey) t1 t2)
+        | m1 == m2  = BitmapIndexed m1 (A.singleton $! go (s+bitsPerSubkey) t1 t2)
         | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
         | otherwise = BitmapIndexed (m1 .|. m2) (A.pair t2 t1)
       where
