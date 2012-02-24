@@ -68,6 +68,7 @@ import Control.Monad.ST (ST, runST)
 import Data.Bits ((.&.), (.|.), complement)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as L
+import Data.Monoid (Monoid(mempty, mappend))
 import Data.Word (Word)
 import Prelude hiding (filter, foldr, lookup, map, null, pred)
 
@@ -118,6 +119,12 @@ instance Functor (HashMap k) where
 
 instance Foldable.Foldable (HashMap k) where
     foldr f = foldrWithKey (const f)
+
+instance (Eq k, Hashable k) => Monoid (HashMap k v) where
+  mempty = empty
+  {-# INLINE mempty #-}
+  mappend = union
+  {-# INLINE mappend #-}
 
 type Hash   = Word
 type Bitmap = Word
@@ -418,11 +425,11 @@ unionWith f = go 0
               i    = mask h1 s
               ary' = update16With ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
           in Full ary'
-    
+
     leafHashCode (Leaf h _) = h
     leafHashCode (Collision h _) = h
     leafHashCode _ = error "leafHashCode"
-    
+
     goDifferentHash s h1 h2 t1 t2
         | m1 == m2  = BitmapIndexed m1 (A.singleton $ go (s+bitsPerSubkey) t1 t2)
         | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
