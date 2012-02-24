@@ -367,7 +367,7 @@ unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
 unionWith f = go 0
   where
     -- empty vs. anything
-    go !_ t1 Empty = t1
+    go !_ !t1 Empty = t1
     go _ Empty t2 = t2
     -- leaf vs. leaf
     go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
@@ -401,7 +401,7 @@ unionWith f = go 0
         in Full ary'
     -- leaf vs. branch
     go s (BitmapIndexed b1 ary1) t2
-        | b1 .&. m2 == 0 = let ary' = A.insert ary1 i $! t2
+        | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
                                b'   = b1 .|. m2
                            in bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith ary1 i $ \st1 ->
