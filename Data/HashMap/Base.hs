@@ -443,6 +443,7 @@ unionWith f = go 0
         m2 = bitpos h2 s
 {-# INLINE unionWith #-}
 
+-- | Strict in the result of @f@.
 unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.Array a -> A.Array a -> A.Array a
 unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
     let b' = b1 .|. b2
@@ -452,7 +453,7 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
     let hasBit b m = b .&. m /= 0
     let go !i !i1 !i2 !m
           | m > b'                     = do return ()
-          | hasBit b1 m && hasBit b2 m = do A.write mary i (f (A.index ary1 i1) (A.index ary2 i2))
+          | hasBit b1 m && hasBit b2 m = do A.write mary i $! f (A.index ary1 i1) (A.index ary2 i2)
                                             go (i+1) (i1+1) (i2+1) (m `unsafeShiftL` 1)
           | hasBit b1 m                = do A.write mary i =<< A.index_ ary1 i1
                                             go (i+1) (i1+1) (i2  ) (m `unsafeShiftL` 1)
