@@ -69,6 +69,7 @@ import Data.Bits ((.&.), (.|.), complement)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as L
 import Data.Monoid (Monoid(mempty, mappend))
+import Data.Traversable (Traversable(..))
 import Data.Word (Word)
 import Prelude hiding (filter, foldr, lookup, map, null, pred)
 
@@ -132,6 +133,9 @@ type Shift  = Int
 
 instance (Show k, Show v) => Show (HashMap k v) where
     show m = "fromList " ++ show (toList m)
+
+instance Traversable (HashMap k) where
+    traverse f = traverseWithKey (const f)
 
 -- NOTE: This is just a placeholder.
 instance (Eq k, Eq v) => Eq (HashMap k v) where
