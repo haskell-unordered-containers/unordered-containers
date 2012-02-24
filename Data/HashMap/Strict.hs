@@ -119,7 +119,7 @@ insert k !v = HM.insert k v
 -- > insertWith f k v map
 -- >   where f new old = new + old
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
-          -> HashMap k v
+           -> HashMap k v
 insertWith = insertWith'
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
@@ -199,6 +199,7 @@ adjust f k0 = go h0 k0 0
 ------------------------------------------------------------------------
 -- * Combine
 
+-- TODO: Change to use new union algorithm.
 -- | /O(n*log m)/ The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the result.
 unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v

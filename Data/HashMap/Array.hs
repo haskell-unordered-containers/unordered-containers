@@ -271,7 +271,9 @@ update ary idx b =
   where !count = length ary
 {-# INLINE update #-}
 
--- | /O(n)/ Update the element at the given positio in this array, by applying a function to it.
+-- | /O(n)/ Update the element at the given positio in this array, by
+-- applying a function to it.  Evaluates the element to WHNF before
+-- inserting it into the array.
 updateWith :: Array e -> Int -> (e -> e) -> Array e
 updateWith ary idx f = update ary idx $! f (index ary idx)
 {-# INLINE updateWith #-}
