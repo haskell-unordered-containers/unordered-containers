@@ -12,15 +12,14 @@
 -- A set of /hashable/ values.  A set cannot contain duplicate items.
 -- A 'HashSet' makes no guarantees as to the order of its elements.
 --
--- The implementation is based on /big-endian patricia trees/, indexed
--- by a hash of the original value.  A 'HashSet' is often faster than
--- other tree-based set types, especially when value comparison is
--- expensive, as in the case of strings.
+-- The implementation is based on /hash array mapped trie/.  A
+-- 'HashSet' is often faster than other tree-based set types,
+-- especially when value comparison is expensive, as in the case of
+-- strings.
 --
--- Many operations have a worst-case complexity of /O(min(n,W))/.
--- This means that the operation can become linear in the number of
--- elements with a maximum of /W/ -- the number of bits in an 'Int'
--- (32 or 64).
+-- Many operations have a average-case complexity of /O(log n)/.  The
+-- implementation uses a large base (i.e. 16) so in practice these
+-- operations are constant time.
 
 module Data.HashSet
     (

@@ -22,10 +22,10 @@
 -- the map.  Exception: the provided instances are the same as for the
 -- lazy version of this module.
 --
--- The implementation is based on /big-endian patricia trees/, keyed
--- by a hash of the original key.  A 'HashMap' is often faster than
--- other tree-based maps, especially when key comparison is expensive,
--- as in the case of strings.
+-- The implementation is based on /hash array mapped trie/.  A
+-- 'HashMap' is often faster than other tree-based set types,
+-- especially when key comparison is expensive, as in the case of
+-- strings.
 --
 -- Many operations have a average-case complexity of /O(log n)/.  The
 -- implementation uses a large base (i.e. 16) so in practice these
