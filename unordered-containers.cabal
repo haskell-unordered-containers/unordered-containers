@@ -10,9 +10,9 @@ description:
   amortized, but remains valid even if structures are shared.
 license:        BSD3
 license-file:   LICENSE
-bug-reports:    https://github.com/tibbe/unordered-containers/issues
 author:         Johan Tibell
 maintainer:     johan.tibell@gmail.com
+bug-reports:    https://github.com/tibbe/unordered-containers/issues
 copyright:      2010-2012 Johan Tibell
                 2010 Edward Z. Yang
 category:       Data
