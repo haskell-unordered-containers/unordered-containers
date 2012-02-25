@@ -10,6 +10,7 @@ description:
   amortized, but remains valid even if structures are shared.
 license:        BSD3
 license-file:   LICENSE
+bug-reports:    https://github.com/tibbe/unordered-containers/issues
 author:         Johan Tibell
 maintainer:     johan.tibell@gmail.com
 copyright:      2010-2012 Johan Tibell
@@ -98,3 +99,7 @@ test-suite hashset-properties
 
   ghc-options: -Wall
   cpp-options: -DASSERTS
+
+source-repository head
+  type:     git
+  location: https://github.com/tibbe/unordered-containers.git
