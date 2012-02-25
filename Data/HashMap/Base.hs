@@ -51,7 +51,9 @@ module Data.HashMap.Base
     , fromList
     , fromListWith
 
-      -- Used by the strict version
+      -- Internals used by the strict version
+    , Bitmap
+    , bitmapIndexedOrFull
     , collision
     , hash
     , bitpos
@@ -59,7 +61,10 @@ module Data.HashMap.Base
     , bitsPerSubkey
     , fullNodeMask
     , index
+    , unionArrayBy
     , update16
+    , update16With
+    , updateOrConcatWith
     ) where
 
 import Control.Applicative ((<$>), Applicative(pure))

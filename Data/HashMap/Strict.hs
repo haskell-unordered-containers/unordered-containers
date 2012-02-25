@@ -199,12 +199,90 @@ adjust f k0 = go h0 k0 0
 ------------------------------------------------------------------------
 -- * Combine
 
--- TODO: Change to use new union algorithm.
 -- | /O(n*log m)/ The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the result.
 unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
-unionWith f m1 m2 = foldlWithKey' (\ m k v -> insertWith f k v m) m2 m1
+unionWith f = go 0
+  where
+    -- empty vs. anything
+    go !_ t1 Empty = t1
+    go _ Empty t2 = t2
+    -- leaf vs. leaf
+    go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
+        | h1 == h2  = if k1 == k2
+                      then Leaf h1 . L k1 $! f v1 v2
+                      else collision h1 l1 l2
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
+        | h1 == h2  = Collision h1 (updateOrSnocWith f k1 v1 ls2)
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    go s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
+        | h1 == h2  = Collision h1 (updateOrSnocWith (flip f) k2 v2 ls1)
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
+        | h1 == h2  = Collision h1 (updateOrConcatWith f ls1 ls2)
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    -- branch vs. branch
+    go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
+        let b'   = b1 .|. b2
+            ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 b2 ary1 ary2
+        in bitmapIndexedOrFull b' ary'
+    go s (BitmapIndexed b1 ary1) (Full ary2) =
+        let ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 fullNodeMask ary1 ary2
+        in Full ary'
+    go s (Full ary1) (BitmapIndexed b2 ary2) =
+        let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask b2 ary1 ary2
+        in Full ary'
+    go s (Full ary1) (Full ary2) =
+        let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask fullNodeMask
+                   ary1 ary2
+        in Full ary'
+    -- leaf vs. branch
+    go s (BitmapIndexed b1 ary1) t2
+        | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
+                               b'   = b1 .|. m2
+                           in bitmapIndexedOrFull b' ary'
+        | otherwise      = let ary' = A.updateWith ary1 i $ \st1 ->
+                                   go (s+bitsPerSubkey) st1 t2
+                           in BitmapIndexed b1 ary'
+        where
+          h2 = leafHashCode t2
+          m2 = bitpos h2 s
+          i = index b1 m2
+    go s t1 (BitmapIndexed b2 ary2)
+        | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
+                               b'   = b2 .|. m1
+                           in bitmapIndexedOrFull b' ary'
+        | otherwise      = let ary' = A.updateWith ary2 i $ \st2 ->
+                                   go (s+bitsPerSubkey) t1 st2
+                           in BitmapIndexed b2 ary'
+      where
+        h1 = leafHashCode t1
+        m1 = bitpos h1 s
+        i = index b2 m1
+    go s (Full ary1) t2 =
+        let h2   = leafHashCode t2
+            i    = mask h2 s
+            ary' = update16With ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
+        in Full ary'
+    go s t1 (Full ary2) =
+        let h1   = leafHashCode t1
+            i    = mask h1 s
+            ary' = update16With ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
+        in Full ary'
+
+    leafHashCode (Leaf h _) = h
+    leafHashCode (Collision h _) = h
+    leafHashCode _ = error "leafHashCode"
+
+    goDifferentHash s h1 h2 t1 t2
+        | m1 == m2  = BitmapIndexed m1 (A.singleton $! go (s+bitsPerSubkey) t1 t2)
+        | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
+        | otherwise = BitmapIndexed (m1 .|. m2) (A.pair t2 t1)
+      where
+        m1 = bitpos h1 s
+        m2 = bitpos h2 s
 {-# INLINE unionWith #-}
 
 ------------------------------------------------------------------------
