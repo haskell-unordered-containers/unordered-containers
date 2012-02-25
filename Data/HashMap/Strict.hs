@@ -120,16 +120,7 @@ insert k !v = HM.insert k v
 -- >   where f new old = new + old
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
            -> HashMap k v
-insertWith = insertWith'
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE insertWith #-}
-#endif
-
--- Always inlined to the implementation of 'insert' doesn't have to
--- pay the cost of using the higher-order argument.
-insertWith' :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
-            -> HashMap k v
-insertWith' f k0 !v0 = go h0 k0 v0 0
+insertWith f k0 !v0 = go h0 k0 v0 0
   where
     h0 = hash k0
     go !h !k x !_ Empty = Leaf h (L k x)
@@ -163,7 +154,9 @@ insertWith' f k0 !v0 = go h0 k0 v0 0
         | h == hy = Collision h (updateOrSnocWith f k x v)
         -- TODO: See above TODO on single element arrays.
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
-{-# INLINE insertWith' #-}
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE insertWith #-}
+#endif
 
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.

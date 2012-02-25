@@ -783,7 +783,9 @@ updateOrConcatWith f ary1 ary2 = A.run $ do
                              go (iEnd+1) (i2+1)
     go n1 0
     return mary
+#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE updateOrConcatWith #-}
+#endif
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops
