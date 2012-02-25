@@ -42,7 +42,7 @@ library
 
 test-suite hashmap-lazy-properties
   hs-source-dirs: tests
-  main-is: MapProperties.hs
+  main-is: HashMapProperties.hs
   type: exitcode-stdio-1.0
 
   build-depends:
@@ -59,7 +59,7 @@ test-suite hashmap-lazy-properties
 
 test-suite hashmap-strict-properties
   hs-source-dirs: tests
-  main-is: MapProperties.hs
+  main-is: HashMapProperties.hs
   type: exitcode-stdio-1.0
 
   build-depends:
@@ -74,9 +74,9 @@ test-suite hashmap-strict-properties
   ghc-options: -Wall
   cpp-options: -DASSERTS -DSTRICT
 
-test-suite set-properties
+test-suite hashset-properties
   hs-source-dirs: tests
-  main-is: SetProperties.hs
+  main-is: HashSetProperties.hs
   type: exitcode-stdio-1.0
 
   build-depends:
