@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE CPP, GADTs #-}
 
 module Main where
 
@@ -123,7 +123,10 @@ main = do
           ]
 
           -- Combine
-        , bench "union" $ whnf (HM.union hmi) hmi2
+        , bgroup "union"
+          [ bench "union" $ whnf (HM.union hmi) hmi2
+          , bench "fold-based" $ whnf (union_fold hmi) hmi2
+          ]
 
           -- Transformations
         , bench "map" $ whnf (HM.map (\ v -> v + 1)) hmi
@@ -230,3 +233,14 @@ insertIM xs m0 = foldl' (\m (k, v) -> IM.insert k v m) m0 xs
 
 deleteIM :: [Int] -> IM.IntMap Int -> IM.IntMap Int
 deleteIM xs m0 = foldl' (\m k -> IM.delete k m) m0 xs
+
+------------------------------------------------------------------------
+-- * Reference implementations
+
+-- The old implementation of union
+union_fold :: (Eq k, Hashable k) => HM.HashMap k v -> HM.HashMap k v -> HM.HashMap k v
+union_fold m1 m2 = HM.foldlWithKey' (\ m k v -> HM.insert k v m) m2 m1
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE union_fold #-}
+#endif
+
