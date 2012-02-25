@@ -1,4 +1,4 @@
- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+ {-# LANGUAGE CPP, GeneralizedNewtypeDeriving #-}
 
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
 -- comparing them to a simpler model, an association list.
@@ -9,7 +9,11 @@ import qualified Data.Foldable as Foldable
 import Data.Function (on)
 import Data.Hashable (Hashable(hash))
 import qualified Data.List as L
+#if defined(STRICT)
+import qualified Data.HashMap.Strict as HM
+#else
 import qualified Data.HashMap.Lazy as HM
+#endif
 import qualified Data.Map as M
 import Test.QuickCheck (Arbitrary)
 import Test.Framework (Test, defaultMain, testGroup)
