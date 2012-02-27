@@ -47,6 +47,7 @@ module Data.HashMap.Lazy
     , insert
     , delete
     , insertWith
+    , insertLookupWithKey
     , adjust
 
       -- * Combine
@@ -202,6 +203,28 @@ insertWith f k0 v0 t0 = go h0 k0 v0 t0
     go h k v Empty      = Tip h $ FL.singleton k v
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
+#endif
+
+-- | /O(min(n,W))/. The expression (@'insertLookupWithKey' f k x map@)
+-- is a pair where the first element is equal to (@'lookup' k map@)
+-- and the second element equal to (@'insertWith' (f k) k x map@).
+insertLookupWithKey :: (Eq k, Hashable k)
+                    => (k -> v -> v -> v) -> k -> v -> HashMap k v
+                    -> (Maybe v, HashMap k v)
+insertLookupWithKey f k0 v0 t0 = go h0 k0 v0 t0
+  where
+    h0 = hash k0
+    go !h !k v t@(Bin sm l r)
+        | nomatch h sm = (Nothing, join h (Tip h $ FL.singleton k v) sm t)
+        | zero h sm    = let (found, l') = go h k v l in (found, Bin sm l' r)
+        | otherwise    = let (found, r') = go h k v r in (found, Bin sm l  r')
+    go h k v t@(Tip h' l)
+        | h == h'       = let (found, fl) = FL.insertLookupWith (f k) k v l
+                          in (found, Tip h fl)
+        | otherwise     = (Nothing, join h (Tip h $ FL.singleton k v) h' t)
+    go h k v Empty      = (Nothing, Tip h $ FL.singleton k v)
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE insertLookupWithKey #-}
 #endif
 
 -- | /O(min(n,W)/ Adjust the value tied to a given key in this map
