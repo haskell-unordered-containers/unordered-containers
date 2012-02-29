@@ -137,7 +137,7 @@ main = do
 
           -- Folds
         , bench "foldl'" $ whnf (HM.foldl' (+) 0) hmi
-        , bench "foldr" $ whnf (HM.foldr (:) []) hmi
+        , bench "foldr" $ nf (HM.foldr (:) []) hmi
 
           -- Filter
         , bench "filter" $ whnf (HM.filter (\ v -> v .&. 1 == 0)) hmi
