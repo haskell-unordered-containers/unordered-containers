@@ -250,34 +250,36 @@ insertWith = insertWith'
 -- pay the cost of using the higher-order argument.
 insertWith' :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
             -> HashMap k v
-insertWith' f k0 v0 = go h0 k0 v0 0
+insertWith' f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
-    go !h !k x !_ Empty = Leaf h (L k x)
+    go !h !k x !_ Empty = return $! Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
-                    then Leaf h (L k (f x y))
-                    else collision h l (L k x)
-        | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
+                    then return $! Leaf h (L k (f x y))
+                    else return $! collision h l (L k x)
+        | otherwise = do
+            leaf <- A.singleton' t
+            go h k x s $ BitmapIndexed (bitpos hy s) leaf
     go h k x s (BitmapIndexed b ary)
-        | b .&. m == 0 = let l    = Leaf h (L k x)
-                             ary' = A.insert ary i $! l
-                             b'   = b .|. m
-                         in bitmapIndexedOrFull b' ary'
-        | otherwise = let  st   = A.index ary i
-                           st'  = go h k x (s+bitsPerSubkey) st
-                           ary' = A.update ary i $! st'
-                      in BitmapIndexed b ary'
+        | b .&. m == 0 = do
+            ary' <- A.insert' ary i $! Leaf h (L k x)
+            return $! bitmapIndexedOrFull (b .|. m) ary'
+        | otherwise = do
+            st <- A.index_ ary i
+            st' <- go h k x (s+bitsPerSubkey) st
+            ary' <- A.update' ary i st'
+            return $! BitmapIndexed b ary'
       where m = bitpos h s
             i = index b m
-    go h k x s (Full ary) =
-        let i    = mask h s
-            st   = A.index ary i
-            st'  = go h k x (s+bitsPerSubkey) st
-            ary' = update16 ary i $! st'
-        in Full ary'
+    go h k x s (Full ary) = do
+        st <- A.index_ ary i
+        st' <- go h k x (s+bitsPerSubkey) st
+        ary' <- update16' ary i st'
+        return $! Full ary'
+      where i = mask h s
     go h k x s t@(Collision hy v)
-        | h == hy   = Collision h (updateOrSnocWith f k x v)
+        | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
 {-# INLINE insertWith' #-}
 
@@ -792,12 +794,16 @@ updateOrConcatWith f ary1 ary2 = A.run $ do
 
 -- | /O(n)/ Update the element at the given position in this array.
 update16 :: A.Array e -> Int -> e -> A.Array e
-update16 ary idx b =
-    A.run $ do
-        mary <- clone16 ary
-        A.write mary idx b
-        return mary
+update16 ary idx b = runST (update16' ary idx b)
 {-# INLINE update16 #-}
+
+-- | /O(n)/ Update the element at the given position in this array.
+update16' :: A.Array e -> Int -> e -> ST s (A.Array e)
+update16' ary idx b = do
+    mary <- clone16 ary
+    A.write mary idx b
+    A.unsafeFreeze mary
+{-# INLINE update16' #-}
 
 -- | /O(n)/ Update the element at the given position in this array, by applying a function to it.
 update16With :: A.Array e -> Int -> (e -> e) -> A.Array e

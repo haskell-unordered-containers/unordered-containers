@@ -11,6 +11,7 @@ module Data.HashMap.Array
     , new
     , new_
     , singleton
+    , singleton'
     , pair
 
       -- * Basic interface
@@ -22,8 +23,10 @@ module Data.HashMap.Array
     , index_
     , indexM_
     , update
+    , update'
     , updateWith
     , insert
+    , insert'
     , delete
 
     , unsafeFreeze
@@ -145,8 +148,12 @@ new_ :: Int -> ST s (MArray s a)
 new_ n = new n undefinedElem
 
 singleton :: a -> Array a
-singleton x = run (new 1 x)
+singleton x = runST (singleton' x)
 {-# INLINE singleton #-}
+
+singleton' :: a -> ST s (Array a)
+singleton' x = new 1 x >>= unsafeFreeze
+{-# INLINE singleton' #-}
 
 pair :: a -> a -> Array a
 pair x y = run $ do
@@ -249,27 +256,36 @@ copyM !src !sidx !dst !didx n =
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
 insert :: Array e -> Int -> e -> Array e
-insert ary idx b =
-    CHECK_BOUNDS("insert", count + 1, idx)
-        run $ do
-            mary <- new_ (count+1)
-            copy ary 0 mary 0 idx
-            write mary idx b
-            copy ary idx mary (idx+1) (count-idx)
-            return mary
-  where !count = length ary
+insert ary idx b = runST (insert' ary idx b)
 {-# INLINE insert #-}
+
+-- | /O(n)/ Insert an element at the given position in this array,
+-- increasing its size by one.
+insert' :: Array e -> Int -> e -> ST s (Array e)
+insert' ary idx b =
+    CHECK_BOUNDS("insert'", count + 1, idx)
+        do mary <- new_ (count+1)
+           copy ary 0 mary 0 idx
+           write mary idx b
+           copy ary idx mary (idx+1) (count-idx)
+           unsafeFreeze mary
+  where !count = length ary
+{-# INLINE insert' #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
 update :: Array e -> Int -> e -> Array e
-update ary idx b =
-    CHECK_BOUNDS("update", count, idx)
-        run $ do
-            mary <- thaw ary 0 count
-            write mary idx b
-            return mary
-  where !count = length ary
+update ary idx b = runST (update' ary idx b)
 {-# INLINE update #-}
+
+-- | /O(n)/ Update the element at the given position in this array.
+update' :: Array e -> Int -> e -> ST s (Array e)
+update' ary idx b =
+    CHECK_BOUNDS("update'", count, idx)
+        do mary <- thaw ary 0 count
+           write mary idx b
+           unsafeFreeze mary
+  where !count = length ary
+{-# INLINE update' #-}
 
 -- | /O(n)/ Update the element at the given positio in this array, by
 -- applying a function to it.  Evaluates the element to WHNF before
