@@ -139,17 +139,17 @@ insertWith f k0 !v0 m0 = runST (go h0 k0 v0 0 m0)
             st' <- go h k x (s+bitsPerSubkey) st
             ary' <- A.update' ary i st'
             return $! BitmapIndexed b ary'
-      where m = bitpos h s
-            i = index b m
+      where m = mask h s
+            i = sparseIndex b m
     go h k x s (Full ary) = do
         st <- A.index_ ary i
         st' <- go h k x (s+bitsPerSubkey) st
         ary' <- update16' ary i st'
         return $! Full ary'
-      where i = mask h s
+      where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
-        | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
+        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
 #endif
@@ -170,10 +170,10 @@ adjust f k0 = go h0 k0 0
                           st'  = go h k (s+bitsPerSubkey) st
                           ary' = A.update ary i $! st'
                       in BitmapIndexed b ary'
-      where m = bitpos h s
-            i = index b m
+      where m = mask h s
+            i = sparseIndex b m
     go h k s (Full ary) =
-        let i    = mask h s
+        let i    = index h s
             st   = A.index ary i
             st'  = go h k (s+bitsPerSubkey) st
             ary' = update16 ary i $! st'
@@ -237,8 +237,8 @@ unionWith f = go 0
                            in BitmapIndexed b1 ary'
         where
           h2 = leafHashCode t2
-          m2 = bitpos h2 s
-          i = index b1 m2
+          m2 = mask h2 s
+          i = sparseIndex b1 m2
     go s t1 (BitmapIndexed b2 ary2)
         | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
                                b'   = b2 .|. m1
@@ -248,16 +248,16 @@ unionWith f = go 0
                            in BitmapIndexed b2 ary'
       where
         h1 = leafHashCode t1
-        m1 = bitpos h1 s
-        i = index b2 m1
+        m1 = mask h1 s
+        i = sparseIndex b2 m1
     go s (Full ary1) t2 =
         let h2   = leafHashCode t2
-            i    = mask h2 s
+            i    = index h2 s
             ary' = update16With ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
         in Full ary'
     go s t1 (Full ary2) =
         let h1   = leafHashCode t1
-            i    = mask h1 s
+            i    = index h1 s
             ary' = update16With ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
         in Full ary'
 
@@ -270,8 +270,8 @@ unionWith f = go 0
         | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
         | otherwise = BitmapIndexed (m1 .|. m2) (A.pair t2 t1)
       where
-        m1 = bitpos h1 s
-        m2 = bitpos h2 s
+        m1 = mask h1 s
+        m2 = mask h2 s
 {-# INLINE unionWith #-}
 
 ------------------------------------------------------------------------

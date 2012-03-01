@@ -57,11 +57,11 @@ module Data.HashMap.Base
     , bitmapIndexedOrFull
     , collision
     , hash
-    , bitpos
     , mask
+    , index
     , bitsPerSubkey
     , fullNodeMask
-    , index
+    , sparseIndex
     , two
     , unionArrayBy
     , update16
@@ -190,9 +190,9 @@ lookup k0 = go h0 k0 0
         | otherwise          = Nothing
     go h k s (BitmapIndexed b v)
         | b .&. m == 0 = Nothing
-        | otherwise    = go h k (s+bitsPerSubkey) (A.index v (index b m))
-      where m = bitpos h s
-    go h k s (Full v) = go h k (s+bitsPerSubkey) (A.index v (mask h s))
+        | otherwise    = go h k (s+bitsPerSubkey) (A.index v (sparseIndex b m))
+      where m = mask h s
+    go h k s (Full v) = go h k (s+bitsPerSubkey) (A.index v (index h s))
     go h k _ (Collision hx v)
         | h == hx   = lookupInArray k v
         | otherwise = Nothing
@@ -264,10 +264,10 @@ two = go
             ary <- A.unsafeFreeze mary
             return $! BitmapIndexed (bp1 .|. bp2) ary
       where
-        bp1  = bitpos h1 s
-        bp2  = bitpos h2 s
-        idx2 | mask h1 s < mask h2 s = 1
-             | otherwise             = 0
+        bp1  = mask h1 s
+        bp2  = mask h2 s
+        idx2 | index h1 s < index h2 s = 1
+             | otherwise               = 0
 {-# INLINE two #-}
 
 -- Always inlined to the implementation of 'insert' doesn't have to
@@ -292,17 +292,17 @@ insertWith' f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
             st' <- go h k x (s+bitsPerSubkey) st
             ary' <- A.update' ary i st'
             return $! BitmapIndexed b ary'
-      where m = bitpos h s
-            i = index b m
+      where m = mask h s
+            i = sparseIndex b m
     go h k x s (Full ary) = do
         st <- A.index_ ary i
         st' <- go h k x (s+bitsPerSubkey) st
         ary' <- update16' ary i st'
         return $! Full ary'
-      where i = mask h s
+      where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
-        | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
+        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINE insertWith' #-}
 
 -- | /O(log n)/ Remove the mapping for the specified key from this map
@@ -318,7 +318,7 @@ delete k0 = go h0 k0 0
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 = t
         | otherwise =
-            let i   = index b m
+            let i   = sparseIndex b m
                 st  = A.index ary i
             in case go h k (s+bitsPerSubkey) st of
                 Empty ->
@@ -326,12 +326,12 @@ delete k0 = go h0 k0 0
                     then Empty
                     else BitmapIndexed (b .&. complement m) (A.delete ary i)
                 st'   -> BitmapIndexed b (A.update ary i $! st')
-      where m = bitpos h s
+      where m = mask h s
     go h k s (Full ary) =
-        let i  = mask h s
+        let i  = index h s
             st = A.index ary i
         in case go h k (s+bitsPerSubkey) st of
-            Empty -> BitmapIndexed (bitpos h s) (A.delete ary i)
+            Empty -> BitmapIndexed (mask h s) (A.delete ary i)
             st'   -> Full (A.update ary i $! st')
     go h k _ t@(Collision hy v)
         | h == hy = case indexOf k v of
@@ -363,10 +363,10 @@ adjust f k0 = go h0 k0 0
                           st'  = go h k (s+bitsPerSubkey) st
                           ary' = A.update ary i $! st'
                       in BitmapIndexed b ary'
-      where m = bitpos h s
-            i = index b m
+      where m = mask h s
+            i = sparseIndex b m
     go h k s (Full ary) =
-        let i    = mask h s
+        let i    = index h s
             st   = A.index ary i
             st'  = go h k (s+bitsPerSubkey) st
             ary' = update16 ary i $! st'
@@ -438,8 +438,8 @@ unionWith f = go 0
                            in BitmapIndexed b1 ary'
         where
           h2 = leafHashCode t2
-          m2 = bitpos h2 s
-          i = index b1 m2
+          m2 = mask h2 s
+          i = sparseIndex b1 m2
     go s t1 (BitmapIndexed b2 ary2)
         | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
                                b'   = b2 .|. m1
@@ -449,16 +449,16 @@ unionWith f = go 0
                            in BitmapIndexed b2 ary'
       where
         h1 = leafHashCode t1
-        m1 = bitpos h1 s
-        i = index b2 m1
+        m1 = mask h1 s
+        i = sparseIndex b2 m1
     go s (Full ary1) t2 =
         let h2   = leafHashCode t2
-            i    = mask h2 s
+            i    = index h2 s
             ary' = update16With ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
         in Full ary'
     go s t1 (Full ary2) =
         let h1   = leafHashCode t1
-            i    = mask h1 s
+            i    = index h1 s
             ary' = update16With ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
         in Full ary'
 
@@ -471,8 +471,8 @@ unionWith f = go 0
         | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
         | otherwise = BitmapIndexed (m1 .|. m2) (A.pair t2 t1)
       where
-        m1 = bitpos h1 s
-        m2 = bitpos h2 s
+        m1 = mask h1 s
+        m2 = mask h2 s
 {-# INLINE unionWith #-}
 
 -- | Strict in the result of @f@.
@@ -871,18 +871,18 @@ maxChildren = fromIntegral $ 1 `unsafeShiftL` bitsPerSubkey
 subkeyMask :: Bitmap
 subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
 
-index :: Bitmap -> Bitmap -> Int
-index b m = popCount (b .&. (m - 1))
+sparseIndex :: Bitmap -> Bitmap -> Int
+sparseIndex b m = popCount (b .&. (m - 1))
 
-bitpos :: Word -> Shift -> Bitmap
-bitpos w s = 1 `unsafeShiftL` mask w s
-{-# INLINE bitpos #-}
+mask :: Word -> Shift -> Bitmap
+mask w s = 1 `unsafeShiftL` index w s
+{-# INLINE mask #-}
 
 -- | Mask out the 'bitsPerSubkey' bits used for indexing at this level
 -- of the tree.
-mask :: Word -> Shift -> Int
-mask w s = fromIntegral $ (unsafeShiftR w s) .&. subkeyMask
-{-# INLINE mask #-}
+index :: Hash -> Shift -> Int
+index w s = fromIntegral $ (unsafeShiftR w s) .&. subkeyMask
+{-# INLINE index #-}
 
 -- | A bitmask with the 'bitsPerSubkey' least significant bits set.
 fullNodeMask :: Bitmap
