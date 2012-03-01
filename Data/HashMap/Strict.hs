@@ -81,6 +81,7 @@ module Data.HashMap.Strict
     , fromListWith
     ) where
 
+import Control.Monad.ST (runST)
 import Data.Bits ((.&.), (.|.))
 import qualified Data.List as L
 import Data.Hashable (Hashable)
@@ -111,8 +112,6 @@ insert k !v = HM.insert k v
 {-# INLINABLE insert #-}
 #endif
 
--- TODO: Use ST.
-
 -- | /O(log n)/ Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
 -- is replaced by the result of applying the given function to the new
@@ -122,39 +121,34 @@ insert k !v = HM.insert k v
 -- >   where f new old = new + old
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
            -> HashMap k v
-insertWith f k0 !v0 = go h0 k0 v0 0
+insertWith f k0 !v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
-    go !h !k x !_ Empty = Leaf h (L k x)
-    go h k x s t@(Leaf hy l@(L ky y))
+    go !h !k x !_ Empty = return $ Leaf h (L k x)
+    go h k x s (Leaf hy l@(L ky y))
         | hy == h = if ky == k
-                    then let !v' = f x y in Leaf h (L k v')
-                    else collision h l (L k x)
-        -- TODO: Could we avoid creating a one element array that will
-        -- most likely be reallocated as a two element array?
-        | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
+                    then let !v' = f x y in return $! Leaf h (L k v')
+                    else return $! collision h l (L k x)
+        | otherwise = two s h k x hy ky y
     go h k x s (BitmapIndexed b ary)
-        | b .&. m == 0 = let l    = Leaf h (L k x)
-                             ary' = A.insert ary i $! l
-                             b'   = b .|. m
-                         in if b' == fullNodeMask
-                            then Full ary'
-                            else BitmapIndexed b' ary'
-        | otherwise = let st   = A.index ary i
-                          st'  = go h k x (s+bitsPerSubkey) st
-                          ary' = A.update ary i $! st'
-                      in BitmapIndexed b ary'
+        | b .&. m == 0 = do
+            ary' <- A.insert' ary i $! Leaf h (L k x)
+            return $! bitmapIndexedOrFull (b .|. m) ary'
+        | otherwise = do
+            st <- A.index_ ary i
+            st' <- go h k x (s+bitsPerSubkey) st
+            ary' <- A.update' ary i st'
+            return $! BitmapIndexed b ary'
       where m = bitpos h s
             i = index b m
-    go h k x s (Full ary) =
-        let i    = mask h s
-            st   = A.index ary i
-            st'  = go h k x (s+bitsPerSubkey) st
-            ary' = update16 ary i $! st'
-        in Full ary'
+    go h k x s (Full ary) = do
+        st <- A.index_ ary i
+        st' <- go h k x (s+bitsPerSubkey) st
+        ary' <- update16' ary i st'
+        return $! Full ary'
+      where i = mask h s
     go h k x s t@(Collision hy v)
-        | h == hy = Collision h (updateOrSnocWith f k x v)
-        -- TODO: See above TODO on single element arrays.
+        | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
         | otherwise = go h k x s $ BitmapIndexed (bitpos hy s) (A.singleton t)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}

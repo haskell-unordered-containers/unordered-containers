@@ -64,6 +64,7 @@ module Data.HashMap.Base
     , two
     , unionArrayBy
     , update16
+    , update16'
     , update16With
     , updateOrConcatWith
     ) where
