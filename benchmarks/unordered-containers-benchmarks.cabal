@@ -35,4 +35,5 @@ executable benchmarks
   if flag(debug)
     cpp-options: -DASSERTS
 
-  c-sources: ../cbits/popc.c
+  if impl(ghc < 7.4)
+    c-sources: ../cbits/popc.c
