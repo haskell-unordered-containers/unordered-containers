@@ -61,6 +61,7 @@ module Data.HashMap.Base
     , bitsPerSubkey
     , fullNodeMask
     , index
+    , two
     , unionArrayBy
     , update16
     , update16With
@@ -246,6 +247,27 @@ insertWith = insertWith'
 {-# INLINABLE insertWith #-}
 #endif
 
+-- | Create a map from two key-value pairs which hashes don't collide.
+two :: Shift -> Hash -> k -> v -> Hash -> k -> v -> ST s (HashMap k v)
+two = go
+  where
+    go s h1 k1 v1 h2 k2 v2
+        | bp1 == bp2 = do
+            st <- go (s+bitsPerSubkey) h1 k1 v1 h2 k2 v2 
+            ary <- A.singleton' st
+            return $! BitmapIndexed bp1 ary
+        | otherwise  = do
+            mary <- A.new 2 $ Leaf h1 (L k1 v1)
+            A.write mary idx2 $ Leaf h2 (L k2 v2)
+            ary <- A.unsafeFreeze mary
+            return $! BitmapIndexed (bp1 .|. bp2) ary
+      where
+        bp1  = bitpos h1 s
+        bp2  = bitpos h2 s
+        idx2 | mask h1 s < mask h2 s = 1
+             | otherwise             = 0
+{-# INLINE two #-}
+
 -- Always inlined to the implementation of 'insert' doesn't have to
 -- pay the cost of using the higher-order argument.
 insertWith' :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
@@ -254,13 +276,11 @@ insertWith' f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
     go !h !k x !_ Empty = return $! Leaf h (L k x)
-    go h k x s t@(Leaf hy l@(L ky y))
+    go h k x s (Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then return $! Leaf h (L k (f x y))
                     else return $! collision h l (L k x)
-        | otherwise = do
-            leaf <- A.singleton' t
-            go h k x s $ BitmapIndexed (bitpos hy s) leaf
+        | otherwise = two s h k x hy ky y
     go h k x s (BitmapIndexed b ary)
         | b .&. m == 0 = do
             ary' <- A.insert' ary i $! Leaf h (L k x)
@@ -859,7 +879,7 @@ bitpos w s = 1 `unsafeShiftL` mask w s
 -- | Mask out the 'bitsPerSubkey' bits used for indexing at this level
 -- of the tree.
 mask :: Word -> Shift -> Int
-mask w s = fromIntegral $ unsafeShiftR w s .&. subkeyMask
+mask w s = fromIntegral $ (unsafeShiftR w s) .&. subkeyMask
 {-# INLINE mask #-}
 
 -- | A bitmask with the 'bitsPerSubkey' least significant bits set.

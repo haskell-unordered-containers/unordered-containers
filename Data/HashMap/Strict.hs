@@ -111,6 +111,8 @@ insert k !v = HM.insert k v
 {-# INLINABLE insert #-}
 #endif
 
+-- TODO: Use ST.
+
 -- | /O(log n)/ Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
 -- is replaced by the result of applying the given function to the new
