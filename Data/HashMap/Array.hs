@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns, CPP, MagicHash, Rank2Types, UnboxedTuples #-}
+{-# OPTIONS_GHC -funbox-strict-fields #-}
 
 -- | Zero based arrays.
 --
@@ -75,7 +76,7 @@ if not ((_lhs_) _op_ (_rhs_)) then error ("Data.HashMap.Array." ++ (_func_) ++ "
 data Array a = Array {
       unArray :: !(Array# a)
 #if __GLASGOW_HASKELL__ < 702
-    , length :: {-# UNPACK #-} !Int
+    , length :: !Int
 #endif
     }
 
@@ -100,7 +101,7 @@ array = Array
 data MArray s a = MArray {
       unMArray :: !(MutableArray# s a)
 #if __GLASGOW_HASKELL__ < 702
-    , lengthM :: {-# UNPACK #-} !Int
+    , lengthM :: !Int
 #endif
     }
 

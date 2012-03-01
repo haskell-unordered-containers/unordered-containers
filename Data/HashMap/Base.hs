@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable #-}
+{-# OPTIONS_GHC -funbox-strict-fields #-}
 
 module Data.HashMap.Base
     (
@@ -109,10 +110,10 @@ instance (NFData k, NFData v) => NFData (Leaf k v) where
 -- each key can map to at most one value.
 data HashMap k v
     = Empty
-    | BitmapIndexed {-# UNPACK #-} !Bitmap {-# UNPACK #-} !(A.Array (HashMap k v))
-    | Leaf {-# UNPACK #-} !Hash {-# UNPACK #-} !(Leaf k v)
-    | Full {-# UNPACK #-} !(A.Array (HashMap k v))
-    | Collision {-# UNPACK #-} !Hash {-# UNPACK #-} !(A.Array (Leaf k v))
+    | BitmapIndexed !Bitmap !(A.Array (HashMap k v))
+    | Leaf !Hash !(Leaf k v)
+    | Full !(A.Array (HashMap k v))
+    | Collision !Hash !(A.Array (Leaf k v))
       deriving (Typeable)
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
