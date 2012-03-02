@@ -661,7 +661,7 @@ filterWithKey pred = go
             mary <- A.new_ n
             step ary0 mary 0 0 n
       where
-        step ary mary i j n
+        step !ary !mary i !j n
             | i >= n    = case j of
                 0 -> return Empty
                 1 -> do l <- A.read mary 0
