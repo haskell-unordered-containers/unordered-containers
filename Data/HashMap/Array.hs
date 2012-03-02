@@ -29,6 +29,7 @@ module Data.HashMap.Array
     , insert
     , insert'
     , delete
+    , delete'
 
     , unsafeFreeze
     , run
@@ -333,14 +334,19 @@ thaw !ary !o !n =
 -- | /O(n)/ Delete an element at the given position in this array,
 -- decreasing its size by one.
 delete :: Array e -> Int -> Array e
-delete ary idx =
-    run $ do
-        mary <- new_ (count-1)
-        copy ary 0 mary 0 idx
-        copy ary (idx+1) mary idx (count-(idx+1))
-        return mary
-  where !count = length ary
+delete ary idx = runST (delete' ary idx)
 {-# INLINE delete #-}
+
+-- | /O(n)/ Delete an element at the given position in this array,
+-- decreasing its size by one.
+delete' :: Array e -> Int -> ST s (Array e)
+delete' ary idx = do
+    mary <- new_ (count-1)
+    copy ary 0 mary 0 idx
+    copy ary (idx+1) mary idx (count-(idx+1))
+    unsafeFreeze mary
+  where !count = length ary
+{-# INLINE delete' #-}
 
 map :: (a -> b) -> Array a -> Array b
 map f = \ ary ->

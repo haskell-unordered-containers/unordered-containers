@@ -308,41 +308,50 @@ insertWith' f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 -- | /O(log n)/ Remove the mapping for the specified key from this map
 -- if present.
 delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
-delete k0 = go h0 k0 0
+delete k0 m0 = runST (go h0 k0 0 m0)
   where
     h0 = hash k0
-    go !_ !_ !_ Empty = Empty
+    go !_ !_ !_ Empty = return Empty
     go h k _ t@(Leaf hy (L ky _))
-        | hy == h && ky == k = Empty
-        | otherwise          = t
+        | hy == h && ky == k = return Empty
+        | otherwise          = return t
     go h k s t@(BitmapIndexed b ary)
-        | b .&. m == 0 = t
-        | otherwise =
-            let i   = sparseIndex b m
-                st  = A.index ary i
-            in case go h k (s+bitsPerSubkey) st of
+        | b .&. m == 0 = return t
+        | otherwise = do
+            st <- go h k (s+bitsPerSubkey) $ A.index ary i
+            case st of
                 Empty ->
                     if A.length ary == 1
-                    then Empty
-                    else BitmapIndexed (b .&. complement m) (A.delete ary i)
-                st'   -> BitmapIndexed b (A.update ary i $! st')
+                    then return Empty
+                    else do
+                        st' <- A.delete' ary i
+                        return $! BitmapIndexed (b .&. complement m) st'
+                st'   -> do
+                    st'' <- A.update' ary i st'
+                    return $! BitmapIndexed b st''
       where m = mask h s
+            i = sparseIndex b m
     go h k s (Full ary) =
         let i  = index h s
-            st = A.index ary i
-        in case go h k (s+bitsPerSubkey) st of
-            Empty -> BitmapIndexed (mask h s) (A.delete ary i)
-            st'   -> Full (A.update ary i $! st')
+        in do
+            st <- go h k (s+bitsPerSubkey) $ A.index ary i
+            case st of
+                Empty -> do
+                    st' <- A.delete' ary i
+                    return $! BitmapIndexed (mask h s) st'
+                st'   -> do
+                    st'' <- A.update' ary i st'
+                    return $! Full st''
     go h k _ t@(Collision hy v)
         | h == hy = case indexOf k v of
             Just i
                 | A.length v == 2 ->
                     if i == 0
-                    then Leaf h (A.index v 1)
-                    else Leaf h (A.index v 0)
-                | otherwise -> Collision h (A.delete v i)
-            Nothing -> t
-        | otherwise = t
+                    then return $! Leaf h (A.index v 1)
+                    else return $! Leaf h (A.index v 0)
+                | otherwise -> return $! Collision h (A.delete v i)
+            Nothing -> return t
+        | otherwise = return t
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE delete #-}
 #endif
