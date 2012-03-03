@@ -230,7 +230,7 @@ bitmapIndexedOrFull b ary
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
-insert = insertWith' (\ new _old -> new)
+insert = insertWith' const
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
 #endif
@@ -494,7 +494,7 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
     -- it would be nice if we could shift m by more than 1 each time
     let hasBit b m = b .&. m /= 0
         go !i !i1 !i2 !m
-            | m > b'                     = do return ()
+            | m > b'                     = return ()
             | hasBit b1 m && hasBit b2 m = do
                 A.write mary i $! f (A.index ary1 i1) (A.index ary2 i2)
                 go (i+1) (i1+1) (i2+1) (m `unsafeShiftL` 1)
@@ -618,6 +618,14 @@ foldrWithKey f = go
 ------------------------------------------------------------------------
 -- * Filter
 
+-- | Create a new array of the @n@ first elements of @mary@.
+trim :: A.MArray s a -> Int -> ST s (A.Array a)
+trim mary n = do
+    mary2 <- A.new_ n
+    A.copyM mary 0 mary2 0 n
+    A.unsafeFreeze mary2
+{-# INLINE trim #-}
+
 -- | /O(n)/ Filter this map by retaining only elements satisfying a
 -- predicate.
 filterWithKey :: (k -> v -> Bool) -> HashMap k v -> HashMap k v
@@ -642,9 +650,7 @@ filterWithKey pred = go
                 0 -> return Empty
                 1 -> A.read mary 0
                 _ -> do
-                    mary2 <- A.new_ j
-                    A.copyM mary 0 mary2 0 j
-                    ary2 <- A.unsafeFreeze mary2
+                    ary2 <- trim mary j
                     return $! if j == maxChildren
                               then Full ary2
                               else BitmapIndexed b ary2
@@ -668,9 +674,7 @@ filterWithKey pred = go
                         return $! Leaf h l
                 _ | i == j -> do ary2 <- A.unsafeFreeze mary
                                  return $! Collision h ary2
-                  | otherwise -> do mary2 <- A.new_ j
-                                    A.copyM mary 0 mary2 0 j
-                                    ary2 <- A.unsafeFreeze mary2
+                  | otherwise -> do ary2 <- trim mary j
                                     return $! Collision h ary2
             | pred k v  = A.write mary j el >> step ary mary (i+1) (j+1) n
             | otherwise = step ary mary (i+1) j n
