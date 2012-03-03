@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable #-}
+{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, MagicHash #-}
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 
 module Data.HashMap.Base
@@ -89,7 +89,7 @@ import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
 import Data.Typeable (Typeable)
 
 #if defined(__GLASGOW_HASKELL__)
-import GHC.Exts (build)
+import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
 #endif
 
 ------------------------------------------------------------------------
@@ -226,6 +226,9 @@ bitmapIndexedOrFull b ary
     | otherwise         = BitmapIndexed b ary
 {-# INLINE bitmapIndexedOrFull #-}
 
+-- TODO: Use ptrEq to check if the value being inserted is the same
+-- and if so don't modify the tree at all.
+
 -- | /O(log n)/ Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
@@ -318,30 +321,33 @@ delete k0 m0 = runST (go h0 k0 0 m0)
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 = return t
         | otherwise = do
-            st <- go h k (s+bitsPerSubkey) $ A.index ary i
-            case st of
-                Empty ->
-                    if A.length ary == 1
-                    then return Empty
-                    else do
-                        st' <- A.delete' ary i
-                        return $! BitmapIndexed (b .&. complement m) st'
-                st'   -> do
-                    st'' <- A.update' ary i st'
-                    return $! BitmapIndexed b st''
+            let !st = A.index ary i
+            !st' <- go h k (s+bitsPerSubkey) st
+            if st' `ptrEq` st
+                then return t
+                else case st' of
+                Empty | A.length ary == 1 -> return Empty
+                      | otherwise -> do
+                          ary' <- A.delete' ary i
+                          return $! BitmapIndexed (b .&. complement m) ary'
+                _ -> do
+                    ary' <- A.update' ary i st'
+                    return $! BitmapIndexed b ary'
       where m = mask h s
             i = sparseIndex b m
-    go h k s (Full ary) =
-        let i  = index h s
-        in do
-            st <- go h k (s+bitsPerSubkey) $ A.index ary i
-            case st of
-                Empty -> do
-                    st' <- A.delete' ary i
-                    return $! BitmapIndexed (mask h s) st'
-                st'   -> do
-                    st'' <- A.update' ary i st'
-                    return $! Full st''
+    go h k s t@(Full ary) = do
+        let !st = A.index ary i
+        !st' <- go h k (s+bitsPerSubkey) st
+        if st' `ptrEq` st
+            then return t
+            else case st' of
+            Empty -> do
+                ary' <- A.delete' ary i
+                return $! BitmapIndexed (mask h s) ary'
+            _ -> do
+                ary' <- A.update' ary i st'
+                return $! Full ary'
+      where i = index h s
     go h k _ t@(Collision hy v)
         | h == hy = case indexOf k v of
             Just i
@@ -903,3 +909,12 @@ fullNodeMask = complement (complement 0 `unsafeShiftL`
                            fromIntegral (1 `unsafeShiftL` bitsPerSubkey))
 {-# INLINE fullNodeMask #-}
 
+-- | Check if two the two arguments are the same value.  N.B. This
+-- function might give false negatives (due to GC moving objects.)
+ptrEq :: a -> a -> Bool
+#if defined(__GLASGOW_HASKELL__)
+ptrEq x y = reallyUnsafePtrEquality# x y ==# 1#
+#else
+ptrEq = False
+#endif
+{-# INLINE ptrEq #-}
