@@ -1,4 +1,4 @@
-{-# LANGUAGE MagicHash, UnboxedTuples #-}
+{-# LANGUAGE MagicHash #-}
 
 module Data.HashMap.UnsafeShift
     ( unsafeShiftL

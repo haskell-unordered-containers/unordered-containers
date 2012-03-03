@@ -533,7 +533,7 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
             | hasBit b2 m                = do
                 A.write mary i =<< A.index_ ary2 i2
                 go (i+1) (i1  ) (i2+1) (m `unsafeShiftL` 1)
-            | otherwise                  = do go i i1 i2 (m `unsafeShiftL` 1)
+            | otherwise                  = go i i1 i2 (m `unsafeShiftL` 1)
     go 0 0 0 1
     return mary
     -- TODO: For the case where b1 .&. b2 == b1, i.e. when one is a
