@@ -941,6 +941,6 @@ ptrEq :: a -> a -> Bool
 #if defined(__GLASGOW_HASKELL__)
 ptrEq x y = reallyUnsafePtrEquality# x y ==# 1#
 #else
-ptrEq = False
+ptrEq _ _ = False
 #endif
 {-# INLINE ptrEq #-}
