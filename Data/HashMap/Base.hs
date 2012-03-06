@@ -719,6 +719,9 @@ filter p = filterWithKey (\_ v -> p v)
 ------------------------------------------------------------------------
 -- * Conversions
 
+-- TODO: Improve fusion rules by modelled them after the Prelude ones
+-- on lists.
+
 -- | /O(n)/ Return a list of this map's keys.  The list is produced
 -- lazily.
 keys :: HashMap k v -> [k]
