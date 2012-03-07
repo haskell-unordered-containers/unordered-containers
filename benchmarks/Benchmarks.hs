@@ -123,10 +123,7 @@ main = do
           ]
 
           -- Combine
-        , bgroup "union"
-          [ bench "union" $ whnf (HM.union hmi) hmi2
-          , bench "fold-based" $ whnf (union_fold hmi) hmi2
-          ]
+        , bench "union" $ whnf (HM.union hmi) hmi2
 
           -- Transformations
         , bench "map" $ whnf (HM.map (\ v -> v + 1)) hmi

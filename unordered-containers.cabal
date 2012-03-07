@@ -1,5 +1,5 @@
 name:           unordered-containers
-version:        0.1.4.6
+version:        0.2.0.0
 synopsis:       Efficient hashing-based container types
 description:
   Efficient hashing-based container types.  The containers have been
@@ -13,9 +13,8 @@ license-file:   LICENSE
 author:         Johan Tibell <johan.tibell@gmail.com>
 maintainer:     johan.tibell@gmail.com
 bug-reports:    https://github.com/tibbe/unordered-containers/issues
-copyright:      (c) Daan Leijen 2002
-                (c) Andriy Palamarchuk 2008
-                (c) 2010-2011 Johan Tibell
+copyright:      2010-2012 Johan Tibell
+                2010 Edward Z. Yang
 category:       Data
 build-type:     Simple
 cabal-version:  >=1.8
@@ -25,21 +24,19 @@ library
     Data.HashMap.Lazy
     Data.HashMap.Strict
     Data.HashSet
-
-    Data.HashMap.Internal
-    Data.HashSet.Internal
+  other-modules:
+    Data.HashMap.Array
+    Data.HashMap.Base
+    Data.HashMap.PopCount
+    Data.HashMap.UnsafeShift
 
   build-depends:
     base >= 4 && < 4.6,
     deepseq >= 1.1 && < 1.4,
     hashable >= 1.0.1.1 && < 1.2
 
-  other-modules:
-    Data.FullList.Lazy
-    Data.FullList.Strict
-    Data.HashMap.Common
-    Data.HashMap.Lazy.Internal
-    Data.HashMap.Strict.Internal
+  if impl(ghc < 7.4)
+    c-sources: cbits/popc.c
 
   ghc-options: -Wall -O2
   if impl(ghc >= 6.8)
@@ -47,37 +44,56 @@ library
   if impl(ghc > 6.10)
     ghc-options: -fregs-graph
 
-test-suite map-properties
+test-suite hashmap-lazy-properties
   hs-source-dirs: tests
-  main-is: MapProperties.hs
+  main-is: HashMapProperties.hs
   type: exitcode-stdio-1.0
 
   build-depends:
-    base >= 4,
-    hashable >= 1.0.1.1,
+    base,
+    containers >= 0.4.1 && < 0.5,
+    hashable >= 1.0.1.1 && < 1.2,
     QuickCheck >= 2.4.0.1,
-    test-framework >= 0.3.3,
-    test-framework-quickcheck2 >= 0.2.9,
+    test-framework >= 0.3.3 && < 0.6,
+    test-framework-quickcheck2 >= 0.2.9 && < 0.3,
     unordered-containers
 
   ghc-options: -Wall
+  cpp-options: -DASSERTS
 
-
-test-suite set-properties
+test-suite hashmap-strict-properties
   hs-source-dirs: tests
-  main-is: SetProperties.hs
+  main-is: HashMapProperties.hs
   type: exitcode-stdio-1.0
 
   build-depends:
-    base >= 4,
-    containers,
-    hashable >= 1.0.1.1,
+    base,
+    containers >= 0.4.1 && < 0.5,
+    hashable >= 1.0.1.1 && < 1.2,
     QuickCheck >= 2.4.0.1,
-    test-framework >= 0.3.3,
-    test-framework-quickcheck2 >= 0.2.9,
+    test-framework >= 0.3.3 && < 0.6,
+    test-framework-quickcheck2 >= 0.2.9 && < 0.3,
     unordered-containers
 
   ghc-options: -Wall
+  cpp-options: -DASSERTS -DSTRICT
+
+test-suite hashset-properties
+  hs-source-dirs: tests
+  main-is: HashSetProperties.hs
+  type: exitcode-stdio-1.0
+
+  build-depends:
+    base,
+    containers >= 0.4.1 && < 0.5,
+    hashable >= 1.0.1.1 && < 1.2,
+    QuickCheck >= 2.4.0.1,
+    test-framework >= 0.3.3 && < 0.6,
+    test-framework-quickcheck2 >= 0.2.9 && < 0.3,
+    unordered-containers
+
+  ghc-options: -Wall
+  cpp-options: -DASSERTS
 
 source-repository head
   type:     git

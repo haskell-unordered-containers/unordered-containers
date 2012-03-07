@@ -8,6 +8,10 @@ category:       Data
 build-type:     Simple
 cabal-version:  >=1.8
 
+flag debug
+  description:  Enable debug support
+  default:      False
+
 executable benchmarks
   hs-source-dirs: . ..
 
@@ -28,3 +32,8 @@ executable benchmarks
     ghc-options: -fwarn-tabs
   if impl(ghc > 6.10)
     ghc-options: -fregs-graph
+  if flag(debug)
+    cpp-options: -DASSERTS
+
+  if impl(ghc < 7.4)
+    c-sources: ../cbits/popc.c
