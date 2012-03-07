@@ -21,7 +21,7 @@
 -- evaluated to /weak head normal form/ before they are added to the
 -- map.
 --
--- The implementation is based on /hash array mapped trie/.  A
+-- The implementation is based on /hash array mapped tries/.  A
 -- 'HashMap' is often faster than other tree-based set types,
 -- especially when key comparison is expensive, as in the case of
 -- strings.

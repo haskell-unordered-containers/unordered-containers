@@ -419,16 +419,17 @@ adjust f k0 = go h0 k0 0
 ------------------------------------------------------------------------
 -- * Combine
 
--- | /O(n*log m)/ The union of two maps. If a key occurs in both maps,
--- the mapping from the first will be the mapping in the result.
+-- | /O(n+m)/ The union of two maps. If a key occurs in both maps, the
+-- mapping from the first will be the mapping in the result.
 union :: (Eq k, Hashable k) => HashMap k v -> HashMap k v -> HashMap k v
 union = unionWith const
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE union #-}
 #endif
 
--- | /O(n*log m)/ The union of two maps.  If a key occurs in both maps,
--- the provided function (first argument) will be used to compute the result.
+-- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
+-- the provided function (first argument) will be used to compute the
+-- result.
 unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
 unionWith f = go 0
@@ -573,7 +574,7 @@ traverseWithKey f = go
 ------------------------------------------------------------------------
 -- * Difference and intersection
 
--- | /O(n)/ Difference of two maps. Return elements of the first map
+-- | /O(n+m)/ Difference of two maps. Return elements of the first map
 -- not existing in the second.
 difference :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
 difference a b = foldlWithKey' go empty a
@@ -585,8 +586,8 @@ difference a b = foldlWithKey' go empty a
 {-# INLINABLE difference #-}
 #endif
 
--- | /O(n)/ Intersection of two maps. Return elements of the first map
--- for keys existing in the second.
+-- | /O(n+m)/ Intersection of two maps. Return elements of the first
+-- map for keys existing in the second.
 intersection :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
 intersection a b = foldlWithKey' go empty a
   where

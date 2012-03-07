@@ -22,7 +22,7 @@
 -- the map.  Exception: the provided instances are the same as for the
 -- lazy version of this module.
 --
--- The implementation is based on /hash array mapped trie/.  A
+-- The implementation is based on /hash array mapped tries/.  A
 -- 'HashMap' is often faster than other tree-based set types,
 -- especially when key comparison is expensive, as in the case of
 -- strings.
@@ -294,8 +294,9 @@ map f = go
 ------------------------------------------------------------------------
 -- ** Lists
 
--- | /O(n)/ Construct a map with the supplied mappings.  If the list
--- contains duplicate mappings, the later mappings take precedence.
+-- | /O(n*log n)/ Construct a map with the supplied mappings.  If the
+-- list contains duplicate mappings, the later mappings take
+-- precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
 #if __GLASGOW_HASKELL__ >= 700
