@@ -8,11 +8,7 @@ module Data.HashMap.PopCount
 import Data.Bits (popCount)
 #else
 import Data.Word (Word)
-# if __GLASGOW_HASKELL__ >= 702
-import Foreign.C (CUInt(..))
-# else
 import Foreign.C (CUInt)
-# endif
 #endif
 
 #if __GLASGOW_HASKELL__ < 704
