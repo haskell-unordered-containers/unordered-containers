@@ -49,8 +49,6 @@ module Data.HashMap.Base
 
       -- ** Lists
     , toList
-    , fromList
-    , fromListWith
 
       -- Internals used by the strict version
     , Bitmap
@@ -736,22 +734,6 @@ toList t = build (\ c z -> foldrWithKey (curry c) z t)
 toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
 #endif
 {-# INLINE toList #-}
-
--- | /O(n)/ Construct a map with the supplied mappings.  If the list
--- contains duplicate mappings, the later mappings take precedence.
-fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
-fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE fromList #-}
-#endif
-
--- | /O(n*log n)/ Construct a map from a list of elements.  Uses
--- the provided function to merge duplicate entries.
-fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f = L.foldl' (\ m (k, v) -> insertWith f k v m) empty
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINE fromListWith #-}
-#endif
 
 ------------------------------------------------------------------------
 -- Array operations

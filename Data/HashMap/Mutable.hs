@@ -2,7 +2,9 @@
 
 -- | Operations in ST.
 module Data.HashMap.Mutable
-    ( insertWith
+    ( empty
+    , insertWith
+    , insertWith'
     , unsafeFreeze
     ) where
 
@@ -25,6 +27,11 @@ data HashMap s k v
     | Leaf !Hash !(Leaf k v)
     | Full !(A.MArray s (HashMap s k v))
     | Collision !Hash !(A.MArray s (Leaf k v))
+
+
+-- | /O(1)/ Construct an empty map.
+empty :: HashMap s k v
+empty = Empty
 
 -- | Create a 'BitmapIndexed' or 'Full' node.
 bitmapIndexedOrFull :: Bitmap -> A.MArray s (HashMap s k v) -> HashMap s k v
@@ -105,6 +112,46 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
             go h k x s $ BitmapIndexed (mask hy s) st
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
+#endif
+
+-- | /O(log n)/ Strict version of 'insertWith'.
+insertWith' :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap s k v
+            -> ST s (HashMap s k v)
+insertWith' f k0 !v0 m0 = go h0 k0 v0 0 m0
+  where
+    h0 = hash k0
+    go !h !k x !_ Empty = return $! Leaf h (L k x)
+    go h k x s (Leaf hy l@(L ky y))
+        | hy == h = if ky == k
+                    then let !v' = f x y in return $! Leaf h (L k v')
+                    else collision h l (L k x)
+        | otherwise = two s h k x hy ky y
+    go h k x s (BitmapIndexed b mary)
+        | b .&. m == 0 = do
+            mary' <- A.insertM mary i $! Leaf h (L k x)
+            return $! bitmapIndexedOrFull (b .|. m) mary'
+        | otherwise = do
+            st <- A.read mary i
+            st' <- go h k x (s+bitsPerSubkey) st
+            A.write mary i st'
+            return $! BitmapIndexed b mary
+      where m = mask h s
+            i = sparseIndex b m
+    go h k x s (Full mary) = do
+        st <- A.read mary i
+        st' <- go h k x (s+bitsPerSubkey) st
+        A.write mary i st'
+        return $! Full mary
+      where i = index h s
+    go h k x s t@(Collision hy mary)
+        | h == hy   = do
+            mary' <- updateOrSnocWith f k x mary
+            return $! Collision h mary'
+        | otherwise = do
+            st <- A.new 1 t
+            go h k x s $ BitmapIndexed (mask hy s) st
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE insertWith' #-}
 #endif
 
 unsafeFreeze :: HashMap s k v -> ST s (B.HashMap k v)
