@@ -789,7 +789,7 @@ toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
 -- | /O(n)/ Construct a map with the supplied mappings.  If the list
 -- contains duplicate mappings, the later mappings take precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
-fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
+fromList = L.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE fromList #-}
 #endif
