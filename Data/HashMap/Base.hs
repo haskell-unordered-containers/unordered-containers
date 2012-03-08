@@ -17,6 +17,7 @@ module Data.HashMap.Base
     , lookupDefault
     , insert
     , insertWith
+    , unsafeInsert
     , delete
     , adjust
 
@@ -266,6 +267,43 @@ insert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
+#endif
+
+-- | In-place update version of insert
+unsafeInsert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
+unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+  where
+    h0 = hash k0
+    go !h !k x !_ Empty = return $! Leaf h (L k x)
+    go h k x s t@(Leaf hy l@(L ky y))
+        | hy == h = if ky == k
+                    then if x `ptrEq` y
+                         then return t
+                         else return $! Leaf h (L k x)
+                    else return $! collision h l (L k x)
+        | otherwise = two s h k x hy ky y
+    go h k x s (BitmapIndexed b ary)
+        | b .&. m == 0 = do
+            ary' <- A.insert' ary i $! Leaf h (L k x)
+            return $! bitmapIndexedOrFull (b .|. m) ary'
+        | otherwise = do
+            st <- A.index_ ary i
+            st' <- go h k x (s+bitsPerSubkey) st
+            ary' <- A.unsafeUpdate' ary i st'
+            return $! BitmapIndexed b ary'
+      where m = mask h s
+            i = sparseIndex b m
+    go h k x s (Full ary) = do
+        st <- A.index_ ary i
+        st' <- go h k x (s+bitsPerSubkey) st
+        ary' <- A.unsafeUpdate' ary i st'
+        return $! Full ary'
+      where i = index h s
+    go h k x s t@(Collision hy v)
+        | h == hy   = return $! Collision h (updateOrSnocWith const k x v)
+        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE unsafeInsert #-}
 #endif
 
 -- | Create a map from two key-value pairs which hashes don't collide.
