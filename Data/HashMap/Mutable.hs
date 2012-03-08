@@ -114,6 +114,7 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
 {-# INLINABLE insertWith #-}
 #endif
 
+-- TODO: GHC fails to specialize this function. Figure out why.
 -- | /O(log n)/ Strict version of 'insertWith'.
 insertWith' :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap s k v
             -> ST s (HashMap s k v)
