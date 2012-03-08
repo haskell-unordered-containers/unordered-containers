@@ -91,7 +91,7 @@ import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
     adjust, fromList, fromListWith, insert, insertWith, map, singleton,
-    unionWith)
+    unionWith, updateOrSnocWith)
 
 ------------------------------------------------------------------------
 -- * Construction
