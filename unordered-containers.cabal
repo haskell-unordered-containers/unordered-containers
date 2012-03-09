@@ -31,8 +31,6 @@ library
   other-modules:
     Data.HashMap.Array
     Data.HashMap.Base
-    Data.HashMap.Bits
-    Data.HashMap.Mutable
     Data.HashMap.PopCount
     Data.HashMap.UnsafeShift
 

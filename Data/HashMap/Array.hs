@@ -28,7 +28,6 @@ module Data.HashMap.Array
     , updateWith
     , insert
     , insert'
-    , insertM
     , delete
     , delete'
 
@@ -45,7 +44,6 @@ module Data.HashMap.Array
     , thaw
     , map
     , map'
-    , mapM'
     , traverse
     , filter
     ) where
@@ -276,19 +274,6 @@ insert' ary idx b =
   where !count = length ary
 {-# INLINE insert' #-}
 
--- | /O(n)/ Insert an element at the given position in this array,
--- increasing its size by one.
-insertM :: MArray s e -> Int -> e -> ST s (MArray s e)
-insertM mary idx b =
-    CHECK_BOUNDS("insertM", count + 1, idx)
-        do mary' <- new_ (count+1)
-           copyM mary 0 mary' 0 idx
-           write mary' idx b
-           copyM mary idx mary' (idx+1) (count-idx)
-           return mary'
-  where !count = lengthM mary
-{-# INLINE insertM #-}
-
 -- | /O(n)/ Update the element at the given position in this array.
 update :: Array e -> Int -> e -> Array e
 update ary idx b = runST (update' ary idx b)
@@ -376,23 +361,6 @@ map f = \ ary ->
              write mary i $ f (index ary i)
              go ary mary (i+1) n
 {-# INLINE map #-}
-
--- TODO: We ought to be able to not copy the whole array.
-mapM' :: (a -> ST s b) -> MArray s a -> ST s (MArray s b)
-mapM' f = \ mary ->
-    let !n = lengthM mary
-    in do
-        mary' <- new_ n
-        go mary mary' 0 n
-  where
-    go mary mary' i n
-        | i >= n    = return mary'
-        | otherwise = do
-            x <- read mary i
-            y <- f x
-            write mary' i $! y
-            go mary mary' (i+1) n
-{-# INLINE mapM' #-}
 
 -- | Strict version of 'map'.
 map' :: (a -> b) -> Array a -> Array b

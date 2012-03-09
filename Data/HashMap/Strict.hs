@@ -83,14 +83,15 @@ module Data.HashMap.Strict
 
 import Control.Monad.ST (runST)
 import Data.Bits ((.&.), (.|.))
+import qualified Data.List as L
 import Data.Hashable (Hashable)
 import Prelude hiding (map)
 
 import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
-import qualified Data.HashMap.Mutable as M
 import Data.HashMap.Base hiding (
-    adjust, insert, insertWith, map, singleton, unionWith, updateOrSnocWith)
+    adjust, fromList, fromListWith, insert, insertWith, map, singleton,
+    unionWith)
 
 ------------------------------------------------------------------------
 -- * Construction
@@ -297,7 +298,7 @@ map f = go
 -- list contains duplicate mappings, the later mappings take
 -- precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
-fromList = fromListWith const
+fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE fromList #-}
 #endif
@@ -305,11 +306,7 @@ fromList = fromListWith const
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
 -- the provided function to merge duplicate entries.
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f kvs0 = runST (go kvs0 M.empty >>= M.unsafeFreeze)
-  where
-    go [] !m = return m
-    go ((k, v):kvs) m = do m' <- M.insertWith' f k v m
-                           go kvs m'
+fromListWith f = L.foldl' (\ m (k, v) -> insertWith f k v m) empty
 {-# INLINE fromListWith #-}
 
 ------------------------------------------------------------------------

@@ -129,13 +129,6 @@ pElems = (L.sort . M.elems) `eq` (L.sort . HM.elems)
 pKeys :: [(Key, Int)] -> Bool
 pKeys = (L.sort . M.keys) `eq` (L.sort . HM.keys)
 
-pFromList :: [(Key, Int)] -> Bool
-pFromList kvs = (M.toAscList $ M.fromList kvs) == (toAscList $ HM.fromList kvs)
-
-pFromListWith :: [(Key, Int)] -> Bool
-pFromListWith kvs = (M.toAscList $ M.fromListWith (*) kvs) ==
-                    (toAscList $ HM.fromListWith (*) kvs)
-
 ------------------------------------------------------------------------
 -- * Test list
 
@@ -183,8 +176,6 @@ tests =
       [ testProperty "elems" pElems
       , testProperty "keys" pKeys
       , testProperty "toList" pToList
-      , testProperty "fromList" pFromList
-      , testProperty "fromListWith" pFromListWith
       ]
     ]
 

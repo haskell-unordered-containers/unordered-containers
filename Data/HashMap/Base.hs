@@ -49,11 +49,11 @@ module Data.HashMap.Base
 
       -- ** Lists
     , toList
+    , fromList
+    , fromListWith
 
       -- Internals used by the strict version
     , Bitmap
-    , Hash
-    , Shift
     , bitmapIndexedOrFull
     , collision
     , hash
@@ -68,7 +68,6 @@ module Data.HashMap.Base
     , update16'
     , update16With
     , updateOrConcatWith
-    , updateOrSnocWith
     ) where
 
 import Control.Applicative ((<$>), Applicative(pure))
@@ -79,13 +78,14 @@ import qualified Data.Foldable as Foldable
 import qualified Data.List as L
 import Data.Monoid (Monoid(mempty, mappend))
 import Data.Traversable (Traversable(..))
+import Data.Word (Word)
 import Prelude hiding (filter, foldr, lookup, map, null, pred)
 
 import qualified Data.HashMap.Array as A
+import qualified Data.Hashable as H
 import Data.Hashable (Hashable)
-import Data.HashMap.Bits
 import Data.HashMap.PopCount (popCount)
-import Data.HashMap.UnsafeShift (unsafeShiftL)
+import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
 import Data.Typeable (Typeable)
 
 #if defined(__GLASGOW_HASKELL__)
@@ -93,6 +93,15 @@ import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
 #endif
 
 ------------------------------------------------------------------------
+
+-- | Convenience function.  Compute a hash value for the given value.
+hash :: H.Hashable a => a -> Hash
+hash = fromIntegral . H.hash
+
+data Leaf k v = L !k v
+
+instance (NFData k, NFData v) => NFData (Leaf k v) where
+    rnf (L k v) = rnf k `seq` rnf v
 
 -- Invariant: The length of the 1st argument to 'Full' is
 -- 2^bitsPerSubkey
@@ -125,6 +134,10 @@ instance (Eq k, Hashable k) => Monoid (HashMap k v) where
   {-# INLINE mempty #-}
   mappend = union
   {-# INLINE mappend #-}
+
+type Hash   = Word
+type Bitmap = Word
+type Shift  = Int
 
 instance (Show k, Show v) => Show (HashMap k v) where
     show m = "fromList " ++ show (toList m)
@@ -735,6 +748,22 @@ toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
 #endif
 {-# INLINE toList #-}
 
+-- | /O(n)/ Construct a map with the supplied mappings.  If the list
+-- contains duplicate mappings, the later mappings take precedence.
+fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
+fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE fromList #-}
+#endif
+
+-- | /O(n*log n)/ Construct a map from a list of elements.  Uses
+-- the provided function to merge duplicate entries.
+fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
+fromListWith f = L.foldl' (\ m (k, v) -> insertWith f k v m) empty
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINE fromListWith #-}
+#endif
+
 ------------------------------------------------------------------------
 -- Array operations
 
@@ -877,7 +906,35 @@ clone16 ary =
 #endif
 
 ------------------------------------------------------------------------
--- Unsafe things
+-- Bit twiddling
+
+bitsPerSubkey :: Int
+bitsPerSubkey = 4
+
+maxChildren :: Int
+maxChildren = fromIntegral $ 1 `unsafeShiftL` bitsPerSubkey
+
+subkeyMask :: Bitmap
+subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
+
+sparseIndex :: Bitmap -> Bitmap -> Int
+sparseIndex b m = popCount (b .&. (m - 1))
+
+mask :: Word -> Shift -> Bitmap
+mask w s = 1 `unsafeShiftL` index w s
+{-# INLINE mask #-}
+
+-- | Mask out the 'bitsPerSubkey' bits used for indexing at this level
+-- of the tree.
+index :: Hash -> Shift -> Int
+index w s = fromIntegral $ (unsafeShiftR w s) .&. subkeyMask
+{-# INLINE index #-}
+
+-- | A bitmask with the 'bitsPerSubkey' least significant bits set.
+fullNodeMask :: Bitmap
+fullNodeMask = complement (complement 0 `unsafeShiftL`
+                           fromIntegral (1 `unsafeShiftL` bitsPerSubkey))
+{-# INLINE fullNodeMask #-}
 
 -- | Check if two the two arguments are the same value.  N.B. This
 -- function might give false negatives (due to GC moving objects.)

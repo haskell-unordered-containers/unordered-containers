@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP #-}
+{-# LANGUAGE CPP #-}
 
 #if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Trustworthy #-}
@@ -34,7 +34,7 @@ module Data.HashMap.Lazy
       HashMap
 
       -- * Construction
-    , HM.empty
+    , empty
     , singleton
 
       -- * Basic interface
@@ -43,7 +43,7 @@ module Data.HashMap.Lazy
     , HM.lookup
     , lookupDefault
     , insert
-    , HM.insertWith
+    , insertWith
     , delete
     , adjust
 
@@ -80,28 +80,4 @@ module Data.HashMap.Lazy
     , fromListWith
     ) where
 
-import Control.Monad.ST (runST)
-import Data.Hashable (Hashable)
-
 import Data.HashMap.Base as HM
-import Data.HashMap.Mutable as M
-
--- | /O(n)/ Construct a map with the supplied mappings.  If the list
--- contains duplicate mappings, the later mappings take precedence.
-fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
-fromList = fromListWith const
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE fromList #-}
-#endif
-
--- | /O(n*log n)/ Construct a map from a list of elements.  Uses
--- the provided function to merge duplicate entries.
-fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f kvs0 = runST (go kvs0 M.empty >>= M.unsafeFreeze)
-  where
-    go [] !m = return m
-    go ((k, v):kvs) m = do m' <- M.insertWith f k v m
-                           go kvs m'
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINE fromListWith #-}
-#endif
