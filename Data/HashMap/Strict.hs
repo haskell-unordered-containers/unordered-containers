@@ -154,6 +154,42 @@ insertWith f k0 !v0 m0 = runST (go h0 k0 v0 0 m0)
 {-# INLINABLE insertWith #-}
 #endif
 
+-- | In-place update version of insertWith
+unsafeInsertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
+                 -> HashMap k v
+unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+  where
+    h0 = hash k0
+    go !h !k x !_ Empty = return $! Leaf h (L k x)
+    go h k x s (Leaf hy l@(L ky y))
+        | hy == h = if ky == k
+                    then let !v' = f x y in return $! Leaf h (L k v')
+                    else return $! collision h l (L k x)
+        | otherwise = two s h k x hy ky y
+    go h k x s (BitmapIndexed b ary)
+        | b .&. m == 0 = do
+            ary' <- A.insert' ary i $! Leaf h (L k x)
+            return $! bitmapIndexedOrFull (b .|. m) ary'
+        | otherwise = do
+            st <- A.index_ ary i
+            st' <- go h k x (s+bitsPerSubkey) st
+            ary' <- A.unsafeUpdate' ary i st'
+            return $! BitmapIndexed b ary'
+      where m = mask h s
+            i = sparseIndex b m
+    go h k x s (Full ary) = do
+        st <- A.index_ ary i
+        st' <- go h k x (s+bitsPerSubkey) st
+        ary' <- A.unsafeUpdate' ary i st'
+        return $! Full ary'
+      where i = index h s
+    go h k x s t@(Collision hy v)
+        | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
+        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE unsafeInsertWith #-}
+#endif
+
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
 adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
@@ -298,7 +334,7 @@ map f = go
 -- list contains duplicate mappings, the later mappings take
 -- precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
-fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
+fromList = L.foldl' (\ m (k, v) -> HM.unsafeInsert k v m) empty
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE fromList #-}
 #endif
@@ -306,7 +342,7 @@ fromList = L.foldl' (\ m (k, v) -> insert k v m) empty
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
 -- the provided function to merge duplicate entries.
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f = L.foldl' (\ m (k, v) -> insertWith f k v m) empty
+fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 {-# INLINE fromListWith #-}
 
 ------------------------------------------------------------------------
