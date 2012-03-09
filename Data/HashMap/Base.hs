@@ -227,9 +227,6 @@ bitmapIndexedOrFull b ary
     | otherwise         = BitmapIndexed b ary
 {-# INLINE bitmapIndexedOrFull #-}
 
--- TODO: Use ptrEq to check if the value being inserted is the same
--- and if so don't modify the tree at all.
-
 -- | /O(log n)/ Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
@@ -245,22 +242,28 @@ insert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
                          else return $! Leaf h (L k x)
                     else return $! collision h l (L k x)
         | otherwise = two s h k x hy ky y
-    go h k x s (BitmapIndexed b ary)
+    go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
             ary' <- A.insert' ary i $! Leaf h (L k x)
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.index_ ary i
-            st' <- go h k x (s+bitsPerSubkey) st
-            ary' <- A.update' ary i st'
-            return $! BitmapIndexed b ary'
+            !st' <- go h k x (s+bitsPerSubkey) st
+            if st' `ptrEq` st
+                then return t
+                else do
+                    ary' <- A.update' ary i st'
+                    return $! BitmapIndexed b ary'
       where m = mask h s
             i = sparseIndex b m
-    go h k x s (Full ary) = do
+    go h k x s t@(Full ary) = do
         st <- A.index_ ary i
-        st' <- go h k x (s+bitsPerSubkey) st
-        ary' <- update16' ary i st'
-        return $! Full ary'
+        !st' <- go h k x (s+bitsPerSubkey) st
+        if st' `ptrEq` st
+            then return t
+            else do
+                ary' <- update16' ary i st'
+                return $! Full ary'
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWith const k x v)
