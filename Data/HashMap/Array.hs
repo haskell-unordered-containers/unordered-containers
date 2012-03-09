@@ -304,13 +304,15 @@ updateWith :: Array e -> Int -> (e -> e) -> Array e
 updateWith ary idx f = update ary idx $! f (index ary idx)
 {-# INLINE updateWith #-}
 
--- | /O(n)/ Update the element at the given position in this array, without copying.
-unsafeUpdate' :: Array e -> Int -> e -> ST s (Array e)
+-- | /O(1)/ Update the element at the given position in this array,
+-- without copying.
+unsafeUpdate' :: Array e -> Int -> e -> ST s ()
 unsafeUpdate' ary idx b =
     CHECK_BOUNDS("unsafeUpdate'", length ary, idx)
         do mary <- unsafeThaw ary
            write mary idx b
-           unsafeFreeze mary
+           _ <- unsafeFreeze mary
+           return ()
 {-# INLINE unsafeUpdate' #-}
 
 foldl' :: (b -> a -> b) -> b -> Array a -> b

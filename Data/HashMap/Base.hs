@@ -285,22 +285,22 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
                          else return $! Leaf h (L k x)
                     else return $! collision h l (L k x)
         | otherwise = two s h k x hy ky y
-    go h k x s (BitmapIndexed b ary)
+    go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
             ary' <- A.insert' ary i $! Leaf h (L k x)
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.index_ ary i
             st' <- go h k x (s+bitsPerSubkey) st
-            ary' <- A.unsafeUpdate' ary i st'
-            return $! BitmapIndexed b ary'
+            A.unsafeUpdate' ary i st'
+            return t
       where m = mask h s
             i = sparseIndex b m
-    go h k x s (Full ary) = do
+    go h k x s t@(Full ary) = do
         st <- A.index_ ary i
         st' <- go h k x (s+bitsPerSubkey) st
-        ary' <- A.unsafeUpdate' ary i st'
-        return $! Full ary'
+        A.unsafeUpdate' ary i st'
+        return t
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWith const k x v)
@@ -384,22 +384,22 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
                     then return $! Leaf h (L k (f x y))
                     else return $! collision h l (L k x)
         | otherwise = two s h k x hy ky y
-    go h k x s (BitmapIndexed b ary)
+    go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
             ary' <- A.insert' ary i $! Leaf h (L k x)
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.index_ ary i
             st' <- go h k x (s+bitsPerSubkey) st
-            ary' <- A.unsafeUpdate' ary i st'
-            return $! BitmapIndexed b ary'
+            A.unsafeUpdate' ary i st'
+            return t
       where m = mask h s
             i = sparseIndex b m
-    go h k x s (Full ary) = do
+    go h k x s t@(Full ary) = do
         st <- A.index_ ary i
         st' <- go h k x (s+bitsPerSubkey) st
-        ary' <- A.unsafeUpdate' ary i st'
-        return $! Full ary'
+        A.unsafeUpdate' ary i st'
+        return t
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
