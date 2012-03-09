@@ -26,12 +26,14 @@ module Data.HashMap.Array
     , update
     , update'
     , updateWith
+    , unsafeUpdate'
     , insert
     , insert'
     , delete
     , delete'
 
     , unsafeFreeze
+    , unsafeThaw
     , run
     , run2
     , copy
@@ -201,6 +203,12 @@ unsafeFreeze mary
                    (# s', ary #) -> (# s', array ary (lengthM mary) #)
 {-# INLINE unsafeFreeze #-}
 
+unsafeThaw :: Array a -> ST s (MArray s a)
+unsafeThaw ary
+    = ST $ \s -> case unsafeThawArray# (unArray ary) s of
+                   (# s', mary #) -> (# s', marray mary (length ary) #)
+{-# INLINE unsafeThaw #-}
+
 run :: (forall s . ST s (MArray s e)) -> Array e
 run act = runST $ act >>= unsafeFreeze
 {-# INLINE run #-}
@@ -295,6 +303,15 @@ update' ary idx b =
 updateWith :: Array e -> Int -> (e -> e) -> Array e
 updateWith ary idx f = update ary idx $! f (index ary idx)
 {-# INLINE updateWith #-}
+
+-- | /O(n)/ Update the element at the given position in this array, without copying.
+unsafeUpdate' :: Array e -> Int -> e -> ST s (Array e)
+unsafeUpdate' ary idx b =
+    CHECK_BOUNDS("unsafeUpdate'", length ary, idx)
+        do mary <- unsafeThaw ary
+           write mary idx b
+           unsafeFreeze mary
+{-# INLINE unsafeUpdate' #-}
 
 foldl' :: (b -> a -> b) -> b -> Array a -> b
 foldl' f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
