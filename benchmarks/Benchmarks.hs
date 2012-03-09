@@ -11,7 +11,6 @@ import Data.Bits ((.&.))
 import Data.Hashable (Hashable)
 import qualified Data.ByteString as BS
 import qualified Data.HashMap.Strict as HM
-import qualified Data.HashMap.Base as HM (unsafeInsert)
 import qualified Data.IntMap as IM
 import qualified Data.Map as M
 import Data.List (foldl')
@@ -164,9 +163,25 @@ main = do
             ]
           | (name,fl1,fl2,fl3)
                <- [("Base",HM.fromList,HM.fromList,HM.fromList)
-                  ,("insert",fromList_insert,fromList_insert,fromList_insert)
-                  ,("unsafeInsert",fromList_unsafeInsert,fromList_unsafeInsert,fromList_unsafeInsert)
-                  ,("union",fromList_union,fromList_union,fromList_union)]
+                  ,("insert",fromList_insert,fromList_insert,fromList_insert)]
+          ]
+          -- fromList
+        , bgroup "fromListWith"
+          [ bgroup name
+            [ bgroup "long"
+              [ bench "String" $ whnf (fl1 (+)) elems
+              , bench "ByteString" $ whnf (fl2 (+)) elemsBS
+              , bench "Int" $ whnf (fl3 (+)) elemsI
+              ]
+            , bgroup "short"
+              [ bench "String" $ whnf (fl1 (+)) elemsDup
+              , bench "ByteString" $ whnf (fl2 (+)) elemsDupBS
+              , bench "Int" $ whnf (fl3 (+)) elemsDupI
+              ]
+            ]
+          | (name,fl1,fl2,fl3)
+               <- [("Base",HM.fromListWith,HM.fromListWith,HM.fromListWith)
+                  ,("insert",fromListWith_insert,fromListWith_insert,fromListWith_insert)]
           ]
         ]
   where
@@ -256,35 +271,14 @@ deleteIM xs m0 = foldl' (\m k -> IM.delete k m) m0 xs
 ------------------------------------------------------------------------
 -- * Reference implementations
 
--- The old implementation of union
-union_fold :: (Eq k, Hashable k) => HM.HashMap k v -> HM.HashMap k v -> HM.HashMap k v
-union_fold m1 m2 = HM.foldlWithKey' (\ m k v -> HM.insert k v m) m2 m1
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE union_fold #-}
-#endif
-
-
-fromList_union :: (Eq k, Hashable k) => [(k, v)] -> HM.HashMap k v
-fromList_union xs0 = go (length xs0) xs0
-  where
-    go 0 _       = HM.empty
-    go _ [(k,v)] = HM.singleton k v
-    go n xs      = let half = n `quot` 2
-                       (xs1,xs2) = splitAt half xs
-                   in HM.union (go half xs1)  (go (n-half) xs2)
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE fromList_union #-}
-#endif
-
 fromList_insert :: (Eq k, Hashable k) => [(k, v)] -> HM.HashMap k v
 fromList_insert = foldl' (\ m (k, v) -> HM.insert k v m) HM.empty
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE fromList_insert #-}
 #endif
 
-fromList_unsafeInsert :: (Eq k, Hashable k) => [(k, v)] -> HM.HashMap k v
-fromList_unsafeInsert = foldl' (\ m (k, v) -> HM.unsafeInsert k v m) HM.empty
+fromListWith_insert :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HM.HashMap k v
+fromListWith_insert f = foldl' (\ m (k, v) -> HM.insertWith f k v m) HM.empty
 #if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE fromList_unsafeInsert #-}
+{-# INLINABLE fromListWith_insert #-}
 #endif
-
