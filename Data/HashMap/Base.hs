@@ -244,7 +244,7 @@ insert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = two s h k x hy ky y
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- A.insert' ary i $! Leaf h (L k x)
+            !ary' <- A.insert' ary i $! Leaf h (L k x)
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.index_ ary i
