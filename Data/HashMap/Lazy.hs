@@ -40,6 +40,7 @@ module Data.HashMap.Lazy
       -- * Basic interface
     , HM.null
     , size
+    , member
     , HM.lookup
     , lookupDefault
     , insert

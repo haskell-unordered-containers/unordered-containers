@@ -41,6 +41,7 @@ module Data.HashMap.Strict
       -- * Basic interface
     , HM.null
     , size
+    , HM.member
     , HM.lookup
     , lookupDefault
     , insert

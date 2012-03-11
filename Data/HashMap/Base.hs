@@ -13,6 +13,7 @@ module Data.HashMap.Base
       -- * Basic interface
     , null
     , size
+    , member
     , lookup
     , lookupDefault
     , insert
@@ -178,6 +179,16 @@ size t = go t 0
     go (BitmapIndexed _ ary) n = A.foldl' (flip go) n ary
     go (Full ary)            n = A.foldl' (flip go) n ary
     go (Collision _ ary)     n = n + A.length ary
+
+-- | /O(log n)/ Return 'True' if the specified key is present in the
+-- map, 'False' otherwise.
+member :: (Eq k, Hashable k) => k -> HashMap k a -> Bool
+member k m = case lookup k m of
+    Nothing -> False
+    Just _  -> True
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINEABLE member #-}
+#endif
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.

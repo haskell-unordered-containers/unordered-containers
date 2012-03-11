@@ -51,6 +51,9 @@ pFoldable = (L.sort . Foldable.foldr (:) []) `eq`
 pSize :: [(Key, Int)] -> Bool
 pSize = M.size `eq` HM.size
 
+pMember :: Key -> [(Key, Int)] -> Bool
+pMember k = M.member k `eq` HM.member k
+
 pLookup :: Key -> [(Key, Int)] -> Bool
 pLookup k = M.lookup k `eq` HM.lookup k
 
@@ -145,6 +148,7 @@ tests =
     -- Basic interface
     , testGroup "basic interface"
       [ testProperty "size" pSize
+      , testProperty "member" pMember
       , testProperty "lookup" pLookup
       , testProperty "insert" pInsert
       , testProperty "delete" pDelete
