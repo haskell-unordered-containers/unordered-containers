@@ -52,6 +52,7 @@ module Data.HashMap.Lazy
       -- ** Union
     , union
     , unionWith
+    , unions
 
       -- * Transformations
     , HM.map

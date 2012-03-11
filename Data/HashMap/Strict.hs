@@ -53,6 +53,7 @@ module Data.HashMap.Strict
       -- ** Union
     , union
     , unionWith
+    , unions
 
       -- * Transformations
     , map
@@ -225,7 +226,7 @@ adjust f k0 = go h0 k0 0
 ------------------------------------------------------------------------
 -- * Combine
 
--- | /O(n*log m)/ The union of two maps.  If a key occurs in both maps,
+-- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the result.
 unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v

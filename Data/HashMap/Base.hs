@@ -26,6 +26,7 @@ module Data.HashMap.Base
       -- ** Union
     , union
     , unionWith
+    , unions
 
       -- * Transformations
     , map
@@ -629,6 +630,13 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
     -- subset of the other, we could use a slightly simpler algorithm,
     -- where we copy one array, and then update.
 {-# INLINE unionArrayBy #-}
+
+-- TODO: Figure out the time complexity of 'unions'.
+
+-- | Construct a set containing all elements from a list of sets.
+unions :: (Eq k, Hashable k) => [HashMap k v] -> HashMap k v
+unions = L.foldl' union empty
+{-# INLINE unions #-}
 
 ------------------------------------------------------------------------
 -- * Transformations

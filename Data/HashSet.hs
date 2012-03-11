@@ -31,6 +31,7 @@ module Data.HashSet
 
     -- * Combine
     , union
+    , unions
 
     -- * Basic interface
     , null
@@ -111,13 +112,20 @@ singleton a = HashSet (H.singleton a ())
 {-# INLINABLE singleton #-}
 #endif
 
--- | /O(n)/ Construct a set containing all elements from both sets.
+-- | /O(n+m)/ Construct a set containing all elements from both sets.
 --
 -- To obtain good performance, the smaller set must be presented as
 -- the first argument.
 union :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 union s1 s2 = HashSet $ H.union (asMap s1) (asMap s2)
 {-# INLINE union #-}
+
+-- TODO: Figure out the time complexity of 'unions'.
+
+-- | Construct a set containing all elements from a list of sets.
+unions :: (Eq a, Hashable a) => [HashSet a] -> HashSet a
+unions = List.foldl' union empty
+{-# INLINE unions #-}
 
 -- | /O(1)/ Return 'True' if this set is empty, 'False' otherwise.
 null :: HashSet a -> Bool
