@@ -230,7 +230,7 @@ lookupDefault def k t = case lookup k t of
 (!) m k = case lookup k m of
     Just v  -> v
     Nothing -> error "Data.HashMap.Base.(!): key not found"
-{-# INLINE (!) #-}
+{-# INLINABLE (!) #-}
 
 infixl 9 !
 
