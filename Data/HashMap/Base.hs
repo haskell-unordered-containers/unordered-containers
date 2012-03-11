@@ -200,7 +200,7 @@ lookup k0 = go h0 k0 0
     h0 = hash k0
     go !_ !_ !_ Empty = Nothing
     go h k _ (Leaf hx (L kx x))
-        | h == hx && k == kx = Just x
+        | h == hx && k == kx = Just x  -- TODO: Split test in two
         | otherwise          = Nothing
     go h k s (BitmapIndexed b v)
         | b .&. m == 0 = Nothing
