@@ -16,6 +16,7 @@ module Data.HashMap.Base
     , member
     , lookup
     , lookupDefault
+    , (!)
     , insert
     , insertWith
     , unsafeInsert
@@ -222,6 +223,16 @@ lookupDefault def k t = case lookup k t of
     Just v -> v
     _      -> def
 {-# INLINE lookupDefault #-}
+
+-- | /O(log n)/ Return the value to which the specified key is mapped.
+-- Calls 'error' if this map contains no mapping for the key.
+(!) :: (Eq k, Hashable k) => HashMap k v -> k -> v
+(!) m k = case lookup k m of
+    Just v  -> v
+    Nothing -> error "Data.HashMap.Base.(!): key not found"
+{-# INLINE (!) #-}
+
+infixl 9 !
 
 -- | Create a 'Collision' value with two 'Leaf' values.
 collision :: Hash -> Leaf k v -> Leaf k v -> HashMap k v
