@@ -63,6 +63,22 @@ pInsert k v = M.insert k v `eq_` HM.insert k v
 pDelete :: Key -> [(Key, Int)] -> Bool
 pDelete k = M.delete k `eq_` HM.delete k
 
+newtype AlwaysCollide = AC Int
+                      deriving (Arbitrary, Eq, Ord, Show)
+
+instance Hashable AlwaysCollide where
+    hash _ = 1
+
+-- White-box test that tests the case of deleting one of two keys from
+-- a map, where the keys' hash values collide.
+pDeleteCollision :: AlwaysCollide -> AlwaysCollide -> Bool -> Bool
+pDeleteCollision k1 k2 keepFst = HM.member toKeep $ HM.delete toDelete $
+                                 HM.fromList [(k1, 1 :: Int), (k2, 2)]
+  where
+    (toDelete, toKeep)
+        | keepFst   = (k2, k1)
+        | otherwise = (k1, k2)
+
 pInsertWith :: Key -> [(Key, Int)] -> Bool
 pInsertWith k = M.insertWith (+) k 1 `eq_` HM.insertWith (+) k 1
 
@@ -164,6 +180,7 @@ tests =
       , testProperty "lookup" pLookup
       , testProperty "insert" pInsert
       , testProperty "delete" pDelete
+      , testProperty "deleteCollision" pDeleteCollision
       , testProperty "insertWith" pInsertWith
       , testProperty "adjust" pAdjust
       ]
