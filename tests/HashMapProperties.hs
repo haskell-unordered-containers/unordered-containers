@@ -127,6 +127,14 @@ pFilterWithKey = M.filterWithKey p `eq_` HM.filterWithKey p
 ------------------------------------------------------------------------
 -- ** Conversions
 
+-- 'eq_' already calls fromList.
+pFromList :: [(Key, Int)] -> Bool
+pFromList = id `eq_` id
+
+pFromListWith :: [(Key, Int)] -> Bool
+pFromListWith kvs = (M.toAscList $ M.fromListWith (+) kvs) ==
+                    (toAscList $ HM.fromListWith (+) kvs)
+
 pToList :: [(Key, Int)] -> Bool
 pToList = M.toAscList `eq` toAscList
 
@@ -184,6 +192,8 @@ tests =
     , testGroup "conversions"
       [ testProperty "elems" pElems
       , testProperty "keys" pKeys
+      , testProperty "fromList" pFromList
+      , testProperty "fromListWith" pFromListWith
       , testProperty "toList" pToList
       ]
     ]
