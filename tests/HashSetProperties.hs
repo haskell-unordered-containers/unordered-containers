@@ -76,6 +76,12 @@ pFoldl' :: Int -> [Int] -> Bool
 pFoldl' z0 = Set.foldl' (+) z0 `eq` S.foldl' (+) z0
 
 ------------------------------------------------------------------------
+-- ** Filter
+
+pFilter :: [Key] -> Bool
+pFilter = Set.filter odd `eq_` S.filter odd
+
+------------------------------------------------------------------------
 -- ** Conversions
 
 pToList :: [Key] -> Bool
@@ -108,6 +114,10 @@ tests =
     , testGroup "folds"
       [ testProperty "foldr" pFoldr
       , testProperty "foldl'" pFoldl'
+      ]
+    -- Filter
+    , testGroup "filter"
+      [ testProperty "filter" pFilter
       ]
     -- Conversions
     , testGroup "conversions"
