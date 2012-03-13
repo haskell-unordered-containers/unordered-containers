@@ -79,6 +79,12 @@ pDeleteCollision k1 k2 keepFst = k1 /= k2 ==> HM.member toKeep $ HM.delete toDel
         | keepFst   = (k2, k1)
         | otherwise = (k1, k2)
 
+-- White-box test that tests the case of deleting one of many keys
+-- from a map, where the keys' hash values collide.
+pDeleteCollisionMany :: AlwaysCollide -> [(AlwaysCollide, Int)] -> Bool
+pDeleteCollisionMany k kvs = not $ (HM.member k) $ HM.delete k $
+                             HM.fromList ((k, 1):kvs)
+
 pInsertWith :: Key -> [(Key, Int)] -> Bool
 pInsertWith k = M.insertWith (+) k 1 `eq_` HM.insertWith (+) k 1
 
@@ -181,6 +187,7 @@ tests =
       , testProperty "insert" pInsert
       , testProperty "delete" pDelete
       , testProperty "deleteCollision" pDeleteCollision
+      , testProperty "deleteCollisionMany" pDeleteCollisionMany
       , testProperty "insertWith" pInsertWith
       , testProperty "adjust" pAdjust
       ]
