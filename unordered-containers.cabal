@@ -91,7 +91,7 @@ test-suite hashset-properties
 
   build-depends:
     base,
-    containers >= 0.4.1 && < 0.5,
+    containers >= 0.4.2 && < 0.5,
     hashable >= 1.0.1.1 && < 1.2,
     QuickCheck >= 2.4.0.1,
     test-framework >= 0.3.3 && < 0.6,
