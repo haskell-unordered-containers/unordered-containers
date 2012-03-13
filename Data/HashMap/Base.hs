@@ -785,7 +785,6 @@ filterWithKey pred = go
         step !ary !mary !b i !j !bi n
             | i >= n = case j of
                 0 -> return Empty
-                1 -> A.read mary 0
                 _ -> do
                     ary2 <- trim mary j
                     return $! if j == maxChildren
