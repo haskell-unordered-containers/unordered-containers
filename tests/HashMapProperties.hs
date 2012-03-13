@@ -15,7 +15,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Lazy as HM
 #endif
 import qualified Data.Map as M
-import Test.QuickCheck (Arbitrary)
+import Test.QuickCheck (Arbitrary, Property, (==>))
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 
@@ -64,15 +64,15 @@ pDelete :: Key -> [(Key, Int)] -> Bool
 pDelete k = M.delete k `eq_` HM.delete k
 
 newtype AlwaysCollide = AC Int
-                      deriving (Arbitrary, Eq, Ord, Show)
+    deriving (Arbitrary, Eq, Ord, Show)
 
 instance Hashable AlwaysCollide where
     hash _ = 1
 
 -- White-box test that tests the case of deleting one of two keys from
 -- a map, where the keys' hash values collide.
-pDeleteCollision :: AlwaysCollide -> AlwaysCollide -> Bool -> Bool
-pDeleteCollision k1 k2 keepFst = HM.member toKeep $ HM.delete toDelete $
+pDeleteCollision :: AlwaysCollide -> AlwaysCollide -> Bool -> Property
+pDeleteCollision k1 k2 keepFst = k1 /= k2 ==> HM.member toKeep $ HM.delete toDelete $
                                  HM.fromList [(k1, 1 :: Int), (k2, 2)]
   where
     (toDelete, toKeep)
