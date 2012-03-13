@@ -16,7 +16,7 @@ import Test.Framework.Providers.QuickCheck2 (testProperty)
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Eq, Ord, Show)
+            deriving (Arbitrary, Enum, Eq, Integral, Num, Ord, Show, Real)
 
 instance Hashable Key where
     hash k = hash (unK k) `mod` 20
@@ -28,10 +28,10 @@ instance Hashable Key where
 -- ** Instances
 
 pEq :: [Key] -> [Key] -> Bool
-pEq xs = (unique xs ==) `eq` (S.fromList xs ==)
+pEq xs = (Set.fromList xs ==) `eq` (S.fromList xs ==)
 
 pNeq :: [Key] -> [Key] -> Bool
-pNeq xs = (unique xs /=) `eq` (S.fromList xs /=)
+pNeq xs = (Set.fromList xs /=) `eq` (S.fromList xs /=)
 
 pFoldable :: [Int] -> Bool
 pFoldable = (L.sort . Foldable.foldr (:) []) `eq`
@@ -41,49 +41,45 @@ pFoldable = (L.sort . Foldable.foldr (:) []) `eq`
 -- ** Basic interface
 
 pSize :: [Key] -> Bool
-pSize = length `eq` S.size
+pSize = Set.size `eq` S.size
 
 pMember :: Key -> [Key] -> Bool
-pMember k = L.elem k `eq` S.member k
+pMember k = Set.member k `eq` S.member k
 
 pInsert :: Key -> [Key] -> Bool
-pInsert a = insert a `eq` (toAscList . S.insert a)
+pInsert a = Set.insert a `eq_` S.insert a
 
 pDelete :: Key -> [Key] -> Bool
-pDelete a = delete a `eq` (toAscList . S.delete a)
+pDelete a = Set.delete a `eq_` S.delete a
 
 ------------------------------------------------------------------------
 -- ** Combine
 
 pUnion :: [Key] -> [Key] -> Bool
-pUnion xs ys = L.sort (L.union as bs) ==
-               toAscList (S.union (S.fromList as) (S.fromList bs))
-  where
-    as = fromList xs
-    bs = fromList ys
+pUnion xs ys = Set.union (Set.fromList xs) `eq_`
+               S.union (S.fromList xs) $ ys
 
 ------------------------------------------------------------------------
 -- ** Transformations
 
 pMap :: [Key] -> Bool
-pMap = map f `eq` (toAscList . S.map f)
-  where f (K k) = K (k + 1)
+pMap = Set.map (+ 1) `eq_` S.map (+ 1)
 
 ------------------------------------------------------------------------
 -- ** Folds
 
 pFoldr :: [Int] -> Bool
-pFoldr = (L.sort . L.foldr (:) []) `eq`
+pFoldr = (L.sort . Set.foldr (:) []) `eq`
          (L.sort . S.foldr (:) [])
 
 pFoldl' :: Int -> [Int] -> Bool
-pFoldl' z0 = L.foldl' (+) z0 `eq` S.foldl' (+) z0
+pFoldl' z0 = Set.foldl' (+) z0 `eq` S.foldl' (+) z0
 
 ------------------------------------------------------------------------
 -- ** Conversions
 
 pToList :: [Key] -> Bool
-pToList = id `eq` toAscList
+pToList = Set.toAscList `eq` toAscList
 
 ------------------------------------------------------------------------
 -- * Test list
@@ -123,7 +119,7 @@ tests =
 -- * Model
 
 -- Invariant: the list is sorted in ascending order, by key.
-type Model a = [a]
+type Model a = Set.Set a
 
 -- | Check that a function operating on a 'HashMap' is equivalent to
 -- one operating on a 'Model'.
@@ -133,27 +129,17 @@ eq :: (Eq a, Hashable a, Ord a, Eq b)
    -> (S.HashSet a -> b)  -- ^ Function that modified a 'HashSet'
    -> [a]                 -- ^ Initial content of the 'HashSet' and 'Model'
    -> Bool                -- ^ True if the functions are equivalent
-eq f g xs = g (S.fromList ys) == f ys
-  where ys = fromList xs
+eq f g xs = g (S.fromList xs) == f (Set.fromList xs)
 
-insert :: Ord a => a -> Model a -> Model a
-insert x [] = [x]
-insert x (y:xs)
-    | x == y    = x : xs
-    | x > y     = y : insert x xs
-    | otherwise = x : y : xs
-
-delete :: Ord a => a -> Model a -> Model a
-delete _ [] = []
-delete k ys@(y:xs)
-    | k == y   = xs
-    | k > y    = y : delete k xs
-    | otherwise = ys
-
--- | Create a model from a list of key-value pairs.  If the input
--- contains multiple entries for the same key, the latter one is used.
-fromList :: Ord a => [a] -> Model a
-fromList = L.foldl' (\ m p -> insert p m) []
+eq_ :: (Eq a, Hashable a, Ord a)
+    => (Model a -> Model a)          -- ^ Function that modifies a 'Model'
+    -> (S.HashSet a -> S.HashSet a)  -- ^ Function that modified a
+                                     -- 'HashSet' in the same way
+    -> [a]                           -- ^ Initial content of the 'HashSet'
+                                     -- and 'Model'
+    -> Bool                          -- ^ True if the functions are
+                                     -- equivalent
+eq_ f g = (Set.toAscList . f) `eq` (toAscList . g)
 
 ------------------------------------------------------------------------
 -- * Test harness
@@ -166,6 +152,3 @@ main = defaultMain tests
 
 toAscList :: Ord a => S.HashSet a -> [a]
 toAscList = L.sort . S.toList
-
-unique :: (Eq a, Ord a) => [a] -> [a]
-unique = Set.toList . Set.fromList

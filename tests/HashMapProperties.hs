@@ -33,7 +33,7 @@ instance Hashable Key where
 -- ** Instances
 
 pEq :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pEq xs ys = (M.fromList xs ==) `eq` (HM.fromList xs ==) $ ys
+pEq xs = (M.fromList xs ==) `eq` (HM.fromList xs ==)
 
 pNeq :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pNeq xs = (M.fromList xs /=) `eq` (HM.fromList xs /=)
@@ -109,7 +109,7 @@ pUnions xss = M.toAscList (M.unions (map M.fromList xss)) ==
 -- ** Transformations
 
 pMap :: [(Key, Int)] -> Bool
-pMap = M.map (+1 ) `eq_` HM.map (+ 1)
+pMap = M.map (+ 1) `eq_` HM.map (+ 1)
 
 ------------------------------------------------------------------------
 -- ** Difference and intersection
