@@ -466,7 +466,8 @@ delete k0 m0 = runST (go h0 k0 0 m0)
             else case st' of
             Empty -> do
                 ary' <- A.delete' ary i
-                return $! BitmapIndexed (mask h s) ary'
+                let bm = fullNodeMask .&. complement (1 `unsafeShiftL` i)
+                return $! BitmapIndexed bm ary'
             _ -> do
                 ary' <- A.update' ary i st'
                 return $! Full ary'
@@ -1038,8 +1039,7 @@ index w s = fromIntegral $ (unsafeShiftR w s) .&. subkeyMask
 
 -- | A bitmask with the 'bitsPerSubkey' least significant bits set.
 fullNodeMask :: Bitmap
-fullNodeMask = complement (complement 0 `unsafeShiftL`
-                           fromIntegral (1 `unsafeShiftL` bitsPerSubkey))
+fullNodeMask = complement (complement 0 `unsafeShiftL` maxChildren)
 {-# INLINE fullNodeMask #-}
 
 -- | Check if two the two arguments are the same value.  N.B. This
