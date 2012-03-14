@@ -101,6 +101,22 @@ test-suite hashset-properties
   ghc-options: -Wall
   cpp-options: -DASSERTS
 
+test-suite regressions
+  hs-source-dirs: tests
+  main-is: Regressions.hs
+  type: exitcode-stdio-1.0
+
+  build-depends:
+    base,
+    hashable >= 1.0.1.1 && < 1.2,
+    HUnit,
+    test-framework >= 0.3.3 && < 0.6,
+    test-framework-hunit,
+    unordered-containers
+
+  ghc-options: -Wall
+  cpp-options: -DASSERTS
+
 source-repository head
   type:     git
   location: https://github.com/tibbe/unordered-containers.git
