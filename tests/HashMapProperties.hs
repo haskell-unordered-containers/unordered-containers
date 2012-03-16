@@ -71,19 +71,23 @@ instance Hashable AlwaysCollide where
 
 -- White-box test that tests the case of deleting one of two keys from
 -- a map, where the keys' hash values collide.
-pDeleteCollision :: AlwaysCollide -> AlwaysCollide -> Bool -> Property
-pDeleteCollision k1 k2 keepFst = k1 /= k2 ==> HM.member toKeep $ HM.delete toDelete $
-                                 HM.fromList [(k1, 1 :: Int), (k2, 2)]
+pDeleteCollision :: AlwaysCollide -> AlwaysCollide -> AlwaysCollide -> Int
+                 -> Property
+pDeleteCollision k1 k2 k3 idx = (k1 /= k2) && (k2 /= k3) && (k1 /= k3) ==>
+                                HM.member toKeep $ HM.delete toDelete $
+                                HM.fromList [(k1, 1 :: Int), (k2, 2), (k3, 3)]
   where
-    (toDelete, toKeep)
-        | keepFst   = (k2, k1)
-        | otherwise = (k1, k2)
-
--- White-box test that tests the case of deleting one of many keys
--- from a map, where the keys' hash values collide.
-pDeleteCollisionMany :: AlwaysCollide -> [(AlwaysCollide, Int)] -> Bool
-pDeleteCollisionMany k kvs = not $ (HM.member k) $ HM.delete k $
-                             HM.fromList ((k, 1):kvs)
+    which = idx `mod` 3
+    toDelete
+        | which == 0 = k1
+        | which == 1 = k2
+        | which == 2 = k3
+        | otherwise = error "Impossible"
+    toKeep
+        | which == 0 = k2
+        | which == 1 = k3
+        | which == 2 = k1
+        | otherwise = error "Impossible"
 
 pInsertWith :: Key -> [(Key, Int)] -> Bool
 pInsertWith k = M.insertWith (+) k 1 `eq_` HM.insertWith (+) k 1
@@ -187,7 +191,6 @@ tests =
       , testProperty "insert" pInsert
       , testProperty "delete" pDelete
       , testProperty "deleteCollision" pDeleteCollision
-      , testProperty "deleteCollisionMany" pDeleteCollisionMany
       , testProperty "insertWith" pInsertWith
       , testProperty "adjust" pAdjust
       ]
