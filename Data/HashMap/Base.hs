@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, MagicHash #-}
-{-# OPTIONS_GHC -funbox-strict-fields #-}
+{-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 
 module Data.HashMap.Base
     (
@@ -76,7 +76,7 @@ module Data.HashMap.Base
 
 import Control.Applicative ((<$>), Applicative(pure))
 import Control.DeepSeq (NFData(rnf))
-import Control.Monad.ST (ST, runST)
+import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as L
@@ -89,6 +89,7 @@ import qualified Data.HashMap.Array as A
 import qualified Data.Hashable as H
 import Data.Hashable (Hashable)
 import Data.HashMap.PopCount (popCount)
+import Data.HashMap.Unsafe (runST)
 import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
 import Data.Typeable (Typeable)
 
@@ -254,42 +255,38 @@ bitmapIndexedOrFull b ary
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
-insert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+insert k0 v0 m0 = go h0 k0 v0 0 m0
   where
     h0 = hash k0
-    go !h !k x !_ Empty = return $! Leaf h (L k x)
+    go !h !k x !_ Empty = Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then if x `ptrEq` y
-                         then return t
-                         else return $! Leaf h (L k x)
-                    else return $! collision h l (L k x)
-        | otherwise = two s h k x hy ky y
+                         then t
+                         else Leaf h (L k x)
+                    else collision h l (L k x)
+        | otherwise = runST (two s h k x hy ky y)
     go h k x s t@(BitmapIndexed b ary)
-        | b .&. m == 0 = do
-            !ary' <- A.insert' ary i $! Leaf h (L k x)
-            return $! bitmapIndexedOrFull (b .|. m) ary'
-        | otherwise = do
-            st <- A.index_ ary i
-            !st' <- go h k x (s+bitsPerSubkey) st
-            if st' `ptrEq` st
-                then return t
-                else do
-                    ary' <- A.update' ary i st'
-                    return $! BitmapIndexed b ary'
+        | b .&. m == 0 =
+            let ary' = A.insert ary i $! Leaf h (L k x)
+            in bitmapIndexedOrFull (b .|. m) ary'
+        | otherwise =
+            let st   = A.index ary i
+                !st' = go h k x (s+bitsPerSubkey) st
+            in if st' `ptrEq` st
+               then t
+               else BitmapIndexed b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
-    go h k x s t@(Full ary) = do
-        st <- A.index_ ary i
-        !st' <- go h k x (s+bitsPerSubkey) st
-        if st' `ptrEq` st
-            then return t
-            else do
-                ary' <- update16' ary i st'
-                return $! Full ary'
+    go h k x s t@(Full ary) =
+        let st   = A.index ary i
+            !st' = go h k x (s+bitsPerSubkey) st
+        in if st' `ptrEq` st
+            then t
+            else Full (update16 ary i st')
       where i = index h s
     go h k x s t@(Collision hy v)
-        | h == hy   = return $! Collision h (updateOrSnocWith const k x v)
+        | h == hy   = Collision h (updateOrSnocWith const k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}

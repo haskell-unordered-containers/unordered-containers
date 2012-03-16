@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, CPP, MagicHash, Rank2Types, UnboxedTuples #-}
-{-# OPTIONS_GHC -funbox-strict-fields #-}
+{-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 
 -- | Zero based arrays.
 --
@@ -53,10 +53,12 @@ module Data.HashMap.Array
 import qualified Data.Traversable as Traversable
 import Control.Applicative (Applicative)
 import Control.DeepSeq
-import Control.Monad.ST
+import Control.Monad.ST hiding (runST)
 import GHC.Exts
 import GHC.ST (ST(..))
 import Prelude hiding (filter, foldr, length, map, read)
+
+import Data.HashMap.Unsafe (runST)
 
 ------------------------------------------------------------------------
 
