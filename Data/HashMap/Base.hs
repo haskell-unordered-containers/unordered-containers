@@ -271,7 +271,7 @@ insert k0 v0 m0 = go h0 k0 v0 0 m0
             let ary' = A.insert ary i $! Leaf h (L k x)
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
-            let st   = A.index ary i
+            let !st  = A.index ary i
                 !st' = go h k x (s+bitsPerSubkey) st
             in if st' `ptrEq` st
                then t
@@ -279,7 +279,7 @@ insert k0 v0 m0 = go h0 k0 v0 0 m0
       where m = mask h s
             i = sparseIndex b m
     go h k x s t@(Full ary) =
-        let st   = A.index ary i
+        let !st  = A.index ary i
             !st' = go h k x (s+bitsPerSubkey) st
         in if st' `ptrEq` st
             then t
@@ -359,34 +359,34 @@ two = go
 -- >   where f new old = new + old
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
             -> HashMap k v
-insertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
   where
     h0 = hash k0
-    go !h !k x !_ Empty = return $! Leaf h (L k x)
+    go !h !k x !_ Empty = Leaf h (L k x)
     go h k x s (Leaf hy l@(L ky y))
         | hy == h = if ky == k
-                    then return $! Leaf h (L k (f x y))
-                    else return $! collision h l (L k x)
-        | otherwise = two s h k x hy ky y
+                    then Leaf h (L k (f x y))
+                    else collision h l (L k x)
+        | otherwise = runST (two s h k x hy ky y)
     go h k x s (BitmapIndexed b ary)
-        | b .&. m == 0 = do
-            ary' <- A.insert' ary i $! Leaf h (L k x)
-            return $! bitmapIndexedOrFull (b .|. m) ary'
-        | otherwise = do
-            st <- A.index_ ary i
-            st' <- go h k x (s+bitsPerSubkey) st
-            ary' <- A.update' ary i st'
-            return $! BitmapIndexed b ary'
+        | b .&. m == 0 =
+            let ary' = A.insert ary i $! Leaf h (L k x)
+            in bitmapIndexedOrFull (b .|. m) ary'
+        | otherwise =
+            let st   = A.index ary i
+                st'  = go h k x (s+bitsPerSubkey) st
+                ary' = A.update ary i st'
+            in BitmapIndexed b ary'
       where m = mask h s
             i = sparseIndex b m
-    go h k x s (Full ary) = do
-        st <- A.index_ ary i
-        st' <- go h k x (s+bitsPerSubkey) st
-        ary' <- update16' ary i st'
-        return $! Full ary'
+    go h k x s (Full ary) =
+        let st   = A.index ary i
+            st'  = go h k x (s+bitsPerSubkey) st
+            ary' = update16 ary i st'
+        in Full ary'
       where i = index h s
     go h k x s t@(Collision hy v)
-        | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
+        | h == hy   = Collision h (updateOrSnocWith f k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
@@ -431,54 +431,48 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 -- | /O(log n)/ Remove the mapping for the specified key from this map
 -- if present.
 delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
-delete k0 m0 = runST (go h0 k0 0 m0)
+delete k0 m0 = go h0 k0 0 m0
   where
     h0 = hash k0
-    go !_ !_ !_ Empty = return Empty
+    go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky _))
-        | hy == h && ky == k = return Empty
-        | otherwise          = return t
+        | hy == h && ky == k = Empty
+        | otherwise          = t
     go h k s t@(BitmapIndexed b ary)
-        | b .&. m == 0 = return t
-        | otherwise = do
+        | b .&. m == 0 = t
+        | otherwise =
             let !st = A.index ary i
-            !st' <- go h k (s+bitsPerSubkey) st
-            if st' `ptrEq` st
-                then return t
+                !st' = go h k (s+bitsPerSubkey) st
+            in if st' `ptrEq` st
+                then t
                 else case st' of
-                Empty | A.length ary == 1 -> return Empty
-                      | otherwise -> do
-                          ary' <- A.delete' ary i
-                          return $! BitmapIndexed (b .&. complement m) ary'
-                _ -> do
-                    ary' <- A.update' ary i st'
-                    return $! BitmapIndexed b ary'
+                Empty | A.length ary == 1 -> Empty
+                      | otherwise -> BitmapIndexed (b .&. complement m) (A.delete ary i)
+                _ -> BitmapIndexed b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
-    go h k s t@(Full ary) = do
-        let !st = A.index ary i
-        !st' <- go h k (s+bitsPerSubkey) st
-        if st' `ptrEq` st
-            then return t
+    go h k s t@(Full ary) =
+        let !st   = A.index ary i
+            !st' = go h k (s+bitsPerSubkey) st
+        in if st' `ptrEq` st
+            then t
             else case st' of
-            Empty -> do
-                ary' <- A.delete' ary i
-                let bm = fullNodeMask .&. complement (1 `unsafeShiftL` i)
-                return $! BitmapIndexed bm ary'
-            _ -> do
-                ary' <- A.update' ary i st'
-                return $! Full ary'
+            Empty ->
+                let ary' = A.delete ary i
+                    bm   = fullNodeMask .&. complement (1 `unsafeShiftL` i)
+                in BitmapIndexed bm ary'
+            _ -> Full (A.update ary i st')
       where i = index h s
     go h k _ t@(Collision hy v)
         | h == hy = case indexOf k v of
             Just i
                 | A.length v == 2 ->
                     if i == 0
-                    then return $! Leaf h (A.index v 1)
-                    else return $! Leaf h (A.index v 0)
-                | otherwise -> return $! Collision h (A.delete v i)
-            Nothing -> return t
-        | otherwise = return t
+                    then Leaf h (A.index v 1)
+                    else Leaf h (A.index v 0)
+                | otherwise -> Collision h (A.delete v i)
+            Nothing -> t
+        | otherwise = t
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE delete #-}
 #endif
