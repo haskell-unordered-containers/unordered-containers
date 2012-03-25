@@ -61,7 +61,7 @@ test-suite hashmap-lazy-properties
     containers >= 0.4.1 && < 0.5,
     hashable >= 1.0.1.1 && < 1.2,
     QuickCheck >= 2.4.0.1,
-    test-framework >= 0.3.3 && < 0.6,
+    test-framework >= 0.3.3 && < 0.7,
     test-framework-quickcheck2 >= 0.2.9 && < 0.3,
     unordered-containers
 
@@ -78,7 +78,7 @@ test-suite hashmap-strict-properties
     containers >= 0.4.1 && < 0.5,
     hashable >= 1.0.1.1 && < 1.2,
     QuickCheck >= 2.4.0.1,
-    test-framework >= 0.3.3 && < 0.6,
+    test-framework >= 0.3.3 && < 0.7,
     test-framework-quickcheck2 >= 0.2.9 && < 0.3,
     unordered-containers
 
@@ -95,7 +95,7 @@ test-suite hashset-properties
     containers >= 0.4.2 && < 0.5,
     hashable >= 1.0.1.1 && < 1.2,
     QuickCheck >= 2.4.0.1,
-    test-framework >= 0.3.3 && < 0.6,
+    test-framework >= 0.3.3 && < 0.7,
     test-framework-quickcheck2 >= 0.2.9 && < 0.3,
     unordered-containers
 
@@ -111,7 +111,7 @@ test-suite regressions
     base,
     hashable >= 1.0.1.1 && < 1.2,
     HUnit,
-    test-framework >= 0.3.3 && < 0.6,
+    test-framework >= 0.3.3 && < 0.7,
     test-framework-hunit,
     unordered-containers
 
