@@ -673,7 +673,7 @@ traverseWithKey f = go
 ------------------------------------------------------------------------
 -- * Difference and intersection
 
--- | /O(n+m)/ Difference of two maps. Return elements of the first map
+-- | /O(n*log m)/ Difference of two maps. Return elements of the first map
 -- not existing in the second.
 difference :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
 difference a b = foldlWithKey' go empty a
@@ -685,7 +685,7 @@ difference a b = foldlWithKey' go empty a
 {-# INLINABLE difference #-}
 #endif
 
--- | /O(n+m)/ Intersection of two maps. Return elements of the first
+-- | /O(n*log m)/ Intersection of two maps. Return elements of the first
 -- map for keys existing in the second.
 intersection :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
 intersection a b = foldlWithKey' go empty a
