@@ -627,7 +627,7 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
             | otherwise     = do
                 A.write mary i =<< A.index_ ary2 i2
                 go (i+1) (i1  ) (i2+1) (m `unsafeShiftL` 1)
-    go 0 0 0 1
+    go 0 0 0 (b' .&. negate b') -- XXX: b' must be non-zero
     return mary
     -- TODO: For the case where b1 .&. b2 == b1, i.e. when one is a
     -- subset of the other, we could use a slightly simpler algorithm,
