@@ -614,20 +614,20 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
     mary <- A.new_ (popCount b')
     -- iterate over nonzero bits of b1 .|. b2
     -- it would be nice if we could shift m by more than 1 each time
-    let hasBit b m = b .&. m /= 0
+    let ba = b1 .&. b2
         go !i !i1 !i2 !m
-            | m > b'                     = return ()
-            | hasBit b1 m && hasBit b2 m = do
+            | m > b'        = return ()
+            | b' .&. m == 0 = go i i1 i2 (m `unsafeShiftL` 1)
+            | ba .&. m /= 0 = do
                 A.write mary i $! f (A.index ary1 i1) (A.index ary2 i2)
                 go (i+1) (i1+1) (i2+1) (m `unsafeShiftL` 1)
-            | hasBit b1 m                = do
+            | b1 .&. m /= 0 = do
                 A.write mary i =<< A.index_ ary1 i1
                 go (i+1) (i1+1) (i2  ) (m `unsafeShiftL` 1)
-            | hasBit b2 m                = do
+            | otherwise     = do
                 A.write mary i =<< A.index_ ary2 i2
                 go (i+1) (i1  ) (i2+1) (m `unsafeShiftL` 1)
-            | otherwise                  = go i i1 i2 (m `unsafeShiftL` 1)
-    go 0 0 0 1
+    go 0 0 0 (b' .&. negate b') -- XXX: b' must be non-zero
     return mary
     -- TODO: For the case where b1 .&. b2 == b1, i.e. when one is a
     -- subset of the other, we could use a slightly simpler algorithm,
