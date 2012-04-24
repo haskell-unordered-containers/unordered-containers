@@ -656,6 +656,9 @@ map f = go
                            A.map' (\ (L k v) -> L k (f v)) ary
 {-# INLINE map #-}
 
+-- TODO: We should be able to use mutation to create the new
+-- 'HashMap'.
+
 -- | /O(n)/ Transform this map by accumulating an Applicative result
 -- from every value.
 traverseWithKey :: Applicative f => (k -> v1 -> f v2) -> HashMap k v1
