@@ -13,6 +13,14 @@ issue32 = assert $ isJust $ HM.lookup 7 m'
     m = HM.fromList (zip ns (repeat []))    
     m' = HM.delete 10 m
 
+issue39 :: Assertion
+issue39 = assert $ hm1 == hm2
+  where
+    hm1 = HM.fromList ([a, b] `zip` [1, 1 :: Int ..])
+    hm2 = HM.fromList ([b, a] `zip` [1, 1 :: Int ..])
+    a = (1, -1) :: (Int, Int)
+    b = (-1, 1) :: (Int, Int)
+
 ------------------------------------------------------------------------
 -- * Test list
 
@@ -20,6 +28,7 @@ tests :: [Test]
 tests =
     [
       testCase "issue32" issue32
+    , testCase "issue39" issue39
     ]
 
 ------------------------------------------------------------------------

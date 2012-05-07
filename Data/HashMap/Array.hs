@@ -48,6 +48,7 @@ module Data.HashMap.Array
     , map'
     , traverse
     , filter
+    , toList
     ) where
 
 import qualified Data.Traversable as Traversable
