@@ -104,6 +104,7 @@ hash :: H.Hashable a => a -> Hash
 hash = fromIntegral . H.hash
 
 data Leaf k v = L !k v
+  deriving (Eq)
 
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L k v) = rnf k `seq` rnf v
@@ -150,9 +151,21 @@ instance (Show k, Show v) => Show (HashMap k v) where
 instance Traversable (HashMap k) where
     traverse f = traverseWithKey (const f)
 
--- NOTE: This is just a placeholder.
 instance (Eq k, Eq v) => Eq (HashMap k v) where
-    a == b = toList a == toList b
+    (==) = equal
+
+equal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
+equal (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
+    b1 == b2 && A.toList ary1 == A.toList ary2
+equal (Leaf k1 v1) (Leaf k2 v2) =
+    k1 == k2 && v1 == v2
+equal (Full ary1) (Full ary2) =
+    A.toList ary1 == A.toList ary2
+equal (Collision k1 ary1) (Collision k2 ary2) =
+    k1 == k2 && A.length ary1 == A.length ary2
+      && L.null (A.toList ary1 L.\\ A.toList ary2)
+equal Empty Empty = True
+equal _     _     = False
 
 ------------------------------------------------------------------------
 -- * Construction
