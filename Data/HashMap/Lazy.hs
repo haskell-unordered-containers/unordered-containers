@@ -62,6 +62,7 @@ module Data.HashMap.Lazy
       -- * Difference and intersection
     , difference
     , intersection
+    , intersectionWith
 
       -- * Folds
     , foldl'

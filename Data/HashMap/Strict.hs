@@ -63,6 +63,7 @@ module Data.HashMap.Strict
       -- * Difference and intersection
     , difference
     , intersection
+    , intersectionWith
 
       -- * Folds
     , foldl'
@@ -93,8 +94,8 @@ import Prelude hiding (map)
 import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
-    adjust, fromList, fromListWith, insert, insertWith, map, singleton,
-    unionWith)
+    adjust, fromList, fromListWith, insert, insertWith, intersectionWith, map,
+    singleton, unionWith)
 
 ------------------------------------------------------------------------
 -- * Construction
@@ -329,6 +330,23 @@ map f = go
 {-# INLINE map #-}
 
 -- TODO: Should we add a strict traverseWithKey?
+
+------------------------------------------------------------------------
+-- * Difference and intersection
+
+-- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
+-- the provided function is used to combine the values from the two
+-- maps.
+intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
+                 -> HashMap k v2 -> HashMap k v3
+intersectionWith f a b = foldlWithKey' go empty a
+  where
+    go m k v = case HM.lookup k b of
+                 Just w -> insert k (f v w) m
+                 _      -> m
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE intersectionWith #-}
+#endif
 
 ------------------------------------------------------------------------
 -- ** Lists

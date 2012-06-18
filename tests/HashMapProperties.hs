@@ -126,6 +126,10 @@ pIntersection :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pIntersection xs ys = M.intersection (M.fromList xs) `eq_`
                       HM.intersection (HM.fromList xs) $ ys
 
+pIntersectionWith :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pIntersectionWith xs ys = M.intersectionWith (-) (M.fromList xs) `eq_`
+                          HM.intersectionWith (-) (HM.fromList xs) $ ys
+
 ------------------------------------------------------------------------
 -- ** Folds
 
@@ -209,6 +213,7 @@ tests =
     , testGroup "difference and intersection"
       [ testProperty "difference" pDifference
       , testProperty "intersection" pIntersection
+      , testProperty "intersectionWith" pIntersectionWith
       ]
     -- Filter
     , testGroup "filter"

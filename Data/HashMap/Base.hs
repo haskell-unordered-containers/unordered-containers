@@ -36,6 +36,7 @@ module Data.HashMap.Base
       -- * Difference and intersection
     , difference
     , intersection
+    , intersectionWith
 
       -- * Folds
     , foldl'
@@ -348,7 +349,7 @@ two = go
   where
     go s h1 k1 v1 h2 k2 v2
         | bp1 == bp2 = do
-            st <- go (s+bitsPerSubkey) h1 k1 v1 h2 k2 v2 
+            st <- go (s+bitsPerSubkey) h1 k1 v1 h2 k2 v2
             ary <- A.singleton' st
             return $! BitmapIndexed bp1 ary
         | otherwise  = do
@@ -711,6 +712,20 @@ intersection a b = foldlWithKey' go empty a
                  _      -> m
 #if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE intersection #-}
+#endif
+
+-- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
+-- the provided function is used to combine the values from the two
+-- maps.
+intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
+                 -> HashMap k v2 -> HashMap k v3
+intersectionWith f a b = foldlWithKey' go empty a
+  where
+    go m k v = case lookup k b of
+                 Just w -> insert k (f v w) m
+                 _      -> m
+#if __GLASGOW_HASKELL__ >= 700
+{-# INLINABLE intersectionWith #-}
 #endif
 
 ------------------------------------------------------------------------
