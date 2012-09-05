@@ -93,8 +93,8 @@ import Prelude hiding (map)
 import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
-    adjust, fromList, fromListWith, insert, insertWith, intersectionWith, map,
-    singleton, unionWith)
+    adjust, fromList, fromListWith, insert, insertWith, intersectionWith,
+    lookupDefault, map, singleton, unionWith)
 import Data.HashMap.Unsafe (runST)
 
 ------------------------------------------------------------------------
@@ -106,6 +106,14 @@ singleton k !v = HM.singleton k v
 
 ------------------------------------------------------------------------
 -- * Basic interface
+
+-- | /O(log n)/ Return the value to which the specified key is mapped,
+-- or the default value if this map contains no mapping for the key.
+lookupDefault :: (Eq k, Hashable k)
+              => v          -- ^ Default value to return.
+              -> k -> HashMap k v -> v
+lookupDefault !def k t = HM.lookupDefault def k t
+{-# INLINABLE lookupDefault #-}
 
 -- | /O(log n)/ Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for

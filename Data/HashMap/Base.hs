@@ -237,7 +237,7 @@ lookupDefault :: (Eq k, Hashable k)
 lookupDefault def k t = case lookup k t of
     Just v -> v
     _      -> def
-{-# INLINE lookupDefault #-}
+{-# INLINABLE lookupDefault #-}
 
 -- | /O(log n)/ Return the value to which the specified key is mapped.
 -- Calls 'error' if this map contains no mapping for the key.

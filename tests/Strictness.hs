@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleInstances, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main (main) where
@@ -23,19 +23,66 @@ instance (Arbitrary k, Arbitrary v, Eq k, Hashable k) =>
          Arbitrary (HashMap k v) where
     arbitrary = HM.fromList `fmap` arbitrary
 
+instance Show (Int -> Int) where
+    show _ = "<function>"
+
+instance Show (Int -> Int -> Int) where
+    show _ = "<function>"
+
 ------------------------------------------------------------------------
 -- * Properties
 
 ------------------------------------------------------------------------
 -- ** Strict module
 
-pInsertKeyStrict :: HashMap Key Int -> Int -> Bool
-pInsertKeyStrict m v = isBottom $ HM.insert bottom v m
+pSingletonKeyStrict :: Int -> Bool
+pSingletonKeyStrict v = isBottom $ HM.singleton (bottom :: Key) v
 
-pInsertValueStrict :: HashMap Key Int -> Key -> Bool
-pInsertValueStrict m k = isBottom $ HM.insert k bottom m
+pSingletonValueStrict :: Key -> Bool
+pSingletonValueStrict k = isBottom $ (HM.singleton k (bottom :: Int))
 
--- TODO: Add instance of 'CoArbitrary' that includes 'bottom'.
+pMemberKeyStrict :: HashMap Key Int -> Bool
+pMemberKeyStrict m = isBottom $ HM.member bottom m
+
+pLookupKeyStrict :: HashMap Key Int -> Bool
+pLookupKeyStrict m = isBottom $ HM.lookup bottom m
+
+pLookupDefaultKeyStrict :: Int -> HashMap Key Int -> Bool
+pLookupDefaultKeyStrict def m = isBottom $ HM.lookupDefault def bottom m
+
+pLookupDefaultValueStrict :: Key -> HashMap Key Int -> Bool
+pLookupDefaultValueStrict k m = isBottom $ HM.lookupDefault bottom k m
+
+pBangKeyStrict :: HashMap Key Int -> Bool
+pBangKeyStrict m = isBottom $ m HM.! bottom
+
+pDeleteKeyStrict :: HashMap Key Int -> Bool
+pDeleteKeyStrict m = isBottom $ HM.delete bottom m
+
+pAdjustKeyStrict :: (Int -> Int) -> HashMap Key Int -> Bool
+pAdjustKeyStrict f m = isBottom $ HM.adjust f bottom m
+
+pAdjustValueStrict :: Key -> HashMap Key Int -> Bool
+pAdjustValueStrict k m
+    | k `HM.member` m = isBottom $ HM.adjust (const bottom) k m
+    | otherwise       = case HM.keys m of
+        []     -> True
+        (k':_) -> isBottom $ HM.adjust (const bottom) k' m
+
+pInsertKeyStrict :: Int -> HashMap Key Int -> Bool
+pInsertKeyStrict v m = isBottom $ HM.insert bottom v m
+
+pInsertValueStrict :: Key -> HashMap Key Int -> Bool
+pInsertValueStrict k m = isBottom $ HM.insert k bottom m
+
+pInsertWithKeyStrict :: (Int -> Int -> Int) -> Int -> HashMap Key Int -> Bool
+pInsertWithKeyStrict f v m = isBottom $ HM.insertWith f bottom v m
+
+pInsertWithValueStrict :: (Int -> Int -> Int) -> Key -> Int -> HashMap Key Int
+                       -> Bool
+pInsertWithValueStrict f k v m
+    | HM.member k m = isBottom $ HM.insertWith (const2 bottom) k v m
+    | otherwise     = isBottom $ HM.insertWith f k bottom m
 
 ------------------------------------------------------------------------
 -- * Test list
@@ -43,9 +90,22 @@ pInsertValueStrict m k = isBottom $ HM.insert k bottom m
 tests :: [Test]
 tests =
     [
-      testGroup "Strict"
-      [ testProperty "insert is key-strict" pInsertKeyStrict
+    -- Basic interface
+      testGroup "HashMap.Strict"
+      [ testProperty "singleton is key-strict" pSingletonKeyStrict
+      , testProperty "singleton is value-strict" pSingletonValueStrict
+      , testProperty "member is key-strict" pMemberKeyStrict
+      , testProperty "lookup is key-strict" pLookupKeyStrict
+      , testProperty "lookupDefault is key-strict" pLookupDefaultKeyStrict
+      , testProperty "lookupDefault is value-strict" pLookupDefaultValueStrict
+      , testProperty "! is key-strict" pBangKeyStrict
+      , testProperty "delete is key-strict" pDeleteKeyStrict
+      , testProperty "adjust is key-strict" pAdjustKeyStrict
+      , testProperty "adjust is value-strict" pAdjustValueStrict
+      , testProperty "insert is key-strict" pInsertKeyStrict
       , testProperty "insert is value-strict" pInsertValueStrict
+      , testProperty "insertWith is key-strict" pInsertWithKeyStrict
+      , testProperty "insertWith is value-strict" pInsertWithValueStrict
       ]
     ]
 
@@ -54,3 +114,9 @@ tests =
 
 main :: IO ()
 main = defaultMain tests
+
+------------------------------------------------------------------------
+-- * Utilities
+
+const2 :: a -> b -> c -> a
+const2 x _ _ = x
