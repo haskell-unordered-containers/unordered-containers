@@ -95,6 +95,7 @@ import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
 import Data.Typeable (Typeable)
 
 #if defined(__GLASGOW_HASKELL__)
+import Data.Data hiding (Typeable)
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
 #endif
 
@@ -141,6 +142,23 @@ instance (Eq k, Hashable k) => Monoid (HashMap k v) where
   {-# INLINE mempty #-}
   mappend = union
   {-# INLINE mappend #-}
+
+#if __GLASGOW_HASKELL__
+instance (Data k, Data v, Eq k, Hashable k) => Data (HashMap k v) where
+    gfoldl f z m   = z fromList `f` toList m
+    toConstr _     = fromListConstr
+    gunfold k z c  = case constrIndex c of
+        1 -> k (z fromList)
+        _ -> error "gunfold"
+    dataTypeOf _   = hashMapDataType
+    dataCast2 f    = gcast2 f
+
+fromListConstr :: Constr
+fromListConstr = mkConstr hashMapDataType "fromList" [] Prefix
+
+hashMapDataType :: DataType
+hashMapDataType = mkDataType "Data.HashMap.Base.HashMap" [fromListConstr]
+#endif
 
 type Hash   = Word
 type Bitmap = Word
