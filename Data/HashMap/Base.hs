@@ -70,8 +70,8 @@ module Data.HashMap.Base
     , two
     , unionArrayBy
     , update16
-    , update16'
-    , update16With
+    , update16M
+    , update16With'
     , updateOrConcatWith
     ) where
 
@@ -599,12 +599,12 @@ unionWith f = go 0
     go s (Full ary1) t2 =
         let h2   = leafHashCode t2
             i    = index h2 s
-            ary' = update16With ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
+            ary' = update16With' ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
         in Full ary'
     go s t1 (Full ary2) =
         let h1   = leafHashCode t1
             i    = index h1 s
-            ary' = update16With ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
+            ary' = update16With' ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
         in Full ary'
 
     leafHashCode (Leaf h _) = h
@@ -991,21 +991,21 @@ updateOrConcatWith f ary1 ary2 = A.run $ do
 
 -- | /O(n)/ Update the element at the given position in this array.
 update16 :: A.Array e -> Int -> e -> A.Array e
-update16 ary idx b = runST (update16' ary idx b)
+update16 ary idx b = runST (update16M ary idx b)
 {-# INLINE update16 #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
-update16' :: A.Array e -> Int -> e -> ST s (A.Array e)
-update16' ary idx b = do
+update16M :: A.Array e -> Int -> e -> ST s (A.Array e)
+update16M ary idx b = do
     mary <- clone16 ary
     A.write mary idx b
     A.unsafeFreeze mary
-{-# INLINE update16' #-}
+{-# INLINE update16M #-}
 
 -- | /O(n)/ Update the element at the given position in this array, by applying a function to it.
-update16With :: A.Array e -> Int -> (e -> e) -> A.Array e
-update16With ary idx f = update16 ary idx $! f (A.index ary idx)
-{-# INLINE update16With #-}
+update16With' :: A.Array e -> Int -> (e -> e) -> A.Array e
+update16With' ary idx f = update16 ary idx $! f (A.index ary idx)
+{-# INLINE update16With' #-}
 
 -- | Unsafely clone an array of 16 elements.  The length of the input
 -- array is not checked.

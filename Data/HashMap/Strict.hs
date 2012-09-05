@@ -293,12 +293,12 @@ unionWith f = go 0
     go s (Full ary1) t2 =
         let h2   = leafHashCode t2
             i    = index h2 s
-            ary' = update16With ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
+            ary' = update16With' ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
         in Full ary'
     go s t1 (Full ary2) =
         let h1   = leafHashCode t1
             i    = index h1 s
-            ary' = update16With ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
+            ary' = update16With' ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
         in Full ary'
 
     leafHashCode (Leaf h _) = h
