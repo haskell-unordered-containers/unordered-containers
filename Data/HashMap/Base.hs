@@ -396,7 +396,7 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
     go h k x s (Full ary) =
         let st   = A.index ary i
             st'  = go h k x (s+bitsPerSubkey) st
-            ary' = update16 ary i st'
+            ary' = update16 ary i $! st'
         in Full ary'
       where i = index h s
     go h k x s t@(Collision hy v)
