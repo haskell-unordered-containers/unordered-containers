@@ -41,23 +41,11 @@ pSingletonKeyStrict v = isBottom $ HM.singleton (bottom :: Key) v
 pSingletonValueStrict :: Key -> Bool
 pSingletonValueStrict k = isBottom $ (HM.singleton k (bottom :: Int))
 
-pMemberKeyStrict :: HashMap Key Int -> Bool
-pMemberKeyStrict m = isBottom $ HM.member bottom m
-
-pLookupKeyStrict :: HashMap Key Int -> Bool
-pLookupKeyStrict m = isBottom $ HM.lookup bottom m
-
 pLookupDefaultKeyStrict :: Int -> HashMap Key Int -> Bool
 pLookupDefaultKeyStrict def m = isBottom $ HM.lookupDefault def bottom m
 
 pLookupDefaultValueStrict :: Key -> HashMap Key Int -> Bool
 pLookupDefaultValueStrict k m = isBottom $ HM.lookupDefault bottom k m
-
-pBangKeyStrict :: HashMap Key Int -> Bool
-pBangKeyStrict m = isBottom $ m HM.! bottom
-
-pDeleteKeyStrict :: HashMap Key Int -> Bool
-pDeleteKeyStrict m = isBottom $ HM.delete bottom m
 
 pAdjustKeyStrict :: (Int -> Int) -> HashMap Key Int -> Bool
 pAdjustKeyStrict f m = isBottom $ HM.adjust f bottom m
@@ -94,12 +82,12 @@ tests =
       testGroup "HashMap.Strict"
       [ testProperty "singleton is key-strict" pSingletonKeyStrict
       , testProperty "singleton is value-strict" pSingletonValueStrict
-      , testProperty "member is key-strict" pMemberKeyStrict
-      , testProperty "lookup is key-strict" pLookupKeyStrict
+      , testProperty "member is key-strict" $ keyStrict HM.member
+      , testProperty "lookup is key-strict" $ keyStrict HM.lookup
       , testProperty "lookupDefault is key-strict" pLookupDefaultKeyStrict
       , testProperty "lookupDefault is value-strict" pLookupDefaultValueStrict
-      , testProperty "! is key-strict" pBangKeyStrict
-      , testProperty "delete is key-strict" pDeleteKeyStrict
+      , testProperty "! is key-strict" $ keyStrict (flip (HM.!))
+      , testProperty "delete is key-strict" $ keyStrict HM.delete
       , testProperty "adjust is key-strict" pAdjustKeyStrict
       , testProperty "adjust is value-strict" pAdjustValueStrict
       , testProperty "insert is key-strict" pInsertKeyStrict
@@ -117,6 +105,9 @@ main = defaultMain tests
 
 ------------------------------------------------------------------------
 -- * Utilities
+
+keyStrict :: (Key -> HashMap Key Int -> a) -> HashMap Key Int -> Bool
+keyStrict f m = isBottom $ f bottom m
 
 const2 :: a -> b -> c -> a
 const2 x _ _ = x
