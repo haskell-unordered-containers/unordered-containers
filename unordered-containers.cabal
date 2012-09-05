@@ -118,6 +118,35 @@ test-suite regressions
   ghc-options: -Wall
   cpp-options: -DASSERTS
 
+benchmark benchmarks
+  -- We cannot depend on the unordered-containers library directly as
+  -- that creates a dependency cycle.
+  hs-source-dirs: . benchmarks
+
+  main-is: Benchmarks.hs
+  type: exitcode-stdio-1.0
+
+  build-depends:
+    base,
+    bytestring,
+    containers,
+    criterion,
+    deepseq >= 1.1,
+    hashable >= 1.0.1.1,
+    mtl,
+    random
+
+  if impl(ghc < 7.4)
+    c-sources: cbits/popc.c
+
+  ghc-options: -Wall -O2 -rtsopts
+  if impl(ghc >= 6.8)
+    ghc-options: -fwarn-tabs
+  if impl(ghc > 6.10)
+    ghc-options: -fregs-graph
+  if flag(debug)
+    cpp-options: -DASSERTS
+
 source-repository head
   type:     git
   location: https://github.com/tibbe/unordered-containers.git
