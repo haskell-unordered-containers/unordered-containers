@@ -119,6 +119,24 @@ test-suite regressions
   ghc-options: -Wall
   cpp-options: -DASSERTS
 
+test-suite strictness-properties
+  hs-source-dirs: tests
+  main-is: Strictness.hs
+  type: exitcode-stdio-1.0
+
+  build-depends:
+    base,
+    ChasingBottoms,
+    containers >= 0.4.2,
+    hashable >= 1.0.1.1,
+    QuickCheck >= 2.4.0.1,
+    test-framework >= 0.3.3,
+    test-framework-quickcheck2 >= 0.2.9,
+    unordered-containers
+
+  ghc-options: -Wall
+  cpp-options: -DASSERTS
+
 benchmark benchmarks
   -- We cannot depend on the unordered-containers library directly as
   -- that creates a dependency cycle.
