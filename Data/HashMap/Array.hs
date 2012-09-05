@@ -55,6 +55,7 @@ import Control.Monad.ST hiding (runST)
 import GHC.Exts
 import GHC.ST (ST(..))
 import Prelude hiding (filter, foldr, length, map, read)
+import qualified Prelude
 
 import Data.HashMap.Unsafe (runST)
 
