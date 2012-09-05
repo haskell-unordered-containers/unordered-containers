@@ -141,7 +141,7 @@ insertWith f k0 !v0 m0 = go h0 k0 v0 0 m0
         | otherwise =
             let st   = A.index ary i
                 st'  = go h k x (s+bitsPerSubkey) st
-                ary' = A.update ary i st'
+                ary' = A.update ary i $! st'
             in BitmapIndexed b ary'
       where m = mask h s
             i = sparseIndex b m
