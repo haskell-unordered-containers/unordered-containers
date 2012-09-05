@@ -85,7 +85,6 @@ module Data.HashMap.Strict
     , fromListWith
     ) where
 
-import Control.Monad.ST (runST)
 import Data.Bits ((.&.), (.|.))
 import qualified Data.List as L
 import Data.Hashable (Hashable)
@@ -96,6 +95,7 @@ import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
     adjust, fromList, fromListWith, insert, insertWith, intersectionWith, map,
     singleton, unionWith)
+import Data.HashMap.Unsafe (runST)
 
 ------------------------------------------------------------------------
 -- * Construction
