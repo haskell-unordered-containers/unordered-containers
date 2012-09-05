@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, DeriveDataTypeable #-}
 
 ------------------------------------------------------------------------
 -- |
@@ -67,6 +67,7 @@ import Prelude hiding (filter, foldr, map, null)
 import qualified Data.Foldable as Foldable
 import qualified Data.HashMap.Lazy as H
 import qualified Data.List as List
+import Data.Typeable (Typeable)
 
 #if defined(__GLASGOW_HASKELL__)
 import GHC.Exts (build)
@@ -75,7 +76,7 @@ import GHC.Exts (build)
 -- | A set of values.  A set cannot contain duplicate values.
 newtype HashSet a = HashSet {
       asMap :: HashMap a ()
-    }
+    } deriving (Typeable)
 
 instance (NFData a) => NFData (HashSet a) where
     rnf = rnf . asMap
