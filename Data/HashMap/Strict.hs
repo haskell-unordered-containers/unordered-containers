@@ -172,19 +172,19 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = two s h k x hy ky y
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- A.insert' ary i $! Leaf h (L k x)
+            ary' <- A.insertM ary i $! Leaf h (L k x)
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
-            st <- A.index_ ary i
+            st <- A.indexM ary i
             st' <- go h k x (s+bitsPerSubkey) st
-            A.unsafeUpdate' ary i st'
+            A.unsafeUpdateM ary i st'
             return t
       where m = mask h s
             i = sparseIndex b m
     go h k x s t@(Full ary) = do
-        st <- A.index_ ary i
+        st <- A.indexM ary i
         st' <- go h k x (s+bitsPerSubkey) st
-        A.unsafeUpdate' ary i st'
+        A.unsafeUpdateM ary i st'
         return t
       where i = index h s
     go h k x s t@(Collision hy v)
@@ -272,7 +272,7 @@ unionWith f = go 0
         | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
                                b'   = b1 .|. m2
                            in bitmapIndexedOrFull b' ary'
-        | otherwise      = let ary' = A.updateWith ary1 i $ \st1 ->
+        | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
                                    go (s+bitsPerSubkey) st1 t2
                            in BitmapIndexed b1 ary'
         where
@@ -283,7 +283,7 @@ unionWith f = go 0
         | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
                                b'   = b2 .|. m1
                            in bitmapIndexedOrFull b' ary'
-        | otherwise      = let ary' = A.updateWith ary2 i $ \st2 ->
+        | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
                                    go (s+bitsPerSubkey) t1 st2
                            in BitmapIndexed b2 ary'
       where

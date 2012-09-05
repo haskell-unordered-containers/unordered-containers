@@ -12,7 +12,7 @@ module Data.HashMap.Array
     , new
     , new_
     , singleton
-    , singleton'
+    , singletonM
     , pair
 
       -- * Basic interface
@@ -21,16 +21,13 @@ module Data.HashMap.Array
     , read
     , write
     , index
-    , index_
-    , indexM_
+    , indexM
     , update
-    , update'
-    , updateWith
-    , unsafeUpdate'
+    , updateWith'
+    , unsafeUpdateM
     , insert
-    , insert'
+    , insertM
     , delete
-    , delete'
 
     , unsafeFreeze
     , unsafeThaw
@@ -72,11 +69,13 @@ if (_k_) < 0 || (_k_) >= (_len_) then error ("Data.HashMap.Array." ++ (_func_) +
 if not ((_lhs_) _op_ (_rhs_)) then error ("Data.HashMap.Array." ++ (_func_) ++ ": Check failed: _lhs_ _op_ _rhs_ (" ++ show (_lhs_) ++ " vs. " ++ show (_rhs_) ++ ")") else
 # define CHECK_GT(_func_,_lhs_,_rhs_) CHECK_OP(_func_,>,_lhs_,_rhs_)
 # define CHECK_LE(_func_,_lhs_,_rhs_) CHECK_OP(_func_,<=,_lhs_,_rhs_)
+# define CHECK_EQ(_func_,_lhs_,_rhs_) CHECK_OP(_func_,==,_lhs_,_rhs_)
 #else
 # define CHECK_BOUNDS(_func_,_len_,_k_)
 # define CHECK_OP(_func_,_op_,_lhs_,_rhs_)
 # define CHECK_GT(_func_,_lhs_,_rhs_)
 # define CHECK_LE(_func_,_lhs_,_rhs_)
+# define CHECK_EQ(_func_,_lhs_,_rhs_)
 #endif
 
 data Array a = Array {
@@ -155,12 +154,12 @@ new_ :: Int -> ST s (MArray s a)
 new_ n = new n undefinedElem
 
 singleton :: a -> Array a
-singleton x = runST (singleton' x)
+singleton x = runST (singletonM x)
 {-# INLINE singleton #-}
 
-singleton' :: a -> ST s (Array a)
-singleton' x = new 1 x >>= unsafeFreeze
-{-# INLINE singleton' #-}
+singletonM :: a -> ST s (Array a)
+singletonM x = new 1 x >>= unsafeFreeze
+{-# INLINE singletonM #-}
 
 pair :: a -> a -> Array a
 pair x y = run $ do
@@ -188,17 +187,11 @@ index ary _i@(I# i#) =
         case indexArray# (unArray ary) i# of (# b #) -> b
 {-# INLINE index #-}
 
-index_ :: Array a -> Int -> ST s a
-index_ ary _i@(I# i#) =
-    CHECK_BOUNDS("index_", length ary, _i)
+indexM :: Array a -> Int -> ST s a
+indexM ary _i@(I# i#) =
+    CHECK_BOUNDS("indexM", length ary, _i)
         case indexArray# (unArray ary) i# of (# b #) -> return b
-{-# INLINE index_ #-}
-
-indexM_ :: MArray s a -> Int -> ST s a
-indexM_ ary _i@(I# i#) =
-    CHECK_BOUNDS("index_", lengthM ary, _i)
-        ST $ \ s# -> readArray# (unMArray ary) i# s#
-{-# INLINE indexM_ #-}
+{-# INLINE indexM #-}
 
 unsafeFreeze :: MArray s a -> ST s (Array a)
 unsafeFreeze mary
@@ -239,7 +232,7 @@ copy !src !sidx !dst !didx n =
   where
     copy_loop !i !j !c
         | c >= n = return ()
-        | otherwise = do b <- index_ src i
+        | otherwise = do b <- indexM src i
                          write dst j b
                          copy_loop (i+1) (j+1) (c+1)
 #endif
@@ -261,7 +254,7 @@ copyM !src !sidx !dst !didx n =
   where
     copy_loop !i !j !c
         | c >= n = return ()
-        | otherwise = do b <- indexM_ src i
+        | otherwise = do b <- read src i
                          write dst j b
                          copy_loop (i+1) (j+1) (c+1)
 #endif
@@ -269,54 +262,54 @@ copyM !src !sidx !dst !didx n =
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
 insert :: Array e -> Int -> e -> Array e
-insert ary idx b = runST (insert' ary idx b)
+insert ary idx b = runST (insertM ary idx b)
 {-# INLINE insert #-}
 
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
-insert' :: Array e -> Int -> e -> ST s (Array e)
-insert' ary idx b =
-    CHECK_BOUNDS("insert'", count + 1, idx)
+insertM :: Array e -> Int -> e -> ST s (Array e)
+insertM ary idx b =
+    CHECK_BOUNDS("insertM", count + 1, idx)
         do mary <- new_ (count+1)
            copy ary 0 mary 0 idx
            write mary idx b
            copy ary idx mary (idx+1) (count-idx)
            unsafeFreeze mary
   where !count = length ary
-{-# INLINE insert' #-}
+{-# INLINE insertM #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
 update :: Array e -> Int -> e -> Array e
-update ary idx b = runST (update' ary idx b)
+update ary idx b = runST (updateM ary idx b)
 {-# INLINE update #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
-update' :: Array e -> Int -> e -> ST s (Array e)
-update' ary idx b =
-    CHECK_BOUNDS("update'", count, idx)
+updateM :: Array e -> Int -> e -> ST s (Array e)
+updateM ary idx b =
+    CHECK_BOUNDS("updateM", count, idx)
         do mary <- thaw ary 0 count
            write mary idx b
            unsafeFreeze mary
   where !count = length ary
-{-# INLINE update' #-}
+{-# INLINE updateM #-}
 
 -- | /O(n)/ Update the element at the given positio in this array, by
 -- applying a function to it.  Evaluates the element to WHNF before
 -- inserting it into the array.
-updateWith :: Array e -> Int -> (e -> e) -> Array e
-updateWith ary idx f = update ary idx $! f (index ary idx)
-{-# INLINE updateWith #-}
+updateWith' :: Array e -> Int -> (e -> e) -> Array e
+updateWith' ary idx f = update ary idx $! f (index ary idx)
+{-# INLINE updateWith' #-}
 
 -- | /O(1)/ Update the element at the given position in this array,
 -- without copying.
-unsafeUpdate' :: Array e -> Int -> e -> ST s ()
-unsafeUpdate' ary idx b =
-    CHECK_BOUNDS("unsafeUpdate'", length ary, idx)
+unsafeUpdateM :: Array e -> Int -> e -> ST s ()
+unsafeUpdateM ary idx b =
+    CHECK_BOUNDS("unsafeUpdateM", length ary, idx)
         do mary <- unsafeThaw ary
            write mary idx b
            _ <- unsafeFreeze mary
            return ()
-{-# INLINE unsafeUpdate' #-}
+{-# INLINE unsafeUpdateM #-}
 
 foldl' :: (b -> a -> b) -> b -> Array a -> b
 foldl' f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
@@ -356,19 +349,20 @@ thaw !ary !o !n =
 -- | /O(n)/ Delete an element at the given position in this array,
 -- decreasing its size by one.
 delete :: Array e -> Int -> Array e
-delete ary idx = runST (delete' ary idx)
+delete ary idx = runST (deleteM ary idx)
 {-# INLINE delete #-}
 
 -- | /O(n)/ Delete an element at the given position in this array,
 -- decreasing its size by one.
-delete' :: Array e -> Int -> ST s (Array e)
-delete' ary idx = do
-    mary <- new_ (count-1)
-    copy ary 0 mary 0 idx
-    copy ary (idx+1) mary idx (count-(idx+1))
-    unsafeFreeze mary
+deleteM :: Array e -> Int -> ST s (Array e)
+deleteM ary idx = do
+    CHECK_BOUNDS("deleteM", count, idx)
+        do mary <- new_ (count-1)
+           copy ary 0 mary 0 idx
+           copy ary (idx+1) mary idx (count-(idx+1))
+           unsafeFreeze mary
   where !count = length ary
-{-# INLINE delete' #-}
+{-# INLINE deleteM #-}
 
 map :: (a -> b) -> Array a -> Array b
 map f = \ ary ->
@@ -400,9 +394,11 @@ map' f = \ ary ->
 {-# INLINE map' #-}
 
 fromList :: Int -> [a] -> Array a
-fromList n xs0 = run $ do
-    mary <- new_ n
-    go xs0 mary 0
+fromList n xs0 =
+    CHECK_EQ("fromList", n, Prelude.length xs0)
+        run $ do
+            mary <- new_ n
+            go xs0 mary 0
   where
     go [] !mary !_   = return mary
     go (x:xs) mary i = do write mary i x

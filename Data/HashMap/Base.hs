@@ -321,19 +321,19 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = two s h k x hy ky y
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- A.insert' ary i $! Leaf h (L k x)
+            ary' <- A.insertM ary i $! Leaf h (L k x)
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
-            st <- A.index_ ary i
+            st <- A.indexM ary i
             st' <- go h k x (s+bitsPerSubkey) st
-            A.unsafeUpdate' ary i st'
+            A.unsafeUpdateM ary i st'
             return t
       where m = mask h s
             i = sparseIndex b m
     go h k x s t@(Full ary) = do
-        st <- A.index_ ary i
+        st <- A.indexM ary i
         st' <- go h k x (s+bitsPerSubkey) st
-        A.unsafeUpdate' ary i st'
+        A.unsafeUpdateM ary i st'
         return t
       where i = index h s
     go h k x s t@(Collision hy v)
@@ -350,7 +350,7 @@ two = go
     go s h1 k1 v1 h2 k2 v2
         | bp1 == bp2 = do
             st <- go (s+bitsPerSubkey) h1 k1 v1 h2 k2 v2
-            ary <- A.singleton' st
+            ary <- A.singletonM st
             return $! BitmapIndexed bp1 ary
         | otherwise  = do
             mary <- A.new 2 $ Leaf h1 (L k1 v1)
@@ -420,19 +420,19 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = two s h k x hy ky y
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- A.insert' ary i $! Leaf h (L k x)
+            ary' <- A.insertM ary i $! Leaf h (L k x)
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
-            st <- A.index_ ary i
+            st <- A.indexM ary i
             st' <- go h k x (s+bitsPerSubkey) st
-            A.unsafeUpdate' ary i st'
+            A.unsafeUpdateM ary i st'
             return t
       where m = mask h s
             i = sparseIndex b m
     go h k x s t@(Full ary) = do
-        st <- A.index_ ary i
+        st <- A.indexM ary i
         st' <- go h k x (s+bitsPerSubkey) st
-        A.unsafeUpdate' ary i st'
+        A.unsafeUpdateM ary i st'
         return t
       where i = index h s
     go h k x s t@(Collision hy v)
@@ -578,7 +578,7 @@ unionWith f = go 0
         | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
                                b'   = b1 .|. m2
                            in bitmapIndexedOrFull b' ary'
-        | otherwise      = let ary' = A.updateWith ary1 i $ \st1 ->
+        | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
                                    go (s+bitsPerSubkey) st1 t2
                            in BitmapIndexed b1 ary'
         where
@@ -589,7 +589,7 @@ unionWith f = go 0
         | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
                                b'   = b2 .|. m1
                            in bitmapIndexedOrFull b' ary'
-        | otherwise      = let ary' = A.updateWith ary2 i $ \st2 ->
+        | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
                                    go (s+bitsPerSubkey) t1 st2
                            in BitmapIndexed b2 ary'
       where
@@ -636,10 +636,10 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
                 A.write mary i $! f (A.index ary1 i1) (A.index ary2 i2)
                 go (i+1) (i1+1) (i2+1) (m `unsafeShiftL` 1)
             | b1 .&. m /= 0 = do
-                A.write mary i =<< A.index_ ary1 i1
+                A.write mary i =<< A.indexM ary1 i1
                 go (i+1) (i1+1) (i2  ) (m `unsafeShiftL` 1)
             | otherwise     = do
-                A.write mary i =<< A.index_ ary2 i2
+                A.write mary i =<< A.indexM ary2 i2
                 go (i+1) (i1  ) (i2+1) (m `unsafeShiftL` 1)
     go 0 0 0 (b' .&. negate b') -- XXX: b' must be non-zero
     return mary
@@ -973,12 +973,12 @@ updateOrConcatWith f ary1 ary2 = A.run $ do
           | i2 >= n2 = return ()
           | otherwise = case A.index indices i2 of
                Just i1 -> do -- key occurs in both arrays, store combination in position i1
-                             L k v1 <- A.index_ ary1 i1
-                             L _ v2 <- A.index_ ary2 i2
+                             L k v1 <- A.indexM ary1 i1
+                             L _ v2 <- A.indexM ary2 i2
                              A.write mary i1 (L k (f v1 v2))
                              go iEnd (i2+1)
                Nothing -> do -- key is only in ary2, append to end
-                             A.write mary iEnd =<< A.index_ ary2 i2
+                             A.write mary iEnd =<< A.indexM ary2 i2
                              go (iEnd+1) (i2+1)
     go n1 0
     return mary
@@ -1015,22 +1015,22 @@ clone16 ary =
     A.thaw ary 0 16
 #else
     do mary <- A.new_ 16
-       A.index_ ary 0 >>= A.write mary 0
-       A.index_ ary 1 >>= A.write mary 1
-       A.index_ ary 2 >>= A.write mary 2
-       A.index_ ary 3 >>= A.write mary 3
-       A.index_ ary 4 >>= A.write mary 4
-       A.index_ ary 5 >>= A.write mary 5
-       A.index_ ary 6 >>= A.write mary 6
-       A.index_ ary 7 >>= A.write mary 7
-       A.index_ ary 8 >>= A.write mary 8
-       A.index_ ary 9 >>= A.write mary 9
-       A.index_ ary 10 >>= A.write mary 10
-       A.index_ ary 11 >>= A.write mary 11
-       A.index_ ary 12 >>= A.write mary 12
-       A.index_ ary 13 >>= A.write mary 13
-       A.index_ ary 14 >>= A.write mary 14
-       A.index_ ary 15 >>= A.write mary 15
+       A.indexM ary 0 >>= A.write mary 0
+       A.indexM ary 1 >>= A.write mary 1
+       A.indexM ary 2 >>= A.write mary 2
+       A.indexM ary 3 >>= A.write mary 3
+       A.indexM ary 4 >>= A.write mary 4
+       A.indexM ary 5 >>= A.write mary 5
+       A.indexM ary 6 >>= A.write mary 6
+       A.indexM ary 7 >>= A.write mary 7
+       A.indexM ary 8 >>= A.write mary 8
+       A.indexM ary 9 >>= A.write mary 9
+       A.indexM ary 10 >>= A.write mary 10
+       A.indexM ary 11 >>= A.write mary 11
+       A.indexM ary 12 >>= A.write mary 12
+       A.indexM ary 13 >>= A.write mary 13
+       A.indexM ary 14 >>= A.write mary 14
+       A.indexM ary 15 >>= A.write mary 15
        return mary
 #endif
 
