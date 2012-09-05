@@ -12,6 +12,7 @@ license:        BSD3
 license-file:   LICENSE
 author:         Johan Tibell
 maintainer:     johan.tibell@gmail.com
+Homepage:       https://github.com/tibbe/unordered-containers
 bug-reports:    https://github.com/tibbe/unordered-containers/issues
 copyright:      2010-2012 Johan Tibell
                 2010 Edward Z. Yang
