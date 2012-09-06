@@ -70,6 +70,7 @@ import qualified Data.List as List
 import Data.Typeable (Typeable)
 
 #if defined(__GLASGOW_HASKELL__)
+import Data.Data hiding (Typeable)
 import GHC.Exts (build)
 #endif
 
@@ -101,6 +102,23 @@ instance (Hashable a, Eq a) => Monoid (HashSet a) where
 instance (Show a) => Show (HashSet a) where
     showsPrec d m = showParen (d > 10) $
       showString "fromList " . shows (toList m)
+
+#if __GLASGOW_HASKELL__
+instance (Data a, Eq a, Hashable a) => Data (HashSet a) where
+    gfoldl f z m   = z fromList `f` toList m
+    toConstr _     = fromListConstr
+    gunfold k z c  = case constrIndex c of
+        1 -> k (z fromList)
+        _ -> error "gunfold"
+    dataTypeOf _   = hashSetDataType
+    dataCast1 f    = gcast1 f
+
+fromListConstr :: Constr
+fromListConstr = mkConstr hashSetDataType "fromList" [] Prefix
+
+hashSetDataType :: DataType
+hashSetDataType = mkDataType "Data.HashSet" [fromListConstr]
+#endif
 
 -- | /O(1)/ Construct an empty set.
 empty :: HashSet a
