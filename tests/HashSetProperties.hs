@@ -1,4 +1,4 @@
- {-# LANGUAGE CPP, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP, GeneralizedNewtypeDeriving #-}
 
 -- | Tests for the 'Data.HashSet' module.  We test functions by
 -- comparing them to a simpler model, a list.
