@@ -1,4 +1,4 @@
- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+ {-# LANGUAGE CPP, GeneralizedNewtypeDeriving #-}
 
 -- | Tests for the 'Data.HashSet' module.  We test functions by
 -- comparing them to a simpler model, a list.
@@ -69,11 +69,25 @@ pMap = Set.map (+ 1) `eq_` S.map (+ 1)
 -- ** Folds
 
 pFoldr :: [Int] -> Bool
-pFoldr = (L.sort . Set.foldr (:) []) `eq`
+pFoldr = (L.sort . foldrSet (:) []) `eq`
          (L.sort . S.foldr (:) [])
 
+foldrSet :: (a -> b -> b) -> b -> Set.Set a -> b
+#if MIN_VERSION_containers(0,4,2)
+foldrSet = Set.foldr
+#else
+foldrSet = Foldable.foldr
+#endif
+
 pFoldl' :: Int -> [Int] -> Bool
-pFoldl' z0 = Set.foldl' (+) z0 `eq` S.foldl' (+) z0
+pFoldl' z0 = foldl'Set (+) z0 `eq` S.foldl' (+) z0
+
+foldl'Set :: (a -> b -> a) -> a -> Set.Set b -> a
+#if MIN_VERSION_containers(0,4,2)
+foldl'Set = Set.foldl'
+#else
+foldl'Set = Foldable.foldl'
+#endif
 
 ------------------------------------------------------------------------
 -- ** Filter

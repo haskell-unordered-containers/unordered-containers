@@ -142,7 +142,15 @@ pFoldrWithKey = (sortByKey . M.foldrWithKey f []) `eq`
   where f k v z = (k, v) : z
 
 pFoldl' :: Int -> [(Int, Int)] -> Bool
-pFoldl' z0 = M.foldlWithKey' (\ z _ v -> v + z) z0 `eq` HM.foldl' (+) z0
+pFoldl' z0 = foldlWithKey'Map (\ z _ v -> v + z) z0 `eq` HM.foldl' (+) z0
+
+foldlWithKey'Map :: (b -> k -> a -> b) -> b -> M.Map k a -> b
+#if MIN_VERSION_containers(4,2,0)
+foldlWithKey'Map = M.foldlWithKey'
+#else
+-- Equivalent except for bottoms, which we don't test.
+foldlWithKey'Map = M.foldlWithKey
+#endif
 
 ------------------------------------------------------------------------
 -- ** Filter
