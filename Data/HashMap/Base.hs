@@ -186,6 +186,12 @@ equal (Collision k1 ary1) (Collision k2 ary2) =
 equal Empty Empty = True
 equal _     _     = False
 
+-- Helper function to detect 'Leaf's and 'Collision's.
+isLeafOrCollision :: HashMap k v -> Bool
+isLeafOrCollision (Leaf _ _)      = True
+isLeafOrCollision (Collision _ _) = True
+isLeafOrCollision _               = False
+
 ------------------------------------------------------------------------
 -- * Construction
 
@@ -479,7 +485,15 @@ delete k0 m0 = go h0 k0 0 m0
                 then t
                 else case st' of
                 Empty | A.length ary == 1 -> Empty
-                      | otherwise -> BitmapIndexed (b .&. complement m) (A.delete ary i)
+                      | A.length ary == 2 ->
+                          case (i, A.index ary 0, A.index ary 1) of
+                          (0, _, l) | isLeafOrCollision l -> l
+                          (1, l, _) | isLeafOrCollision l -> l
+                          _                               -> bIndexed
+                      | otherwise -> bIndexed
+                    where
+                      bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
+                l | isLeafOrCollision l && A.length ary == 1 -> l
                 _ -> BitmapIndexed b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
@@ -826,6 +840,11 @@ filterWithKey pred = go
         step !ary !mary !b i !j !bi n
             | i >= n = case j of
                 0 -> return Empty
+                1 -> do
+                    ch <- A.read mary 0
+                    case ch of
+                      t | isLeafOrCollision t -> return t
+                      _                       -> BitmapIndexed b <$> trim mary 1
                 _ -> do
                     ary2 <- trim mary j
                     return $! if j == maxChildren
