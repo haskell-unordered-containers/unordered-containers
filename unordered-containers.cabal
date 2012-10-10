@@ -112,8 +112,10 @@ test-suite regressions
     base,
     hashable >= 1.0.1.1,
     HUnit,
+    QuickCheck >= 2.4.0.1,
     test-framework >= 0.3.3,
     test-framework-hunit,
+    test-framework-quickcheck2,
     unordered-containers
 
   ghc-options: -Wall
