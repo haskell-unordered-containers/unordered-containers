@@ -1,0 +1,32 @@
+name:       unordered-containers-benchmarks
+version:    0
+build-type: Simple
+
+cabal-version: >=1.2
+
+executable unordered-containers-benchmarks
+  ghc-options: -Wall -O2
+  cc-options: -msse4.1
+  c-sources:
+    ../cbits/popc.c
+  hs-source-dirs: .. .
+  main-is: Benchmarks.hs
+  other-modules:
+    Data.HashMap.Array
+    Data.HashMap.Base
+    Data.HashMap.Lazy
+    Data.HashMap.PopCount
+    Data.HashMap.Strict
+    Data.HashMap.Unsafe
+    Data.HashMap.UnsafeShift
+    Data.HashSet
+  build-depends:
+    base,
+    bytestring,
+    containers,
+    criterion,
+    deepseq,
+    ghc-prim,
+    hashable,
+    mtl,
+    random
