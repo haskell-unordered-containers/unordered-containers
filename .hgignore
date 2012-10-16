@@ -1,5 +1,5 @@
 ^dist$
-^benchmarks/bench$
+^benchmarks/(?:dist|bench)$
 ^tests/(?:Map|Set)Properties$
 \.(?:aux|eventlog|h[ip]|log|[oa]|orig|prof|ps|rej|swp)$
 ~$
