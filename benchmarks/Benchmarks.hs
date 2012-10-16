@@ -21,7 +21,9 @@ import qualified Util.ByteString as UBS
 import qualified Util.Int as UI
 import qualified Util.String as US
 
+#if !MIN_VERSION_bytestring(0,10,0)
 instance NFData BS.ByteString
+#endif
 
 data B where
     B :: NFData a => a -> B
