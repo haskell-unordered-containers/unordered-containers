@@ -174,17 +174,27 @@ instance (Eq k, Eq v) => Eq (HashMap k v) where
     (==) = equal
 
 equal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
-equal (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
-    b1 == b2 && A.toList ary1 == A.toList ary2
-equal (Leaf k1 v1) (Leaf k2 v2) =
-    k1 == k2 && v1 == v2
-equal (Full ary1) (Full ary2) =
-    A.toList ary1 == A.toList ary2
-equal (Collision k1 ary1) (Collision k2 ary2) =
-    k1 == k2 && A.length ary1 == A.length ary2
-      && L.null (A.toList ary1 L.\\ A.toList ary2)
-equal Empty Empty = True
-equal _     _     = False
+equal t1 t2 = go (toList' t1 []) (toList' t2 [])
+  where
+    -- If the two trees are the same, then their lists of 'Leaf's and
+    -- 'Collision's read from left to right should be the same (modulo the
+    -- order of elements in 'Collision').
+
+    go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
+      | k1 == k2 && l1 == l2
+      = go tl1 tl2
+    go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
+      | k1 == k2 && A.length ary1 == A.length ary2 &&
+        L.null (A.toList ary1 L.\\ A.toList ary2)
+      = go tl1 tl2
+    go [] [] = True
+    go _  _  = False
+
+    toList' (BitmapIndexed _ ary) a = A.foldr toList' a ary
+    toList' (Full ary)            a = A.foldr toList' a ary
+    toList' l@(Leaf _ _)          a = l : a
+    toList' c@(Collision _ _)     a = c : a
+    toList' Empty                 a = a
 
 ------------------------------------------------------------------------
 -- * Construction
