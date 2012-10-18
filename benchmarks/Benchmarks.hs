@@ -92,98 +92,100 @@ main = do
           , bench "fromList" $ whnf IM.fromList elemsI
           ]
 
-          -- * Basic interface
-        , bgroup "lookup"
-          [ bench "String" $ whnf (lookup keys) hm
-          , bench "ByteString" $ whnf (lookup keysBS) hmbs
-          , bench "Int" $ whnf (lookup keysI) hmi
-          ]
-        , bgroup "lookup-miss"
-          [ bench "String" $ whnf (lookup keys') hm
-          , bench "ByteString" $ whnf (lookup keysBS') hmbs
-          , bench "Int" $ whnf (lookup keysI') hmi
-          ]
-        , bgroup "insert"
-          [ bench "String" $ whnf (insert elems) HM.empty
-          , bench "ByteString" $ whnf (insert elemsBS) HM.empty
-          , bench "Int" $ whnf (insert elemsI) HM.empty
-          ]
-        , bgroup "insert-dup"
-          [ bench "String" $ whnf (insert elems) hm
-          , bench "ByteString" $ whnf (insert elemsBS) hmbs
-          , bench "Int" $ whnf (insert elemsI) hmi
-          ]
-        , bgroup "delete"
-          [ bench "String" $ whnf (delete keys) hm
-          , bench "ByteString" $ whnf (delete keysBS) hmbs
-          , bench "Int" $ whnf (delete keysI) hmi
-          ]
-        , bgroup "delete-miss"
-          [ bench "String" $ whnf (delete keys') hm
-          , bench "ByteString" $ whnf (delete keysBS') hmbs
-          , bench "Int" $ whnf (delete keysI') hmi
-          ]
-
-          -- Combine
-        , bench "union" $ whnf (HM.union hmi) hmi2
-
-          -- Transformations
-        , bench "map" $ whnf (HM.map (\ v -> v + 1)) hmi
-
-          -- * Difference and intersection
-        , bench "difference" $ whnf (HM.difference hmi) hmi2
-        , bench "intersection" $ whnf (HM.intersection hmi) hmi2
-
-          -- Folds
-        , bench "foldl'" $ whnf (HM.foldl' (+) 0) hmi
-        , bench "foldr" $ nf (HM.foldr (:) []) hmi
-
-          -- Filter
-        , bench "filter" $ whnf (HM.filter (\ v -> v .&. 1 == 0)) hmi
-        , bench "filterWithKey" $ whnf (HM.filterWithKey (\ k _ -> k .&. 1 == 0)) hmi
-
-          -- Size
-        , bgroup "size"
-          [ bench "String" $ whnf HM.size hm
-          , bench "ByteString" $ whnf HM.size hmbs
-          , bench "Int" $ whnf HM.size hmi
-          ]
-
-          -- fromList
-        , bgroup "fromList"
-          [ bgroup name
-            [ bgroup "long"
-              [ bench "String" $ whnf fl1 elems
-              , bench "ByteString" $ whnf fl2 elemsBS
-              , bench "Int" $ whnf fl3 elemsI
-              ]
-            , bgroup "short"
-              [ bench "String" $ whnf fl1 elemsDup
-              , bench "ByteString" $ whnf fl2 elemsDupBS
-              , bench "Int" $ whnf fl3 elemsDupI
-              ]
+        , bgroup "HashMap"
+          [ -- * Basic interface
+            bgroup "lookup"
+            [ bench "String" $ whnf (lookup keys) hm
+            , bench "ByteString" $ whnf (lookup keysBS) hmbs
+            , bench "Int" $ whnf (lookup keysI) hmi
             ]
-          | (name,fl1,fl2,fl3)
-               <- [("Base",HM.fromList,HM.fromList,HM.fromList)
-                  ,("insert",fromList_insert,fromList_insert,fromList_insert)]
-          ]
-          -- fromList
-        , bgroup "fromListWith"
-          [ bgroup name
-            [ bgroup "long"
-              [ bench "String" $ whnf (fl1 (+)) elems
-              , bench "ByteString" $ whnf (fl2 (+)) elemsBS
-              , bench "Int" $ whnf (fl3 (+)) elemsI
-              ]
-            , bgroup "short"
-              [ bench "String" $ whnf (fl1 (+)) elemsDup
-              , bench "ByteString" $ whnf (fl2 (+)) elemsDupBS
-              , bench "Int" $ whnf (fl3 (+)) elemsDupI
-              ]
+          , bgroup "lookup-miss"
+            [ bench "String" $ whnf (lookup keys') hm
+            , bench "ByteString" $ whnf (lookup keysBS') hmbs
+            , bench "Int" $ whnf (lookup keysI') hmi
             ]
-          | (name,fl1,fl2,fl3)
-               <- [("Base",HM.fromListWith,HM.fromListWith,HM.fromListWith)
-                  ,("insert",fromListWith_insert,fromListWith_insert,fromListWith_insert)]
+          , bgroup "insert"
+            [ bench "String" $ whnf (insert elems) HM.empty
+            , bench "ByteString" $ whnf (insert elemsBS) HM.empty
+            , bench "Int" $ whnf (insert elemsI) HM.empty
+            ]
+          , bgroup "insert-dup"
+            [ bench "String" $ whnf (insert elems) hm
+            , bench "ByteString" $ whnf (insert elemsBS) hmbs
+            , bench "Int" $ whnf (insert elemsI) hmi
+            ]
+          , bgroup "delete"
+            [ bench "String" $ whnf (delete keys) hm
+            , bench "ByteString" $ whnf (delete keysBS) hmbs
+            , bench "Int" $ whnf (delete keysI) hmi
+            ]
+          , bgroup "delete-miss"
+            [ bench "String" $ whnf (delete keys') hm
+            , bench "ByteString" $ whnf (delete keysBS') hmbs
+            , bench "Int" $ whnf (delete keysI') hmi
+            ]
+
+            -- Combine
+          , bench "union" $ whnf (HM.union hmi) hmi2
+
+            -- Transformations
+          , bench "map" $ whnf (HM.map (\ v -> v + 1)) hmi
+
+            -- * Difference and intersection
+          , bench "difference" $ whnf (HM.difference hmi) hmi2
+          , bench "intersection" $ whnf (HM.intersection hmi) hmi2
+
+            -- Folds
+          , bench "foldl'" $ whnf (HM.foldl' (+) 0) hmi
+          , bench "foldr" $ nf (HM.foldr (:) []) hmi
+
+            -- Filter
+          , bench "filter" $ whnf (HM.filter (\ v -> v .&. 1 == 0)) hmi
+          , bench "filterWithKey" $ whnf (HM.filterWithKey (\ k _ -> k .&. 1 == 0)) hmi
+
+            -- Size
+          , bgroup "size"
+            [ bench "String" $ whnf HM.size hm
+            , bench "ByteString" $ whnf HM.size hmbs
+            , bench "Int" $ whnf HM.size hmi
+            ]
+
+            -- fromList
+          , bgroup "fromList"
+            [ bgroup name
+              [ bgroup "long"
+                [ bench "String" $ whnf fl1 elems
+                , bench "ByteString" $ whnf fl2 elemsBS
+                , bench "Int" $ whnf fl3 elemsI
+                ]
+              , bgroup "short"
+                [ bench "String" $ whnf fl1 elemsDup
+                , bench "ByteString" $ whnf fl2 elemsDupBS
+                , bench "Int" $ whnf fl3 elemsDupI
+                ]
+              ]
+            | (name,fl1,fl2,fl3)
+                 <- [("Base",HM.fromList,HM.fromList,HM.fromList)
+                    ,("insert",fromList_insert,fromList_insert,fromList_insert)]
+            ]
+            -- fromList
+          , bgroup "fromListWith"
+            [ bgroup name
+              [ bgroup "long"
+                [ bench "String" $ whnf (fl1 (+)) elems
+                , bench "ByteString" $ whnf (fl2 (+)) elemsBS
+                , bench "Int" $ whnf (fl3 (+)) elemsI
+                ]
+              , bgroup "short"
+                [ bench "String" $ whnf (fl1 (+)) elemsDup
+                , bench "ByteString" $ whnf (fl2 (+)) elemsDupBS
+                , bench "Int" $ whnf (fl3 (+)) elemsDupI
+                ]
+              ]
+            | (name,fl1,fl2,fl3)
+                 <- [("Base",HM.fromListWith,HM.fromListWith,HM.fromListWith)
+                    ,("insert",fromListWith_insert,fromListWith_insert,fromListWith_insert)]
+            ]
           ]
         ]
   where
