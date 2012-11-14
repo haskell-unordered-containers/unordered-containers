@@ -326,15 +326,19 @@ unionWith f = go 0
 -- * Transformations
 
 -- | /O(n)/ Transform this map by applying a function to every value.
-map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
-map f = go
+mapWithKey :: (k -> v1 -> v2) -> HashMap k v1 -> HashMap k v2
+mapWithKey f = go
   where
     go Empty                 = Empty
-    go (Leaf h (L k v))      = let !v' = f v in Leaf h $ L k v'
+    go (Leaf h (L k v))      = let !v' = f k v in Leaf h $ L k v'
     go (BitmapIndexed b ary) = BitmapIndexed b $ A.map' go ary
     go (Full ary)            = Full $ A.map' go ary
     go (Collision h ary)     =
-        Collision h $ A.map' (\ (L k v) -> let !v' = f v in L k v') ary
+        Collision h $ A.map' (\ (L k v) -> let !v' = f k v in L k v') ary
+{-# INLINE mapWithKey #-}
+
+map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
+map f = mapWithKey (const f)
 {-# INLINE map #-}
 
 -- TODO: Should we add a strict traverseWithKey?
