@@ -3,7 +3,7 @@
 
 module Main (main) where
 
-import Data.Hashable (Hashable(hash))
+import Data.Hashable (Hashable(hashWithSalt))
 import Test.ChasingBottoms.IsBottom
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
@@ -17,7 +17,7 @@ newtype Key = K { unK :: Int }
             deriving (Arbitrary, Eq, Ord, Show)
 
 instance Hashable Key where
-    hash k = hash (unK k) `mod` 20
+    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
     
 instance (Arbitrary k, Arbitrary v, Eq k, Hashable k) =>
          Arbitrary (HashMap k v) where

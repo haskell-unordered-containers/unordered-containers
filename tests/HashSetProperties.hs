@@ -6,7 +6,7 @@
 module Main (main) where
 
 import qualified Data.Foldable as Foldable
-import Data.Hashable (Hashable(hash))
+import Data.Hashable (Hashable(hashWithSalt))
 import qualified Data.List as L
 import qualified Data.HashSet as S
 import qualified Data.Set as Set
@@ -19,7 +19,7 @@ newtype Key = K { unK :: Int }
             deriving (Arbitrary, Enum, Eq, Integral, Num, Ord, Show, Real)
 
 instance Hashable Key where
-    hash k = hash (unK k) `mod` 20
+    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
 
 ------------------------------------------------------------------------
 -- * Properties

@@ -7,7 +7,7 @@ module Main (main) where
 
 import qualified Data.Foldable as Foldable
 import Data.Function (on)
-import Data.Hashable (Hashable(hash))
+import Data.Hashable (Hashable(hashWithSalt))
 import qualified Data.List as L
 #if defined(STRICT)
 import qualified Data.HashMap.Strict as HM
@@ -24,7 +24,7 @@ newtype Key = K { unK :: Int }
             deriving (Arbitrary, Eq, Ord, Show)
 
 instance Hashable Key where
-    hash k = hash (unK k) `mod` 20
+    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
 
 ------------------------------------------------------------------------
 -- * Properties
@@ -67,7 +67,7 @@ newtype AlwaysCollide = AC Int
     deriving (Arbitrary, Eq, Ord, Show)
 
 instance Hashable AlwaysCollide where
-    hash _ = 1
+    hashWithSalt _ _ = 1
 
 -- White-box test that tests the case of deleting one of two keys from
 -- a map, where the keys' hash values collide.
