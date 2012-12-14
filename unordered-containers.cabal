@@ -1,5 +1,5 @@
 name:           unordered-containers
-version:        0.2.2.1
+version:        0.2.3.0
 synopsis:       Efficient hashing-based container types
 description:
   Efficient hashing-based container types.  The containers have been
