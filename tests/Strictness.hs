@@ -18,7 +18,7 @@ newtype Key = K { unK :: Int }
 
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
-    
+
 instance (Arbitrary k, Arbitrary v, Eq k, Hashable k) =>
          Arbitrary (HashMap k v) where
     arbitrary = HM.fromList `fmap` arbitrary
