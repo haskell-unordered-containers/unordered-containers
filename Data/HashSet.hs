@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP, DeriveDataTypeable #-}
-{-# OPTIONS_GHC -XDeriveGeneric #-}
 
+#if defined(__GLASGOW_HASKELL__)
+{-# LANGUAGE DeriveGeneric #-}
+#endif
 
 ------------------------------------------------------------------------
 -- |
@@ -80,7 +82,11 @@ import GHC.Generics (Generic)
 -- | A set of values.  A set cannot contain duplicate values.
 newtype HashSet a = HashSet {
       asMap :: HashMap a ()
+#if defined(__GLASGOW_HASKELL__)
     } deriving (Generic, Typeable)
+#else
+    } deriving (Typeable)
+#endif
 
 instance (NFData a) => NFData (HashSet a) where
     rnf = rnf . asMap
