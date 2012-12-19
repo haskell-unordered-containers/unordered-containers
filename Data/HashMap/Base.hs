@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, MagicHash #-}
-{-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
+{-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields -XDeriveGeneric #-}
 
 module Data.HashMap.Base
     (
@@ -97,6 +97,7 @@ import Data.Typeable (Typeable)
 #if defined(__GLASGOW_HASKELL__)
 import Data.Data hiding (Typeable)
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
+import GHC.Generics (Generic)
 #endif
 
 ------------------------------------------------------------------------
@@ -122,7 +123,7 @@ data HashMap k v
     | Leaf !Hash !(Leaf k v)
     | Full !(A.Array (HashMap k v))
     | Collision !Hash !(A.Array (Leaf k v))
-      deriving (Typeable)
+      deriving (Generic, Typeable)
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Empty                 = ()
