@@ -120,9 +120,7 @@ lookupDefault !def k t = HM.lookupDefault def k t
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k !v = HM.insert k v
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
-#endif
 
 -- | /O(log n)/ Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
@@ -162,9 +160,7 @@ insertWith f k0 !v0 m0 = go h0 k0 v0 0 m0
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith f k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
-#endif
 
 -- | In-place update version of insertWith
 unsafeInsertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
@@ -198,9 +194,7 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE unsafeInsertWith #-}
-#endif
 
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
@@ -229,9 +223,7 @@ adjust f k0 = go h0 k0 0
     go h k _ t@(Collision hy v)
         | h == hy   = Collision h (updateWith f k v)
         | otherwise = t
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE adjust #-}
-#endif
 
 ------------------------------------------------------------------------
 -- * Combine
@@ -356,9 +348,7 @@ intersectionWith f a b = foldlWithKey' go empty a
     go m k v = case HM.lookup k b of
                  Just w -> insert k (f v w) m
                  _      -> m
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE intersectionWith #-}
-#endif
 
 ------------------------------------------------------------------------
 -- ** Lists
@@ -368,9 +358,7 @@ intersectionWith f a b = foldlWithKey' go empty a
 -- precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = L.foldl' (\ m (k, v) -> HM.unsafeInsert k v m) empty
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE fromList #-}
-#endif
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
 -- the provided function to merge duplicate entries.
@@ -389,9 +377,7 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> let !v' = f y in A.update ary i (L k v')
                      | otherwise -> go k ary (i+1) n
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE updateWith #-}
-#endif
 
 updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
@@ -407,6 +393,4 @@ updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> let !v' = f v y in A.update ary i (L k v')
                      | otherwise -> go k v ary (i+1) n
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE updateOrSnocWith #-}
-#endif

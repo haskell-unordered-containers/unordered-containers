@@ -127,9 +127,7 @@ empty = HashSet H.empty
 -- | /O(1)/ Construct a set with a single element.
 singleton :: Hashable a => a -> HashSet a
 singleton a = HashSet (H.singleton a ())
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE singleton #-}
-#endif
 
 -- | /O(n+m)/ Construct a set containing all elements from both sets.
 --
@@ -162,24 +160,18 @@ member :: (Eq a, Hashable a) => a -> HashSet a -> Bool
 member a s = case H.lookup a (asMap s) of
                Just _ -> True
                _      -> False
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE member #-}
-#endif
 
 -- | /O(min(n,W))/ Add the specified value to this set.
 insert :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 insert a = HashSet . H.insert a () . asMap
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
-#endif
 
 -- | /O(min(n,W))/ Remove the specified value from this set if
 -- present.
 delete :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 delete a = HashSet . H.delete a . asMap
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE delete #-}
-#endif
 
 -- | /O(n)/ Transform this set by applying a function to every value.
 -- The resulting set may be smaller than the source.
@@ -191,17 +183,13 @@ map f = fromList . List.map f . toList
 -- not existing in the second.
 difference :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE difference #-}
-#endif
 
 -- | /O(n)/ Intersection of two sets. Return elements present in both
 -- the first set and the second.
 intersection :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 intersection (HashSet a) (HashSet b) = HashSet (H.intersection a b)
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE intersection #-}
-#endif
 
 -- | /O(n)/ Reduce this set by applying a binary operator to all
 -- elements, using the given starting value (typically the

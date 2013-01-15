@@ -237,9 +237,7 @@ member :: (Eq k, Hashable k) => k -> HashMap k a -> Bool
 member k m = case lookup k m of
     Nothing -> False
     Just _  -> True
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINEABLE member #-}
-#endif
+{-# INLINABLE member #-}
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.
@@ -259,9 +257,7 @@ lookup k0 = go h0 k0 0
     go h k _ (Collision hx v)
         | h == hx   = lookupInArray k v
         | otherwise = Nothing
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE lookup #-}
-#endif
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
@@ -336,9 +332,7 @@ insert k0 v0 m0 = go h0 k0 v0 0 m0
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith const k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insert #-}
-#endif
 
 -- | In-place update version of insert
 unsafeInsert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
@@ -373,9 +367,7 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWith const k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE unsafeInsert #-}
-#endif
 
 -- | Create a map from two key-value pairs which hashes don't collide.
 two :: Shift -> Hash -> k -> v -> Hash -> k -> v -> ST s (HashMap k v)
@@ -436,9 +428,7 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith f k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE insertWith #-}
-#endif
 
 -- | In-place update version of insertWith
 unsafeInsertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
@@ -472,9 +462,7 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE unsafeInsertWith #-}
-#endif
 
 -- | /O(log n)/ Remove the mapping for the specified key from this map
 -- if present.
@@ -529,9 +517,7 @@ delete k0 m0 = go h0 k0 0 m0
                 | otherwise -> Collision h (A.delete v i)
             Nothing -> t
         | otherwise = t
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE delete #-}
-#endif
 
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
@@ -560,9 +546,7 @@ adjust f k0 = go h0 k0 0
     go h k _ t@(Collision hy v)
         | h == hy   = Collision h (updateWith f k v)
         | otherwise = t
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE adjust #-}
-#endif
 
 ------------------------------------------------------------------------
 -- * Combine
@@ -571,9 +555,7 @@ adjust f k0 = go h0 k0 0
 -- mapping from the first will be the mapping in the result.
 union :: (Eq k, Hashable k) => HashMap k v -> HashMap k v -> HashMap k v
 union = unionWith const
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE union #-}
-#endif
 
 -- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the
@@ -744,9 +726,7 @@ difference a b = foldlWithKey' go empty a
     go m k v = case lookup k b of
                  Nothing -> insert k v m
                  _       -> m
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE difference #-}
-#endif
 
 -- | /O(n*log m)/ Intersection of two maps. Return elements of the first
 -- map for keys existing in the second.
@@ -756,9 +736,7 @@ intersection a b = foldlWithKey' go empty a
     go m k v = case lookup k b of
                  Just _ -> insert k v m
                  _      -> m
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE intersection #-}
-#endif
 
 -- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
@@ -770,9 +748,7 @@ intersectionWith f a b = foldlWithKey' go empty a
     go m k v = case lookup k b of
                  Just w -> insert k (f v w) m
                  _      -> m
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE intersectionWith #-}
-#endif
 
 ------------------------------------------------------------------------
 -- * Folds
@@ -932,17 +908,13 @@ toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
 -- contains duplicate mappings, the later mappings take precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = L.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE fromList #-}
-#endif
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
 -- the provided function to merge duplicate entries.
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINE fromListWith #-}
-#endif
 
 ------------------------------------------------------------------------
 -- Array operations
@@ -958,9 +930,7 @@ lookupInArray k0 ary0 = go k0 ary0 0 (A.length ary0)
             (L kx v)
                 | k == kx   -> Just v
                 | otherwise -> go k ary (i+1) n
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE lookupInArray #-}
-#endif
 
 -- | /O(n)/ Lookup the value associated with the given key in this
 -- array.  Returns 'Nothing' if the key wasn't found.
@@ -973,9 +943,7 @@ indexOf k0 ary0 = go k0 ary0 0 (A.length ary0)
             (L kx _)
                 | k == kx   -> Just i
                 | otherwise -> go k ary (i+1) n
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE indexOf #-}
-#endif
 
 updateWith :: Eq k => (v -> v) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
 updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
@@ -985,9 +953,7 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> A.update ary i (L k (f y))
                      | otherwise -> go k ary (i+1) n
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE updateWith #-}
-#endif
 
 updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
@@ -1003,9 +969,7 @@ updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> A.update ary i (L k (f v y))
                      | otherwise -> go k v ary (i+1) n
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE updateOrSnocWith #-}
-#endif
 
 updateOrConcatWith :: Eq k => (v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
 updateOrConcatWith f ary1 ary2 = A.run $ do
@@ -1033,9 +997,7 @@ updateOrConcatWith f ary1 ary2 = A.run $ do
                              go (iEnd+1) (i2+1)
     go n1 0
     return mary
-#if __GLASGOW_HASKELL__ >= 700
 {-# INLINABLE updateOrConcatWith #-}
-#endif
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops
