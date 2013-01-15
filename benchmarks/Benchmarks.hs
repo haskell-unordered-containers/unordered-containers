@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, GADTs #-}
+{-# LANGUAGE CPP, GADTs, PackageImports #-}
 
 module Main where
 
@@ -10,6 +10,7 @@ import Criterion.Main
 import Data.Bits ((.&.))
 import Data.Hashable (Hashable)
 import qualified Data.ByteString as BS
+import qualified "hashmap" Data.HashMap as IHM
 import qualified Data.HashMap.Strict as HM
 import qualified Data.IntMap as IM
 import qualified Data.Map as M
@@ -40,6 +41,8 @@ main = do
         m    = M.fromList elems :: M.Map String Int
         mbs  = M.fromList elemsBS :: M.Map BS.ByteString Int
         im   = IM.fromList elemsI :: IM.IntMap Int
+        ihm  = IHM.fromList elems :: IHM.Map String Int
+        ihmbs = IHM.fromList elemsBS :: IHM.Map BS.ByteString Int
     defaultMainWith defaultConfig
         (liftIO . evaluate $ rnf [B m, B mbs, B hm, B hmbs, B hmi, B im])
         [
@@ -77,6 +80,42 @@ main = do
           , bgroup "fromList"
             [ bench "String" $ whnf M.fromList elems
             , bench "ByteString" $ whnf M.fromList elemsBS
+            ]
+          ]
+
+          -- ** HashMap from the hashmap package
+        , bgroup "hashmap/HashMap"
+          [ bgroup "lookup"
+            [ bench "String" $ whnf (lookupIHM keys) ihm
+            , bench "ByteString" $ whnf (lookupIHM keysBS) ihmbs
+            ]
+          , bgroup "lookup-miss"
+            [ bench "String" $ whnf (lookupIHM keys') ihm
+            , bench "ByteString" $ whnf (lookupIHM keysBS') ihmbs
+            ]
+          , bgroup "insert"
+            [ bench "String" $ whnf (insertIHM elems) IHM.empty
+            , bench "ByteStringString" $ whnf (insertIHM elemsBS) IHM.empty
+            ]
+          , bgroup "insert-dup"
+            [ bench "String" $ whnf (insertIHM elems) ihm
+            , bench "ByteStringString" $ whnf (insertIHM elemsBS) ihmbs
+            ]
+          , bgroup "delete"
+            [ bench "String" $ whnf (deleteIHM keys) ihm
+            , bench "ByteString" $ whnf (deleteIHM keysBS) ihmbs
+            ]
+          , bgroup "delete-miss"
+            [ bench "String" $ whnf (deleteIHM keys') ihm
+            , bench "ByteString" $ whnf (deleteIHM keysBS') ihmbs
+            ]
+          , bgroup "size"
+            [ bench "String" $ whnf IHM.size ihm
+            , bench "ByteString" $ whnf IHM.size ihmbs
+            ]
+          , bgroup "fromList"
+            [ bench "String" $ whnf IHM.fromList elems
+            , bench "ByteString" $ whnf IHM.fromList elemsBS
             ]
           ]
 
@@ -259,6 +298,30 @@ deleteM xs m0 = foldl' (\m k -> M.delete k m) m0 xs
 {-# SPECIALIZE deleteM :: [String] -> M.Map String Int -> M.Map String Int #-}
 {-# SPECIALIZE deleteM :: [BS.ByteString] -> M.Map BS.ByteString Int
                        -> M.Map BS.ByteString Int #-}
+
+------------------------------------------------------------------------
+-- * HashMap from the hashmap package
+
+lookupIHM :: (Eq k, Hashable k, Ord k) => [k] -> IHM.Map k Int -> Int
+lookupIHM xs m = foldl' (\z k -> fromMaybe z (IHM.lookup k m)) 0 xs
+{-# SPECIALIZE lookupIHM :: [String] -> IHM.Map String Int -> Int #-}
+{-# SPECIALIZE lookupIHM :: [BS.ByteString] -> IHM.Map BS.ByteString Int
+                         -> Int #-}
+
+insertIHM :: (Eq k, Hashable k, Ord k) => [(k, Int)] -> IHM.Map k Int
+          -> IHM.Map k Int
+insertIHM xs m0 = foldl' (\m (k, v) -> IHM.insert k v m) m0 xs
+{-# SPECIALIZE insertIHM :: [(String, Int)] -> IHM.Map String Int
+                         -> IHM.Map String Int #-}
+{-# SPECIALIZE insertIHM :: [(BS.ByteString, Int)] -> IHM.Map BS.ByteString Int
+                         -> IHM.Map BS.ByteString Int #-}
+
+deleteIHM :: (Eq k, Hashable k, Ord k) => [k] -> IHM.Map k Int -> IHM.Map k Int
+deleteIHM xs m0 = foldl' (\m k -> IHM.delete k m) m0 xs
+{-# SPECIALIZE deleteIHM :: [String] -> IHM.Map String Int
+                         -> IHM.Map String Int #-}
+{-# SPECIALIZE deleteIHM :: [BS.ByteString] -> IHM.Map BS.ByteString Int
+                         -> IHM.Map BS.ByteString Int #-}
 
 ------------------------------------------------------------------------
 -- * IntMap
