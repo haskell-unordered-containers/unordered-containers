@@ -83,8 +83,8 @@ main = do
             ]
           ]
 
-          -- ** HashMap from the hashmap package
-        , bgroup "hashmap/HashMap"
+          -- ** Map from the hashmap package
+        , bgroup "hashmap/Map"
           [ bgroup "lookup"
             [ bench "String" $ whnf (lookupIHM keys) ihm
             , bench "ByteString" $ whnf (lookupIHM keysBS) ihmbs
@@ -300,7 +300,7 @@ deleteM xs m0 = foldl' (\m k -> M.delete k m) m0 xs
                        -> M.Map BS.ByteString Int #-}
 
 ------------------------------------------------------------------------
--- * HashMap from the hashmap package
+-- * Map from the hashmap package
 
 lookupIHM :: (Eq k, Hashable k, Ord k) => [k] -> IHM.Map k Int -> Int
 lookupIHM xs m = foldl' (\z k -> fromMaybe z (IHM.lookup k m)) 0 xs
