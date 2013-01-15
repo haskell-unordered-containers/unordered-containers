@@ -242,7 +242,7 @@ member k m = case lookup k m of
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.
 lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
-lookup k0 = go h0 k0 0
+lookup k0 m0 = go h0 k0 0 m0
   where
     h0 = hash k0
     go !_ !_ !_ Empty = Nothing
@@ -522,7 +522,7 @@ delete k0 m0 = go h0 k0 0 m0
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
 adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
-adjust f k0 = go h0 k0 0
+adjust f k0 m0 = go h0 k0 0 m0
   where
     h0 = hash k0
     go !_ !_ !_ Empty = Empty

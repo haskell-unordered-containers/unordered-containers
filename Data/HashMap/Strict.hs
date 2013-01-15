@@ -199,7 +199,7 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
 adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
-adjust f k0 = go h0 k0 0
+adjust f k0 m0 = go h0 k0 0 m0
   where
     h0 = hash k0
     go !_ !_ !_ Empty = Empty
