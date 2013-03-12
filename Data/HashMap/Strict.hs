@@ -357,7 +357,7 @@ intersectionWith f a b = foldlWithKey' go empty a
 -- list contains duplicate mappings, the later mappings take
 -- precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
-fromList = L.foldl' (\ m (k, v) -> HM.unsafeInsert k v m) empty
+fromList = L.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) empty
 {-# INLINABLE fromList #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
