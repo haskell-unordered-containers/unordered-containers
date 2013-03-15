@@ -55,13 +55,17 @@ import Control.Monad.ST hiding (runST)
 -- GHC 7.7 exports toList/fromList from GHC.Exts
 -- In order to avoid warnings on previous GHC versions, we provide
 -- an explicit import list instead of only hiding the offending symbols
-import GHC.Exts ( Array#, Int(..), sizeofArray#, newArray#, copyArray#
-                , readArray#, writeArray#, indexArray#, thawArray#
-                , unsafeFreezeArray#, unsafeThawArray#, MutableArray#
-                , sizeofMutableArray#, copyMutableArray#)
+import GHC.Exts (Array#, Int(..), newArray#, readArray#, writeArray#,
+                 indexArray#, unsafeFreezeArray#, unsafeThawArray#,
+                 MutableArray#)
 import GHC.ST (ST(..))
 import Prelude hiding (filter, foldr, length, map, read)
 import qualified Prelude
+
+#if __GLASGOW_HASKELL__ >= 702
+import GHC.Exts (sizeofArray#, copyArray#, thawArray#, sizeofMutableArray#,
+                 copyMutableArray#)
+#endif
 
 import Data.HashMap.Unsafe (runST)
 
