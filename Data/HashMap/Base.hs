@@ -79,11 +79,13 @@ import Control.Applicative ((<$>), Applicative(pure))
 import Control.DeepSeq (NFData(rnf))
 import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement)
+import Data.Data hiding (Typeable)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as L
 import Data.Monoid (Monoid(mempty, mappend))
 import Data.Traversable (Traversable(..))
 import Data.Word (Word)
+import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
 import Prelude hiding (filter, foldr, lookup, map, null, pred)
 
 import qualified Data.HashMap.Array as A
@@ -93,11 +95,6 @@ import Data.HashMap.PopCount (popCount)
 import Data.HashMap.Unsafe (runST)
 import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
 import Data.Typeable (Typeable)
-
-#if defined(__GLASGOW_HASKELL__)
-import Data.Data hiding (Typeable)
-import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
-#endif
 
 ------------------------------------------------------------------------
 
@@ -143,7 +140,6 @@ instance (Eq k, Hashable k) => Monoid (HashMap k v) where
   mappend = union
   {-# INLINE mappend #-}
 
-#if __GLASGOW_HASKELL__
 instance (Data k, Data v, Eq k, Hashable k) => Data (HashMap k v) where
     gfoldl f z m   = z fromList `f` toList m
     toConstr _     = fromListConstr
@@ -158,7 +154,6 @@ fromListConstr = mkConstr hashMapDataType "fromList" [] Prefix
 
 hashMapDataType :: DataType
 hashMapDataType = mkDataType "Data.HashMap.Base.HashMap" [fromListConstr]
-#endif
 
 type Hash   = Word
 type Bitmap = Word
@@ -897,11 +892,7 @@ elems = L.map snd . toList
 -- | /O(n)/ Return a list of this map's elements.  The list is
 -- produced lazily.
 toList :: HashMap k v -> [(k, v)]
-#if defined(__GLASGOW_HASKELL__)
 toList t = build (\ c z -> foldrWithKey (curry c) z t)
-#else
-toList = foldrWithKey (\ k v xs -> (k, v) : xs) []
-#endif
 {-# INLINE toList #-}
 
 -- | /O(n)/ Construct a map with the supplied mappings.  If the list
@@ -1080,9 +1071,5 @@ fullNodeMask = complement (complement 0 `unsafeShiftL` maxChildren)
 -- | Check if two the two arguments are the same value.  N.B. This
 -- function might give false negatives (due to GC moving objects.)
 ptrEq :: a -> a -> Bool
-#if defined(__GLASGOW_HASKELL__)
 ptrEq x y = reallyUnsafePtrEquality# x y ==# 1#
-#else
-ptrEq _ _ = False
-#endif
 {-# INLINE ptrEq #-}

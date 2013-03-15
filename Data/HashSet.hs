@@ -60,19 +60,16 @@ module Data.HashSet
     ) where
 
 import Control.DeepSeq (NFData(..))
+import Data.Data hiding (Typeable)
 import Data.HashMap.Base (HashMap, foldrWithKey)
 import Data.Hashable (Hashable)
 import Data.Monoid (Monoid(..))
+import GHC.Exts (build)
 import Prelude hiding (filter, foldr, map, null)
 import qualified Data.Foldable as Foldable
 import qualified Data.HashMap.Lazy as H
 import qualified Data.List as List
 import Data.Typeable (Typeable)
-
-#if defined(__GLASGOW_HASKELL__)
-import Data.Data hiding (Typeable)
-import GHC.Exts (build)
-#endif
 
 -- | A set of values.  A set cannot contain duplicate values.
 newtype HashSet a = HashSet {
@@ -103,7 +100,6 @@ instance (Show a) => Show (HashSet a) where
     showsPrec d m = showParen (d > 10) $
       showString "fromList " . shows (toList m)
 
-#if __GLASGOW_HASKELL__
 instance (Data a, Eq a, Hashable a) => Data (HashSet a) where
     gfoldl f z m   = z fromList `f` toList m
     toConstr _     = fromListConstr
@@ -118,7 +114,6 @@ fromListConstr = mkConstr hashSetDataType "fromList" [] Prefix
 
 hashSetDataType :: DataType
 hashSetDataType = mkDataType "Data.HashSet" [fromListConstr]
-#endif
 
 -- | /O(1)/ Construct an empty set.
 empty :: HashSet a
@@ -219,11 +214,7 @@ filter p = HashSet . H.filterWithKey q . asMap
 -- | /O(n)/ Return a list of this set's elements.  The list is
 -- produced lazily.
 toList :: HashSet a -> [a]
-#if defined(__GLASGOW_HASKELL__)
 toList t = build (\ c z -> foldrWithKey ((const .) c) z (asMap t))
-#else
-toList = foldrWithKey (\ k _ xs -> k : xs) [] . asMap
-#endif
 {-# INLINE toList #-}
 
 -- | /O(n*min(W, n))/ Construct a set from a list of elements.
