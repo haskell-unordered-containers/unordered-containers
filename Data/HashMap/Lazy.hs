@@ -57,6 +57,7 @@ module Data.HashMap.Lazy
 
       -- * Transformations
     , HM.map
+    , mapWithKey
     , traverseWithKey
 
       -- * Difference and intersection
