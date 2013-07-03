@@ -31,6 +31,7 @@ module Data.HashMap.Base
 
       -- * Transformations
     , map
+    , mapWithKey
     , traverseWithKey
 
       -- * Difference and intersection
