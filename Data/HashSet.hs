@@ -50,6 +50,7 @@ module Data.HashSet
     -- * Folds
     , foldl'
     , foldr
+    , hashNub
 
     -- * Filter
     , filter
@@ -203,6 +204,15 @@ foldr :: (b -> a -> a) -> a -> HashSet b -> a
 foldr f z0 = foldrWithKey g z0 . asMap
   where g k _ z = f k z
 {-# INLINE foldr #-}
+
+-- | /O(n*min(W, n))/ Remove duplicates elements from a list. It
+-- keeps only the first occurrence of each element.
+hashNub :: (Eq a, Hashable a) => [a] -> [a]
+hashNub l = go empty l
+  where
+    go _   []   = []
+    go s (x:xs) | x `member` s = go s xs
+                | otherwise    = x : go (insert x s) xs
 
 -- | /O(n)/ Filter this set by retaining only elements satisfying a
 -- predicate.
