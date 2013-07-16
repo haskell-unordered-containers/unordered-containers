@@ -228,6 +228,8 @@ hashNubBy f = go empty
             else x : go (insert y s) xs
 {-# INLINE hashNubBy #-}
 
+-- | /O(n*min(W, n))/ Remove duplicates elements from a list. It
+-- keeps only the first occurrence of each element.
 hashNub :: (Eq a, Hashable a) => [a] -> [a]
 hashNub = hashNubBy id
 {-# INLINE hashNub #-}
