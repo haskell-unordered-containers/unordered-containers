@@ -44,8 +44,10 @@ pSingletonValueStrict k = isBottom $ (HM.singleton k (bottom :: Int))
 pLookupDefaultKeyStrict :: Int -> HashMap Key Int -> Bool
 pLookupDefaultKeyStrict def m = isBottom $ HM.lookupDefault def bottom m
 
-pLookupDefaultValueStrict :: Key -> HashMap Key Int -> Bool
-pLookupDefaultValueStrict k m = isBottom $ HM.lookupDefault bottom k m
+pLookupDefaultValueNotStrict :: Key -> HashMap Key Int -> Bool
+pLookupDefaultValueNotStrict k m
+  | k `HM.member` m = not $ isBottom $ HM.lookupDefault bottom k m
+  | otherwise       = isBottom $ HM.lookupDefault bottom k m
 
 pAdjustKeyStrict :: (Int -> Int) -> HashMap Key Int -> Bool
 pAdjustKeyStrict f m = isBottom $ HM.adjust f bottom m
@@ -85,7 +87,7 @@ tests =
       , testProperty "member is key-strict" $ keyStrict HM.member
       , testProperty "lookup is key-strict" $ keyStrict HM.lookup
       , testProperty "lookupDefault is key-strict" pLookupDefaultKeyStrict
-      , testProperty "lookupDefault is value-strict" pLookupDefaultValueStrict
+      , testProperty "lookupDefault is not value-strict" pLookupDefaultValueNotStrict
       , testProperty "! is key-strict" $ keyStrict (flip (HM.!))
       , testProperty "delete is key-strict" $ keyStrict HM.delete
       , testProperty "adjust is key-strict" pAdjustKeyStrict
