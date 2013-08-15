@@ -112,7 +112,7 @@ singleton k !v = HM.singleton k v
 lookupDefault :: (Eq k, Hashable k)
               => v          -- ^ Default value to return.
               -> k -> HashMap k v -> v
-lookupDefault !def k t = HM.lookupDefault def k t
+lookupDefault def k t = HM.lookupDefault def k t
 {-# INLINABLE lookupDefault #-}
 
 -- | /O(log n)/ Associate the specified value with the specified
