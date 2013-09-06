@@ -50,6 +50,8 @@ module Data.HashSet
     -- * Folds
     , foldl'
     , foldr
+    , hashNub
+    , hashNubBy
 
     -- * Filter
     , filter
@@ -203,6 +205,34 @@ foldr :: (b -> a -> a) -> a -> HashSet b -> a
 foldr f z0 = foldrWithKey g z0 . asMap
   where g k _ z = f k z
 {-# INLINE foldr #-}
+
+-- | /O(n*min(W, n))/ Remove duplicates elements from a list. It
+-- keeps only the first occurrence of each element.
+--
+-- The first parameter is a function which turns each element
+-- into another type which the list will remove duplicate instances
+-- of. For example, to remove elements of a list of tuples which
+-- have the same first element, you can do:
+--
+-- >>> let xs = [(2, "hello"), (1, "world"), (2, "hi")] :: [(Int, String)]
+-- >>> hashNubBy fst xs
+-- [(2, "hello"), (1, "world")]
+hashNubBy :: (Eq b, Hashable b) => (a -> b) -> [a] -> [a]
+hashNubBy f = go empty
+  where
+    go _   []   = []
+    go s (x:xs) =
+      let y = f x
+       in if y `member` s
+            then go s xs
+            else x : go (insert y s) xs
+{-# INLINE hashNubBy #-}
+
+-- | /O(n*min(W, n))/ Remove duplicates elements from a list. It
+-- keeps only the first occurrence of each element.
+hashNub :: (Eq a, Hashable a) => [a] -> [a]
+hashNub = hashNubBy id
+{-# INLINE hashNub #-}
 
 -- | /O(n)/ Filter this set by retaining only elements satisfying a
 -- predicate.

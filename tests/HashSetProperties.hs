@@ -89,6 +89,9 @@ foldl'Set = Set.foldl'
 foldl'Set = Foldable.foldl'
 #endif
 
+pHashNub :: [Key] -> Bool
+pHashNub xs = L.nub xs == S.hashNub xs
+
 ------------------------------------------------------------------------
 -- ** Filter
 
@@ -128,6 +131,7 @@ tests =
     , testGroup "folds"
       [ testProperty "foldr" pFoldr
       , testProperty "foldl'" pFoldl'
+      , testProperty "hashNub" pHashNub
       ]
     -- Filter
     , testGroup "filter"
