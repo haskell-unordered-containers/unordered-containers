@@ -17,11 +17,6 @@
 -- duplicate keys; each key can map to at most one value.  A 'HashMap'
 -- makes no guarantees as to the order of its elements.
 --
--- This map is strict in both the keys and the values; keys and values
--- are evaluated to /weak head normal form/ before they are added to
--- the map.  Exception: the provided instances are the same as for the
--- lazy version of this module.
---
 -- The implementation is based on /hash array mapped tries/.  A
 -- 'HashMap' is often faster than other tree-based set types,
 -- especially when key comparison is expensive, as in the case of
@@ -32,6 +27,9 @@
 -- operations are constant time.
 module Data.HashMap.Strict
     (
+      -- * Strictness properties
+      -- $strictness
+
       HashMap
 
       -- * Construction
@@ -94,8 +92,17 @@ import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
     adjust, fromList, fromListWith, insert, insertWith, intersectionWith,
-    lookupDefault, map, singleton, unionWith)
+    map, singleton, unionWith)
 import Data.HashMap.Unsafe (runST)
+
+-- $strictness
+--
+-- This module satisfies the following strictness properties:
+--
+-- 1. Key arguments are evaluated to WHNF;
+--
+-- 2. Keys and values are evaluated to WHNF before they are stored in
+--    the map.
 
 ------------------------------------------------------------------------
 -- * Construction
@@ -106,14 +113,6 @@ singleton k !v = HM.singleton k v
 
 ------------------------------------------------------------------------
 -- * Basic interface
-
--- | /O(log n)/ Return the value to which the specified key is mapped,
--- or the default value if this map contains no mapping for the key.
-lookupDefault :: (Eq k, Hashable k)
-              => v          -- ^ Default value to return.
-              -> k -> HashMap k v -> v
-lookupDefault !def k t = HM.lookupDefault def k t
-{-# INLINABLE lookupDefault #-}
 
 -- | /O(log n)/ Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
@@ -131,18 +130,18 @@ insert k !v = HM.insert k v
 -- >   where f new old = new + old
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
            -> HashMap k v
-insertWith f k0 !v0 m0 = go h0 k0 v0 0 m0
+insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
   where
     h0 = hash k0
-    go !h !k x !_ Empty = Leaf h (L k x)
+    go !h !k x !_ Empty = leaf h k x
     go h k x s (Leaf hy l@(L ky y))
         | hy == h = if ky == k
-                    then let !v' = f x y in Leaf h (L k v')
-                    else collision h l (L k x)
-        | otherwise = runST (two s h k x hy ky y)
+                    then leaf h k (f x y)
+                    else x `seq` (collision h l (L k x))
+        | otherwise = x `seq` runST (two s h k x hy ky y)
     go h k x s (BitmapIndexed b ary)
         | b .&. m == 0 =
-            let ary' = A.insert ary i $! Leaf h (L k x)
+            let ary' = A.insert ary i $! leaf h k x
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             let st   = A.index ary i
@@ -168,15 +167,17 @@ unsafeInsertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
 unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
-    go !h !k x !_ Empty = return $! Leaf h (L k x)
+    go !h !k x !_ Empty = return $! leaf h k x
     go h k x s (Leaf hy l@(L ky y))
         | hy == h = if ky == k
-                    then let !v' = f x y in return $! Leaf h (L k v')
-                    else return $! collision h l (L k x)
+                    then return $! leaf h k (f x y)
+                    else do
+                        let l' = x `seq` (L k x)
+                        return $! collision h l l'
         | otherwise = two s h k x hy ky y
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- A.insertM ary i $! Leaf h (L k x)
+            ary' <- A.insertM ary i $! leaf h k x
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
@@ -204,7 +205,7 @@ adjust f k0 m0 = go h0 k0 0 m0
     h0 = hash k0
     go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky y))
-        | hy == h && ky == k = let !v' = f y in Leaf h (L k v')
+        | hy == h && ky == k = leaf h k (f y)
         | otherwise          = t
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 = t
@@ -240,7 +241,7 @@ unionWith f = go 0
     -- leaf vs. leaf
     go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
-                      then Leaf h1 . L k1 $! f v1 v2
+                      then leaf h1 k1 (f v1 v2)
                       else collision h1 l1 l2
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
@@ -322,7 +323,7 @@ mapWithKey :: (k -> v1 -> v2) -> HashMap k v1 -> HashMap k v2
 mapWithKey f = go
   where
     go Empty                 = Empty
-    go (Leaf h (L k v))      = let !v' = f k v in Leaf h $ L k v'
+    go (Leaf h (L k v))      = leaf h k (f k v)
     go (BitmapIndexed b ary) = BitmapIndexed b $ A.map' go ary
     go (Full ary)            = Full $ A.map' go ary
     go (Collision h ary)     =
@@ -357,7 +358,7 @@ intersectionWith f a b = foldlWithKey' go empty a
 -- list contains duplicate mappings, the later mappings take
 -- precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
-fromList = L.foldl' (\ m (k, v) -> HM.unsafeInsert k v m) empty
+fromList = L.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) empty
 {-# INLINABLE fromList #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
@@ -379,6 +380,11 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
                      | otherwise -> go k ary (i+1) n
 {-# INLINABLE updateWith #-}
 
+-- | Append the given key and value to the array. If the key is
+-- already present, instead update the value of the key by applying
+-- the given function to the new and old value (in that order). The
+-- value is always evaluated to WHNF before being inserted into the
+-- array.
 updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
 updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
@@ -388,9 +394,20 @@ updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
             -- Not found, append to the end.
             mary <- A.new_ (n + 1)
             A.copy ary 0 mary 0 n
-            A.write mary n (L k v)
+            let !l = v `seq` (L k v)
+            A.write mary n l
             return mary
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> let !v' = f v y in A.update ary i (L k v')
                      | otherwise -> go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWith #-}
+
+------------------------------------------------------------------------
+-- Smart constructors
+--
+-- These constructors make sure the value is in WHNF before it's
+-- inserted into the constructor.
+
+leaf :: Hash -> k -> v -> HashMap k v
+leaf h k !v = Leaf h (L k v)
+{-# INLINE leaf #-}

@@ -58,6 +58,7 @@ module Data.HashMap.Base
     , fromListWith
 
       -- Internals used by the strict version
+    , Hash
     , Bitmap
     , bitmapIndexedOrFull
     , collision

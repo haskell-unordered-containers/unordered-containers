@@ -17,10 +17,6 @@
 -- duplicate keys; each key can map to at most one value.  A 'HashMap'
 -- makes no guarantees as to the order of its elements.
 --
--- This map is strict in the keys and lazy in the values; keys are
--- evaluated to /weak head normal form/ before they are added to the
--- map.
---
 -- The implementation is based on /hash array mapped tries/.  A
 -- 'HashMap' is often faster than other tree-based set types,
 -- especially when key comparison is expensive, as in the case of
@@ -31,6 +27,9 @@
 -- operations are constant time.
 module Data.HashMap.Lazy
     (
+      -- * Strictness properties
+      -- $strictness
+
       HashMap
 
       -- * Construction
@@ -85,3 +84,9 @@ module Data.HashMap.Lazy
     ) where
 
 import Data.HashMap.Base as HM
+
+-- $strictness
+--
+-- This module satisfies the following strictness property:
+--
+-- * Key arguments are evaluated to WHNF

@@ -44,9 +44,6 @@ pSingletonValueStrict k = isBottom $ (HM.singleton k (bottom :: Int))
 pLookupDefaultKeyStrict :: Int -> HashMap Key Int -> Bool
 pLookupDefaultKeyStrict def m = isBottom $ HM.lookupDefault def bottom m
 
-pLookupDefaultValueStrict :: Key -> HashMap Key Int -> Bool
-pLookupDefaultValueStrict k m = isBottom $ HM.lookupDefault bottom k m
-
 pAdjustKeyStrict :: (Int -> Int) -> HashMap Key Int -> Bool
 pAdjustKeyStrict f m = isBottom $ HM.adjust f bottom m
 
@@ -72,6 +69,21 @@ pInsertWithValueStrict f k v m
     | HM.member k m = isBottom $ HM.insertWith (const2 bottom) k v m
     | otherwise     = isBottom $ HM.insertWith f k bottom m
 
+pFromListKeyStrict :: Bool
+pFromListKeyStrict = isBottom $ HM.fromList [(undefined :: Key, 1 :: Int)]
+
+pFromListValueStrict :: Bool
+pFromListValueStrict = isBottom $ HM.fromList [(K 1, undefined)]
+
+pFromListWithKeyStrict :: (Int -> Int -> Int) -> Bool
+pFromListWithKeyStrict f =
+    isBottom $ HM.fromListWith f [(undefined :: Key, 1 :: Int)]
+
+pFromListWithValueStrict :: [(Key, Int)] -> Bool
+pFromListWithValueStrict xs = case xs of
+    [] -> True
+    (x:_) -> isBottom $ HM.fromListWith (\ _ _ -> undefined) (x:xs)
+
 ------------------------------------------------------------------------
 -- * Test list
 
@@ -85,7 +97,6 @@ tests =
       , testProperty "member is key-strict" $ keyStrict HM.member
       , testProperty "lookup is key-strict" $ keyStrict HM.lookup
       , testProperty "lookupDefault is key-strict" pLookupDefaultKeyStrict
-      , testProperty "lookupDefault is value-strict" pLookupDefaultValueStrict
       , testProperty "! is key-strict" $ keyStrict (flip (HM.!))
       , testProperty "delete is key-strict" $ keyStrict HM.delete
       , testProperty "adjust is key-strict" pAdjustKeyStrict
@@ -94,6 +105,10 @@ tests =
       , testProperty "insert is value-strict" pInsertValueStrict
       , testProperty "insertWith is key-strict" pInsertWithKeyStrict
       , testProperty "insertWith is value-strict" pInsertWithValueStrict
+      , testProperty "fromList is key-strict" pFromListKeyStrict
+      , testProperty "fromList is value-strict" pFromListValueStrict
+      , testProperty "fromListWith is key-strict" pFromListWithKeyStrict
+      , testProperty "fromListWith is value-strict" pFromListWithValueStrict
       ]
     ]
 
