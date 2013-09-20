@@ -87,6 +87,9 @@ import Data.Monoid (Monoid(mempty, mappend))
 import Data.Traversable (Traversable(..))
 import Data.Word (Word)
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
+#if __GLASGOW_HASKELL__ >= 707
+import GHC.Exts (isTrue#)
+#endif
 import Prelude hiding (filter, foldr, lookup, map, null, pred)
 
 import qualified Data.HashMap.Array as A
@@ -96,6 +99,10 @@ import Data.HashMap.PopCount (popCount)
 import Data.HashMap.Unsafe (runST)
 import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
 import Data.Typeable (Typeable)
+
+#if __GLASGOW_HASKELL__ < 707
+isTrue# = id
+#endif
 
 ------------------------------------------------------------------------
 
@@ -1072,5 +1079,5 @@ fullNodeMask = complement (complement 0 `unsafeShiftL` maxChildren)
 -- | Check if two the two arguments are the same value.  N.B. This
 -- function might give false negatives (due to GC moving objects.)
 ptrEq :: a -> a -> Bool
-ptrEq x y = reallyUnsafePtrEquality# x y ==# 1#
+ptrEq x y = isTrue# (reallyUnsafePtrEquality# x y ==# 1#)
 {-# INLINE ptrEq #-}
