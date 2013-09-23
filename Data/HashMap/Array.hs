@@ -60,11 +60,14 @@ import GHC.Exts (Array#, Int(..), newArray#, readArray#, writeArray#,
                  MutableArray#)
 import GHC.ST (ST(..))
 import Prelude hiding (filter, foldr, length, map, read)
-import qualified Prelude
 
 #if __GLASGOW_HASKELL__ >= 702
 import GHC.Exts (sizeofArray#, copyArray#, thawArray#, sizeofMutableArray#,
                  copyMutableArray#)
+#endif
+
+#if defined(ASSERTS)
+import qualified Prelude
 #endif
 
 import Data.HashMap.Unsafe (runST)
