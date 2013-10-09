@@ -56,6 +56,7 @@ module Data.HashMap.Strict
 
       -- * Transformations
     , map
+    , mapWithKey
     , traverseWithKey
 
       -- * Difference and intersection
@@ -92,7 +93,7 @@ import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
     adjust, fromList, fromListWith, insert, insertWith, intersectionWith,
-    map, singleton, unionWith)
+    map, mapWithKey, singleton, unionWith)
 import Data.HashMap.Unsafe (runST)
 
 -- $strictness
@@ -330,6 +331,7 @@ mapWithKey f = go
         Collision h $ A.map' (\ (L k v) -> let !v' = f k v in L k v') ary
 {-# INLINE mapWithKey #-}
 
+-- | /O(n)/ Transform this map by applying a function to every value.
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = mapWithKey (const f)
 {-# INLINE map #-}
