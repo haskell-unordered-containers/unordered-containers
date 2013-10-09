@@ -696,6 +696,7 @@ mapWithKey f = go
                            A.map' (\ (L k v) -> L k (f k v)) ary
 {-# INLINE mapWithKey #-}
 
+-- | /O(n)/ Transform this map by applying a function to every value.
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = mapWithKey (const f)
 {-# INLINE map #-}
