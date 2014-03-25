@@ -314,7 +314,7 @@ insert k0 v0 m0 = go h0 k0 v0 0 m0
         | otherwise = runST (two s h k x hy ky y)
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 =
-            let ary' = A.insert ary i $! Leaf h (L k x)
+            let !ary' = A.insert ary i $! Leaf h (L k x)
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             let !st  = A.index ary i
