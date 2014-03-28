@@ -134,15 +134,13 @@ insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
 insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
   where
     h0 = hash k0
-    go !h !k x !_ Empty = leaf h k x
-    go h k x s (Leaf hy l@(L ky y))
-        | hy == h = if ky == k
-                    then leaf h k (f x y)
-                    else x `seq` (collision h l (L k x))
-        | otherwise = x `seq` runST (two s h k x hy ky y)
+    go !_ !k x !_ Empty = leaf k x
+    go h k x s (Leaf (L ky y))
+        | ky == k   = leaf k (f x y)
+        | otherwise = x `seq` two s h k x ky y
     go h k x s (BitmapIndexed b ary)
         | b .&. m == 0 =
-            let ary' = A.insert ary i $! leaf h k x
+            let ary' = A.insert ary i $! leaf k x
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             let st   = A.index ary i
@@ -168,17 +166,13 @@ unsafeInsertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
 unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
-    go !h !k x !_ Empty = return $! leaf h k x
-    go h k x s (Leaf hy l@(L ky y))
-        | hy == h = if ky == k
-                    then return $! leaf h k (f x y)
-                    else do
-                        let l' = x `seq` (L k x)
-                        return $! collision h l l'
-        | otherwise = two s h k x hy ky y
+    go !_ !k x !_ Empty = return $! leaf k x
+    go h k x s (Leaf (L ky y))
+        | ky == k   = return $! leaf k (f x y)
+        | otherwise = x `seq` twoM s h k x ky y
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- A.insertM ary i $! leaf h k x
+            ary' <- A.insertM ary i $! leaf k x
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
@@ -205,9 +199,9 @@ adjust f k0 m0 = go h0 k0 0 m0
   where
     h0 = hash k0
     go !_ !_ !_ Empty = Empty
-    go h k _ t@(Leaf hy (L ky y))
-        | hy == h && ky == k = leaf h k (f y)
-        | otherwise          = t
+    go _ k _ t@(Leaf (L ky y))
+        | ky == k   = leaf k (f y)
+        | otherwise = t
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 = t
         | otherwise = let st   = A.index ary i
@@ -240,17 +234,21 @@ unionWith f = go 0
     go !_ t1 Empty = t1
     go _ Empty t2 = t2
     -- leaf vs. leaf
-    go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
+    go s t1@(Leaf l1@(L k1 v1)) t2@(Leaf l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
-                      then leaf h1 k1 (f v1 v2)
+                      then leaf k1 (f v1 v2)
                       else collision h1 l1 l2
         | otherwise = goDifferentHash s h1 h2 t1 t2
-    go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
+      where h1 = hash k1
+            h2 = hash k2
+    go s t1@(Leaf (L k1 v1)) t2@(Collision h2 ls2)
         | h1 == h2  = Collision h1 (updateOrSnocWith f k1 v1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
-    go s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
+      where h1 = hash k1
+    go s t1@(Collision h1 ls1) t2@(Leaf (L k2 v2))
         | h1 == h2  = Collision h1 (updateOrSnocWith (flip f) k2 v2 ls1)
         | otherwise = goDifferentHash s h1 h2 t1 t2
+      where h2 = hash k2
     go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
         | h1 == h2  = Collision h1 (updateOrConcatWith f ls1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
@@ -303,7 +301,7 @@ unionWith f = go 0
             ary' = update16With' ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
         in Full ary'
 
-    leafHashCode (Leaf h _) = h
+    leafHashCode (Leaf (L k _))  = hash k
     leafHashCode (Collision h _) = h
     leafHashCode _ = error "leafHashCode"
 
@@ -324,7 +322,7 @@ mapWithKey :: (k -> v1 -> v2) -> HashMap k v1 -> HashMap k v2
 mapWithKey f = go
   where
     go Empty                 = Empty
-    go (Leaf h (L k v))      = leaf h k (f k v)
+    go (Leaf (L k v))        = leaf k (f k v)
     go (BitmapIndexed b ary) = BitmapIndexed b $ A.map' go ary
     go (Full ary)            = Full $ A.map' go ary
     go (Collision h ary)     =
@@ -410,6 +408,6 @@ updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
 -- These constructors make sure the value is in WHNF before it's
 -- inserted into the constructor.
 
-leaf :: Hash -> k -> v -> HashMap k v
-leaf h k !v = Leaf h (L k v)
+leaf :: k -> v -> HashMap k v
+leaf k !v = Leaf (L k v)
 {-# INLINE leaf #-}
