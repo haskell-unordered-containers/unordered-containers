@@ -191,39 +191,29 @@ main = do
 
             -- fromList
           , bgroup "fromList"
-            [ bgroup name
-              [ bgroup "long"
-                [ bench "String" $ whnf fl1 elems
-                , bench "ByteString" $ whnf fl2 elemsBS
-                , bench "Int" $ whnf fl3 elemsI
-                ]
-              , bgroup "short"
-                [ bench "String" $ whnf fl1 elemsDup
-                , bench "ByteString" $ whnf fl2 elemsDupBS
-                , bench "Int" $ whnf fl3 elemsDupI
-                ]
+            [ bgroup "long"
+              [ bench "String" $ whnf HM.fromList elems
+              , bench "ByteString" $ whnf HM.fromList elemsBS
+              , bench "Int" $ whnf HM.fromList elemsI
               ]
-            | (name,fl1,fl2,fl3)
-                 <- [("Base",HM.fromList,HM.fromList,HM.fromList)
-                    ,("insert",fromList_insert,fromList_insert,fromList_insert)]
+            , bgroup "short"
+              [ bench "String" $ whnf HM.fromList elemsDup
+              , bench "ByteString" $ whnf HM.fromList elemsDupBS
+              , bench "Int" $ whnf HM.fromList elemsDupI
+              ]
             ]
-            -- fromList
+            -- fromListWith
           , bgroup "fromListWith"
-            [ bgroup name
-              [ bgroup "long"
-                [ bench "String" $ whnf (fl1 (+)) elems
-                , bench "ByteString" $ whnf (fl2 (+)) elemsBS
-                , bench "Int" $ whnf (fl3 (+)) elemsI
-                ]
-              , bgroup "short"
-                [ bench "String" $ whnf (fl1 (+)) elemsDup
-                , bench "ByteString" $ whnf (fl2 (+)) elemsDupBS
-                , bench "Int" $ whnf (fl3 (+)) elemsDupI
-                ]
+            [ bgroup "long"
+              [ bench "String" $ whnf (HM.fromListWith (+)) elems
+              , bench "ByteString" $ whnf (HM.fromListWith (+)) elemsBS
+              , bench "Int" $ whnf (HM.fromListWith (+)) elemsI
               ]
-            | (name,fl1,fl2,fl3)
-                 <- [("Base",HM.fromListWith,HM.fromListWith,HM.fromListWith)
-                    ,("insert",fromListWith_insert,fromListWith_insert,fromListWith_insert)]
+            , bgroup "short"
+              [ bench "String" $ whnf (HM.fromListWith (+)) elemsDup
+              , bench "ByteString" $ whnf (HM.fromListWith (+)) elemsDupBS
+              , bench "Int" $ whnf (HM.fromListWith (+)) elemsDupI
+              ]
             ]
           ]
         ]
@@ -334,18 +324,3 @@ insertIM xs m0 = foldl' (\m (k, v) -> IM.insert k v m) m0 xs
 
 deleteIM :: [Int] -> IM.IntMap Int -> IM.IntMap Int
 deleteIM xs m0 = foldl' (\m k -> IM.delete k m) m0 xs
-
-------------------------------------------------------------------------
--- * Reference implementations
-
-fromList_insert :: (Eq k, Hashable k) => [(k, v)] -> HM.HashMap k v
-fromList_insert = foldl' (\ m (k, v) -> HM.insert k v m) HM.empty
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE fromList_insert #-}
-#endif
-
-fromListWith_insert :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HM.HashMap k v
-fromListWith_insert f = foldl' (\ m (k, v) -> HM.insertWith f k v m) HM.empty
-#if __GLASGOW_HASKELL__ >= 700
-{-# INLINABLE fromListWith_insert #-}
-#endif
