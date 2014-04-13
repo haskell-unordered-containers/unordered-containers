@@ -1,4 +1,8 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, MagicHash #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+#if __GLASGOW_HASKELL__ >= 708
+{-# LANGUAGE TypeFamilies #-}
+#endif
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 
 module Data.HashMap.Base
@@ -100,6 +104,9 @@ import Data.Typeable (Typeable)
 
 #if __GLASGOW_HASKELL__ >= 707
 import GHC.Exts (isTrue#)
+#endif
+#if __GLASGOW_HASKELL__ >= 708
+import qualified GHC.Exts as Exts
 #endif
 
 
@@ -433,11 +440,14 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
 {-# INLINABLE insertWith #-}
 
 -- | In-place update version of insertWith
-unsafeInsertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
+unsafeInsertWith :: forall k v. (Eq k, Hashable k)
+                 => (v -> v -> v) -> k -> v -> HashMap k v
                  -> HashMap k v
 unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
+    go :: (Eq k, Hashable k) => Hash -> k -> v -> Shift -> HashMap k v
+       -> ST s (HashMap k v)
     go !h !k x !_ Empty = return $! Leaf h (L k x)
     go h k x s (Leaf hy l@(L ky y))
         | hy == h = if ky == k
@@ -813,7 +823,7 @@ trim mary n = do
 
 -- | /O(n)/ Filter this map by retaining only elements satisfying a
 -- predicate.
-filterWithKey :: (k -> v -> Bool) -> HashMap k v -> HashMap k v
+filterWithKey :: forall k v. (k -> v -> Bool) -> HashMap k v -> HashMap k v
 filterWithKey pred = go
   where
     go Empty = Empty
@@ -830,6 +840,9 @@ filterWithKey pred = go
             mary <- A.new_ n
             step ary0 mary b0 0 0 1 n
       where
+        step :: A.Array (HashMap k v) -> A.MArray s (HashMap k v)
+             -> Bitmap -> Int -> Int -> Bitmap -> Int
+             -> ST s (HashMap k v)
         step !ary !mary !b i !j !bi n
             | i >= n = case j of
                 0 -> return Empty
@@ -856,6 +869,9 @@ filterWithKey pred = go
             mary <- A.new_ n
             step ary0 mary 0 0 n
       where
+        step :: A.Array (Leaf k v) -> A.MArray s (Leaf k v)
+             -> Int -> Int -> Int
+             -> ST s (HashMap k v)
         step !ary !mary i !j n
             | i >= n    = case j of
                 0 -> return Empty
@@ -1085,3 +1101,12 @@ ptrEq x y = reallyUnsafePtrEquality# x y ==# 1#
 ptrEq x y = isTrue# (reallyUnsafePtrEquality# x y ==# 1#)
 #endif
 {-# INLINE ptrEq #-}
+
+#if __GLASGOW_HASKELL__ >= 708
+------------------------------------------------------------------------
+-- IsList instance
+instance (Eq k, Hashable k) => Exts.IsList (HashMap k v) where
+    type Item (HashMap k v) = (k, v)
+    fromList = fromList
+    toList   = toList
+#endif

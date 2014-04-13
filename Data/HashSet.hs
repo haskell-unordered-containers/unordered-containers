@@ -1,4 +1,7 @@
 {-# LANGUAGE CPP, DeriveDataTypeable #-}
+#if __GLASGOW_HASKELL__ >= 708
+{-# LANGUAGE TypeFamilies #-}
+#endif
 
 ------------------------------------------------------------------------
 -- |
@@ -70,6 +73,10 @@ import qualified Data.Foldable as Foldable
 import qualified Data.HashMap.Lazy as H
 import qualified Data.List as List
 import Data.Typeable (Typeable)
+
+#if __GLASGOW_HASKELL__ >= 708
+import qualified GHC.Exts as Exts
+#endif
 
 -- | A set of values.  A set cannot contain duplicate values.
 newtype HashSet a = HashSet {
@@ -221,3 +228,10 @@ toList t = build (\ c z -> foldrWithKey ((const .) c) z (asMap t))
 fromList :: (Eq a, Hashable a) => [a] -> HashSet a
 fromList = HashSet . List.foldl' (\ m k -> H.insert k () m) H.empty
 {-# INLINE fromList #-}
+
+#if __GLASGOW_HASKELL__ >= 708
+instance (Eq a, Hashable a) => Exts.IsList (HashSet a) where
+    type Item (HashSet a) = a
+    fromList = fromList
+    toList   = toList
+#endif
