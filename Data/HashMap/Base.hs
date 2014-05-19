@@ -93,6 +93,7 @@ import Data.Traversable (Traversable(..))
 import Data.Word (Word)
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
 import Prelude hiding (filter, foldr, lookup, map, null, pred)
+import Text.Read hiding (step)
 
 import qualified Data.HashMap.Array as A
 import qualified Data.Hashable as H
@@ -172,6 +173,14 @@ hashMapDataType = mkDataType "Data.HashMap.Base.HashMap" [fromListConstr]
 type Hash   = Word
 type Bitmap = Word
 type Shift  = Int
+
+instance (Eq k, Hashable k, Read k, Read e) => Read (HashMap k e) where
+    readPrec = parens $ prec 10 $ do
+      Ident "fromList" <- lexP
+      xs <- readPrec
+      return (fromList xs)
+
+    readListPrec = readListPrecDefault
 
 instance (Show k, Show v) => Show (HashMap k v) where
     showsPrec d m = showParen (d > 10) $
