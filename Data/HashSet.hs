@@ -73,6 +73,7 @@ import qualified Data.Foldable as Foldable
 import qualified Data.HashMap.Lazy as H
 import qualified Data.List as List
 import Data.Typeable (Typeable)
+import Text.Read
 
 #if __GLASGOW_HASKELL__ >= 708
 import qualified GHC.Exts as Exts
@@ -102,6 +103,14 @@ instance (Hashable a, Eq a) => Monoid (HashSet a) where
     {-# INLINE mempty #-}
     mappend = union
     {-# INLINE mappend #-}
+
+instance (Eq a, Hashable a, Read a) => Read (HashSet a) where
+    readPrec = parens $ prec 10 $ do
+      Ident "fromList" <- lexP
+      xs <- readPrec
+      return (fromList xs)
+
+    readListPrec = readListPrecDefault
 
 instance (Show a) => Show (HashSet a) where
     showsPrec d m = showParen (d > 10) $
