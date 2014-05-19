@@ -21,7 +21,7 @@ import Test.Framework.Providers.QuickCheck2 (testProperty)
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Eq, Ord, Show)
+            deriving (Arbitrary, Eq, Ord, Read, Show)
 
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
@@ -37,6 +37,9 @@ pEq xs = (M.fromList xs ==) `eq` (HM.fromList xs ==)
 
 pNeq :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pNeq xs = (M.fromList xs /=) `eq` (HM.fromList xs /=)
+
+pReadShow :: [(Key, Int)] -> Bool
+pReadShow xs = M.fromList xs == read (show (M.fromList xs))
 
 pFunctor :: [(Key, Int)] -> Bool
 pFunctor = fmap (+ 1) `eq_` fmap (+ 1)
@@ -192,6 +195,7 @@ tests =
       testGroup "instances"
       [ testProperty "==" pEq
       , testProperty "/=" pNeq
+      , testProperty "Read/Show" pReadShow
       , testProperty "Functor" pFunctor
       , testProperty "Foldable" pFoldable
       ]
