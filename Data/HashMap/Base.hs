@@ -174,7 +174,8 @@ type Bitmap = Word
 type Shift  = Int
 
 instance (Show k, Show v) => Show (HashMap k v) where
-    show m = "fromList " ++ show (toList m)
+    showsPrec d m = showParen (d > 10) $
+      showString "fromList " . shows (toList m)
 
 instance Traversable (HashMap k) where
     traverse f = traverseWithKey (const f)
