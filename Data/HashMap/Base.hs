@@ -81,16 +81,20 @@ module Data.HashMap.Base
     , updateOrConcatWith
     ) where
 
+#if __GLASGOW_HASKELL__ >= 709
+import Data.Functor ((<$>))
+#else
 import Control.Applicative ((<$>), Applicative(pure))
+import Data.Monoid (Monoid(mempty, mappend))
+import Data.Traversable (Traversable(..))
+import Data.Word (Word)
+#endif
 import Control.DeepSeq (NFData(rnf))
 import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement)
 import Data.Data hiding (Typeable)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as L
-import Data.Monoid (Monoid(mempty, mappend))
-import Data.Traversable (Traversable(..))
-import Data.Word (Word)
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
 import Prelude hiding (filter, foldr, lookup, map, null, pred)
 import Text.Read hiding (step)

@@ -66,7 +66,9 @@ import Control.DeepSeq (NFData(..))
 import Data.Data hiding (Typeable)
 import Data.HashMap.Base (HashMap, foldrWithKey)
 import Data.Hashable (Hashable)
+#if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (Monoid(..))
+#endif
 import GHC.Exts (build)
 import Prelude hiding (filter, foldr, map, null)
 import qualified Data.Foldable as Foldable

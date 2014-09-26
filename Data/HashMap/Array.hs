@@ -49,7 +49,9 @@ module Data.HashMap.Array
     ) where
 
 import qualified Data.Traversable as Traversable
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative (Applicative)
+#endif
 import Control.DeepSeq
 import Control.Monad.ST hiding (runST)
 -- GHC 7.7 exports toList/fromList from GHC.Exts
@@ -59,7 +61,12 @@ import GHC.Exts (Array#, Int(..), newArray#, readArray#, writeArray#,
                  indexArray#, unsafeFreezeArray#, unsafeThawArray#,
                  MutableArray#)
 import GHC.ST (ST(..))
+
+#if __GLASGOW_HASKELL__ >= 709
+import Prelude hiding (filter, foldr, length, map, read, traverse)
+#else
 import Prelude hiding (filter, foldr, length, map, read)
+#endif
 
 #if __GLASGOW_HASKELL__ >= 702
 import GHC.Exts (sizeofArray#, copyArray#, thawArray#, sizeofMutableArray#,
