@@ -47,6 +47,7 @@ module Data.HashMap.Strict
     , insertWith
     , delete
     , adjust
+    , alter
 
       -- * Combine
       -- ** Union
@@ -92,7 +93,7 @@ import Prelude hiding (map)
 import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
-    adjust, fromList, fromListWith, insert, insertWith, intersectionWith,
+    alter, adjust, fromList, fromListWith, insert, insertWith, intersectionWith,
     map, mapWithKey, singleton, unionWith)
 import Data.HashMap.Unsafe (runST)
 
@@ -226,6 +227,16 @@ adjust f k0 m0 = go h0 k0 0 m0
         | h == hy   = Collision h (updateWith f k v)
         | otherwise = t
 {-# INLINABLE adjust #-}
+
+-- | /O(log n)/  The expression (@'alter' f k map@) alters the value @x@ at @k@, or
+-- absence thereof. @alter@ can be used to insert, delete, or update a value in a
+-- map. In short : @'lookup' k ('alter' f k m) = f ('lookup' k m)@.
+alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
+alter f k m =
+  case f (HM.lookup k m) of
+    Nothing -> delete k m
+    Just v  -> insert k v m
+{-# INLINABLE alter #-}
 
 ------------------------------------------------------------------------
 -- * Combine

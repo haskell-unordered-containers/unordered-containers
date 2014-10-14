@@ -98,6 +98,15 @@ pInsertWith k = M.insertWith (+) k 1 `eq_` HM.insertWith (+) k 1
 pAdjust :: Key -> [(Key, Int)] -> Bool
 pAdjust k = M.adjust succ k `eq_` HM.adjust succ k
 
+pAlterAdjust :: Key -> [(Key, Int)] -> Bool
+pAlterAdjust k = M.alter (fmap succ) k `eq_` HM.alter (fmap succ) k
+
+pAlterInsert :: Key -> [(Key, Int)] -> Bool
+pAlterInsert k = M.alter (const $ Just 3) k `eq_` HM.alter (const $ Just 3) k
+
+pAlterDelete :: Key -> [(Key, Int)] -> Bool
+pAlterDelete k = M.alter (const Nothing) k `eq_` HM.alter (const Nothing) k
+
 ------------------------------------------------------------------------
 -- ** Combine
 
@@ -209,6 +218,9 @@ tests =
       , testProperty "deleteCollision" pDeleteCollision
       , testProperty "insertWith" pInsertWith
       , testProperty "adjust" pAdjust
+      , testProperty "alterAdjust" pAlterAdjust
+      , testProperty "alterInsert" pAlterInsert
+      , testProperty "alterDelete" pAlterDelete
       ]
     -- Combine
     , testProperty "union" pUnion

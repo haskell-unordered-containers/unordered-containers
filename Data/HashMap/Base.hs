@@ -26,6 +26,7 @@ module Data.HashMap.Base
     , unsafeInsert
     , delete
     , adjust
+    , alter
 
       -- * Combine
       -- ** Union
@@ -573,6 +574,16 @@ adjust f k0 m0 = go h0 k0 0 m0
         | h == hy   = Collision h (updateWith f k v)
         | otherwise = t
 {-# INLINABLE adjust #-}
+
+-- | /O(log n)/  The expression (@'alter' f k map@) alters the value @x@ at @k@, or
+-- absence thereof. @alter@ can be used to insert, delete, or update a value in a
+-- map. In short : @'lookup' k ('alter' f k m) = f ('lookup' k m)@.
+alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
+alter f k m =
+  case f (lookup k m) of
+    Nothing -> delete k m
+    Just v  -> insert k v m
+{-# INLINABLE alter #-}
 
 ------------------------------------------------------------------------
 -- * Combine
