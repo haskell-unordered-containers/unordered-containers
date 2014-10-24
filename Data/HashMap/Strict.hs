@@ -32,19 +32,27 @@ module Data.HashMap.Strict
 
       HashMap
 
+      -- * Operators
+    , (!)
+
+      -- * Query
+    , HM.null
+    , size
+    , HM.member
+    , HM.notMember
+    , HM.lookup
+    , lookupDefault
+    , findWithDefault
+
       -- * Construction
     , empty
     , singleton
 
-      -- * Basic interface
-    , HM.null
-    , size
-    , HM.member
-    , HM.lookup
-    , lookupDefault
-    , (!)
+      -- * Insertion
     , insert
     , insertWith
+
+    -- * Delete/Update
     , delete
     , adjust
     , alter
@@ -55,20 +63,25 @@ module Data.HashMap.Strict
     , unionWith
     , unions
 
-      -- * Transformations
-    , map
-    , mapWithKey
-    , traverseWithKey
-
-      -- * Difference and intersection
+      -- ** Difference
     , difference
+
+      -- * Intersection
     , intersection
     , intersectionWith
 
+      -- * Traversal
+      -- ** Map
+    , map
+    , mapWithKey
+    , traverseWithKey
+    , mapAccum
+    , mapAccumWithKey
+
       -- * Folds
+    , HM.foldr
     , foldl'
     , foldlWithKey'
-    , HM.foldr
     , foldrWithKey
 
       -- * Filter

@@ -18,8 +18,10 @@ module Data.HashMap.Base
     , null
     , size
     , member
+    , notMember
     , lookup
     , lookupDefault
+    , findWithDefault
     , (!)
     , insert
     , insertWith
@@ -37,6 +39,8 @@ module Data.HashMap.Base
       -- * Transformations
     , map
     , mapWithKey
+    , mapAccum
+    , mapAccumWithKey
     , traverseWithKey
 
       -- * Difference and intersection
@@ -263,6 +267,11 @@ member k m = case lookup k m of
     Just _  -> True
 {-# INLINABLE member #-}
 
+-- | /O(log n)/. Is the key not a member of the map. See also 'member'.
+notMember :: (Eq k, Hashable k) => k -> HashMap k a -> Bool
+notMember k m = not $ member k m
+{-# INLINABLE notMember #-}
+
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.
 lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
@@ -283,15 +292,24 @@ lookup k0 m0 = go h0 k0 0 m0
         | otherwise = Nothing
 {-# INLINABLE lookup #-}
 
+
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
+{-# DEPRECATED lookupDefault "renamed to findWithDefault" #-}
 lookupDefault :: (Eq k, Hashable k)
               => v          -- ^ Default value to return.
               -> k -> HashMap k v -> v
-lookupDefault def k t = case lookup k t of
+lookupDefault = findWithDefault
+{-# INLINABLE lookupDefault #-}
+
+-- | /O(log n)/ The expression (findWithDefault def k map) returns the value at key k or returns default value def when the key is not in the map.
+findWithDefault :: (Eq k, Hashable k)
+                => v          -- ^ Default value to return.
+                -> k -> HashMap k v -> v
+findWithDefault def k t = case lookup k t of
     Just v -> v
     _      -> def
-{-# INLINABLE lookupDefault #-}
+{-# INLINABLE findWithDefault #-}
 
 -- | /O(log n)/ Return the value to which the specified key is mapped.
 -- Calls 'error' if this map contains no mapping for the key.
@@ -575,6 +593,37 @@ adjust f k0 m0 = go h0 k0 0 m0
         | otherwise = t
 {-# INLINABLE adjust #-}
 
+-- | /O(log n)/. Lookup and update. See also 'updateWithKey'.
+-- The function returns changed value, if it is updated.
+-- Returns the original key value if the map entry is deleted.
+--updateLookupWithKey :: (Eq k, Hashable k) => (k -> v1 -> Maybe v1) -> k -> HashMap k v1 -> (Maybe v1,HashMap k v1)
+--updateLookupWithKey f k0 = go (hash k0) k0 0
+--  where
+--    go !_ !_ !_ Empty = (Nothing,Empty)
+--    go h k _ t@(Leaf hy (L ky y))
+--        | hy == h && ky == k = case (f k y) of 
+--                    Nothing -> (Just y, Empty)
+--                    Just !r -> (Just r, Leaf h (L k r))
+--        | otherwise          = (Nothing,t)
+--    go h k s t@(BitmapIndexed b ary)
+--        | b .&. m == 0 = (Nothing, t)
+--        | otherwise = let st   = A.index ary i
+--                          (r,st')  = go h k (s+bitsPerSubkey) st
+--                          ary' = A.update ary i $! st'
+--                      in (r,BitmapIndexed b ary')
+--      where m = mask h s
+--            i = sparseIndex b m
+--    go h k s (Full ary) =
+--        let i    = index h s
+--            st   = A.index ary i
+--            (r,st')  = go h k (s+bitsPerSubkey) st
+--            ary' = update16 ary i $! st'
+--        in (r,Full ary')
+--    go h k _ t@(Collision hy v)
+--        | h == hy   = (r,Collision h ary)
+--        | otherwise = (Nothing,t)
+--                where (r,ary) = updateLookupWith (f k) k v
+
 -- | /O(log n)/  The expression (@'alter' f k map@) alters the value @x@ at @k@, or
 -- absence thereof. @alter@ can be used to insert, delete, or update a value in a
 -- map. In short : @'lookup' k ('alter' f k m) = f ('lookup' k m)@.
@@ -735,6 +784,35 @@ mapWithKey f = go
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = mapWithKey (const f)
 {-# INLINE map #-}
+
+-- | /O(n)/. The function 'mapAccum' threads an accumulating
+-- argument through the map in ascending order of keys.
+mapAccum :: (a -> v1 -> (a,v2)) -> a -> HashMap k v1 -> (a,HashMap k v2)
+mapAccum f = mapAccumWithKey (\a' _ x' -> f a' x')
+
+-- | /O(n)/. The function 'mapAccumWithKey' threads an accumulating
+-- argument through the map in ascending order of keys.
+mapAccumWithKey :: (a -> k -> v1 -> (a,v2)) -> a -> HashMap k v1 -> (a,HashMap k v2)
+mapAccumWithKey = mapAccumL
+{-# INLINE mapAccumWithKey #-}
+
+-- | /O(n)/. The function 'mapAccumL' threads an accumulating 
+-- argument through the map in ascending order of keys
+mapAccumL :: (a -> k -> v1 -> (a,v2)) -> a -> HashMap k v1 -> (a,HashMap k v2)
+mapAccumL f = go 
+  where
+    go a Empty = (a,Empty)
+    go a (Leaf h (L k v)) = (a',Leaf h $ L k newAry)
+      where (!a',!newAry) = (f a k v)
+    go a (BitmapIndexed b ary) = (a',BitmapIndexed b newAry)
+      where (!a',!newAry) = A.mapAccum' go a ary
+    go a (Full ary) = (a', Full newAry)
+      where (!a',!newAry) = A.mapAccum' go a ary
+    go a (Collision h ary) = (a',Collision h newAry)
+      where (!a',!newAry) = A.mapAccum' f' a ary
+            f' ai (L k v) = (ai', L k res)
+                where (ai', res) = f ai k v
+{-# INLINE mapAccumL #-}
 
 -- TODO: We should be able to use mutation to create the new
 -- 'HashMap'.
@@ -994,6 +1072,7 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
             (L kx y) | k == kx   -> A.update ary i (L k (f y))
                      | otherwise -> go k ary (i+1) n
 {-# INLINABLE updateWith #-}
+
 
 updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
