@@ -47,6 +47,7 @@ module Data.HashMap.Lazy
     , insertWith
     , delete
     , adjust
+    , update
     , alter
 
       -- * Combine

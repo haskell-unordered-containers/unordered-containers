@@ -47,6 +47,7 @@ module Data.HashMap.Strict
     , insertWith
     , delete
     , adjust
+    , update
     , alter
 
       -- * Combine
@@ -94,7 +95,7 @@ import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
     alter, adjust, fromList, fromListWith, insert, insertWith, intersectionWith,
-    map, mapWithKey, singleton, unionWith)
+    map, mapWithKey, singleton, update, unionWith)
 import Data.HashMap.Unsafe (runST)
 
 -- $strictness
@@ -227,6 +228,13 @@ adjust f k0 m0 = go h0 k0 0 m0
         | h == hy   = Collision h (updateWith f k v)
         | otherwise = t
 {-# INLINABLE adjust #-}
+
+-- | /O(log n)/  The expression (@'update' f k map@) updates the value @x@ at @k@, 
+-- (if it is in the map). If (f k x) is @'Nothing', the element is deleted. 
+-- If it is (@'Just' y), the key k is bound to the new value y.
+update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
+update f = alter (>>= f)
+{-# INLINABLE update #-}
 
 -- | /O(log n)/  The expression (@'alter' f k map@) alters the value @x@ at @k@, or
 -- absence thereof. @alter@ can be used to insert, delete, or update a value in a
