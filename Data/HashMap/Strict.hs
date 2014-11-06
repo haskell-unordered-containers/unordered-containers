@@ -42,7 +42,6 @@ module Data.HashMap.Strict
     , HM.notMember
     , HM.lookup
     , lookupDefault
-    , findWithDefault
 
       -- * Construction
     , empty

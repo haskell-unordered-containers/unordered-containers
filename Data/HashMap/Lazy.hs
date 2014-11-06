@@ -41,7 +41,6 @@ module Data.HashMap.Lazy
     , member
     , HM.lookup
     , lookupDefault
-    , findWithDefault
 
       -- * Construction
     , empty
