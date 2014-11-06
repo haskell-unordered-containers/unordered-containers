@@ -27,6 +27,7 @@ module Data.HashMap.Base
     , unsafeInsert
     , delete
     , adjust
+    , update
     , alter
 
       -- * Combine
@@ -584,36 +585,12 @@ adjust f k0 m0 = go h0 k0 0 m0
         | otherwise = t
 {-# INLINABLE adjust #-}
 
--- | /O(log n)/. Lookup and update. See also 'updateWithKey'.
--- The function returns changed value, if it is updated.
--- Returns the original key value if the map entry is deleted.
---updateLookupWithKey :: (Eq k, Hashable k) => (k -> v1 -> Maybe v1) -> k -> HashMap k v1 -> (Maybe v1,HashMap k v1)
---updateLookupWithKey f k0 = go (hash k0) k0 0
---  where
---    go !_ !_ !_ Empty = (Nothing,Empty)
---    go h k _ t@(Leaf hy (L ky y))
---        | hy == h && ky == k = case (f k y) of 
---                    Nothing -> (Just y, Empty)
---                    Just !r -> (Just r, Leaf h (L k r))
---        | otherwise          = (Nothing,t)
---    go h k s t@(BitmapIndexed b ary)
---        | b .&. m == 0 = (Nothing, t)
---        | otherwise = let st   = A.index ary i
---                          (r,st')  = go h k (s+bitsPerSubkey) st
---                          ary' = A.update ary i $! st'
---                      in (r,BitmapIndexed b ary')
---      where m = mask h s
---            i = sparseIndex b m
---    go h k s (Full ary) =
---        let i    = index h s
---            st   = A.index ary i
---            (r,st')  = go h k (s+bitsPerSubkey) st
---            ary' = update16 ary i $! st'
---        in (r,Full ary')
---    go h k _ t@(Collision hy v)
---        | h == hy   = (r,Collision h ary)
---        | otherwise = (Nothing,t)
---                where (r,ary) = updateLookupWith (f k) k v
+-- | /O(log n)/  The expression (@'update' f k map@) updates the value @x@ at @k@, 
+-- (if it is in the map). If (f k x) is @'Nothing', the element is deleted. 
+-- If it is (@'Just' y), the key k is bound to the new value y.
+update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
+update f = alter (>>= f)
+{-# INLINABLE update #-}
 
 -- | /O(log n)/  The expression (@'alter' f k map@) alters the value @x@ at @k@, or
 -- absence thereof. @alter@ can be used to insert, delete, or update a value in a

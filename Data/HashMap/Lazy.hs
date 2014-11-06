@@ -53,6 +53,7 @@ module Data.HashMap.Lazy
     -- * Delete/Update
     , delete
     , adjust
+    , update
     , alter
 
       -- * Traversal
