@@ -32,37 +32,24 @@ module Data.HashMap.Lazy
 
       HashMap
 
-      -- * Operators
-    , (!)
-
-      -- * Query
-    , HM.null
-    , size
-    , member
-    , HM.lookup
-    , lookupDefault
-
       -- * Construction
     , empty
     , singleton
 
-      -- * Insertion
+      -- * Basic interface
+    , HM.null
+    , size
+    , member
+    , notMember
+    , HM.lookup
+    , lookupDefault
+    , (!)
     , insert
     , insertWith
-
-    -- * Delete/Update
     , delete
     , adjust
     , update
     , alter
-
-      -- * Traversal
-      -- ** Map
-    , HM.map
-    , mapWithKey
-    , traverseWithKey
-    , mapAccum
-    , mapAccumWithKey
 
       -- * Combine
       -- ** Union
@@ -70,17 +57,22 @@ module Data.HashMap.Lazy
     , unionWith
     , unions
 
-      -- ** Difference 
-    , difference
+      -- * Transformations
+    , HM.map
+    , mapWithKey
+    , traverseWithKey
+    , mapAccum
+    , mapAccumWithKey
 
-      -- ** Intersection
+      -- * Difference and intersection
+    , difference
     , intersection
     , intersectionWith
 
       -- * Folds
-    , HM.foldr
     , foldl'
     , foldlWithKey'
+    , HM.foldr
     , foldrWithKey
 
       -- * Filter

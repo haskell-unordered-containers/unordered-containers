@@ -292,7 +292,6 @@ lookup k0 m0 = go h0 k0 0 m0
         | otherwise = Nothing
 {-# INLINABLE lookup #-}
 
-
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
 lookupDefault :: (Eq k, Hashable k)
@@ -584,6 +583,7 @@ adjust f k0 m0 = go h0 k0 0 m0
         | h == hy   = Collision h (updateWith f k v)
         | otherwise = t
 {-# INLINABLE adjust #-}
+
 
 -- | /O(log n)/  The expression (@'update' f k map@) updates the value @x@ at @k@, 
 -- (if it is in the map). If (f k x) is @'Nothing', the element is deleted. 
