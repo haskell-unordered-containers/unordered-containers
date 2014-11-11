@@ -754,20 +754,14 @@ map f = mapWithKey (const f)
 {-# INLINE map #-}
 
 -- | /O(n)/. The function 'mapAccum' threads an accumulating
--- argument through the map in ascending order of keys.
+-- argument through the map in some unspecified order of keys.
 mapAccum :: (a -> v1 -> (a,v2)) -> a -> HashMap k v1 -> (a,HashMap k v2)
 mapAccum f = mapAccumWithKey (\a' _ x' -> f a' x')
 
 -- | /O(n)/. The function 'mapAccumWithKey' threads an accumulating
--- argument through the map in ascending order of keys.
+-- argument through the map in some unspecified order of keys.
 mapAccumWithKey :: (a -> k -> v1 -> (a,v2)) -> a -> HashMap k v1 -> (a,HashMap k v2)
-mapAccumWithKey = mapAccumL
-{-# INLINE mapAccumWithKey #-}
-
--- | /O(n)/. The function 'mapAccumL' threads an accumulating 
--- argument through the map in ascending order of keys
-mapAccumL :: (a -> k -> v1 -> (a,v2)) -> a -> HashMap k v1 -> (a,HashMap k v2)
-mapAccumL f = go 
+mapAccumWithKey f = go 
   where
     go a Empty = (a,Empty)
     go a (Leaf h (L k v)) = (a',Leaf h $ L k newAry)
@@ -780,7 +774,7 @@ mapAccumL f = go
       where (!a',!newAry) = A.mapAccum' f' a ary
             f' ai (L k v) = (ai', L k res)
                 where (ai', res) = f ai k v
-{-# INLINE mapAccumL #-}
+{-# INLINE mapAccumWithKey #-}
 
 -- TODO: We should be able to use mutation to create the new
 -- 'HashMap'.
