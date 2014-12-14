@@ -73,6 +73,8 @@ module Data.HashMap.Lazy
     , foldrWithKey
 
       -- * Filter
+    , mapMaybe
+    , mapMaybeWithKey
     , HM.filter
     , filterWithKey
 

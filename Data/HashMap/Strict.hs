@@ -73,6 +73,8 @@ module Data.HashMap.Strict
     , foldrWithKey
 
       -- * Filter
+    , mapMaybe
+    , mapMaybeWithKey
     , HM.filter
     , filterWithKey
 
