@@ -84,6 +84,7 @@ module Data.HashMap.Base
     , update16M
     , update16With'
     , updateOrConcatWith
+    , filterMapAux
     ) where
 
 #if __GLASGOW_HASKELL__ >= 709
@@ -884,6 +885,7 @@ filterWithKey pred = filterMapAux onLeaf onColl
 
         onColl el@(L k v) | pred k v = Just el
         onColl _ = Nothing
+{-# INLINE filterWithKey #-}
 
 
 -- | Common implementation for 'filterWithKey' and 'mapMaybeWithKey',
@@ -953,7 +955,7 @@ filterMapAux onLeaf onColl = go
             | Just el <- onColl (A.index ary i)
                 = A.write mary j el >> step ary mary (i+1) (j+1) n
             | otherwise = step ary mary (i+1) j n
-{-# INLINE filterWithKey #-}
+{-# INLINE filterMapAux #-}
 
 -- | /O(n)/ Filter this map by retaining only elements which values
 -- satisfy a predicate.
