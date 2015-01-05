@@ -1,12 +1,10 @@
-{-# LANGUAGE CPP, GADTs, PackageImports #-}
+{-# LANGUAGE CPP, DeriveGeneric, GADTs, PackageImports, RecordWildCards #-}
 
 module Main where
 
 import Control.DeepSeq
-import Control.Exception (evaluate)
-import Control.Monad.Trans (liftIO)
-import Criterion.Config
-import Criterion.Main
+import Control.DeepSeq.Generics (genericRnf)
+import Criterion.Main (bench, bgroup, defaultMain, env, nf, whnf)
 import Data.Bits ((.&.))
 import Data.Hashable (Hashable)
 import qualified Data.ByteString as BS
@@ -16,6 +14,7 @@ import qualified Data.IntMap as IM
 import qualified Data.Map as M
 import Data.List (foldl')
 import Data.Maybe (fromMaybe)
+import GHC.Generics (Generic)
 import Prelude hiding (lookup)
 
 import qualified Util.ByteString as UBS
@@ -32,20 +31,82 @@ data B where
 instance NFData B where
     rnf (B b) = rnf b
 
+-- TODO: This a stopgap measure to keep the benchmark work with
+-- Criterion 1.0.
+data Env = Env {
+    n :: !Int,
+
+    elems   :: ![(String, Int)],
+    keys    :: ![String],
+    elemsBS :: ![(BS.ByteString, Int)],
+    keysBS  :: ![BS.ByteString],
+    elemsI  :: ![(Int, Int)],
+    keysI   :: ![Int],
+    elemsI2 :: ![(Int, Int)],  -- for union
+
+    keys'    :: ![String],
+    keysBS'  :: ![BS.ByteString],
+    keysI'   :: ![Int],
+
+    keysDup    :: ![String],
+    keysDupBS  :: ![BS.ByteString],
+    keysDupI   :: ![Int],
+    elemsDup   :: ![(String, Int)],
+    elemsDupBS :: ![(BS.ByteString, Int)],
+    elemsDupI  :: ![(Int, Int)],
+
+    hm    :: !(HM.HashMap String Int),
+    hmbs  :: !(HM.HashMap BS.ByteString Int),
+    hmi   :: !(HM.HashMap Int Int),
+    hmi2  :: !(HM.HashMap Int Int),
+    m     :: !(M.Map String Int),
+    mbs   :: !(M.Map BS.ByteString Int),
+    im    :: !(IM.IntMap Int),
+    ihm   :: !(IHM.Map String Int),
+    ihmbs :: !(IHM.Map BS.ByteString Int)
+    } deriving Generic
+
+instance NFData Env where rnf = genericRnf
+
+setupEnv :: IO Env
+setupEnv = do
+    let n = 2^(12 :: Int)
+
+        elems   = zip keys [1..n]
+        keys    = US.rnd 8 n
+        elemsBS = zip keysBS [1..n]
+        keysBS  = UBS.rnd 8 n
+        elemsI  = zip keysI [1..n]
+        keysI   = UI.rnd (n+n) n
+        elemsI2 = zip [n `div` 2..n + (n `div` 2)] [1..n]  -- for union
+
+        keys'    = US.rnd' 8 n
+        keysBS'  = UBS.rnd' 8 n
+        keysI'   = UI.rnd' (n+n) n
+
+        keysDup    = US.rnd 2 n
+        keysDupBS  = UBS.rnd 2 n
+        keysDupI   = UI.rnd (n`div`4) n
+        elemsDup   = zip keysDup [1..n]
+        elemsDupBS = zip keysDupBS [1..n]
+        elemsDupI  = zip keysDupI [1..n]
+
+        hm   = HM.fromList elems
+        hmbs = HM.fromList elemsBS
+        hmi  = HM.fromList elemsI
+        hmi2 = HM.fromList elemsI2
+        m    = M.fromList elems
+        mbs  = M.fromList elemsBS
+        im   = IM.fromList elemsI
+        ihm  = IHM.fromList elems
+        ihmbs = IHM.fromList elemsBS
+    return Env{..}
+
 main :: IO ()
 main = do
-    let hm   = HM.fromList elems :: HM.HashMap String Int
-        hmbs = HM.fromList elemsBS :: HM.HashMap BS.ByteString Int
-        hmi  = HM.fromList elemsI :: HM.HashMap Int Int
-        hmi2 = HM.fromList elemsI2 :: HM.HashMap Int Int
-        m    = M.fromList elems :: M.Map String Int
-        mbs  = M.fromList elemsBS :: M.Map BS.ByteString Int
-        im   = IM.fromList elemsI :: IM.IntMap Int
-        ihm  = IHM.fromList elems :: IHM.Map String Int
-        ihmbs = IHM.fromList elemsBS :: IHM.Map BS.ByteString Int
-    defaultMainWith defaultConfig
-        (liftIO . evaluate $ rnf [B m, B mbs, B hm, B hmbs, B hmi, B im])
+    defaultMain
         [
+          env setupEnv $ \ ~(Env{..}) ->
           -- * Comparison to other data structures
           -- ** Map
           bgroup "Map"
@@ -84,7 +145,8 @@ main = do
           ]
 
           -- ** Map from the hashmap package
-        , bgroup "hashmap/Map"
+        , env setupEnv $ \ ~(Env{..}) ->
+          bgroup "hashmap/Map"
           [ bgroup "lookup"
             [ bench "String" $ whnf (lookupIHM keys) ihm
             , bench "ByteString" $ whnf (lookupIHM keysBS) ihmbs
@@ -120,7 +182,8 @@ main = do
           ]
 
           -- ** IntMap
-        , bgroup "IntMap"
+        , env setupEnv $ \ ~(Env{..}) ->
+          bgroup "IntMap"
           [ bench "lookup" $ whnf (lookupIM keysI) im
           , bench "lookup-miss" $ whnf (lookupIM keysI') im
           , bench "insert" $ whnf (insertIM elemsI) IM.empty
@@ -131,7 +194,8 @@ main = do
           , bench "fromList" $ whnf IM.fromList elemsI
           ]
 
-        , bgroup "HashMap"
+        , env setupEnv $ \ ~(Env{..}) ->
+          bgroup "HashMap"
           [ -- * Basic interface
             bgroup "lookup"
             [ bench "String" $ whnf (lookup keys) hm
@@ -217,28 +281,6 @@ main = do
             ]
           ]
         ]
-  where
-    n :: Int
-    n = 2^(12 :: Int)
-
-    elems   = zip keys [1..n]
-    keys    = US.rnd 8 n
-    elemsBS = zip keysBS [1..n]
-    keysBS  = UBS.rnd 8 n
-    elemsI  = zip keysI [1..n]
-    keysI   = UI.rnd (n+n) n
-    elemsI2 = zip [n `div` 2..n + (n `div` 2)] [1..n]  -- for union
-
-    keys'    = US.rnd' 8 n
-    keysBS'  = UBS.rnd' 8 n
-    keysI'   = UI.rnd' (n+n) n
-
-    keysDup    = US.rnd 2 n
-    keysDupBS  = UBS.rnd 2 n
-    keysDupI   = UI.rnd (n`div`4) n
-    elemsDup   = zip keysDup [1..n]
-    elemsDupBS = zip keysDupBS [1..n]
-    elemsDupI  = zip keysDupI [1..n]
 
 ------------------------------------------------------------------------
 -- * HashMap
