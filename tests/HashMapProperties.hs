@@ -5,6 +5,7 @@
 
 module Main (main) where
 
+import Control.Monad ( guard )
 import qualified Data.Foldable as Foldable
 import Data.Function (on)
 import Data.Hashable (Hashable(hashWithSalt))
@@ -173,6 +174,14 @@ foldlWithKey'Map = M.foldlWithKey
 ------------------------------------------------------------------------
 -- ** Filter
 
+pMapMaybeWithKey :: [(Key, Int)] -> Bool
+pMapMaybeWithKey = M.mapMaybeWithKey f `eq_` HM.mapMaybeWithKey f
+  where f k v = guard (odd (unK k + v)) >> Just (v + 1)
+
+pMapMaybe :: [(Key, Int)] -> Bool
+pMapMaybe = M.mapMaybe f `eq_` HM.mapMaybe f
+  where f v = guard (odd v) >> Just (v + 1)
+
 pFilter :: [(Key, Int)] -> Bool
 pFilter = M.filter odd `eq_` HM.filter odd
 
@@ -251,6 +260,8 @@ tests =
     , testGroup "filter"
       [ testProperty "filter" pFilter
       , testProperty "filterWithKey" pFilterWithKey
+      , testProperty "mapMaybe" pMapMaybe
+      , testProperty "mapMaybeWithKey" pMapMaybeWithKey
       ]
     -- Conversions
     , testGroup "conversions"

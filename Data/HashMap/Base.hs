@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, MagicHash #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE PatternGuards #-}
 #if __GLASGOW_HASKELL__ >= 708
 {-# LANGUAGE TypeFamilies #-}
 #endif
@@ -52,6 +53,8 @@ module Data.HashMap.Base
     , foldrWithKey
 
       -- * Filter
+    , mapMaybe
+    , mapMaybeWithKey
     , filter
     , filterWithKey
 
@@ -81,6 +84,7 @@ module Data.HashMap.Base
     , update16M
     , update16With'
     , updateOrConcatWith
+    , filterMapAux
     ) where
 
 #if __GLASGOW_HASKELL__ >= 709
@@ -855,14 +859,47 @@ trim mary n = do
     A.unsafeFreeze mary2
 {-# INLINE trim #-}
 
+-- | /O(n)/ Transform this map by applying a function to every value
+--   and retaining only some of them.
+mapMaybeWithKey :: (k -> v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
+mapMaybeWithKey f = filterMapAux onLeaf onColl
+  where onLeaf (Leaf h (L k v)) | Just v' <- f k v = Just (Leaf h (L k v'))
+        onLeaf _ = Nothing
+
+        onColl (L k v) | Just v' <- f k v = Just (L k v')
+                       | otherwise = Nothing
+{-# INLINE mapMaybeWithKey #-}
+
+-- | /O(n)/ Transform this map by applying a function to every value
+--   and retaining only some of them.
+mapMaybe :: (v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
+mapMaybe f = mapMaybeWithKey (const f)
+{-# INLINE mapMaybe #-}
+
 -- | /O(n)/ Filter this map by retaining only elements satisfying a
 -- predicate.
 filterWithKey :: forall k v. (k -> v -> Bool) -> HashMap k v -> HashMap k v
-filterWithKey pred = go
+filterWithKey pred = filterMapAux onLeaf onColl
+  where onLeaf t@(Leaf _ (L k v)) | pred k v = Just t
+        onLeaf _ = Nothing
+
+        onColl el@(L k v) | pred k v = Just el
+        onColl _ = Nothing
+{-# INLINE filterWithKey #-}
+
+
+-- | Common implementation for 'filterWithKey' and 'mapMaybeWithKey',
+--   allowing the former to former to reuse terms.
+filterMapAux :: forall k v1 v2
+              . (HashMap k v1 -> Maybe (HashMap k v2))
+             -> (Leaf k v1 -> Maybe (Leaf k v2))
+             -> HashMap k v1
+             -> HashMap k v2
+filterMapAux onLeaf onColl = go
   where
     go Empty = Empty
-    go t@(Leaf _ (L k v))
-        | pred k v  = t
+    go t@Leaf{}
+        | Just t' <- onLeaf t = t'
         | otherwise = Empty
     go (BitmapIndexed b ary) = filterA ary b
     go (Full ary) = filterA ary fullNodeMask
@@ -874,9 +911,9 @@ filterWithKey pred = go
             mary <- A.new_ n
             step ary0 mary b0 0 0 1 n
       where
-        step :: A.Array (HashMap k v) -> A.MArray s (HashMap k v)
+        step :: A.Array (HashMap k v1) -> A.MArray s (HashMap k v2)
              -> Bitmap -> Int -> Int -> Bitmap -> Int
-             -> ST s (HashMap k v)
+             -> ST s (HashMap k v2)
         step !ary !mary !b i !j !bi n
             | i >= n = case j of
                 0 -> return Empty
@@ -903,9 +940,9 @@ filterWithKey pred = go
             mary <- A.new_ n
             step ary0 mary 0 0 n
       where
-        step :: A.Array (Leaf k v) -> A.MArray s (Leaf k v)
+        step :: A.Array (Leaf k v1) -> A.MArray s (Leaf k v2)
              -> Int -> Int -> Int
-             -> ST s (HashMap k v)
+             -> ST s (HashMap k v2)
         step !ary !mary i !j n
             | i >= n    = case j of
                 0 -> return Empty
@@ -915,10 +952,10 @@ filterWithKey pred = go
                                  return $! Collision h ary2
                   | otherwise -> do ary2 <- trim mary j
                                     return $! Collision h ary2
-            | pred k v  = A.write mary j el >> step ary mary (i+1) (j+1) n
+            | Just el <- onColl (A.index ary i)
+                = A.write mary j el >> step ary mary (i+1) (j+1) n
             | otherwise = step ary mary (i+1) j n
-          where el@(L k v) = A.index ary i
-{-# INLINE filterWithKey #-}
+{-# INLINE filterMapAux #-}
 
 -- | /O(n)/ Filter this map by retaining only elements which values
 -- satisfy a predicate.

@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP #-}
+{-# LANGUAGE BangPatterns, CPP, PatternGuards #-}
 
 #if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Trustworthy #-}
@@ -73,6 +73,8 @@ module Data.HashMap.Strict
     , foldrWithKey
 
       -- * Filter
+    , mapMaybe
+    , mapMaybeWithKey
     , HM.filter
     , filterWithKey
 
@@ -95,7 +97,7 @@ import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
     alter, adjust, fromList, fromListWith, insert, insertWith, intersectionWith,
-    map, mapWithKey, singleton, update, unionWith)
+    map, mapWithKey, mapMaybe, mapMaybeWithKey, singleton, update, unionWith)
 import Data.HashMap.Unsafe (runST)
 
 -- $strictness
@@ -354,6 +356,28 @@ mapWithKey f = go
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = mapWithKey (const f)
 {-# INLINE map #-}
+
+
+------------------------------------------------------------------------
+-- * Filter
+
+-- | /O(n)/ Transform this map by applying a function to every value
+--   and retaining only some of them.
+mapMaybeWithKey :: (k -> v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
+mapMaybeWithKey f = filterMapAux onLeaf onColl
+  where onLeaf (Leaf h (L k v)) | Just v' <- f k v = Just (leaf h k v')
+        onLeaf _ = Nothing
+
+        onColl (L k v) | Just v' <- f k v = Just (L k v')
+                       | otherwise = Nothing
+{-# INLINE mapMaybeWithKey #-}
+
+-- | /O(n)/ Transform this map by applying a function to every value
+--   and retaining only some of them.
+mapMaybe :: (v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
+mapMaybe f = mapMaybeWithKey (const f)
+{-# INLINE mapMaybe #-}
+
 
 -- TODO: Should we add a strict traverseWithKey?
 
