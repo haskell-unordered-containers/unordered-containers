@@ -157,7 +157,8 @@ instance Functor (HashMap k) where
     fmap = map
 
 instance Foldable.Foldable (HashMap k) where
-    foldr f = foldrWithKey (const f)
+    foldl' = foldl'
+    foldr = foldr
 
 instance (Eq k, Hashable k) => Monoid (HashMap k v) where
   mempty = empty
