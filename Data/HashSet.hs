@@ -1,4 +1,7 @@
 {-# LANGUAGE CPP, DeriveDataTypeable #-}
+#if __GLASGOW_HASKELL__ >= 702
+{-# LANGUAGE DeriveGeneric #-}
+#endif
 #if __GLASGOW_HASKELL__ >= 708
 {-# LANGUAGE TypeFamilies #-}
 #endif
@@ -77,6 +80,9 @@ import qualified Data.List as List
 import Data.Typeable (Typeable)
 import Text.Read
 
+#if __GLASGOW_HASKELL__ >= 702
+import GHC.Generics (Generic)
+#endif
 #if __GLASGOW_HASKELL__ >= 708
 import qualified GHC.Exts as Exts
 #endif
@@ -84,7 +90,12 @@ import qualified GHC.Exts as Exts
 -- | A set of values.  A set cannot contain duplicate values.
 newtype HashSet a = HashSet {
       asMap :: HashMap a ()
-    } deriving (Typeable)
+    }
+#if __GLASGOW_HASKELL__ >= 702
+      deriving (Generic, Typeable)
+#else
+      deriving (Typeable)
+#endif
 
 instance (NFData a) => NFData (HashSet a) where
     rnf = rnf . asMap
