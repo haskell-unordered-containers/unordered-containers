@@ -30,6 +30,7 @@ library
     Data.HashMap.Lazy
     Data.HashMap.Strict
     Data.HashSet
+    Data.HashMap.Internal
   other-modules:
     Data.HashMap.Array
     Data.HashMap.Base

@@ -5,8 +5,8 @@
 --
 -- Note that no bounds checking are performed.
 module Data.HashMap.Array
-    ( Array
-    , MArray
+    ( Array (..)
+    , MArray (..)
 
       -- * Creation
     , new
