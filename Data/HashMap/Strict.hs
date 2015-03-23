@@ -65,6 +65,7 @@ module Data.HashMap.Strict
     , difference
     , intersection
     , intersectionWith
+    , intersectionWithKey
 
       -- * Folds
     , foldl'
@@ -97,7 +98,8 @@ import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
     alter, adjust, fromList, fromListWith, insert, insertWith, intersectionWith,
-    map, mapWithKey, mapMaybe, mapMaybeWithKey, singleton, update, unionWith)
+    intersectionWithKey, map, mapWithKey, mapMaybe, mapMaybeWithKey, singleton,
+    update, unionWith)
 import Data.HashMap.Unsafe (runST)
 
 -- $strictness
@@ -395,6 +397,18 @@ intersectionWith f a b = foldlWithKey' go empty a
                  Just w -> insert k (f v w) m
                  _      -> m
 {-# INLINABLE intersectionWith #-}
+
+-- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
+-- the provided function is used to combine the values from the two
+-- maps.
+intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3)
+                    -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
+intersectionWithKey f a b = foldlWithKey' go empty a
+  where
+    go m k v = case HM.lookup k b of
+                 Just w -> insert k (f k v w) m
+                 _      -> m
+{-# INLINABLE intersectionWithKey #-}
 
 ------------------------------------------------------------------------
 -- ** Lists

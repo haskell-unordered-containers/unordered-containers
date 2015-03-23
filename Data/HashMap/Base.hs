@@ -45,6 +45,7 @@ module Data.HashMap.Base
     , difference
     , intersection
     , intersectionWith
+    , intersectionWithKey
 
       -- * Folds
     , foldl'
@@ -800,6 +801,18 @@ intersectionWith f a b = foldlWithKey' go empty a
                  Just w -> insert k (f v w) m
                  _      -> m
 {-# INLINABLE intersectionWith #-}
+
+-- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
+-- the provided function is used to combine the values from the two
+-- maps.
+intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3)
+                    -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
+intersectionWithKey f a b = foldlWithKey' go empty a
+  where
+    go m k v = case lookup k b of
+                 Just w -> insert k (f k v w) m
+                 _      -> m
+{-# INLINABLE intersectionWithKey #-}
 
 ------------------------------------------------------------------------
 -- * Folds
