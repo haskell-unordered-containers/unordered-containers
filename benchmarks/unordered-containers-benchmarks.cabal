@@ -26,6 +26,8 @@ executable unordered-containers-benchmarks
     containers,
     criterion,
     deepseq,
+    deepseq-generics,
+    hashmap,
     ghc-prim,
     hashable,
     mtl,
