@@ -65,7 +65,7 @@ module Data.HashSet
 import Control.DeepSeq (NFData(..))
 import Data.Data hiding (Typeable)
 import Data.HashMap.Base (HashMap, foldrWithKey)
-import Data.Hashable (Hashable)
+import Data.Hashable (Hashable(hashWithSalt))
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (Monoid(..))
 #endif
@@ -126,6 +126,9 @@ instance (Data a, Eq a, Hashable a) => Data (HashSet a) where
         _ -> error "gunfold"
     dataTypeOf _   = hashSetDataType
     dataCast1 f    = gcast1 f
+
+instance (Hashable a) => Hashable (HashSet a) where
+    hashWithSalt = foldl' hashWithSalt
 
 fromListConstr :: Constr
 fromListConstr = mkConstr hashSetDataType "fromList" [] Prefix
