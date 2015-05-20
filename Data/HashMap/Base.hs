@@ -203,6 +203,9 @@ instance Traversable (HashMap k) where
 instance (Eq k, Eq v) => Eq (HashMap k v) where
     (==) = equal
 
+instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
+    hashWithSalt = foldlWithKey' (\h k v -> h `H.hashWithSalt` k `H.hashWithSalt` v)
+
 equal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
 equal t1 t2 = go (toList' t1 []) (toList' t2 [])
   where
