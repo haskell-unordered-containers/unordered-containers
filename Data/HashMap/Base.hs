@@ -88,9 +88,7 @@ module Data.HashMap.Base
     , filterMapAux
     ) where
 
-#if __GLASGOW_HASKELL__ >= 709
-import Data.Functor ((<$>))
-#else
+#if __GLASGOW_HASKELL__ < 710
 import Control.Applicative ((<$>), Applicative(pure))
 import Data.Monoid (Monoid(mempty, mappend))
 import Data.Traversable (Traversable(..))
