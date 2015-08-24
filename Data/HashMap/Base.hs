@@ -40,6 +40,7 @@ module Data.HashMap.Base
     , map
     , mapWithKey
     , traverseWithKey
+    , traverseWithKey_
 
       -- * Difference and intersection
     , difference
@@ -89,7 +90,7 @@ module Data.HashMap.Base
     ) where
 
 #if __GLASGOW_HASKELL__ < 710
-import Control.Applicative ((<$>), Applicative(pure))
+import Control.Applicative ((<$>), (*>), Applicative(pure))
 import Data.Monoid (Monoid(mempty, mappend))
 import Data.Traversable (Traversable(..))
 import Data.Word (Word)
@@ -582,8 +583,8 @@ adjust f k0 m0 = go h0 k0 0 m0
         | otherwise = t
 {-# INLINABLE adjust #-}
 
--- | /O(log n)/  The expression (@'update' f k map@) updates the value @x@ at @k@, 
--- (if it is in the map). If (f k x) is @'Nothing', the element is deleted. 
+-- | /O(log n)/  The expression (@'update' f k map@) updates the value @x@ at @k@,
+-- (if it is in the map). If (f k x) is @'Nothing', the element is deleted.
 -- If it is (@'Just' y), the key k is bound to the new value y.
 update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
 update f = alter (>>= f)
@@ -767,6 +768,19 @@ traverseWithKey f = go
     go (Collision h ary)     =
         Collision h <$> A.traverse (\ (L k v) -> L k <$> f k v) ary
 {-# INLINE traverseWithKey #-}
+
+-- | /O(n)/ Map each element of a map to an action, evaluate these
+-- actions, and ignore the results.
+traverseWithKey_ :: Applicative f => (k -> v1 -> f b) -> HashMap k v1
+                -> f ()
+traverseWithKey_ f = go
+  where
+    go Empty                 = pure ()
+    go (Leaf _ (L k v))      = f k v *> pure ()
+    go (BitmapIndexed _ ary) = A.traverse_ go ary
+    go (Full ary)            = A.traverse_ go ary
+    go (Collision _ ary)     = A.traverse_ (\ (L k v) -> f k v) ary
+{-# INLINE traverseWithKey_ #-}
 
 ------------------------------------------------------------------------
 -- * Difference and intersection
