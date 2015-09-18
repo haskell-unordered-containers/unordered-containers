@@ -60,9 +60,15 @@ module Data.HashSet
     -- * Filter
     , filter
 
+    -- * Conversions
+
     -- ** Lists
     , toList
     , fromList
+
+    -- * HashMaps
+    , toMap
+    , fromMap
     ) where
 
 import Control.DeepSeq (NFData(..))
@@ -147,6 +153,14 @@ empty = HashSet H.empty
 singleton :: Hashable a => a -> HashSet a
 singleton a = HashSet (H.singleton a ())
 {-# INLINABLE singleton #-}
+
+-- | /O(1)/ Convert to the equivalent 'HashMap'.
+toMap :: HashSet a -> HashMap a ()
+toMap = asMap
+
+-- | /O(1)/ Convert from the equivalent 'HashMap'.
+fromMap :: HashMap a () -> HashSet a
+fromMap = HashSet
 
 -- | /O(n+m)/ Construct a set containing all elements from both sets.
 --
