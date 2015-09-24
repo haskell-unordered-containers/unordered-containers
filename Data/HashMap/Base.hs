@@ -220,15 +220,20 @@ equal t1 t2 = go (toList' t1 []) (toList' t2 [])
     go _  _  = False
 
 instance (Hashable k, Ord k, Hashable v) => Hashable (HashMap k v) where
-    hashWithSalt salt = L.foldl' (\h (L k v) -> h `H.hashWithSalt` k `H.hashWithSalt` v) salt . toList''
+    hashWithSalt salt hm = go salt (toList' hm [])
       where
-        -- Order 'Leaf' s with (hash, k) ordering
-        toList'' :: HashMap k v -> [Leaf k v]
-        toList'' hm = concatMap f (toList' hm [])
-        f :: HashMap k v -> [Leaf k v]
-        f (Leaf _ l)      = [l]
-        f (Collision _ a) = L.sortBy (comparing leafKey) (A.toList a)
-        f _               = []
+        go :: Int -> [HashMap k v] -> Int
+        go salt [] = salt
+        go salt (Leaf _ l : tl)      = salt `hashLeafWithSalt` l `go` tl
+        go salt (Collision _ a : tl) = salt `hashCollisionWithSalt` a `go` tl
+        go salt (_ : tl)             = salt `go` tl
+
+        hashLeafWithSalt :: Int -> Leaf k v -> Int
+        hashLeafWithSalt s (L k v) = s `H.hashWithSalt` k `H.hashWithSalt` v
+
+        hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
+        hashCollisionWithSalt s a = L.foldl' (hashLeafWithSalt) s (L.sortBy (comparing leafKey) (A.toList a))
+
         leafKey :: Leaf k v -> k
         leafKey (L k _) = k
 
