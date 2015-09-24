@@ -16,7 +16,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Lazy as HM
 #endif
 import qualified Data.Map as M
-import Test.QuickCheck (Arbitrary, Property, (==>))
+import Test.QuickCheck (Arbitrary, Property, (==>), (===))
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 
@@ -48,6 +48,14 @@ pFunctor = fmap (+ 1) `eq_` fmap (+ 1)
 pFoldable :: [(Int, Int)] -> Bool
 pFoldable = (L.sort . Foldable.foldr (:) []) `eq`
             (L.sort . Foldable.foldr (:) [])
+
+pHashable :: [(Key, Int)] -> [Int] -> Int -> Property
+pHashable xs is salt =
+    x == y ==> hashWithSalt salt x === hashWithSalt salt y
+  where
+     ys = L.map snd . L.sort . L.zip (is ++ [L.maximum (0:is) + 1..]) $ xs
+     x = HM.fromList xs
+     y = HM.fromList ys
 
 ------------------------------------------------------------------------
 -- ** Basic interface
@@ -229,6 +237,7 @@ tests =
       , testProperty "Read/Show" pReadShow
       , testProperty "Functor" pFunctor
       , testProperty "Foldable" pFoldable
+      , testProperty "Hashable" pHashable
       ]
     -- Basic interface
     , testGroup "basic interface"
