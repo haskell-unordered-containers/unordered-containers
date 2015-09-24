@@ -98,7 +98,6 @@ import Control.DeepSeq (NFData(rnf))
 import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement)
 import Data.Data hiding (Typeable)
-import Data.Ord (comparing)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as L
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
@@ -219,23 +218,24 @@ equal t1 t2 = go (toList' t1 []) (toList' t2 [])
     go [] [] = True
     go _  _  = False
 
-instance (Hashable k, Ord k, Hashable v) => Hashable (HashMap k v) where
+instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
     hashWithSalt salt hm = go salt (toList' hm [])
       where
         go :: Int -> [HashMap k v] -> Int
-        go salt [] = salt
-        go salt (Leaf _ l : tl)      = salt `hashLeafWithSalt` l `go` tl
-        go salt (Collision _ a : tl) = salt `hashCollisionWithSalt` a `go` tl
-        go salt (_ : tl)             = salt `go` tl
+        go s [] = s
+        go s (Leaf _ l : tl)      = s `hashLeafWithSalt` l `go` tl
+        -- For collisions we hashmix hash value, and then array of values' hashes sorted
+        go s (Collision h a : tl) = (s `H.hashWithSalt` h) `hashCollisionWithSalt` a `go` tl
+        go s (_ : tl)             = s `go` tl
 
         hashLeafWithSalt :: Int -> Leaf k v -> Int
         hashLeafWithSalt s (L k v) = s `H.hashWithSalt` k `H.hashWithSalt` v
 
         hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
-        hashCollisionWithSalt s a = L.foldl' (hashLeafWithSalt) s (L.sortBy (comparing leafKey) (A.toList a))
+        hashCollisionWithSalt s a = L.foldl' H.hashWithSalt s (L.sort (L.map (H.hash . leafValue) (A.toList a)))
 
-        leafKey :: Leaf k v -> k
-        leafKey (L k _) = k
+        leafValue :: Leaf k v -> v
+        leafValue (L _ v) = v
 
   -- Helper to get 'Leaf's and 'Collision's as a list.
 toList' :: HashMap k v -> [HashMap k v] -> [HashMap k v]

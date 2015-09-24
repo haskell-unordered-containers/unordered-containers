@@ -136,7 +136,7 @@ instance (Data a, Eq a, Hashable a) => Data (HashSet a) where
     dataTypeOf _   = hashSetDataType
     dataCast1 f    = gcast1 f
 
-instance (Hashable a, Ord a) => Hashable (HashSet a) where
+instance (Hashable a) => Hashable (HashSet a) where
     hashWithSalt salt = hashWithSalt salt . asMap
 
 fromListConstr :: Constr
