@@ -98,6 +98,7 @@ import Control.DeepSeq (NFData(rnf))
 import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement)
 import Data.Data hiding (Typeable)
+import Data.Ord (comparing)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as L
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
@@ -201,9 +202,6 @@ instance Traversable (HashMap k) where
 instance (Eq k, Eq v) => Eq (HashMap k v) where
     (==) = equal
 
-instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
-    hashWithSalt = foldlWithKey' (\h k v -> h `H.hashWithSalt` k `H.hashWithSalt` v)
-
 equal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
 equal t1 t2 = go (toList' t1 []) (toList' t2 [])
   where
@@ -221,11 +219,26 @@ equal t1 t2 = go (toList' t1 []) (toList' t2 [])
     go [] [] = True
     go _  _  = False
 
-    toList' (BitmapIndexed _ ary) a = A.foldr toList' a ary
-    toList' (Full ary)            a = A.foldr toList' a ary
-    toList' l@(Leaf _ _)          a = l : a
-    toList' c@(Collision _ _)     a = c : a
-    toList' Empty                 a = a
+instance (Hashable k, Ord k, Hashable v) => Hashable (HashMap k v) where
+    hashWithSalt salt = L.foldl' (\h (L k v) -> h `H.hashWithSalt` k `H.hashWithSalt` v) salt . toList''
+      where
+        -- Order 'Leaf' s with (hash, k) ordering
+        toList'' :: HashMap k v -> [Leaf k v]
+        toList'' hm = concatMap f (toList' hm [])
+        f :: HashMap k v -> [Leaf k v]
+        f (Leaf _ l)      = [l]
+        f (Collision _ a) = L.sortBy (comparing leafKey) (A.toList a)
+        f _               = []
+        leafKey :: Leaf k v -> k
+        leafKey (L k _) = k
+
+  -- Helper to get 'Leaf's and 'Collision's as a list.
+toList' :: HashMap k v -> [HashMap k v] -> [HashMap k v]
+toList' (BitmapIndexed _ ary) a = A.foldr toList' a ary
+toList' (Full ary)            a = A.foldr toList' a ary
+toList' l@(Leaf _ _)          a = l : a
+toList' c@(Collision _ _)     a = c : a
+toList' Empty                 a = a
 
 -- Helper function to detect 'Leaf's and 'Collision's.
 isLeafOrCollision :: HashMap k v -> Bool
