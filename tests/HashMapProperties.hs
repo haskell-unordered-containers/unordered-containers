@@ -10,6 +10,7 @@ import qualified Data.Foldable as Foldable
 import Data.Function (on)
 import Data.Hashable (Hashable(hashWithSalt))
 import qualified Data.List as L
+import Data.Ord (comparing)
 #if defined(STRICT)
 import qualified Data.HashMap.Strict as HM
 #else
@@ -53,9 +54,14 @@ pHashable :: [(Key, Int)] -> [Int] -> Int -> Property
 pHashable xs is salt =
     x == y ==> hashWithSalt salt x === hashWithSalt salt y
   where
-     ys = L.map snd . L.sort . L.zip (is ++ [L.maximum (0:is) + 1..]) $ xs
-     x = HM.fromList xs
-     y = HM.fromList ys
+    ys = shuffle is xs
+    x = HM.fromList xs
+    y = HM.fromList ys
+    -- Shuffle the list using indexes in the second
+    shuffle :: [Int] -> [a] -> [a]
+    shuffle idxs = L.map snd
+                 . L.sortBy (comparing fst)
+                 . L.zip (idxs ++ [L.maximum (0:is) + 1 ..])
 
 ------------------------------------------------------------------------
 -- ** Basic interface

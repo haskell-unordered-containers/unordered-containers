@@ -10,6 +10,7 @@ import Data.Hashable (Hashable(hashWithSalt))
 import qualified Data.List as L
 import qualified Data.HashSet as S
 import qualified Data.Set as Set
+import Data.Ord (comparing)
 import Test.QuickCheck (Arbitrary, Property, (==>), (===))
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
@@ -43,15 +44,21 @@ pFoldable = (L.sort . Foldable.foldr (:) []) `eq`
 pPermutationEq :: [Key] -> [Int] -> Bool
 pPermutationEq xs is = S.fromList xs == S.fromList ys
   where
-    ys = L.map snd . L.sort . L.zip (is ++ [L.maximum (0:is) + 1..]) $ xs
+    ys = shuffle is xs
+    shuffle idxs = L.map snd
+                 . L.sortBy (comparing fst)
+                 . L.zip (idxs ++ [L.maximum (0:is) + 1 ..])
 
 pHashable :: [Key] -> [Int] -> Int -> Property
 pHashable xs is salt =
     x == y ==> hashWithSalt salt x === hashWithSalt salt y
   where
-     ys = L.map snd . L.sort . L.zip (is ++ [L.maximum (0:is) + 1..]) $ xs
-     x = S.fromList xs
-     y = S.fromList ys
+    ys = shuffle is xs
+    x = S.fromList xs
+    y = S.fromList ys
+    shuffle idxs = L.map snd
+                 . L.sortBy (comparing fst)
+                 . L.zip (idxs ++ [L.maximum (0:is) + 1 ..])
 
 ------------------------------------------------------------------------
 -- ** Basic interface
