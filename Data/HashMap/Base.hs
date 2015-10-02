@@ -223,19 +223,26 @@ instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
       where
         go :: Int -> [HashMap k v] -> Int
         go s [] = s
-        go s (Leaf _ l : tl)      = s `hashLeafWithSalt` l `go` tl
-        -- For collisions we hashmix hash value, and then array of values' hashes sorted
-        go s (Collision h a : tl) = (s `H.hashWithSalt` h) `hashCollisionWithSalt` a `go` tl
-        go s (_ : tl)             = s `go` tl
+        go s (Leaf _ l : tl)
+          = s `hashLeafWithSalt` l `go` tl
+        -- For collisions we hashmix hash value
+        -- and then array of values' hashes sorted
+        go s (Collision h a : tl)
+          = (s `H.hashWithSalt` h) `hashCollisionWithSalt` a `go` tl
+        go s (_ : tl) = s `go` tl
 
         hashLeafWithSalt :: Int -> Leaf k v -> Int
         hashLeafWithSalt s (L k v) = s `H.hashWithSalt` k `H.hashWithSalt` v
 
         hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
-        hashCollisionWithSalt s a = L.foldl' H.hashWithSalt s (L.sort (L.map (H.hash . leafValue) (A.toList a)))
+        hashCollisionWithSalt s
+          = L.foldl' H.hashWithSalt s . arrayHashesSorted
 
-        leafValue :: Leaf k v -> v
-        leafValue (L _ v) = v
+        arrayHashesSorted :: A.Array (Leaf k v) -> [Int]
+        arrayHashesSorted = L.sort . L.map leafValueHash . A.toList
+
+        leafValueHash :: Leaf k v -> Int
+        leafValueHash (L _ v) = H.hash v
 
   -- Helper to get 'Leaf's and 'Collision's as a list.
 toList' :: HashMap k v -> [HashMap k v] -> [HashMap k v]
