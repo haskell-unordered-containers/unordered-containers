@@ -137,7 +137,7 @@ instance (Data a, Eq a, Hashable a) => Data (HashSet a) where
     dataCast1 f    = gcast1 f
 
 instance (Hashable a) => Hashable (HashSet a) where
-    hashWithSalt = foldl' hashWithSalt
+    hashWithSalt salt = hashWithSalt salt . asMap
 
 fromListConstr :: Constr
 fromListConstr = mkConstr hashSetDataType "fromList" [] Prefix

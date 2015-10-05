@@ -201,9 +201,6 @@ instance Traversable (HashMap k) where
 instance (Eq k, Eq v) => Eq (HashMap k v) where
     (==) = equal
 
-instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
-    hashWithSalt = foldlWithKey' (\h k v -> h `H.hashWithSalt` k `H.hashWithSalt` v)
-
 equal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
 equal t1 t2 = go (toList' t1 []) (toList' t2 [])
   where
@@ -221,11 +218,39 @@ equal t1 t2 = go (toList' t1 []) (toList' t2 [])
     go [] [] = True
     go _  _  = False
 
-    toList' (BitmapIndexed _ ary) a = A.foldr toList' a ary
-    toList' (Full ary)            a = A.foldr toList' a ary
-    toList' l@(Leaf _ _)          a = l : a
-    toList' c@(Collision _ _)     a = c : a
-    toList' Empty                 a = a
+instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
+    hashWithSalt salt hm = go salt (toList' hm [])
+      where
+        go :: Int -> [HashMap k v] -> Int
+        go s [] = s
+        go s (Leaf _ l : tl)
+          = s `hashLeafWithSalt` l `go` tl
+        -- For collisions we hashmix hash value
+        -- and then array of values' hashes sorted
+        go s (Collision h a : tl)
+          = (s `H.hashWithSalt` h) `hashCollisionWithSalt` a `go` tl
+        go s (_ : tl) = s `go` tl
+
+        hashLeafWithSalt :: Int -> Leaf k v -> Int
+        hashLeafWithSalt s (L k v) = s `H.hashWithSalt` k `H.hashWithSalt` v
+
+        hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
+        hashCollisionWithSalt s
+          = L.foldl' H.hashWithSalt s . arrayHashesSorted
+
+        arrayHashesSorted :: A.Array (Leaf k v) -> [Int]
+        arrayHashesSorted = L.sort . L.map leafValueHash . A.toList
+
+        leafValueHash :: Leaf k v -> Int
+        leafValueHash (L _ v) = H.hash v
+
+  -- Helper to get 'Leaf's and 'Collision's as a list.
+toList' :: HashMap k v -> [HashMap k v] -> [HashMap k v]
+toList' (BitmapIndexed _ ary) a = A.foldr toList' a ary
+toList' (Full ary)            a = A.foldr toList' a ary
+toList' l@(Leaf _ _)          a = l : a
+toList' c@(Collision _ _)     a = c : a
+toList' Empty                 a = a
 
 -- Helper function to detect 'Leaf's and 'Collision's.
 isLeafOrCollision :: HashMap k v -> Bool

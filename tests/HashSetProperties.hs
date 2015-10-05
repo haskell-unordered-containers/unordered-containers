@@ -10,7 +10,8 @@ import Data.Hashable (Hashable(hashWithSalt))
 import qualified Data.List as L
 import qualified Data.HashSet as S
 import qualified Data.Set as Set
-import Test.QuickCheck (Arbitrary)
+import Data.Ord (comparing)
+import Test.QuickCheck (Arbitrary, Property, (==>), (===))
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 
@@ -39,6 +40,25 @@ pReadShow xs = Set.fromList xs == read (show (Set.fromList xs))
 pFoldable :: [Int] -> Bool
 pFoldable = (L.sort . Foldable.foldr (:) []) `eq`
             (L.sort . Foldable.foldr (:) [])
+
+pPermutationEq :: [Key] -> [Int] -> Bool
+pPermutationEq xs is = S.fromList xs == S.fromList ys
+  where
+    ys = shuffle is xs
+    shuffle idxs = L.map snd
+                 . L.sortBy (comparing fst)
+                 . L.zip (idxs ++ [L.maximum (0:is) + 1 ..])
+
+pHashable :: [Key] -> [Int] -> Int -> Property
+pHashable xs is salt =
+    x == y ==> hashWithSalt salt x === hashWithSalt salt y
+  where
+    ys = shuffle is xs
+    x = S.fromList xs
+    y = S.fromList ys
+    shuffle idxs = L.map snd
+                 . L.sortBy (comparing fst)
+                 . L.zip (idxs ++ [L.maximum (0:is) + 1 ..])
 
 ------------------------------------------------------------------------
 -- ** Basic interface
@@ -113,9 +133,11 @@ tests =
     -- Instances
       testGroup "instances"
       [ testProperty "==" pEq
+      , testProperty "Permutation ==" pPermutationEq
       , testProperty "/=" pNeq
       , testProperty "Read/Show" pReadShow
       , testProperty "Foldable" pFoldable
+      , testProperty "Hashable" pHashable
       ]
     -- Basic interface
     , testGroup "basic interface"
