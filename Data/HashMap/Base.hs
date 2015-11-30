@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternGuards #-}
 #if __GLASGOW_HASKELL__ >= 708
+{-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
 #endif
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
@@ -144,6 +145,10 @@ data HashMap k v
     | Full !(A.Array (HashMap k v))
     | Collision !Hash !(A.Array (Leaf k v))
       deriving (Typeable)
+
+#if __GLASGOW_HASKELL__ >= 708
+type role HashMap nominal representational
+#endif
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Empty                 = ()
@@ -607,8 +612,8 @@ adjust f k0 m0 = go h0 k0 0 m0
         | otherwise = t
 {-# INLINABLE adjust #-}
 
--- | /O(log n)/  The expression (@'update' f k map@) updates the value @x@ at @k@, 
--- (if it is in the map). If (f k x) is @'Nothing', the element is deleted. 
+-- | /O(log n)/  The expression (@'update' f k map@) updates the value @x@ at @k@,
+-- (if it is in the map). If (f k x) is @'Nothing', the element is deleted.
 -- If it is (@'Just' y), the key k is bound to the new value y.
 update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
 update f = alter (>>= f)

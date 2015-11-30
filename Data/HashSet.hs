@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP, DeriveDataTypeable #-}
 #if __GLASGOW_HASKELL__ >= 708
+{-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
 #endif
 #if __GLASGOW_HASKELL__ >= 702
@@ -94,6 +95,10 @@ import qualified GHC.Exts as Exts
 newtype HashSet a = HashSet {
       asMap :: HashMap a ()
     } deriving (Typeable)
+
+#if __GLASGOW_HASKELL__ >= 708
+type role HashSet nominal
+#endif
 
 instance (NFData a) => NFData (HashSet a) where
     rnf = rnf . asMap
