@@ -53,7 +53,6 @@ import qualified Data.Traversable as Traversable
 import Control.Applicative (Applicative)
 #endif
 import Control.DeepSeq
-import Control.Monad.ST hiding (runST)
 -- GHC 7.7 exports toList/fromList from GHC.Exts
 -- In order to avoid warnings on previous GHC versions, we provide
 -- an explicit import list instead of only hiding the offending symbols
