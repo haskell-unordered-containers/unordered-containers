@@ -511,8 +511,7 @@ unsafeInsertWith :: forall k v. (Eq k, Hashable k)
 unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
-    go :: (Eq k, Hashable k) => Hash -> k -> v -> Shift -> HashMap k v
-       -> ST s (HashMap k v)
+    go :: Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
     go !h !k x !_ Empty = return $! Leaf h (L k x)
     go h k x s (Leaf hy l@(L ky y))
         | hy == h = if ky == k
