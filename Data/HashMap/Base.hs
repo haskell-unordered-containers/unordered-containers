@@ -95,6 +95,9 @@ import Data.Monoid (Monoid(mempty, mappend))
 import Data.Traversable (Traversable(..))
 import Data.Word (Word)
 #endif
+#if __GLASGOW_HASKELL__ >= 711
+import Data.Semigroup (Semigroup((<>)))
+#endif
 import Control.DeepSeq (NFData(rnf))
 import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement)
@@ -163,10 +166,20 @@ instance Functor (HashMap k) where
 instance Foldable.Foldable (HashMap k) where
     foldr f = foldrWithKey (const f)
 
+#if __GLASGOW_HASKELL__ >= 711
+instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
+  (<>) = union
+  {-# INLINE (<>) #-}
+#endif
+
 instance (Eq k, Hashable k) => Monoid (HashMap k v) where
   mempty = empty
   {-# INLINE mempty #-}
+#if __GLASGOW_HASKELL__ >= 711
+  mappend = (<>)
+#else
   mappend = union
+#endif
   {-# INLINE mappend #-}
 
 instance (Data k, Data v, Eq k, Hashable k) => Data (HashMap k v) where

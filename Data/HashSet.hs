@@ -76,7 +76,9 @@ import Control.DeepSeq (NFData(..))
 import Data.Data hiding (Typeable)
 import Data.HashMap.Base (HashMap, foldrWithKey)
 import Data.Hashable (Hashable(hashWithSalt))
-#if __GLASGOW_HASKELL__ < 709
+#if __GLASGOW_HASKELL__ >= 711
+import Data.Semigroup (Semigroup(..), Monoid(..))
+#elif __GLASGOW_HASKELL__ < 709
 import Data.Monoid (Monoid(..))
 #endif
 import GHC.Exts (build)
@@ -114,10 +116,20 @@ instance Foldable.Foldable HashSet where
     foldr = Data.HashSet.foldr
     {-# INLINE foldr #-}
 
+#if __GLASGOW_HASKELL__ >= 711
+instance (Hashable a, Eq a) => Semigroup (HashSet a) where
+    (<>) = union
+    {-# INLINE (<>) #-}
+#endif
+
 instance (Hashable a, Eq a) => Monoid (HashSet a) where
     mempty = empty
     {-# INLINE mempty #-}
+#if __GLASGOW_HASKELL__ >= 711
+    mappend = (<>)
+#else
     mappend = union
+#endif
     {-# INLINE mappend #-}
 
 instance (Eq a, Hashable a, Read a) => Read (HashSet a) where
