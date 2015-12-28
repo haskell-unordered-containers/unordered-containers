@@ -13,16 +13,16 @@ module Data.HashMap.Unsafe
     ) where
 
 import GHC.Base (realWorld#)
-import GHC.ST hiding (runST, runSTRep)
+import qualified GHC.ST as ST
 
 -- | Return the value computed by a state transformer computation.
 -- The @forall@ ensures that the internal state used by the 'ST'
 -- computation is inaccessible to the rest of the program.
-runST :: (forall s. ST s a) -> a
-runST st = runSTRep (case st of { ST st_rep -> st_rep })
+runST :: (forall s. ST.ST s a) -> a
+runST st = runSTRep (case st of { ST.ST st_rep -> st_rep })
 {-# INLINE runST #-}
 
-runSTRep :: (forall s. STRep s a) -> a
+runSTRep :: (forall s. ST.STRep s a) -> a
 runSTRep st_rep = case st_rep realWorld# of
                         (# _, r #) -> r
 {-# INLINE [0] runSTRep #-}
