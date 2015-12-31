@@ -30,7 +30,7 @@
 
 module Data.HashSet
     (
-      HashSet
+      HashSet(..)
 
     -- * Construction
     , empty
