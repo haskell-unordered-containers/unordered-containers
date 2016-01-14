@@ -7,6 +7,10 @@
  * Add mapMaybe, mapMaybeWithKey, update, alter, and
    intersectionWithKey.
 
+ * Add roles.
+
+ * Add Hashable and Semigroup instances.
+
 ## 0.2.5.1 (2014-10-11)
 
  * Support base-4.8
