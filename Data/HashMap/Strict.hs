@@ -55,6 +55,7 @@ module Data.HashMap.Strict
     , union
     , unionWith
     , unions
+    , unionsWith
 
       -- * Transformations
     , map

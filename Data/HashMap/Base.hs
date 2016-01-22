@@ -36,6 +36,7 @@ module Data.HashMap.Base
     , union
     , unionWith
     , unions
+    , unionsWith
 
       -- * Transformations
     , map
@@ -772,6 +773,13 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
 unions :: (Eq k, Hashable k) => [HashMap k v] -> HashMap k v
 unions = L.foldl' union empty
 {-# INLINE unions #-}
+
+-- | Construct a set containing all elements from a list of sets.
+-- If a key occurs in both maps, the provided function (first argument) will be
+-- used to compute the result.
+unionsWith :: (Eq k, Hashable k) => (v -> v -> v) -> [HashMap k v] -> HashMap k v
+unionsWith f = L.foldl' (unionWith f) empty
+{-# INLINE unionsWith #-}
 
 ------------------------------------------------------------------------
 -- * Transformations

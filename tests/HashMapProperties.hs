@@ -142,6 +142,10 @@ pUnions :: [[(Key, Int)]] -> Bool
 pUnions xss = M.toAscList (M.unions (map M.fromList xss)) ==
               toAscList (HM.unions (map HM.fromList xss))
 
+pUnionsWith :: [[(Key, Int)]] -> Bool
+pUnionsWith xss = M.toAscList (M.unionsWith (-) (map M.fromList xss)) ==
+                  toAscList (HM.unionsWith (-) (map HM.fromList xss))
+
 ------------------------------------------------------------------------
 -- ** Transformations
 
@@ -265,6 +269,7 @@ tests =
     , testProperty "union" pUnion
     , testProperty "unionWith" pUnionWith
     , testProperty "unions" pUnions
+    , testProperty "unionsWith" pUnionsWith
     -- Transformations
     , testProperty "map" pMap
     -- Folds
