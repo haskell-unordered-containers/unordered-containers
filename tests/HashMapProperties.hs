@@ -138,6 +138,13 @@ pUnionWith :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pUnionWith xs ys = M.unionWith (-) (M.fromList xs) `eq_`
                    HM.unionWith (-) (HM.fromList xs) $ ys
 
+pUnionWithKey :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pUnionWithKey xs ys = M.unionWithKey go (M.fromList xs) `eq_`
+                             HM.unionWithKey go (HM.fromList xs) $ ys
+  where
+    go :: Key -> Int -> Int -> Int
+    go (K k) i1 i2 = k - i1 + i2
+
 pUnions :: [[(Key, Int)]] -> Bool
 pUnions xss = M.toAscList (M.unions (map M.fromList xss)) ==
               toAscList (HM.unions (map HM.fromList xss))
@@ -264,6 +271,7 @@ tests =
     -- Combine
     , testProperty "union" pUnion
     , testProperty "unionWith" pUnionWith
+    , testProperty "unionWithKey" pUnionWithKey
     , testProperty "unions" pUnions
     -- Transformations
     , testProperty "map" pMap
