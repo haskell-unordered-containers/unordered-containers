@@ -35,6 +35,7 @@ module Data.HashMap.Base
       -- ** Union
     , union
     , unionWith
+    , unionWithKey
     , unions
 
       -- * Transformations
@@ -86,6 +87,7 @@ module Data.HashMap.Base
     , update16M
     , update16With'
     , updateOrConcatWith
+    , updateOrConcatWithKey
     , filterMapAux
     ) where
 
@@ -656,7 +658,15 @@ union = unionWith const
 -- result.
 unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
-unionWith f = go 0
+unionWith f = unionWithKey (const f)
+{-# INLINE unionWith #-}
+
+-- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
+-- the provided function (first argument) will be used to compute the
+-- result.
+unionWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
+          -> HashMap k v
+unionWithKey f = go 0
   where
     -- empty vs. anything
     go !_ t1 Empty = t1
@@ -664,17 +674,17 @@ unionWith f = go 0
     -- leaf vs. leaf
     go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
-                      then Leaf h1 (L k1 (f v1 v2))
+                      then Leaf h1 (L k1 (f k1 v1 v2))
                       else collision h1 l1 l2
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
-        | h1 == h2  = Collision h1 (updateOrSnocWith f k1 v1 ls2)
+        | h1 == h2  = Collision h1 (updateOrSnocWithKey f k1 v1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
-        | h1 == h2  = Collision h1 (updateOrSnocWith (flip f) k2 v2 ls1)
+        | h1 == h2  = Collision h1 (updateOrSnocWithKey (flip . f) k2 v2 ls1)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
-        | h1 == h2  = Collision h1 (updateOrConcatWith f ls1 ls2)
+        | h1 == h2  = Collision h1 (updateOrConcatWithKey f ls1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     -- branch vs. branch
     go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
@@ -736,7 +746,7 @@ unionWith f = go 0
       where
         m1 = mask h1 s
         m2 = mask h2 s
-{-# INLINE unionWith #-}
+{-# INLINE unionWithKey #-}
 
 -- | Strict in the result of @f@.
 unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.Array a -> A.Array a
@@ -1099,7 +1109,12 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
 
 updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
-updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
+updateOrSnocWith f = updateOrSnocWithKey (const f)
+{-# INLINABLE updateOrSnocWith #-}
+
+updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.Array (Leaf k v)
+                 -> A.Array (Leaf k v)
+updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
   where
     go !k v !ary !i !n
         | i >= n = A.run $ do
@@ -1109,12 +1124,16 @@ updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
             A.write mary n (L k v)
             return mary
         | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> A.update ary i (L k (f v y))
+            (L kx y) | k == kx   -> A.update ary i (L k (f k v y))
                      | otherwise -> go k v ary (i+1) n
-{-# INLINABLE updateOrSnocWith #-}
+{-# INLINABLE updateOrSnocWithKey #-}
 
 updateOrConcatWith :: Eq k => (v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-updateOrConcatWith f ary1 ary2 = A.run $ do
+updateOrConcatWith f = updateOrConcatWithKey (const f)
+{-# INLINABLE updateOrConcatWith #-}
+
+updateOrConcatWithKey :: Eq k => (k -> v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+updateOrConcatWithKey f ary1 ary2 = A.run $ do
     -- first: look up the position of each element of ary2 in ary1
     let indices = A.map (\(L k _) -> indexOf k ary1) ary2
     -- that tells us how large the overlap is:
@@ -1132,14 +1151,14 @@ updateOrConcatWith f ary1 ary2 = A.run $ do
                Just i1 -> do -- key occurs in both arrays, store combination in position i1
                              L k v1 <- A.indexM ary1 i1
                              L _ v2 <- A.indexM ary2 i2
-                             A.write mary i1 (L k (f v1 v2))
+                             A.write mary i1 (L k (f k v1 v2))
                              go iEnd (i2+1)
                Nothing -> do -- key is only in ary2, append to end
                              A.write mary iEnd =<< A.indexM ary2 i2
                              go (iEnd+1) (i2+1)
     go n1 0
     return mary
-{-# INLINABLE updateOrConcatWith #-}
+{-# INLINABLE updateOrConcatWithKey #-}
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops

@@ -54,6 +54,7 @@ module Data.HashMap.Strict
       -- ** Union
     , union
     , unionWith
+    , unionWithKey
     , unions
 
       -- * Transformations
@@ -99,7 +100,7 @@ import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
     alter, adjust, fromList, fromListWith, insert, insertWith, intersectionWith,
     intersectionWithKey, map, mapWithKey, mapMaybe, mapMaybeWithKey, singleton,
-    update, unionWith)
+    update, unionWith, unionWithKey)
 import Data.HashMap.Unsafe (runST)
 
 -- $strictness
@@ -257,7 +258,14 @@ alter f k m =
 -- the provided function (first argument) will be used to compute the result.
 unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
-unionWith f = go 0
+unionWith f = unionWithKey (const f)
+{-# INLINE unionWith #-}
+
+-- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
+-- the provided function (first argument) will be used to compute the result.
+unionWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
+          -> HashMap k v
+unionWithKey f = go 0
   where
     -- empty vs. anything
     go !_ t1 Empty = t1
@@ -265,17 +273,17 @@ unionWith f = go 0
     -- leaf vs. leaf
     go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
-                      then leaf h1 k1 (f v1 v2)
+                      then leaf h1 k1 (f k1 v1 v2)
                       else collision h1 l1 l2
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
-        | h1 == h2  = Collision h1 (updateOrSnocWith f k1 v1 ls2)
+        | h1 == h2  = Collision h1 (updateOrSnocWithKey f k1 v1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
-        | h1 == h2  = Collision h1 (updateOrSnocWith (flip f) k2 v2 ls1)
+        | h1 == h2  = Collision h1 (updateOrSnocWithKey (flip . f) k2 v2 ls1)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
-        | h1 == h2  = Collision h1 (updateOrConcatWith f ls1 ls2)
+        | h1 == h2  = Collision h1 (updateOrConcatWithKey f ls1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     -- branch vs. branch
     go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
@@ -337,7 +345,7 @@ unionWith f = go 0
       where
         m1 = mask h1 s
         m2 = mask h2 s
-{-# INLINE unionWith #-}
+{-# INLINE unionWithKey #-}
 
 ------------------------------------------------------------------------
 -- * Transformations
@@ -446,7 +454,17 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
 -- array.
 updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
-updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
+updateOrSnocWith f = updateOrSnocWithKey (const f)
+{-# INLINABLE updateOrSnocWith #-}
+
+-- | Append the given key and value to the array. If the key is
+-- already present, instead update the value of the key by applying
+-- the given function to the new and old value (in that order). The
+-- value is always evaluated to WHNF before being inserted into the
+-- array.
+updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.Array (Leaf k v)
+                 -> A.Array (Leaf k v)
+updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
   where
     go !k v !ary !i !n
         | i >= n = A.run $ do
@@ -457,9 +475,9 @@ updateOrSnocWith f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
             A.write mary n l
             return mary
         | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> let !v' = f v y in A.update ary i (L k v')
+            (L kx y) | k == kx   -> let !v' = f k v y in A.update ary i (L k v')
                      | otherwise -> go k v ary (i+1) n
-{-# INLINABLE updateOrSnocWith #-}
+{-# INLINABLE updateOrSnocWithKey #-}
 
 ------------------------------------------------------------------------
 -- Smart constructors
