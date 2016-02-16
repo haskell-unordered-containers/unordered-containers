@@ -1,3 +1,9 @@
+## 0.2.7.0
+
+ * Support criterion 1.1
+
+ * Add unionWithKey for hash maps.
+
 ## 0.2.6.0
 
  * Mark several modules as Trustworthy.
