@@ -261,7 +261,7 @@ static char popcount_table_8[256] = {
 };
 /* Table-driven popcount, with 8-bit tables */
 /* 6 ops plus 4 casts and 4 lookups, 0 long immediates, 4 stages */
-inline uint32_t
+uint32_t
 popcount(uint32_t x)
 {
     return popcount_table_8[(uint8_t)x] +
