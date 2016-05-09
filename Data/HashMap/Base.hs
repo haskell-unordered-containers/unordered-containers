@@ -1051,7 +1051,7 @@ elems = L.map snd . toList
 -- ** Lists
 
 -- | /O(n)/ Return a list of this map's elements.  The list is
--- produced lazily.
+-- produced lazily. The order of its elements is unspecified.
 toList :: HashMap k v -> [(k, v)]
 toList t = build (\ c z -> foldrWithKey (curry c) z t)
 {-# INLINE toList #-}
