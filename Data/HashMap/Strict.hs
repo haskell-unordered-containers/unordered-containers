@@ -234,8 +234,8 @@ adjust f k0 m0 = go h0 k0 0 m0
         | otherwise = t
 {-# INLINABLE adjust #-}
 
--- | /O(log n)/  The expression (@'update' f k map@) updates the value @x@ at @k@, 
--- (if it is in the map). If (f k x) is @'Nothing', the element is deleted. 
+-- | /O(log n)/  The expression (@'update' f k map@) updates the value @x@ at @k@,
+-- (if it is in the map). If (f k x) is @'Nothing', the element is deleted.
 -- If it is (@'Just' y), the key k is bound to the new value y.
 update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
 update f = alter (>>= f)
@@ -429,7 +429,18 @@ fromList = L.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) empty
 {-# INLINABLE fromList #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
--- the provided function to merge duplicate entries.
+-- the provided function f to merge duplicate entries (f newVal oldVal).
+--
+-- For example:
+--
+-- > fromListWith (+) [ (x, 1) | x <- xs ]
+--
+-- will create a map with number of occurrences of each element in xs.
+--
+-- > fromListWith (++) [ (k, [v]) | (k, v) <- xs ]
+--
+-- will group all values by their keys in a list 'xs :: [(k, v)]' and
+-- return a 'HashMap k [v]'.
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 {-# INLINE fromListWith #-}
