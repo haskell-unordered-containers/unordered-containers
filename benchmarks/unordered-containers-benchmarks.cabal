@@ -20,6 +20,9 @@ executable unordered-containers-benchmarks
     Data.HashMap.Unsafe
     Data.HashMap.UnsafeShift
     Data.HashSet
+    Util.ByteString
+    Util.Int
+    Util.String
   build-depends:
     base,
     bytestring,

@@ -149,6 +149,11 @@ benchmark benchmarks
   main-is: Benchmarks.hs
   type: exitcode-stdio-1.0
 
+  other-modules:
+    Util.ByteString
+    Util.Int
+    Util.String
+
   build-depends:
     base,
     bytestring,
