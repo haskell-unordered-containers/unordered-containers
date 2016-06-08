@@ -1,3 +1,11 @@
+## 0.2.7.1
+
+ * Fix linker error related to popcnt.
+
+ * Haddock improvements.
+
+ * Fix benchmark compilation when downloaded from Hackage.
+
 ## 0.2.7.0
 
  * Support criterion 1.1
