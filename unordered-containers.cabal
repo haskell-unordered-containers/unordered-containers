@@ -150,6 +150,14 @@ benchmark benchmarks
   type: exitcode-stdio-1.0
 
   other-modules:
+    Data.HashMap.Array
+    Data.HashMap.Base
+    Data.HashMap.Lazy
+    Data.HashMap.PopCount
+    Data.HashMap.Strict
+    Data.HashMap.Unsafe
+    Data.HashMap.UnsafeShift
+    Data.HashSet
     Util.ByteString
     Util.Int
     Util.String
