@@ -49,8 +49,6 @@ library
   ghc-options: -Wall -O2
   if impl(ghc >= 6.8)
     ghc-options: -fwarn-tabs
-  if impl(ghc > 6.10)
-    ghc-options: -fregs-graph
   if flag(debug)
     cpp-options: -DASSERTS
 
