@@ -1,3 +1,9 @@
+## 0.2.7.2
+
+ * Don't use -fregs-graphs
+
+ * Fix benchmark compilation on stack.
+
 ## 0.2.7.1
 
  * Fix linker error related to popcnt.
