@@ -130,6 +130,11 @@ import qualified GHC.Exts as Exts
 import Data.Functor.Classes
 #endif
 
+#if MIN_VERSION_hashable(1,2,5)
+import qualified Data.Hashable.Lifted as H
+#endif
+
+-- | A set of values.  A set cannot contain duplicate values.
 ------------------------------------------------------------------------
 
 -- | Convenience function.  Compute a hash value for the given value.
@@ -309,6 +314,34 @@ equalKeys eq t1 t2 = go (toList' t1 []) (toList' t2 [])
 
     leafEq (L k _) (L k' _) = eq k k'
 
+#if MIN_VERSION_hashable(1,2,5)
+instance H.Hashable2 HashMap where
+    liftHashWithSalt2 hk hv salt hm = go salt (toList' hm [])
+      where
+        -- go :: Int -> [HashMap k v] -> Int
+        go s [] = s
+        go s (Leaf _ l : tl)
+          = s `hashLeafWithSalt` l `go` tl
+        -- For collisions we hashmix hash value
+        -- and then array of values' hashes sorted
+        go s (Collision h a : tl)
+          = (s `H.hashWithSalt` h) `hashCollisionWithSalt` a `go` tl
+        go s (_ : tl) = s `go` tl
+
+        -- hashLeafWithSalt :: Int -> Leaf k v -> Int
+        hashLeafWithSalt s (L k v) = (s `hk` k) `hv` v
+
+        -- hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
+        hashCollisionWithSalt s
+          = L.foldl' H.hashWithSalt s . arrayHashesSorted s
+
+        -- arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
+        arrayHashesSorted s = L.sort . L.map (hashLeafWithSalt s) . A.toList
+
+instance (Hashable k) => H.Hashable1 (HashMap k) where
+    liftHashWithSalt = H.liftHashWithSalt2 H.hashWithSalt
+#endif
+
 instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
     hashWithSalt salt hm = go salt (toList' hm [])
       where
@@ -327,13 +360,10 @@ instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
 
         hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
         hashCollisionWithSalt s
-          = L.foldl' H.hashWithSalt s . arrayHashesSorted
+          = L.foldl' H.hashWithSalt s . arrayHashesSorted s
 
-        arrayHashesSorted :: A.Array (Leaf k v) -> [Int]
-        arrayHashesSorted = L.sort . L.map leafValueHash . A.toList
-
-        leafValueHash :: Leaf k v -> Int
-        leafValueHash (L _ v) = H.hash v
+        arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
+        arrayHashesSorted s = L.sort . L.map (hashLeafWithSalt s) . A.toList
 
   -- Helper to get 'Leaf's and 'Collision's as a list.
 toList' :: HashMap k v -> [HashMap k v] -> [HashMap k v]
