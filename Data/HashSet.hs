@@ -123,6 +123,15 @@ instance Eq1 HashSet where
     liftEq eq (HashSet a) (HashSet b) = equalKeys eq a b
 #endif
 
+instance (Ord a) => Ord (HashSet a) where
+    compare (HashSet a) (HashSet b) = compare a b
+    {-# INLINE compare #-}
+
+#if MIN_VERSION_base(4,9,0)
+instance Ord1 HashSet where
+    liftCompare c (HashSet a) (HashSet b) = liftCompare2 c compare a b
+#endif
+
 instance Foldable.Foldable HashSet where
     foldr = Data.HashSet.foldr
     {-# INLINE foldr #-}

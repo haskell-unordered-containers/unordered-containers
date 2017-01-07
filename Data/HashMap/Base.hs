@@ -118,6 +118,7 @@ import Data.Hashable (Hashable)
 import Data.HashMap.PopCount (popCount)
 import Data.HashMap.Unsafe (runST)
 import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
+import Data.HashMap.List (isPermutationBy, unorderedCompare)
 import Data.Typeable (Typeable)
 
 #if __GLASGOW_HASKELL__ >= 707
@@ -278,26 +279,34 @@ equal eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
 
     leafEq (L k v) (L k' v') = eqk k k' && eqv v v'
 
--- Note: previous implemenation isPermutation = null (as // bs)
--- was O(n^2) too.
---
--- This assumes lists are of equal length
-isPermutationBy :: (a -> b -> Bool) -> [a] -> [b] -> Bool
-isPermutationBy f = go
+#if MIN_VERSION_base(4,9,0)
+instance Ord2 HashMap where
+    liftCompare2 = cmp
+
+instance Ord k => Ord1 (HashMap k) where
+    liftCompare = cmp compare
+#endif
+
+instance (Ord k, Ord v) => Ord (HashMap k v) where
+    compare = cmp compare compare
+
+cmp :: (k -> k' -> Ordering) -> (v -> v' -> Ordering)
+    -> HashMap k v -> HashMap k' v' -> Ordering
+cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
   where
-    f' = flip f
+    go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
+      = compare k1 k2 `mappend` leafCompare l1 l2 `mappend` go tl1 tl2
+    go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
+      = compare k1 k2 `mappend` compare (A.length ary1) (A.length ary2) `mappend`
+        unorderedCompare leafCompare (A.toList ary1) (A.toList ary2)
+    go (Leaf _ _ : _) (Collision _ _ : _) = LT
+    go (Collision _ _ : _) (Leaf _ _ : _) = GT
+    go [] [] = EQ
+    go [] _  = LT
+    go _  [] = GT
+    go _ _ = error "cmp: Should never happend, toList' includes non Leaf / Collision"
 
-    go [] [] = True
-    go (x : xs) (y : ys)
-        | f x y     = go xs ys
-        | otherwise = go (deleteBy f' y xs) (deleteBy f x ys)
-    go [] (_ : _) = False
-    go (_ : _) [] = False
-
--- Data.List.deleteBy :: (a -> a -> Bool) -> a -> [a] -> [a]
-deleteBy                :: (a -> b -> Bool) -> a -> [b] -> [b]
-deleteBy _  _ []        = []
-deleteBy eq x (y:ys)    = if x `eq` y then ys else y : deleteBy eq x ys
+    leafCompare (L k v) (L k' v') = cmpk k k' `mappend` cmpv v v'
 
 -- Same as 'equal' but doesn't compare the values.
 equalKeys :: (k -> k' -> Bool) -> HashMap k v -> HashMap k' v' -> Bool

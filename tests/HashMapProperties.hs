@@ -40,6 +40,25 @@ pEq xs = (M.fromList xs ==) `eq` (HM.fromList xs ==)
 pNeq :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pNeq xs = (M.fromList xs /=) `eq` (HM.fromList xs /=)
 
+-- We cannot compare to `Data.Map` as ordering is different.
+pOrd1 :: [(Key, Int)] -> Bool
+pOrd1 xs = compare x x == EQ
+  where
+    x = HM.fromList xs
+
+pOrd2 :: [(Key, Int)] -> [(Key, Int)] -> [(Key, Int)] -> Bool
+pOrd2 xs ys zs = case (compare x y, compare y z) of
+    (EQ, o)  -> compare x z == o
+    (o,  EQ) -> compare x z == o
+    (LT, LT) -> compare x z == LT
+    (GT, GT) -> compare x z == GT
+    (LT, GT) -> True -- ys greater than xs and zs.
+    (GT, LT) -> True
+  where
+    x = HM.fromList xs
+    y = HM.fromList ys
+    z = HM.fromList zs
+
 pReadShow :: [(Key, Int)] -> Bool
 pReadShow xs = M.fromList xs == read (show (M.fromList xs))
 
@@ -254,6 +273,8 @@ tests =
       testGroup "instances"
       [ testProperty "==" pEq
       , testProperty "/=" pNeq
+      , testProperty "compare reflexive" pOrd1
+      , testProperty "compare transitive" pOrd2
       , testProperty "Read/Show" pReadShow
       , testProperty "Functor" pFunctor
       , testProperty "Foldable" pFoldable
