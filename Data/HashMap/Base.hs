@@ -89,6 +89,7 @@ module Data.HashMap.Base
     , updateOrConcatWith
     , updateOrConcatWithKey
     , filterMapAux
+    , equalKeys
     ) where
 
 #if __GLASGOW_HASKELL__ < 710
@@ -125,7 +126,15 @@ import GHC.Exts (isTrue#)
 import qualified GHC.Exts as Exts
 #endif
 
+#if MIN_VERSION_base(4,9,0)
+import Data.Functor.Classes
+#endif
 
+#if MIN_VERSION_hashable(1,2,5)
+import qualified Data.Hashable.Lifted as H
+#endif
+
+-- | A set of values.  A set cannot contain duplicate values.
 ------------------------------------------------------------------------
 
 -- | Convenience function.  Compute a hash value for the given value.
@@ -203,6 +212,25 @@ type Hash   = Word
 type Bitmap = Word
 type Shift  = Int
 
+#if MIN_VERSION_base(4,9,0)
+instance Show2 HashMap where
+    liftShowsPrec2 spk slk spv slv d m =
+        showsUnaryWith (liftShowsPrec sp sl) "fromList" d (toList m)
+      where
+        sp = liftShowsPrec2 spk slk spv slv
+        sl = liftShowList2 spk slk spv slv
+
+instance Show k => Show1 (HashMap k) where
+    liftShowsPrec = liftShowsPrec2 showsPrec showList
+
+instance (Eq k, Hashable k, Read k) => Read1 (HashMap k) where
+    liftReadsPrec rp rl = readsData $
+        readsUnaryWith (liftReadsPrec rp' rl') "fromList" fromList
+      where
+        rp' = liftReadsPrec rp rl
+        rl' = liftReadList rp rl
+#endif
+
 instance (Eq k, Hashable k, Read k, Read e) => Read (HashMap k e) where
     readPrec = parens $ prec 10 $ do
       Ident "fromList" <- lexP
@@ -218,25 +246,101 @@ instance (Show k, Show v) => Show (HashMap k v) where
 instance Traversable (HashMap k) where
     traverse f = traverseWithKey (const f)
 
-instance (Eq k, Eq v) => Eq (HashMap k v) where
-    (==) = equal
+#if MIN_VERSION_base(4,9,0)
+instance Eq2 HashMap where
+    liftEq2 = equal
 
-equal :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
-equal t1 t2 = go (toList' t1 []) (toList' t2 [])
+instance Eq k => Eq1 (HashMap k) where
+    liftEq = equal (==)
+#endif
+
+instance (Eq k, Eq v) => Eq (HashMap k v) where
+    (==) = equal (==) (==)
+
+equal :: (k -> k' -> Bool) -> (v -> v' -> Bool)
+      -> HashMap k v -> HashMap k' v' -> Bool
+equal eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
   where
     -- If the two trees are the same, then their lists of 'Leaf's and
     -- 'Collision's read from left to right should be the same (modulo the
     -- order of elements in 'Collision').
 
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
-      | k1 == k2 && l1 == l2
+      | k1 == k2 && leafEq l1 l2
       = go tl1 tl2
     go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
       | k1 == k2 && A.length ary1 == A.length ary2 &&
-        L.null (A.toList ary1 L.\\ A.toList ary2)
+        isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
       = go tl1 tl2
     go [] [] = True
     go _  _  = False
+
+    leafEq (L k v) (L k' v') = eqk k k' && eqv v v'
+
+-- Note: previous implemenation isPermutation = null (as // bs)
+-- was O(n^2) too.
+--
+-- This assumes lists are of equal length
+isPermutationBy :: (a -> b -> Bool) -> [a] -> [b] -> Bool
+isPermutationBy f = go
+  where
+    f' = flip f
+
+    go [] [] = True
+    go (x : xs) (y : ys)
+        | f x y     = go xs ys
+        | otherwise = go (deleteBy f' y xs) (deleteBy f x ys)
+    go [] (_ : _) = False
+    go (_ : _) [] = False
+
+-- Data.List.deleteBy :: (a -> a -> Bool) -> a -> [a] -> [a]
+deleteBy                :: (a -> b -> Bool) -> a -> [b] -> [b]
+deleteBy _  _ []        = []
+deleteBy eq x (y:ys)    = if x `eq` y then ys else y : deleteBy eq x ys
+
+-- Same as 'equal' but doesn't compare the values.
+equalKeys :: (k -> k' -> Bool) -> HashMap k v -> HashMap k' v' -> Bool
+equalKeys eq t1 t2 = go (toList' t1 []) (toList' t2 [])
+  where
+    go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
+      | k1 == k2 && leafEq l1 l2
+      = go tl1 tl2
+    go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
+      | k1 == k2 && A.length ary1 == A.length ary2 &&
+        isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
+      = go tl1 tl2
+    go [] [] = True
+    go _  _  = False
+
+    leafEq (L k _) (L k' _) = eq k k'
+
+#if MIN_VERSION_hashable(1,2,5)
+instance H.Hashable2 HashMap where
+    liftHashWithSalt2 hk hv salt hm = go salt (toList' hm [])
+      where
+        -- go :: Int -> [HashMap k v] -> Int
+        go s [] = s
+        go s (Leaf _ l : tl)
+          = s `hashLeafWithSalt` l `go` tl
+        -- For collisions we hashmix hash value
+        -- and then array of values' hashes sorted
+        go s (Collision h a : tl)
+          = (s `H.hashWithSalt` h) `hashCollisionWithSalt` a `go` tl
+        go s (_ : tl) = s `go` tl
+
+        -- hashLeafWithSalt :: Int -> Leaf k v -> Int
+        hashLeafWithSalt s (L k v) = (s `hk` k) `hv` v
+
+        -- hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
+        hashCollisionWithSalt s
+          = L.foldl' H.hashWithSalt s . arrayHashesSorted s
+
+        -- arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
+        arrayHashesSorted s = L.sort . L.map (hashLeafWithSalt s) . A.toList
+
+instance (Hashable k) => H.Hashable1 (HashMap k) where
+    liftHashWithSalt = H.liftHashWithSalt2 H.hashWithSalt
+#endif
 
 instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
     hashWithSalt salt hm = go salt (toList' hm [])
@@ -256,13 +360,10 @@ instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
 
         hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
         hashCollisionWithSalt s
-          = L.foldl' H.hashWithSalt s . arrayHashesSorted
+          = L.foldl' H.hashWithSalt s . arrayHashesSorted s
 
-        arrayHashesSorted :: A.Array (Leaf k v) -> [Int]
-        arrayHashesSorted = L.sort . L.map leafValueHash . A.toList
-
-        leafValueHash :: Leaf k v -> Int
-        leafValueHash (L _ v) = H.hash v
+        arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
+        arrayHashesSorted s = L.sort . L.map (hashLeafWithSalt s) . A.toList
 
   -- Helper to get 'Leaf's and 'Collision's as a list.
 toList' :: HashMap k v -> [HashMap k v] -> [HashMap k v]

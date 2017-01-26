@@ -53,8 +53,9 @@ pHashable :: [Key] -> [Int] -> Int -> Property
 pHashable xs is salt =
     x == y ==> hashWithSalt salt x === hashWithSalt salt y
   where
-    ys = shuffle is xs
-    x = S.fromList xs
+    xs' = L.nub xs
+    ys = shuffle is xs'
+    x = S.fromList xs'
     y = S.fromList ys
     shuffle idxs = L.map snd
                  . L.sortBy (comparing fst)

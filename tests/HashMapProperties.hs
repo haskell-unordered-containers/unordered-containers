@@ -54,8 +54,9 @@ pHashable :: [(Key, Int)] -> [Int] -> Int -> Property
 pHashable xs is salt =
     x == y ==> hashWithSalt salt x === hashWithSalt salt y
   where
-    ys = shuffle is xs
-    x = HM.fromList xs
+    xs' = L.nubBy (\(k,_) (k',_) -> k == k') xs
+    ys = shuffle is xs'
+    x = HM.fromList xs'
     y = HM.fromList ys
     -- Shuffle the list using indexes in the second
     shuffle :: [Int] -> [a] -> [a]

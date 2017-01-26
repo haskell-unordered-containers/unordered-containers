@@ -1,3 +1,11 @@
+## 0.2.8.0
+
+ * Add `Eq1/2`, `Show1/2`, `Read1` instances with `base-4.9`
+
+ * `Eq (HashSet a)` doesn't require `Hashable a` anymore, only `Eq a`.
+
+ * Add `Hashable1/2` with `hashable-1.2.6.0`
+
 ## 0.2.7.2
 
  * Don't use -fregs-graphs

@@ -74,7 +74,7 @@ module Data.HashSet
 
 import Control.DeepSeq (NFData(..))
 import Data.Data hiding (Typeable)
-import Data.HashMap.Base (HashMap, foldrWithKey)
+import Data.HashMap.Base (HashMap, foldrWithKey, equalKeys)
 import Data.Hashable (Hashable(hashWithSalt))
 #if __GLASGOW_HASKELL__ >= 711
 import Data.Semigroup (Semigroup(..), Monoid(..))
@@ -93,6 +93,14 @@ import Text.Read
 import qualified GHC.Exts as Exts
 #endif
 
+#if MIN_VERSION_base(4,9,0)
+import Data.Functor.Classes
+#endif
+
+#if MIN_VERSION_hashable(1,2,5)
+import qualified Data.Hashable.Lifted as H
+#endif
+
 -- | A set of values.  A set cannot contain duplicate values.
 newtype HashSet a = HashSet {
       asMap :: HashMap a ()
@@ -106,11 +114,14 @@ instance (NFData a) => NFData (HashSet a) where
     rnf = rnf . asMap
     {-# INLINE rnf #-}
 
-instance (Hashable a, Eq a) => Eq (HashSet a) where
-    -- This performs two passes over the tree.
-    a == b = foldr f True b && size a == size b
-        where f i = (&& i `member` a)
+instance (Eq a) => Eq (HashSet a) where
+    HashSet a == HashSet b = equalKeys (==) a b
     {-# INLINE (==) #-}
+
+#if MIN_VERSION_base(4,9,0)
+instance Eq1 HashSet where
+    liftEq eq (HashSet a) (HashSet b) = equalKeys eq a b
+#endif
 
 instance Foldable.Foldable HashSet where
     foldr = Data.HashSet.foldr
@@ -140,6 +151,12 @@ instance (Eq a, Hashable a, Read a) => Read (HashSet a) where
 
     readListPrec = readListPrecDefault
 
+#if MIN_VERSION_base(4,9,0)
+instance Show1 HashSet where
+    liftShowsPrec sp sl d m =
+        showsUnaryWith (liftShowsPrec sp sl) "fromList" d (toList m)
+#endif
+
 instance (Show a) => Show (HashSet a) where
     showsPrec d m = showParen (d > 10) $
       showString "fromList " . shows (toList m)
@@ -152,6 +169,11 @@ instance (Data a, Eq a, Hashable a) => Data (HashSet a) where
         _ -> error "gunfold"
     dataTypeOf _   = hashSetDataType
     dataCast1 f    = gcast1 f
+
+#if MIN_VERSION_hashable(1,2,6)
+instance H.Hashable1 HashSet where
+    liftHashWithSalt h s = H.liftHashWithSalt2 h hashWithSalt s . asMap
+#endif
 
 instance (Hashable a) => Hashable (HashSet a) where
     hashWithSalt salt = hashWithSalt salt . asMap
