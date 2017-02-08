@@ -226,7 +226,7 @@ size :: HashSet a -> Int
 size = H.size . asMap
 {-# INLINE size #-}
 
--- | /O(min(n,W))/ Return 'True' if the given value is present in this
+-- | /O(log n)/ Return 'True' if the given value is present in this
 -- set, 'False' otherwise.
 member :: (Eq a, Hashable a) => a -> HashSet a -> Bool
 member a s = case H.lookup a (asMap s) of
@@ -234,12 +234,12 @@ member a s = case H.lookup a (asMap s) of
                _      -> False
 {-# INLINABLE member #-}
 
--- | /O(min(n,W))/ Add the specified value to this set.
+-- | /O(log n)/ Add the specified value to this set.
 insert :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 insert a = HashSet . H.insert a () . asMap
 {-# INLINABLE insert #-}
 
--- | /O(min(n,W))/ Remove the specified value from this set if
+-- | /O(log n)/ Remove the specified value from this set if
 -- present.
 delete :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 delete a = HashSet . H.delete a . asMap
