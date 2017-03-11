@@ -163,6 +163,12 @@ pDifference :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pDifference xs ys = M.difference (M.fromList xs) `eq_`
                     HM.difference (HM.fromList xs) $ ys
 
+pDifferenceWith :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pDifferenceWith xs ys = M.differenceWith f (M.fromList xs) `eq_`
+                        HM.differenceWith f (HM.fromList xs) $ ys
+  where
+    f x y = if x == 0 then Nothing else Just (x - y)
+
 pIntersection :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pIntersection xs ys = M.intersection (M.fromList xs) `eq_`
                       HM.intersection (HM.fromList xs) $ ys
@@ -284,6 +290,7 @@ tests =
       ]
     , testGroup "difference and intersection"
       [ testProperty "difference" pDifference
+      , testProperty "differenceWith" pDifferenceWith
       , testProperty "intersection" pIntersection
       , testProperty "intersectionWith" pIntersectionWith
       , testProperty "intersectionWithKey" pIntersectionWithKey

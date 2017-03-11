@@ -64,6 +64,7 @@ module Data.HashMap.Lazy
 
       -- * Difference and intersection
     , difference
+    , differenceWith
     , intersection
     , intersectionWith
     , intersectionWithKey

@@ -64,6 +64,7 @@ module Data.HashMap.Strict
 
       -- * Difference and intersection
     , difference
+    , differenceWith
     , intersection
     , intersectionWith
     , intersectionWithKey
