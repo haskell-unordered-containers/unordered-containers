@@ -99,9 +99,9 @@ import Prelude hiding (map)
 import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
-    alter, adjust, fromList, fromListWith, insert, insertWith, intersectionWith,
-    intersectionWithKey, map, mapWithKey, mapMaybe, mapMaybeWithKey, singleton,
-    update, unionWith, unionWithKey)
+    alter, adjust, fromList, fromListWith, insert, insertWith, differenceWith,
+    intersectionWith, intersectionWithKey, map, mapWithKey, mapMaybe,
+    mapMaybeWithKey, singleton, update, unionWith, unionWithKey)
 import Data.HashMap.Unsafe (runST)
 
 -- $strictness
@@ -394,6 +394,18 @@ mapMaybe f = mapMaybeWithKey (const f)
 
 ------------------------------------------------------------------------
 -- * Difference and intersection
+
+-- | /O(n*log m)/ Difference with a combining function. When two equal keys are
+-- encountered, the combining function is applied to the values of these keys.
+-- If it returns 'Nothing', the element is discarded (proper set difference). If
+-- it returns (@'Just' y@), the element is updated with a new value @y@.
+differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
+differenceWith f a b = foldlWithKey' go empty a
+  where
+    go m k v = case HM.lookup k b of
+                 Nothing -> insert k v m
+                 Just w  -> maybe m (\y -> insert k y m) (f v w)
+{-# INLINABLE differenceWith #-}
 
 -- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
