@@ -45,6 +45,7 @@ module Data.HashMap.Base
 
       -- * Difference and intersection
     , difference
+    , differenceWith
     , intersection
     , intersectionWith
     , intersectionWithKey
@@ -933,6 +934,18 @@ difference a b = foldlWithKey' go empty a
                  Nothing -> insert k v m
                  _       -> m
 {-# INLINABLE difference #-}
+
+-- | /O(n*log m)/ Difference with a combining function. When two equal keys are
+-- encountered, the combining function is applied to the values of these keys.
+-- If it returns 'Nothing', the element is discarded (proper set difference). If
+-- it returns (@'Just' y@), the element is updated with a new value @y@.
+differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
+differenceWith f a b = foldlWithKey' go empty a
+  where
+    go m k v = case lookup k b of
+                 Nothing -> insert k v m
+                 Just w  -> maybe m (\y -> insert k y m) (f v w)
+{-# INLINABLE differenceWith #-}
 
 -- | /O(n*log m)/ Intersection of two maps. Return elements of the first
 -- map for keys existing in the second.
