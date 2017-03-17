@@ -6,6 +6,8 @@
 
  * Add `Hashable1/2` with `hashable-1.2.6.0`
 
+ * Add `differenceWith` function.
+
 ## 0.2.7.2
 
  * Don't use -fregs-graphs
