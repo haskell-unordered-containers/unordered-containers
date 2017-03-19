@@ -34,6 +34,25 @@ pEq xs = (Set.fromList xs ==) `eq` (S.fromList xs ==)
 pNeq :: [Key] -> [Key] -> Bool
 pNeq xs = (Set.fromList xs /=) `eq` (S.fromList xs /=)
 
+-- We cannot compare to `Data.Map` as ordering is different.
+pOrd1 :: [Key] -> Bool
+pOrd1 xs = compare x x == EQ
+  where
+    x = S.fromList xs
+
+pOrd2 :: [Key] -> [Key] -> [Key] -> Bool
+pOrd2 xs ys zs = case (compare x y, compare y z) of
+    (EQ, o)  -> compare x z == o
+    (o,  EQ) -> compare x z == o
+    (LT, LT) -> compare x z == LT
+    (GT, GT) -> compare x z == GT
+    (LT, GT) -> True -- ys greater than xs and zs.
+    (GT, LT) -> True
+  where
+    x = S.fromList xs
+    y = S.fromList ys
+    z = S.fromList zs
+
 pReadShow :: [Key] -> Bool
 pReadShow xs = Set.fromList xs == read (show (Set.fromList xs))
 

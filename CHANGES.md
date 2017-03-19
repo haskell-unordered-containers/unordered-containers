@@ -1,3 +1,7 @@
+## next
+
+ * Add `Ord/Ord1/Ord2` instances.
+
 ## 0.2.8.0
 
  * Add `Eq1/2`, `Show1/2`, `Read1` instances with `base-4.9`

@@ -34,6 +34,7 @@ library
   other-modules:
     Data.HashMap.Array
     Data.HashMap.Base
+    Data.HashMap.List
     Data.HashMap.PopCount
     Data.HashMap.Unsafe
     Data.HashMap.UnsafeShift
@@ -99,6 +100,23 @@ test-suite hashset-properties
     test-framework >= 0.3.3,
     test-framework-quickcheck2 >= 0.2.9,
     unordered-containers
+
+  ghc-options: -Wall
+  cpp-options: -DASSERTS
+
+test-suite list-tests
+  hs-source-dirs: tests .
+  main-is: List.hs
+  other-modules:
+    Data.HashMap.List
+  type: exitcode-stdio-1.0
+
+  build-depends:
+    base,
+    containers >= 0.4,
+    QuickCheck >= 2.4.0.1,
+    test-framework >= 0.3.3,
+    test-framework-quickcheck2 >= 0.2.9
 
   ghc-options: -Wall
   cpp-options: -DASSERTS
