@@ -1,6 +1,9 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, MagicHash #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternGuards #-}
+#if __GLASGOW_HASKELL__ >= 702
+{-# LANGUAGE DeriveGeneric #-}
+#endif
 #if __GLASGOW_HASKELL__ >= 708
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -121,6 +124,9 @@ import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
 import Data.HashMap.List (isPermutationBy, unorderedCompare)
 import Data.Typeable (Typeable)
 
+#if __GLASGOW_HASKELL__ >= 702
+import GHC.Generics (Generic)
+#endif
 #if __GLASGOW_HASKELL__ >= 707
 import GHC.Exts (isTrue#)
 #endif
@@ -160,7 +166,11 @@ data HashMap k v
     | Leaf !Hash !(Leaf k v)
     | Full !(A.Array (HashMap k v))
     | Collision !Hash !(A.Array (Leaf k v))
+#if __GLASGOW_HASKELL__ >= 702
+      deriving (Generic, Typeable)
+#else
       deriving (Typeable)
+#endif
 
 #if __GLASGOW_HASKELL__ >= 708
 type role HashMap nominal representational
