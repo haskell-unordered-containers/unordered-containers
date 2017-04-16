@@ -177,7 +177,8 @@ instance Functor (HashMap k) where
     fmap = map
 
 instance Foldable.Foldable (HashMap k) where
-    foldr f = foldrWithKey (const f)
+    foldl' = foldl'
+    foldr = foldr
 
 #if __GLASGOW_HASKELL__ >= 711
 instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
