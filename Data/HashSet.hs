@@ -2,6 +2,7 @@
 #if __GLASGOW_HASKELL__ >= 708
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE EmptyDataDecls #-}
 #endif
 #if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Trustworthy #-}
@@ -91,6 +92,7 @@ import Text.Read
 
 #if __GLASGOW_HASKELL__ >= 708
 import qualified GHC.Exts as Exts
+import GHC.Generics hiding (Prefix, prec)
 #endif
 
 #if MIN_VERSION_base(4,9,0)
@@ -313,4 +315,26 @@ instance (Eq a, Hashable a) => Exts.IsList (HashSet a) where
     type Item (HashSet a) = a
     fromList = fromList
     toList   = toList
+
+-- Generic instance
+-- Note: we are not able to implement instance Generic1 HashSet,
+-- since HashSet keys need the Eq and Hashable constraints
+-- while function to in class Generic1 is unconstrained.
+-- However, for some applications, Generic instance is sufficient.
+data D1HashSet
+data C1HashSet
+
+instance Datatype D1HashSet where
+    datatypeName _ = "HashSet"
+    moduleName   _ = "Data.HashSet"
+
+instance Constructor C1HashSet  where
+    conName _ = "HashSet.fromList"
+
+type Rep0HashSet a = D1 D1HashSet (C1 C1HashSet (S1 NoSelector (Rec0 [a])))
+
+instance (Eq a, Hashable a) => Generic (HashSet a) where
+    type Rep (HashSet a) = Rep0HashSet a
+    from s = M1 (M1 (M1 (K1 $ toList s)))
+    to (M1 (M1 (M1 (K1 l)))) = fromList l
 #endif
