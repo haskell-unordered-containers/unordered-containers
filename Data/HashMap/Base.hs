@@ -4,6 +4,8 @@
 #if __GLASGOW_HASKELL__ >= 708
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE EmptyDataDecls #-}
 #endif
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 
@@ -126,6 +128,7 @@ import GHC.Exts (isTrue#)
 #endif
 #if __GLASGOW_HASKELL__ >= 708
 import qualified GHC.Exts as Exts
+import GHC.Generics hiding (Prefix, prec)
 #endif
 
 #if MIN_VERSION_base(4,9,0)
@@ -1378,4 +1381,30 @@ instance (Eq k, Hashable k) => Exts.IsList (HashMap k v) where
     type Item (HashMap k v) = (k, v)
     fromList = fromList
     toList   = toList
+
+-- Generic instance
+type LP k = [] :.: Rec1 ((,) k)   -- list of pairs; LP k v ~ [(k, v)] so LP k ~ [(k, *)]
+type Rep1HashMap k = D1 D1HashMap (C1 C1HashMap (S1 NoSelector (LP k)))
+
+instance (Eq k, Hashable k) => Generic1 (HashMap k) where
+    type Rep1 (HashMap k) = Rep1HashMap k
+    from1 h = M1 (M1 (M1 (Comp1 (Rec1 <$> toList h))))
+    to1 (M1 (M1 (M1 l))) = fromList (unRec1 <$> unComp1 l)
+
+data D1HashMap
+data C1HashMap
+
+instance Datatype D1HashMap where
+    datatypeName _ = "HashMap"
+    moduleName   _ = "Data.HashMap.Base"
+
+instance Constructor C1HashMap  where
+    conName _ = "HashMap.fromList"
+
+type Rep0HashMap k v = D1 D1HashMap (C1 C1HashMap (S1 NoSelector (Rec0 [(k, v)])))
+
+instance (Eq k, Hashable k) => Generic (HashMap k v) where
+    type Rep (HashMap k v) = Rep0HashMap k v
+    from h = M1 (M1 (M1 (K1 $ toList h)))
+    to (M1 (M1 (M1 (K1 l)))) = fromList l
 #endif
