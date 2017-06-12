@@ -183,7 +183,7 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
                     else do
                         let l' = x `seq` (L k x)
                         return $! collision h l l'
-        | otherwise = two s h k x hy ky y
+        | otherwise = x `seq` two s h k x hy ky y
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
             ary' <- A.insertM ary i $! leaf h k x
