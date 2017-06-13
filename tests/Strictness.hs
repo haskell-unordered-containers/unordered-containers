@@ -3,7 +3,7 @@
 
 module Main (main) where
 
-import Data.Hashable (Hashable(hashWithSalt))
+import Data.Hashable (Hashable)
 import Test.ChasingBottoms.IsBottom
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
@@ -23,16 +23,11 @@ import Prelude hiding (all)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 
--- Key type that generates more hash collisions.
-newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Eq, Ord, Show)
-
-instance Hashable Key where
-    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
+import Utils
 
 instance (Arbitrary k, Arbitrary v, Eq k, Hashable k) =>
          Arbitrary (HashMap k v) where
-    arbitrary = HM.fromList `fmap` arbitrary
+    arbitrary = evalExprStrict `fmap` arbitrary
 
 instance Show (Int -> Int) where
     show _ = "<function>"

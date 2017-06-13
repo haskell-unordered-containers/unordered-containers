@@ -11,16 +11,11 @@ import qualified Data.List as L
 import qualified Data.HashSet as S
 import qualified Data.Set as Set
 import Data.Ord (comparing)
-import Test.QuickCheck (Arbitrary, Property, (==>), (===))
+import Test.QuickCheck (Property, (==>), (===))
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 
--- Key type that generates more hash collisions.
-newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Enum, Eq, Integral, Num, Ord, Read, Show, Real)
-
-instance Hashable Key where
-    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
+import Utils
 
 ------------------------------------------------------------------------
 -- * Properties
@@ -28,8 +23,8 @@ instance Hashable Key where
 ------------------------------------------------------------------------
 -- ** Instances
 
-pEq :: [Key] -> [Key] -> Bool
-pEq xs = (Set.fromList xs ==) `eq` (S.fromList xs ==)
+pEq :: Expr Key () -> Expr Key () -> Property
+pEq xs = (evalExprOrdSet xs ==) `eqExpr` (evalExprSet xs ==)
 
 pNeq :: [Key] -> [Key] -> Bool
 pNeq xs = (Set.fromList xs /=) `eq` (S.fromList xs /=)
@@ -224,6 +219,16 @@ eq :: (Eq a, Hashable a, Ord a, Eq b)
    -> [a]                 -- ^ Initial content of the 'HashSet' and 'Model'
    -> Bool                -- ^ True if the functions are equivalent
 eq f g xs = g (S.fromList xs) == f (Set.fromList xs)
+
+-- | Check that a function operating on a 'HashMap' is equivalent to
+-- one operating on a 'Model'.
+eqExpr :: (Eq a, Hashable a, Ord a, Eq b, Show b)
+   => (Model a -> b)      -- ^ Function that modifies a 'Model' in the same
+                          -- way
+   -> (S.HashSet a -> b)  -- ^ Function that modified a 'HashSet'
+   -> Expr a ()           -- ^ Initial content of the 'HashSet' and 'Model'
+   -> Property            -- ^ True if the functions are equivalent
+eqExpr f g xs = g (evalExprSet xs) === f (evalExprOrdSet xs)
 
 eq_ :: (Eq a, Hashable a, Ord a)
     => (Model a -> Model a)          -- ^ Function that modifies a 'Model'

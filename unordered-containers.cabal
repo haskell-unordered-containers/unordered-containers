@@ -61,6 +61,7 @@ library
 test-suite hashmap-lazy-properties
   hs-source-dirs: tests
   main-is: HashMapProperties.hs
+  other-modules: Utils
   type: exitcode-stdio-1.0
 
   build-depends:
@@ -78,6 +79,7 @@ test-suite hashmap-lazy-properties
 test-suite hashmap-strict-properties
   hs-source-dirs: tests
   main-is: HashMapProperties.hs
+  other-modules: Utils
   type: exitcode-stdio-1.0
 
   build-depends:
@@ -95,6 +97,7 @@ test-suite hashmap-strict-properties
 test-suite hashset-properties
   hs-source-dirs: tests
   main-is: HashSetProperties.hs
+  other-modules: Utils
   type: exitcode-stdio-1.0
 
   build-depends:
@@ -147,6 +150,7 @@ test-suite regressions
 test-suite strictness-properties
   hs-source-dirs: tests
   main-is: Strictness.hs
+  other-modules: Utils
   type: exitcode-stdio-1.0
 
   build-depends:
