@@ -1,4 +1,8 @@
+{-# LANGUAGE CPP #-}
+
+#if !MIN_VERSION_base(4,9,0)
 {-# LANGUAGE MagicHash, Rank2Types, UnboxedTuples #-}
+#endif
 
 -- | This module exports a workaround for this bug:
 --
@@ -11,6 +15,12 @@
 module Data.HashMap.Unsafe
     ( runST
     ) where
+
+#if MIN_VERSION_base(4,9,0)
+-- The GHC issue was fixed in GHC 8.0/base 4.9
+import Control.Monad.ST
+
+#else
 
 import GHC.Base (realWorld#)
 import qualified GHC.ST as ST
@@ -26,3 +36,4 @@ runSTRep :: (forall s. ST.STRep s a) -> a
 runSTRep st_rep = case st_rep realWorld# of
                         (# _, r #) -> r
 {-# INLINE [0] runSTRep #-}
+#endif
