@@ -53,6 +53,26 @@ pOrd2 xs ys zs = case (compare x y, compare y z) of
     y = S.fromList ys
     z = S.fromList zs
 
+pOrd3 :: [Key] -> [Key] -> Bool
+pOrd3 xs ys = case (compare x y, compare y x) of
+    (EQ, EQ) -> True
+    (LT, GT) -> True
+    (GT, LT) -> True
+    _        -> False
+  where
+    x = S.fromList xs
+    y = S.fromList ys
+
+pOrdEq :: [Key] -> [Key] -> Bool
+pOrdEq xs ys = case (compare x y, x == y) of
+    (EQ, True)  -> True
+    (LT, False) -> True
+    (GT, False) -> True
+    _           -> False
+  where
+    x = S.fromList xs
+    y = S.fromList ys
+
 pReadShow :: [Key] -> Bool
 pReadShow xs = Set.fromList xs == read (show (Set.fromList xs))
 
@@ -155,6 +175,10 @@ tests =
       [ testProperty "==" pEq
       , testProperty "Permutation ==" pPermutationEq
       , testProperty "/=" pNeq
+      , testProperty "compare reflexive" pOrd1
+      , testProperty "compare transitive" pOrd2
+      , testProperty "compare antisymmetric" pOrd3
+      , testProperty "Ord => Eq" pOrdEq
       , testProperty "Read/Show" pReadShow
       , testProperty "Foldable" pFoldable
       , testProperty "Hashable" pHashable

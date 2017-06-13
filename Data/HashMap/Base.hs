@@ -268,10 +268,12 @@ equal eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
     -- order of elements in 'Collision').
 
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
-      | k1 == k2 && leafEq l1 l2
+      | k1 == k2 &&
+        leafEq l1 l2
       = go tl1 tl2
     go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
-      | k1 == k2 && A.length ary1 == A.length ary2 &&
+      | k1 == k2 &&
+        A.length ary1 == A.length ary2 &&
         isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
       = go tl1 tl2
     go [] [] = True
@@ -287,6 +289,11 @@ instance Ord k => Ord1 (HashMap k) where
     liftCompare = cmp compare
 #endif
 
+-- | The order is total.
+--
+-- /Note:/ Because the hash is not guaranteed to be stable across library
+-- versions, OSes, or architectures, neither is an actual order of elements in
+-- 'HashMap' or an result of `compare`.is stable.
 instance (Ord k, Ord v) => Ord (HashMap k v) where
     compare = cmp compare compare
 
@@ -295,10 +302,14 @@ cmp :: (k -> k' -> Ordering) -> (v -> v' -> Ordering)
 cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
   where
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
-      = compare k1 k2 `mappend` leafCompare l1 l2 `mappend` go tl1 tl2
+      = compare k1 k2 `mappend`
+        leafCompare l1 l2 `mappend`
+        go tl1 tl2
     go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
-      = compare k1 k2 `mappend` compare (A.length ary1) (A.length ary2) `mappend`
-        unorderedCompare leafCompare (A.toList ary1) (A.toList ary2)
+      = compare k1 k2 `mappend`
+        compare (A.length ary1) (A.length ary2) `mappend`
+        unorderedCompare leafCompare (A.toList ary1) (A.toList ary2) `mappend`
+        go tl1 tl2
     go (Leaf _ _ : _) (Collision _ _ : _) = LT
     go (Collision _ _ : _) (Leaf _ _ : _) = GT
     go [] [] = EQ
