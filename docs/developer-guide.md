@@ -110,3 +110,11 @@ updating the spine of the tree).
 `Full` is just an optimized version of `BitmapIndexed` that allows us faster
 indexing, faster copying on modification (given that its size is statically
 know), and lower memory use.
+
+## Strictness
+
+Everything is strict. Laziness is the enemy of predictable performance.
+
+## Backwards compatibility policy
+
+We support the last 3 major GHC releases.
