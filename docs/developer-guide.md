@@ -93,8 +93,8 @@ Here's a quick overview in order of simplicty:
  * `Leaf` -- A key-value pair.
  * `Collision` -- An array of key-value pairs where the keys have identical hash
    values. Element order doesn't matter.
- * `Full` -- An array of child nodes. Given a key you can find the child it is
-   part of by taking /B/ bits of the hash value for the key and indexing into
+ * `Full` -- An array of /2^B/ children. Given a key you can find the child it
+   is part of by taking /B/ bits of the hash value for the key and indexing into
    the key. Which bits to use depends on the tree level.
  * `BitmapIndexed` -- Similar to above except that the array is implemented as a
    sparse array (to avoid storing `Empty` values). A bitmask and popcount is
@@ -106,3 +106,7 @@ The number of bits of the hash value to use at each level of the tree, /B/, is a
 compiled time constant (i.e. 4). In general a larger /B/ improves lookup
 performance (shallower tree) but hurts modification (large nodes to copy when
 updating the spine of the tree).
+
+`Full` is just an optimized version of `BitmapIndexed` that allows us faster
+indexing, faster copying on modification (given that its size is statically
+know), and lower memory use.
