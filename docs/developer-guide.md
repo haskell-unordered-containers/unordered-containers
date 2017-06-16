@@ -111,9 +111,24 @@ updating the spine of the tree).
 indexing, faster copying on modification (given that its size is statically
 know), and lower memory use.
 
-## Strictness
+## Why things are fast
 
-Everything is strict. Laziness is the enemy of predictable performance.
+Performance is largely dominated by memory layout and allocation. The code has
+been carefully tuned by looking at the GHC core output and sometimes the
+assembly output. In particular there's no unnecessary allocation in the most
+important functions and the memory layout is about as good as we can get using
+GHC.
+
+Avoiding allocation is done by making things strict (laziness is the enemy of
+predictable performance) and using `INLINABLE` to allow to be specialized at the
+call site (so key and value arguments to functions are passed as values rather
+than pointers to heap objects).
+
+The main remaining bottlenecks are due to e.g. GHC not allowing us to unpack an
+array into a constructor. Two examples: the `Full` constructor is a separate
+heap object from the array it contains and the `Leaf` constructor contains
+pointers to the key and value instead of unpacking them into the
+constructor. There's nothing we can do about this at the moment.
 
 ## Backwards compatibility policy
 
