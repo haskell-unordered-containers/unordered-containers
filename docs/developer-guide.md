@@ -7,7 +7,7 @@ invariants.
 ## Why does this package exist?
 
 This package exists to offer a different performance/functionality
-trade-of vis-a-vis ordered container packages
+trade-off vis-a-vis ordered container packages
 (e.g. [containers](http://hackage.haskell.org/package/containers)). Hashing-based
 data structures tend to be faster than comparison-based ones, at the cost of not
 providing operations the rely on the data being ordered.
@@ -59,7 +59,50 @@ default. However, those functions would make the performance of the data
 structures no better than that of ordered containers, which defeats the purpose
 of this package.
 
+Previous versions of this package tried to switch to SipHash (and a different
+hash function for integers). Those changes eventually had to be rolled back
+after failing to make a fast enough implementation (using SSE instructions where
+possible) that also wasn't crashing on some platforms.
+
 The current, someone frustrating, state is that you have to know which data
 structures can be tampered with by users and either use SipHash just for those
 or switch to ordered containers that don't have collision problems. This package
 uses fast hash functions by default.
+
+## Data structure design
+
+The data structures are based on the
+[hash array mapped trie (HAMT)](https://en.wikipedia.org/wiki/Hash_array_mapped_trie)
+data structures. There are several persistent implementations of the HAMT,
+including in Clojure and Scala.
+
+The actual implementation is as follows:
+
+``` haskell
+data HashMap k v
+    = Empty
+    | BitmapIndexed !Bitmap !(A.Array (HashMap k v))
+    | Leaf !Hash !(Leaf k v)
+    | Full !(A.Array (HashMap k v))
+    | Collision !Hash !(A.Array (Leaf k v))
+```
+
+Here's a quick overview in order of simplicty:
+
+ * `Empty` -- The empty map.
+ * `Leaf` -- A key-value pair.
+ * `Collision` -- An array of key-value pairs where the keys have identical hash
+   values. Element order doesn't matter.
+ * `Full` -- An array of child nodes. Given a key you can find the child it is
+   part of by taking /B/ bits of the hash value for the key and indexing into
+   the key. Which bits to use depends on the tree level.
+ * `BitmapIndexed` -- Similar to above except that the array is implemented as a
+   sparse array (to avoid storing `Empty` values). A bitmask and popcount is
+   used to convert from the index taken from the hash value, just like above, to
+   the actual index in the array. This node gets upgraded to a `Full` node when
+   it contains /2^B/ elements.
+
+The number of bits of the hash value to use at each level of the tree, /B/, is a
+compiled time constant (i.e. 4). In general a larger /B/ improves lookup
+performance (shallower tree) but hurts modification (large nodes to copy when
+updating the spine of the tree).
