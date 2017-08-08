@@ -1,10 +1,8 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, MagicHash #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternGuards #-}
-#if __GLASGOW_HASKELL__ >= 708
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
-#endif
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 
 module Data.HashMap.Base
@@ -104,7 +102,7 @@ import Data.Semigroup (Semigroup((<>)))
 #endif
 import Control.DeepSeq (NFData(rnf))
 import Control.Monad.ST (ST)
-import Data.Bits ((.&.), (.|.), complement)
+import Data.Bits ((.&.), (.|.), complement, popCount)
 import Data.Data hiding (Typeable)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as L
@@ -115,18 +113,13 @@ import Text.Read hiding (step)
 import qualified Data.HashMap.Array as A
 import qualified Data.Hashable as H
 import Data.Hashable (Hashable)
-import Data.HashMap.PopCount (popCount)
 import Data.HashMap.Unsafe (runST)
 import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
 import Data.HashMap.List (isPermutationBy, unorderedCompare)
 import Data.Typeable (Typeable)
 
-#if __GLASGOW_HASKELL__ >= 707
 import GHC.Exts (isTrue#)
-#endif
-#if __GLASGOW_HASKELL__ >= 708
 import qualified GHC.Exts as Exts
-#endif
 
 #if MIN_VERSION_base(4,9,0)
 import Data.Functor.Classes
@@ -162,9 +155,7 @@ data HashMap k v
     | Collision !Hash !(A.Array (Leaf k v))
       deriving (Typeable)
 
-#if __GLASGOW_HASKELL__ >= 708
 type role HashMap nominal representational
-#endif
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Empty                 = ()
@@ -1319,28 +1310,7 @@ update16With' ary idx f = update16 ary idx $! f (A.index ary idx)
 -- array is not checked.
 clone16 :: A.Array e -> ST s (A.MArray s e)
 clone16 ary =
-#if __GLASGOW_HASKELL__ >= 702
     A.thaw ary 0 16
-#else
-    do mary <- A.new_ 16
-       A.indexM ary 0 >>= A.write mary 0
-       A.indexM ary 1 >>= A.write mary 1
-       A.indexM ary 2 >>= A.write mary 2
-       A.indexM ary 3 >>= A.write mary 3
-       A.indexM ary 4 >>= A.write mary 4
-       A.indexM ary 5 >>= A.write mary 5
-       A.indexM ary 6 >>= A.write mary 6
-       A.indexM ary 7 >>= A.write mary 7
-       A.indexM ary 8 >>= A.write mary 8
-       A.indexM ary 9 >>= A.write mary 9
-       A.indexM ary 10 >>= A.write mary 10
-       A.indexM ary 11 >>= A.write mary 11
-       A.indexM ary 12 >>= A.write mary 12
-       A.indexM ary 13 >>= A.write mary 13
-       A.indexM ary 14 >>= A.write mary 14
-       A.indexM ary 15 >>= A.write mary 15
-       return mary
-#endif
 
 ------------------------------------------------------------------------
 -- Bit twiddling
@@ -1375,18 +1345,12 @@ fullNodeMask = complement (complement 0 `unsafeShiftL` maxChildren)
 -- | Check if two the two arguments are the same value.  N.B. This
 -- function might give false negatives (due to GC moving objects.)
 ptrEq :: a -> a -> Bool
-#if __GLASGOW_HASKELL__ < 707
-ptrEq x y = reallyUnsafePtrEquality# x y ==# 1#
-#else
 ptrEq x y = isTrue# (reallyUnsafePtrEquality# x y ==# 1#)
-#endif
 {-# INLINE ptrEq #-}
 
-#if __GLASGOW_HASKELL__ >= 708
 ------------------------------------------------------------------------
 -- IsList instance
 instance (Eq k, Hashable k) => Exts.IsList (HashMap k v) where
     type Item (HashMap k v) = (k, v)
     fromList = fromList
     toList   = toList
-#endif

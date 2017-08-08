@@ -53,12 +53,7 @@ import qualified Data.Traversable as Traversable
 import Control.Applicative (Applicative)
 #endif
 import Control.DeepSeq
--- GHC 7.7 exports toList/fromList from GHC.Exts
--- In order to avoid warnings on previous GHC versions, we provide
--- an explicit import list instead of only hiding the offending symbols
-import GHC.Exts (Array#, Int(..), newArray#, readArray#, writeArray#,
-                 indexArray#, unsafeFreezeArray#, unsafeThawArray#,
-                 MutableArray#)
+import GHC.Exts(Int(..))
 import GHC.ST (ST(..))
 
 #if __GLASGOW_HASKELL__ >= 709
@@ -67,9 +62,17 @@ import Prelude hiding (filter, foldr, length, map, read, traverse)
 import Prelude hiding (filter, foldr, length, map, read)
 #endif
 
-#if __GLASGOW_HASKELL__ >= 702
-import GHC.Exts (sizeofArray#, copyArray#, thawArray#, sizeofMutableArray#,
-                 copyMutableArray#)
+#if __GLASGOW_HASKELL__ >= 710
+import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
+                 indexSmallArray#, unsafeFreezeSmallArray#, unsafeThawSmallArray#,
+                 SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
+                 sizeofSmallMutableArray#, copySmallMutableArray#)
+
+#else
+import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
+                 indexArray#, unsafeFreezeArray#, unsafeThawArray#,
+                 MutableArray#, sizeofArray#, copyArray#, thawArray#,
+                 sizeofMutableArray#, copyMutableArray#)
 #endif
 
 #if defined(ASSERTS)
@@ -77,6 +80,24 @@ import qualified Prelude
 #endif
 
 import Data.HashMap.Unsafe (runST)
+
+
+#if __GLASGOW_HASKELL__ >= 710
+type Array# a = SmallArray# a
+type MutableArray# a = SmallMutableArray# a
+
+newArray# = newSmallArray#
+readArray# = readSmallArray#
+writeArray# = writeSmallArray#
+indexArray# = indexSmallArray#
+unsafeFreezeArray# = unsafeFreezeSmallArray#
+unsafeThawArray# = unsafeThawSmallArray#
+sizeofArray# = sizeofSmallArray#
+copyArray# = copySmallArray#
+thawArray# = thawSmallArray#
+sizeofMutableArray# = sizeofSmallMutableArray#
+copyMutableArray# = copySmallMutableArray#
+#endif
 
 ------------------------------------------------------------------------
 
@@ -100,49 +121,31 @@ if not ((_lhs_) _op_ (_rhs_)) then error ("Data.HashMap.Array." ++ (_func_) ++ "
 
 data Array a = Array {
       unArray :: !(Array# a)
-#if __GLASGOW_HASKELL__ < 702
-    , length :: !Int
-#endif
     }
 
 instance Show a => Show (Array a) where
     show = show . toList
 
-#if __GLASGOW_HASKELL__ >= 702
 length :: Array a -> Int
 length ary = I# (sizeofArray# (unArray ary))
 {-# INLINE length #-}
-#endif
 
 -- | Smart constructor
 array :: Array# a -> Int -> Array a
-#if __GLASGOW_HASKELL__ >= 702
 array ary _n = Array ary
-#else
-array = Array
-#endif
 {-# INLINE array #-}
 
 data MArray s a = MArray {
       unMArray :: !(MutableArray# s a)
-#if __GLASGOW_HASKELL__ < 702
-    , lengthM :: !Int
-#endif
     }
 
-#if __GLASGOW_HASKELL__ >= 702
 lengthM :: MArray s a -> Int
 lengthM mary = I# (sizeofMutableArray# (unMArray mary))
 {-# INLINE lengthM #-}
-#endif
 
 -- | Smart constructor
 marray :: MutableArray# s a -> Int -> MArray s a
-#if __GLASGOW_HASKELL__ >= 702
 marray mary _n = MArray mary
-#else
-marray = MArray
-#endif
 {-# INLINE marray #-}
 
 ------------------------------------------------------------------------
@@ -237,47 +240,21 @@ run2 k = runST (do
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
 copy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
-#if __GLASGOW_HASKELL__ >= 702
 copy !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
     CHECK_LE("copy", _sidx + _n, length src)
     CHECK_LE("copy", _didx + _n, lengthM dst)
         ST $ \ s# ->
         case copyArray# (unArray src) sidx# (unMArray dst) didx# n# s# of
             s2 -> (# s2, () #)
-#else
-copy !src !sidx !dst !didx n =
-    CHECK_LE("copy", sidx + n, length src)
-    CHECK_LE("copy", didx + n, lengthM dst)
-        copy_loop sidx didx 0
-  where
-    copy_loop !i !j !c
-        | c >= n = return ()
-        | otherwise = do b <- indexM src i
-                         write dst j b
-                         copy_loop (i+1) (j+1) (c+1)
-#endif
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
 copyM :: MArray s e -> Int -> MArray s e -> Int -> Int -> ST s ()
-#if __GLASGOW_HASKELL__ >= 702
 copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
     CHECK_BOUNDS("copyM: src", lengthM src, _sidx + _n - 1)
     CHECK_BOUNDS("copyM: dst", lengthM dst, _didx + _n - 1)
     ST $ \ s# ->
     case copyMutableArray# (unMArray src) sidx# (unMArray dst) didx# n# s# of
         s2 -> (# s2, () #)
-#else
-copyM !src !sidx !dst !didx n =
-    CHECK_BOUNDS("copyM: src", lengthM src, sidx + n - 1)
-    CHECK_BOUNDS("copyM: dst", lengthM dst, didx + n - 1)
-    copy_loop sidx didx 0
-  where
-    copy_loop !i !j !c
-        | c >= n = return ()
-        | otherwise = do b <- read src i
-                         write dst j b
-                         copy_loop (i+1) (j+1) (c+1)
-#endif
 
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
@@ -352,18 +329,10 @@ undefinedElem = error "Data.HashMap.Array: Undefined element"
 {-# NOINLINE undefinedElem #-}
 
 thaw :: Array e -> Int -> Int -> ST s (MArray s e)
-#if __GLASGOW_HASKELL__ >= 702
 thaw !ary !_o@(I# o#) !n@(I# n#) =
     CHECK_LE("thaw", _o + n, length ary)
         ST $ \ s -> case thawArray# (unArray ary) o# n# s of
             (# s2, mary# #) -> (# s2, marray mary# n #)
-#else
-thaw !ary !o !n =
-    CHECK_LE("thaw", o + n, length ary)
-        do mary <- new_ n
-           copy ary o mary 0 n
-           return mary
-#endif
 {-# INLINE thaw #-}
 
 -- | /O(n)/ Delete an element at the given position in this array,

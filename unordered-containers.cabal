@@ -20,7 +20,7 @@ category:       Data
 build-type:     Simple
 cabal-version:  >=1.8
 extra-source-files: CHANGES.md
-tested-with:    GHC==8.0.1, GHC==7.10.3, GHC==7.8.4, GHC==7.6.3, GHC==7.4.2
+tested-with:    GHC==8.0.1, GHC==7.10.3, GHC==7.8.4
 
 flag debug
   description:  Enable debug support
@@ -35,7 +35,6 @@ library
     Data.HashMap.Array
     Data.HashMap.Base
     Data.HashMap.List
-    Data.HashMap.PopCount
     Data.HashMap.Unsafe
     Data.HashMap.UnsafeShift
 
@@ -44,17 +43,11 @@ library
     deepseq >= 1.1,
     hashable >= 1.0.1.1 && < 1.3
 
-  if impl(ghc < 7.4)
-    c-sources: cbits/popc.c
-
-  ghc-options: -Wall -O2
-  if impl(ghc >= 6.8)
-    ghc-options: -fwarn-tabs
-  if impl(ghc >= 6.12)
-    -- This is absolutely essential for correctness due to the
-    -- referential-transparency-breaking mutability in unsafeInsertWith. See
-    -- #147 and GHC #13615 for details.
-    ghc-options: -feager-blackholing
+  ghc-options: -Wall -O2 -fwarn-tabs -ferror-spans
+  -- This is absolutely essential for correctness due to the
+  -- referential-transparency-breaking mutability in unsafeInsertWith. See
+  -- #147 and GHC #13615 for details.
+  ghc-options: -feager-blackholing
   if flag(debug)
     cpp-options: -DASSERTS
 
@@ -174,7 +167,6 @@ benchmark benchmarks
     Data.HashMap.Array
     Data.HashMap.Base
     Data.HashMap.Lazy
-    Data.HashMap.PopCount
     Data.HashMap.Strict
     Data.HashMap.Unsafe
     Data.HashMap.UnsafeShift
@@ -195,14 +187,7 @@ benchmark benchmarks
     mtl,
     random
 
-  if impl(ghc < 7.4)
-    c-sources: cbits/popc.c
-
-  ghc-options: -Wall -O2 -rtsopts
-  if impl(ghc >= 6.8)
-    ghc-options: -fwarn-tabs
-  if impl(ghc > 6.10)
-    ghc-options: -fregs-graph
+  ghc-options: -Wall -O2 -rtsopts -fwarn-tabs -ferror-spans
   if flag(debug)
     cpp-options: -DASSERTS
 
