@@ -162,6 +162,19 @@ test-suite strictness-properties
   ghc-options: -Wall
   cpp-options: -DASSERTS
 
+test-suite memory-footprint
+  hs-source-dirs: tests
+  main-is: MemoryFootprint.hs
+  type: exitcode-stdio-1.0
+
+  build-depends:
+    base,
+    containers,
+    ghc-datasize,
+    deepseq,
+    unordered-containers
+  ghc-options: -Wall
+
 benchmark benchmarks
   -- We cannot depend on the unordered-containers library directly as
   -- that creates a dependency cycle.
