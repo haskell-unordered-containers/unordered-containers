@@ -53,12 +53,7 @@ import qualified Data.Traversable as Traversable
 import Control.Applicative (Applicative)
 #endif
 import Control.DeepSeq
--- GHC 7.7 exports toList/fromList from GHC.Exts
--- In order to avoid warnings on previous GHC versions, we provide
--- an explicit import list instead of only hiding the offending symbols
-import GHC.Exts (Array#, Int(..), newArray#, readArray#, writeArray#,
-                 indexArray#, unsafeFreezeArray#, unsafeThawArray#,
-                 MutableArray#)
+import GHC.Exts(Int(..))
 import GHC.ST (ST(..))
 
 #if __GLASGOW_HASKELL__ >= 709
@@ -67,9 +62,20 @@ import Prelude hiding (filter, foldr, length, map, read, traverse)
 import Prelude hiding (filter, foldr, length, map, read)
 #endif
 
+#if __GLASGOW_HASKELL__ >= 710
+import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
+                 indexSmallArray#, unsafeFreezeSmallArray#, unsafeThawSmallArray#,
+                 SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
+                 sizeofSmallMutableArray#, copySmallMutableArray#)
+
+#else
+import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
+                 indexArray#, unsafeFreezeArray#, unsafeThawArray#,
+                 MutableArray#)
 #if __GLASGOW_HASKELL__ >= 702
 import GHC.Exts (sizeofArray#, copyArray#, thawArray#, sizeofMutableArray#,
                  copyMutableArray#)
+#endif
 #endif
 
 #if defined(ASSERTS)
@@ -77,6 +83,24 @@ import qualified Prelude
 #endif
 
 import Data.HashMap.Unsafe (runST)
+
+
+#if __GLASGOW_HASKELL__ >= 710
+type Array# a = SmallArray# a
+type MutableArray# a = SmallMutableArray# a
+
+newArray# = newSmallArray#
+readArray# = readSmallArray#
+writeArray# = writeSmallArray#
+indexArray# = indexSmallArray#
+unsafeFreezeArray# = unsafeFreezeSmallArray#
+unsafeThawArray# = unsafeThawSmallArray#
+sizeofArray# = sizeofSmallArray#
+copyArray# = copySmallArray#
+thawArray# = thawSmallArray#
+sizeofMutableArray# = sizeofSmallMutableArray#
+copyMutableArray# = copySmallMutableArray#
+#endif
 
 ------------------------------------------------------------------------
 
