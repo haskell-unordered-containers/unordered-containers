@@ -68,6 +68,8 @@ import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
                  SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
                  sizeofSmallMutableArray#, copySmallMutableArray#)
 
+import GHC.Prim.SmallArray
+
 #else
 import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
                  indexArray#, unsafeFreezeArray#, unsafeThawArray#,
@@ -259,7 +261,14 @@ copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
 insert :: Array e -> Int -> e -> Array e
+#if __GLASGOW_HASKELL__ >= 710
+insert ary@(Array a) idx@(I# i) e =
+    CHECK_BOUNDS("insert", count + 1, idx)
+    Array (insertSmallArray# i e a)
+  where !count = length ary
+#else
 insert ary idx b = runST (insertM ary idx b)
+#endif
 {-# INLINE insert #-}
 
 -- | /O(n)/ Insert an element at the given position in this array,
@@ -338,7 +347,14 @@ thaw !ary !_o@(I# o#) !n@(I# n#) =
 -- | /O(n)/ Delete an element at the given position in this array,
 -- decreasing its size by one.
 delete :: Array e -> Int -> Array e
+#if __GLASGOW_HASKELL__ >= 710
+delete ary@(Array a) idx@(I# i) =
+    CHECK_BOUNDS("delete", count + 1, idx)
+     Array (deleteSmallArray# i a)
+  where !count = length ary
+#else
 delete ary idx = runST (deleteM ary idx)
+#endif
 {-# INLINE delete #-}
 
 -- | /O(n)/ Delete an element at the given position in this array,
