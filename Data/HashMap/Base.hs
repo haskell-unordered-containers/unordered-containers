@@ -1242,12 +1242,9 @@ updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.Array (Leaf k v
 updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
   where
     go !k v !ary !i !n
-        | i >= n = A.run $ do
+        | i >= n =
             -- Not found, append to the end.
-            mary <- A.new_ (n + 1)
-            A.copy ary 0 mary 0 n
-            A.write mary n (L k v)
-            return mary
+            A.snoc ary (L k v)
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> A.update ary i (L k (f k v y))
                      | otherwise -> go k v ary (i+1) n

@@ -27,6 +27,7 @@ module Data.HashMap.Array
     , unsafeUpdateM
     , insert
     , insertM
+    , snoc
     , delete
 
     , unsafeFreeze
@@ -283,6 +284,19 @@ insertM ary idx b =
            unsafeFreeze mary
   where !count = length ary
 {-# INLINE insertM #-}
+
+snoc :: Array e -> e -> Array e
+#if __GLASGOW_HASKELL__ >= 710
+snoc (Array ary) e = Array (snocSmallArray# ary e)
+#else
+snoc ary e = run $ do
+    let n = length ary
+    mary <- new_ (n + 1)
+    copy ary 0 mary 0 n
+    write mary n e
+    return mary
+#endif
+{-# INLINE snoc #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
 update :: Array e -> Int -> e -> Array e
