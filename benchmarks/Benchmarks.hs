@@ -106,110 +106,108 @@ main :: IO ()
 main = do
     defaultMain
         [
-        --   env setupEnv $ \ ~(Env{..}) ->
-        --   -- * Comparison to other data structures
-        --   -- ** Map
-        --   bgroup "Map"
-        --   [ bgroup "lookup"
-        --     [ bench "String" $ whnf (lookupM keys) m
-        --     , bench "ByteString" $ whnf (lookupM keysBS) mbs
-        --     ]
-        --   , bgroup "lookup-miss"
-        --     [ bench "String" $ whnf (lookupM keys') m
-        --     , bench "ByteString" $ whnf (lookupM keysBS') mbs
-        --     ]
-        --   , bgroup "insert"
-        --     [ bench "String" $ whnf (insertM elems) M.empty
-        --     , bench "ByteStringString" $ whnf (insertM elemsBS) M.empty
-        --     ]
-        --   , bgroup "insert-dup"
-        --     [ bench "String" $ whnf (insertM elems) m
-        --     , bench "ByteStringString" $ whnf (insertM elemsBS) mbs
-        --     ]
-        --   , bgroup "delete"
-        --     [ bench "String" $ whnf (deleteM keys) m
-        --     , bench "ByteString" $ whnf (deleteM keysBS) mbs
-        --     ]
-        --   , bgroup "delete-miss"
-        --     [ bench "String" $ whnf (deleteM keys') m
-        --     , bench "ByteString" $ whnf (deleteM keysBS') mbs
-        --     ]
-        --   , bgroup "size"
-        --     [ bench "String" $ whnf M.size m
-        --     , bench "ByteString" $ whnf M.size mbs
-        --     ]
-        --   , bgroup "fromList"
-        --     [ bench "String" $ whnf M.fromList elems
-        --     , bench "ByteString" $ whnf M.fromList elemsBS
-        --     ]
-        --   ]
+          env setupEnv $ \ ~(Env{..}) ->
+          -- * Comparison to other data structures
+          -- ** Map
+          bgroup "Map"
+          [ bgroup "lookup"
+            [ bench "String" $ whnf (lookupM keys) m
+            , bench "ByteString" $ whnf (lookupM keysBS) mbs
+            ]
+          , bgroup "lookup-miss"
+            [ bench "String" $ whnf (lookupM keys') m
+            , bench "ByteString" $ whnf (lookupM keysBS') mbs
+            ]
+          , bgroup "insert"
+            [ bench "String" $ whnf (insertM elems) M.empty
+            , bench "ByteStringString" $ whnf (insertM elemsBS) M.empty
+            ]
+          , bgroup "insert-dup"
+            [ bench "String" $ whnf (insertM elems) m
+            , bench "ByteStringString" $ whnf (insertM elemsBS) mbs
+            ]
+          , bgroup "delete"
+            [ bench "String" $ whnf (deleteM keys) m
+            , bench "ByteString" $ whnf (deleteM keysBS) mbs
+            ]
+          , bgroup "delete-miss"
+            [ bench "String" $ whnf (deleteM keys') m
+            , bench "ByteString" $ whnf (deleteM keysBS') mbs
+            ]
+          , bgroup "size"
+            [ bench "String" $ whnf M.size m
+            , bench "ByteString" $ whnf M.size mbs
+            ]
+          , bgroup "fromList"
+            [ bench "String" $ whnf M.fromList elems
+            , bench "ByteString" $ whnf M.fromList elemsBS
+            ]
+          ]
 
-        --   -- ** Map from the hashmap package
-        -- , env setupEnv $ \ ~(Env{..}) ->
-        --   bgroup "hashmap/Map"
-        --   [ bgroup "lookup"
-        --     [ bench "String" $ whnf (lookupIHM keys) ihm
-        --     , bench "ByteString" $ whnf (lookupIHM keysBS) ihmbs
-        --     ]
-        --   , bgroup "lookup-miss"
-        --     [ bench "String" $ whnf (lookupIHM keys') ihm
-        --     , bench "ByteString" $ whnf (lookupIHM keysBS') ihmbs
-        --     ]
-        --   , bgroup "insert"
-        --     [ bench "String" $ whnf (insertIHM elems) IHM.empty
-        --     , bench "ByteStringString" $ whnf (insertIHM elemsBS) IHM.empty
-        --     ]
-        --   , bgroup "insert-dup"
-        --     [ bench "String" $ whnf (insertIHM elems) ihm
-        --     , bench "ByteStringString" $ whnf (insertIHM elemsBS) ihmbs
-        --     ]
-        --   , bgroup "delete"
-        --     [ bench "String" $ whnf (deleteIHM keys) ihm
-        --     , bench "ByteString" $ whnf (deleteIHM keysBS) ihmbs
-        --     ]
-        --   , bgroup "delete-miss"
-        --     [ bench "String" $ whnf (deleteIHM keys') ihm
-        --     , bench "ByteString" $ whnf (deleteIHM keysBS') ihmbs
-        --     ]
-        --   , bgroup "size"
-        --     [ bench "String" $ whnf IHM.size ihm
-        --     , bench "ByteString" $ whnf IHM.size ihmbs
-        --     ]
-        --   , bgroup "fromList"
-        --     [ bench "String" $ whnf IHM.fromList elems
-        --     , bench "ByteString" $ whnf IHM.fromList elemsBS
-        --     ]
-        --   ]
+          -- ** Map from the hashmap package
+        , env setupEnv $ \ ~(Env{..}) ->
+          bgroup "hashmap/Map"
+          [ bgroup "lookup"
+            [ bench "String" $ whnf (lookupIHM keys) ihm
+            , bench "ByteString" $ whnf (lookupIHM keysBS) ihmbs
+            ]
+          , bgroup "lookup-miss"
+            [ bench "String" $ whnf (lookupIHM keys') ihm
+            , bench "ByteString" $ whnf (lookupIHM keysBS') ihmbs
+            ]
+          , bgroup "insert"
+            [ bench "String" $ whnf (insertIHM elems) IHM.empty
+            , bench "ByteStringString" $ whnf (insertIHM elemsBS) IHM.empty
+            ]
+          , bgroup "insert-dup"
+            [ bench "String" $ whnf (insertIHM elems) ihm
+            , bench "ByteStringString" $ whnf (insertIHM elemsBS) ihmbs
+            ]
+          , bgroup "delete"
+            [ bench "String" $ whnf (deleteIHM keys) ihm
+            , bench "ByteString" $ whnf (deleteIHM keysBS) ihmbs
+            ]
+          , bgroup "delete-miss"
+            [ bench "String" $ whnf (deleteIHM keys') ihm
+            , bench "ByteString" $ whnf (deleteIHM keysBS') ihmbs
+            ]
+          , bgroup "size"
+            [ bench "String" $ whnf IHM.size ihm
+            , bench "ByteString" $ whnf IHM.size ihmbs
+            ]
+          , bgroup "fromList"
+            [ bench "String" $ whnf IHM.fromList elems
+            , bench "ByteString" $ whnf IHM.fromList elemsBS
+            ]
+          ]
 
-        --   -- ** IntMap
-        -- , env setupEnv $ \ ~(Env{..}) ->
-        --   bgroup "IntMap"
-        --   [ bench "lookup" $ whnf (lookupIM keysI) im
-        --   , bench "lookup-miss" $ whnf (lookupIM keysI') im
-        --   , bench "insert" $ whnf (insertIM elemsI) IM.empty
-        --   , bench "insert-dup" $ whnf (insertIM elemsI) im
-        --   , bench "delete" $ whnf (deleteIM keysI) im
-        --   , bench "delete-miss" $ whnf (deleteIM keysI') im
-        --   , bench "size" $ whnf IM.size im
-        --   , bench "fromList" $ whnf IM.fromList elemsI
-        --   ]
+          -- ** IntMap
+        , env setupEnv $ \ ~(Env{..}) ->
+          bgroup "IntMap"
+          [ bench "lookup" $ whnf (lookupIM keysI) im
+          , bench "lookup-miss" $ whnf (lookupIM keysI') im
+          , bench "insert" $ whnf (insertIM elemsI) IM.empty
+          , bench "insert-dup" $ whnf (insertIM elemsI) im
+          , bench "delete" $ whnf (deleteIM keysI) im
+          , bench "delete-miss" $ whnf (deleteIM keysI') im
+          , bench "size" $ whnf IM.size im
+          , bench "fromList" $ whnf IM.fromList elemsI
+          ]
 
-        -- ,
-        env setupEnv $ \ ~(Env{..}) ->
+        , env setupEnv $ \ ~(Env{..}) ->
           bgroup "HashMap"
           [ -- * Basic interface
-          --   bgroup "lookup"
-          --   [ bench "String" $ whnf (lookup keys) hm
-          --   , bench "ByteString" $ whnf (lookup keysBS) hmbs
-          --   , bench "Int" $ whnf (lookup keysI) hmi
-          --   ]
-          -- , bgroup "lookup-miss"
-          --   [ bench "String" $ whnf (lookup keys') hm
-          --   , bench "ByteString" $ whnf (lookup keysBS') hmbs
-          --   , bench "Int" $ whnf (lookup keysI') hmi
-          --   ]
-          -- ,
-          bgroup "insert"
+            bgroup "lookup"
+            [ bench "String" $ whnf (lookup keys) hm
+            , bench "ByteString" $ whnf (lookup keysBS) hmbs
+            , bench "Int" $ whnf (lookup keysI) hmi
+            ]
+          , bgroup "lookup-miss"
+            [ bench "String" $ whnf (lookup keys') hm
+            , bench "ByteString" $ whnf (lookup keysBS') hmbs
+            , bench "Int" $ whnf (lookup keysI') hmi
+            ]
+          , bgroup "insert"
             [ bench "String" $ whnf (insert elems) HM.empty
             , bench "ByteString" $ whnf (insert elemsBS) HM.empty
             , bench "Int" $ whnf (insert elemsI) HM.empty
@@ -230,57 +228,57 @@ main = do
             , bench "Int" $ whnf (delete keysI') hmi
             ]
 
-          --   -- Combine
-          -- , bench "union" $ whnf (HM.union hmi) hmi2
+            -- Combine
+          , bench "union" $ whnf (HM.union hmi) hmi2
 
-          --   -- Transformations
-          -- , bench "map" $ whnf (HM.map (\ v -> v + 1)) hmi
+            -- Transformations
+          , bench "map" $ whnf (HM.map (\ v -> v + 1)) hmi
 
-          --   -- * Difference and intersection
-          -- , bench "difference" $ whnf (HM.difference hmi) hmi2
-          -- , bench "intersection" $ whnf (HM.intersection hmi) hmi2
+            -- * Difference and intersection
+          , bench "difference" $ whnf (HM.difference hmi) hmi2
+          , bench "intersection" $ whnf (HM.intersection hmi) hmi2
 
-          --   -- Folds
-          -- , bench "foldl'" $ whnf (HM.foldl' (+) 0) hmi
-          -- , bench "foldr" $ nf (HM.foldr (:) []) hmi
+            -- Folds
+          , bench "foldl'" $ whnf (HM.foldl' (+) 0) hmi
+          , bench "foldr" $ nf (HM.foldr (:) []) hmi
 
-          --   -- Filter
-          -- , bench "filter" $ whnf (HM.filter (\ v -> v .&. 1 == 0)) hmi
-          -- , bench "filterWithKey" $ whnf (HM.filterWithKey (\ k _ -> k .&. 1 == 0)) hmi
+            -- Filter
+          , bench "filter" $ whnf (HM.filter (\ v -> v .&. 1 == 0)) hmi
+          , bench "filterWithKey" $ whnf (HM.filterWithKey (\ k _ -> k .&. 1 == 0)) hmi
 
-          --   -- Size
-          -- , bgroup "size"
-          --   [ bench "String" $ whnf HM.size hm
-          --   , bench "ByteString" $ whnf HM.size hmbs
-          --   , bench "Int" $ whnf HM.size hmi
-          --   ]
+            -- Size
+          , bgroup "size"
+            [ bench "String" $ whnf HM.size hm
+            , bench "ByteString" $ whnf HM.size hmbs
+            , bench "Int" $ whnf HM.size hmi
+            ]
 
-          --   -- fromList
-          -- , bgroup "fromList"
-          --   [ bgroup "long"
-          --     [ bench "String" $ whnf HM.fromList elems
-          --     , bench "ByteString" $ whnf HM.fromList elemsBS
-          --     , bench "Int" $ whnf HM.fromList elemsI
-          --     ]
-          --   , bgroup "short"
-          --     [ bench "String" $ whnf HM.fromList elemsDup
-          --     , bench "ByteString" $ whnf HM.fromList elemsDupBS
-          --     , bench "Int" $ whnf HM.fromList elemsDupI
-          --     ]
-          --   ]
-          --   -- fromListWith
-          -- , bgroup "fromListWith"
-          --   [ bgroup "long"
-          --     [ bench "String" $ whnf (HM.fromListWith (+)) elems
-          --     , bench "ByteString" $ whnf (HM.fromListWith (+)) elemsBS
-          --     , bench "Int" $ whnf (HM.fromListWith (+)) elemsI
-          --     ]
-          --   , bgroup "short"
-          --     [ bench "String" $ whnf (HM.fromListWith (+)) elemsDup
-          --     , bench "ByteString" $ whnf (HM.fromListWith (+)) elemsDupBS
-          --     , bench "Int" $ whnf (HM.fromListWith (+)) elemsDupI
-          --     ]
-          --   ]
+            -- fromList
+          , bgroup "fromList"
+            [ bgroup "long"
+              [ bench "String" $ whnf HM.fromList elems
+              , bench "ByteString" $ whnf HM.fromList elemsBS
+              , bench "Int" $ whnf HM.fromList elemsI
+              ]
+            , bgroup "short"
+              [ bench "String" $ whnf HM.fromList elemsDup
+              , bench "ByteString" $ whnf HM.fromList elemsDupBS
+              , bench "Int" $ whnf HM.fromList elemsDupI
+              ]
+            ]
+            -- fromListWith
+          , bgroup "fromListWith"
+            [ bgroup "long"
+              [ bench "String" $ whnf (HM.fromListWith (+)) elems
+              , bench "ByteString" $ whnf (HM.fromListWith (+)) elemsBS
+              , bench "Int" $ whnf (HM.fromListWith (+)) elemsI
+              ]
+            , bgroup "short"
+              [ bench "String" $ whnf (HM.fromListWith (+)) elemsDup
+              , bench "ByteString" $ whnf (HM.fromListWith (+)) elemsDupBS
+              , bench "Int" $ whnf (HM.fromListWith (+)) elemsDupI
+              ]
+            ]
           ]
         ]
 
