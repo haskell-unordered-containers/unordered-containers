@@ -27,6 +27,7 @@ module Data.HashMap.Array
     , unsafeUpdateM
     , insert
     , insertM
+    , snoc
     , delete
 
     , unsafeFreeze
@@ -67,6 +68,10 @@ import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
                  indexSmallArray#, unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                  SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
                  sizeofSmallMutableArray#, copySmallMutableArray#)
+
+#if defined(ARRAY_PRIMOPS)
+import GHC.Prim.SmallArray
+#endif
 
 #else
 import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
@@ -259,7 +264,14 @@ copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
 insert :: Array e -> Int -> e -> Array e
+#if __GLASGOW_HASKELL__ >= 710 && defined(ARRAY_PRIMOPS)
+insert ary@(Array a) idx@(I# i) e =
+    CHECK_BOUNDS("insert", count + 1, idx)
+    Array (insertSmallArray# i e a)
+  where !count = length ary
+#else
 insert ary idx b = runST (insertM ary idx b)
+#endif
 {-# INLINE insert #-}
 
 -- | /O(n)/ Insert an element at the given position in this array,
@@ -274,6 +286,19 @@ insertM ary idx b =
            unsafeFreeze mary
   where !count = length ary
 {-# INLINE insertM #-}
+
+snoc :: Array e -> e -> Array e
+#if __GLASGOW_HASKELL__ >= 710 && defined(ARRAY_PRIMOPS)
+snoc (Array ary) e = Array (snocSmallArray# ary e)
+#else
+snoc ary e = run $ do
+    let n = length ary
+    mary <- new_ (n + 1)
+    copy ary 0 mary 0 n
+    write mary n e
+    return mary
+#endif
+{-# INLINE snoc #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
 update :: Array e -> Int -> e -> Array e
@@ -338,7 +363,14 @@ thaw !ary !_o@(I# o#) !n@(I# n#) =
 -- | /O(n)/ Delete an element at the given position in this array,
 -- decreasing its size by one.
 delete :: Array e -> Int -> Array e
+#if __GLASGOW_HASKELL__ >= 710 && defined(ARRAY_PRIMOPS)
+delete ary@(Array a) idx@(I# i) =
+    CHECK_BOUNDS("delete", count + 1, idx)
+     Array (deleteSmallArray# i a)
+  where !count = length ary
+#else
 delete ary idx = runST (deleteM ary idx)
+#endif
 {-# INLINE delete #-}
 
 -- | /O(n)/ Delete an element at the given position in this array,

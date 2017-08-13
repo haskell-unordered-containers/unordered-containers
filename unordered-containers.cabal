@@ -43,6 +43,11 @@ library
     deepseq >= 1.1,
     hashable >= 1.0.1.1 && < 1.3
 
+  if !impl(ghcjs)
+    build-depends:
+      array-primops >= 0.2
+    cpp-options: -DARRAY_PRIMOPS
+
   ghc-options: -Wall -O2 -fwarn-tabs -ferror-spans
   -- This is absolutely essential for correctness due to the
   -- referential-transparency-breaking mutability in unsafeInsertWith. See
@@ -186,6 +191,12 @@ benchmark benchmarks
     hashmap,
     mtl,
     random
+
+  if !impl(ghcjs)
+    build-depends:
+      array-primops >= 0.2
+    cpp-options: -DARRAY_PRIMOPS
+
 
   ghc-options: -Wall -O2 -rtsopts -fwarn-tabs -ferror-spans
   if flag(debug)
