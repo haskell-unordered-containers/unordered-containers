@@ -69,7 +69,9 @@ import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
                  SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
                  sizeofSmallMutableArray#, copySmallMutableArray#)
 
+#if defined(ARRAY_PRIMOPS)
 import GHC.Prim.SmallArray
+#endif
 
 #else
 import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
@@ -262,7 +264,7 @@ copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
 insert :: Array e -> Int -> e -> Array e
-#if __GLASGOW_HASKELL__ >= 710
+#if __GLASGOW_HASKELL__ >= 710 && defined(ARRAY_PRIMOPS)
 insert ary@(Array a) idx@(I# i) e =
     CHECK_BOUNDS("insert", count + 1, idx)
     Array (insertSmallArray# i e a)
@@ -286,7 +288,7 @@ insertM ary idx b =
 {-# INLINE insertM #-}
 
 snoc :: Array e -> e -> Array e
-#if __GLASGOW_HASKELL__ >= 710
+#if __GLASGOW_HASKELL__ >= 710 && defined(ARRAY_PRIMOPS)
 snoc (Array ary) e = Array (snocSmallArray# ary e)
 #else
 snoc ary e = run $ do
@@ -361,7 +363,7 @@ thaw !ary !_o@(I# o#) !n@(I# n#) =
 -- | /O(n)/ Delete an element at the given position in this array,
 -- decreasing its size by one.
 delete :: Array e -> Int -> Array e
-#if __GLASGOW_HASKELL__ >= 710
+#if __GLASGOW_HASKELL__ >= 710 && defined(ARRAY_PRIMOPS)
 delete ary@(Array a) idx@(I# i) =
     CHECK_BOUNDS("delete", count + 1, idx)
      Array (deleteSmallArray# i a)
