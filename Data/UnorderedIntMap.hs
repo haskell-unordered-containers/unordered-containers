@@ -3,6 +3,8 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# language ViewPatterns #-}
+{-# language FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-full-laziness #-}
 
 module Data.UnorderedIntMap
@@ -88,6 +90,7 @@ module Data.UnorderedIntMap
     , equalKeys
     ) where
 
+import Data.Coerce
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative ((<$>), Applicative(pure))
 import Data.Monoid (Monoid(mempty, mappend))
@@ -131,7 +134,8 @@ instance NFData v => NFData (Leaf v) where
 -- Invariant: The length of the 1st argument to 'Full' is
 -- 2^bitsPerSubkey
 
--- | A map from keys to values.  A map cannot contain duplicate keys;
+-- | A map from (possibly newtyped) Int keys to values.
+-- A map cannot contain duplicate keys;
 -- each key can map to at most one value.
 data UnorderedIntMap v
     = Empty
@@ -215,7 +219,7 @@ instance Show v => Show (UnorderedIntMap v) where
       showString "fromList " . shows (toList m)
 
 instance Traversable UnorderedIntMap where
-    traverse f = traverseWithKey (const f)
+    traverse f = traverseWithKey (\(_ :: Int) -> f)
 
 #if MIN_VERSION_base(4,9,0)
 instance Eq1 UnorderedIntMap where
@@ -294,8 +298,8 @@ empty :: UnorderedIntMap v
 empty = Empty
 
 -- | /O(1)/ Construct a map with a single element.
-singleton :: Int -> v -> UnorderedIntMap v
-singleton k v = Leaf (L k v)
+singleton :: Coercible key Int => key -> v -> UnorderedIntMap v
+singleton (coerce -> k :: Int) v = Leaf (L k v)
 
 ------------------------------------------------------------------------
 -- * Basic interface
@@ -316,7 +320,7 @@ size t = go t 0
 
 -- | /O(log n)/ Return 'True' if the specified key is present in the
 -- map, 'False' otherwise.
-member :: Int -> UnorderedIntMap a -> Bool
+member :: Coercible key Int => key -> UnorderedIntMap a -> Bool
 member k m = case lookup k m of
     Nothing -> False
     Just _  -> True
@@ -324,8 +328,8 @@ member k m = case lookup k m of
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.
-lookup :: Int -> UnorderedIntMap v -> Maybe v
-lookup k0 m0 = go k0 0 m0
+lookup :: Coercible key Int => key -> UnorderedIntMap v -> Maybe v
+lookup (coerce -> k0 :: Int) m0 = go k0 0 m0
   where
     go !_ !_ Empty = Nothing
     go k _ (Leaf (L kx x))
@@ -340,17 +344,18 @@ lookup k0 m0 = go k0 0 m0
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
-lookupDefault :: v          -- ^ Default value to return.
-              -> Int -> UnorderedIntMap v -> v
-lookupDefault def k t = case lookup k t of
+lookupDefault :: Coercible key Int =>
+    v          -- ^ Default value to return.
+    -> key -> UnorderedIntMap v -> v
+lookupDefault def (coerce -> k :: Int) t = case lookup k t of
     Just v -> v
     _      -> def
 {-# INLINABLE lookupDefault #-}
 
 -- | /O(log n)/ Return the value to which the specified key is mapped.
 -- Calls 'error' if this map contains no mapping for the key.
-(!) :: UnorderedIntMap v -> Int -> v
-(!) m k = case lookup k m of
+(!) :: Coercible key Int => UnorderedIntMap v -> key -> v
+(!) m (coerce -> k :: Int) = case lookup k m of
     Just v  -> v
     Nothing -> error "Data.UnorderedIntMap.(!): key not found"
 {-# INLINABLE (!) #-}
@@ -367,8 +372,8 @@ bitmapIndexedOrFull b ary
 -- | /O(log n)/ Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
-insert :: Int -> v -> UnorderedIntMap v -> UnorderedIntMap v
-insert k0 v0 m0 = go k0 v0 0 m0
+insert :: Coercible key Int => key -> v -> UnorderedIntMap v -> UnorderedIntMap v
+insert (coerce -> k0 :: Int) v0 m0 = go k0 v0 0 m0
   where
     go !k x !_ Empty = Leaf (L k x)
     go k x s t@(Leaf (L ky y))
@@ -399,8 +404,8 @@ insert k0 v0 m0 = go k0 v0 0 m0
 {-# INLINABLE insert #-}
 
 -- | In-place update version of insert
-unsafeInsert :: Int -> v -> UnorderedIntMap v -> UnorderedIntMap v
-unsafeInsert k0 v0 m0 = runST (go k0 v0 0 m0)
+unsafeInsert :: Coercible key Int => key -> v -> UnorderedIntMap v -> UnorderedIntMap v
+unsafeInsert (coerce -> k0 :: Int) v0 m0 = runST (go k0 v0 0 m0)
   where
     go !k x !_ Empty = return $! Leaf (L k x)
     go k x s t@(Leaf (L ky y))
@@ -456,9 +461,9 @@ two = go
 --
 -- > insertWith f k v map
 -- >   where f new old = new + old
-insertWith :: (v -> v -> v) -> Int -> v -> UnorderedIntMap v
+insertWith :: Coercible key Int => (v -> v -> v) -> key -> v -> UnorderedIntMap v
             -> UnorderedIntMap v
-insertWith f k0 v0 m0 = go k0 v0 0 m0
+insertWith f (coerce -> k0 :: Int) v0 m0 = go k0 v0 0 m0
   where
     go !k x !_ Empty = Leaf (L k x)
     go k x s (Leaf (L ky y))
@@ -484,10 +489,10 @@ insertWith f k0 v0 m0 = go k0 v0 0 m0
 {-# INLINABLE insertWith #-}
 
 -- | In-place update version of insertWith
-unsafeInsertWith :: forall v.
-                 (v -> v -> v) -> Int -> v -> UnorderedIntMap v
+unsafeInsertWith :: forall key v . Coercible key Int =>
+                 (v -> v -> v) -> key -> v -> UnorderedIntMap v
                  -> UnorderedIntMap v
-unsafeInsertWith f k0 v0 m0 = runST (go k0 v0 0 m0)
+unsafeInsertWith f (coerce -> k0 :: Int) v0 m0 = runST (go k0 v0 0 m0)
   where
     go :: Int -> v -> Shift -> UnorderedIntMap v -> ST s (UnorderedIntMap v)
     go !k x !_ Empty = return $! Leaf (L k x)
@@ -515,8 +520,8 @@ unsafeInsertWith f k0 v0 m0 = runST (go k0 v0 0 m0)
 
 -- | /O(log n)/ Remove the mapping for the specified key from this map
 -- if present.
-delete :: Int -> UnorderedIntMap v -> UnorderedIntMap v
-delete k0 m0 = go k0 0 m0
+delete :: Coercible key Int => key -> UnorderedIntMap v -> UnorderedIntMap v
+delete (coerce -> k0 :: Int) m0 = go k0 0 m0
   where
     go !_ !_ Empty = Empty
     go k _ t@(Leaf (L ky _))
@@ -559,8 +564,8 @@ delete k0 m0 = go k0 0 m0
 
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
-adjust :: (v -> v) -> Int -> UnorderedIntMap v -> UnorderedIntMap v
-adjust f k0 m0 = go k0 0 m0
+adjust :: Coercible key Int => (v -> v) -> key -> UnorderedIntMap v -> UnorderedIntMap v
+adjust f (coerce -> k0 :: Int) m0 = go k0 0 m0
   where
     go !_ !_ Empty = Empty
     go k _ t@(Leaf (L ky y))
@@ -585,7 +590,7 @@ adjust f k0 m0 = go k0 0 m0
 -- | /O(log n)/  The expression (@'update' f k map@) updates the value @x@ at @k@,
 -- (if it is in the map). If (f k x) is @'Nothing', the element is deleted.
 -- If it is (@'Just' y), the key k is bound to the new value y.
-update :: (a -> Maybe a) -> Int -> UnorderedIntMap a -> UnorderedIntMap a
+update :: Coercible key Int => (a -> Maybe a) -> key -> UnorderedIntMap a -> UnorderedIntMap a
 update f = alter (>>= f)
 {-# INLINABLE update #-}
 
@@ -593,8 +598,8 @@ update f = alter (>>= f)
 -- | /O(log n)/  The expression (@'alter' f k map@) alters the value @x@ at @k@, or
 -- absence thereof. @alter@ can be used to insert, delete, or update a value in a
 -- map. In short : @'lookup' k ('alter' f k m) = f ('lookup' k m)@.
-alter :: (Maybe v -> Maybe v) -> Int -> UnorderedIntMap v -> UnorderedIntMap v
-alter f k m =
+alter :: Coercible key Int => (Maybe v -> Maybe v) -> key -> UnorderedIntMap v -> UnorderedIntMap v
+alter f (coerce -> k :: Int) m =
   case f (lookup k m) of
     Nothing -> delete k m
     Just v  -> insert k v m
@@ -612,15 +617,15 @@ union = unionWith const
 -- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the
 -- result.
-unionWith :: (v -> v -> v) -> UnorderedIntMap v -> UnorderedIntMap v
+unionWith :: forall v. (v -> v -> v) -> UnorderedIntMap v -> UnorderedIntMap v
           -> UnorderedIntMap v
-unionWith f = unionWithKey (const f)
+unionWith f = unionWithKey (const f :: Int -> v -> v -> v)
 {-# INLINE unionWith #-}
 
 -- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the
 -- result.
-unionWithKey :: (Int -> v -> v -> v) -> UnorderedIntMap v -> UnorderedIntMap v
+unionWithKey :: Coercible key Int => (key -> v -> v -> v) -> UnorderedIntMap v -> UnorderedIntMap v
           -> UnorderedIntMap v
 unionWithKey f = go 0
   where
@@ -629,7 +634,7 @@ unionWithKey f = go 0
     go _ Empty t2 = t2
     -- leaf vs. leaf
     go s t1@(Leaf (L k1 v1)) t2@(Leaf (L k2 v2))
-        | k1 == k2 = Leaf (L k1 (f k1 v1 v2))
+        | k1 == k2 = Leaf (L k1 (f (coerce k1) v1 v2))
         | otherwise = goDifferentHash s k1 k2 t1 t2
     -- branch vs. branch
     go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
@@ -731,18 +736,18 @@ unions = L.foldl' union empty
 -- * Transformations
 
 -- | /O(n)/ Transform this map by applying a function to every value.
-mapWithKey :: (Int -> v1 -> v2) -> UnorderedIntMap v1 -> UnorderedIntMap v2
+mapWithKey :: Coercible key Int => (key -> v1 -> v2) -> UnorderedIntMap v1 -> UnorderedIntMap v2
 mapWithKey f = go
   where
     go Empty = Empty
-    go (Leaf (L k v)) = Leaf $ L k (f k v)
+    go (Leaf (L k v)) = Leaf $ L k (f (coerce k) v)
     go (BitmapIndexed b ary) = BitmapIndexed b $ A.map' go ary
     go (Full ary) = Full $ A.map' go ary
 {-# INLINE mapWithKey #-}
 
 -- | /O(n)/ Transform this map by applying a function to every value.
-map :: (v1 -> v2) -> UnorderedIntMap v1 -> UnorderedIntMap v2
-map f = mapWithKey (const f)
+map :: forall v1 v2 . (v1 -> v2) -> UnorderedIntMap v1 -> UnorderedIntMap v2
+map f = mapWithKey (const f :: Int -> v1 -> v2)
 {-# INLINE map #-}
 
 -- TODO: We should be able to use mutation to create the new
@@ -750,12 +755,12 @@ map f = mapWithKey (const f)
 
 -- | /O(n)/ Transform this map by accumulating an Applicative result
 -- from every value.
-traverseWithKey :: Applicative f => (Int -> v1 -> f v2) -> UnorderedIntMap v1
+traverseWithKey :: (Coercible key Int, Applicative f) => (key -> v1 -> f v2) -> UnorderedIntMap v1
                 -> f (UnorderedIntMap v2)
 traverseWithKey f = go
   where
     go Empty                 = pure Empty
-    go (Leaf (L k v))      = Leaf . L k <$> f k v
+    go (Leaf (L k v))      = Leaf . L k <$> f (coerce k) v
     go (BitmapIndexed b ary) = BitmapIndexed b <$> A.traverse go ary
     go (Full ary)            = Full <$> A.traverse go ary
 {-# INLINE traverseWithKey #-}
@@ -810,12 +815,12 @@ intersectionWith f a b = foldlWithKey' go empty a
 -- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
-intersectionWithKey :: (Int -> v1 -> v2 -> v3)
+intersectionWithKey :: Coercible key Int => (key -> v1 -> v2 -> v3)
                     -> UnorderedIntMap v1 -> UnorderedIntMap v2 -> UnorderedIntMap v3
 intersectionWithKey f a b = foldlWithKey' go empty a
   where
     go m k v = case lookup k b of
-                 Just w -> insert k (f k v w) m
+                 Just w -> insert k (f (coerce k) v w) m
                  _      -> m
 {-# INLINABLE intersectionWithKey #-}
 
@@ -963,8 +968,8 @@ keys = L.map fst . toList
 
 -- | /O(n)/ Return a list of this map's values.  The list is produced
 -- lazily.
-elems :: UnorderedIntMap v -> [v]
-elems = L.map snd . toList
+elems :: forall v. UnorderedIntMap v -> [v]
+elems = L.map snd . (toList :: UnorderedIntMap v -> [(Int, v)])
 {-# INLINE elems #-}
 
 ------------------------------------------------------------------------
@@ -973,7 +978,7 @@ elems = L.map snd . toList
 -- | /O(n)/ Return a list of this map's elements.  The list is
 -- produced lazily. The order of its elements is unspecified.
 toList :: UnorderedIntMap v -> [(Int, v)]
-toList t = build (\ c z -> foldrWithKey (curry c) z t)
+toList t = build (\ c z -> foldrWithKey (\k v a -> c (k, v) a) z t)
 {-# INLINE toList #-}
 
 -- | /O(n)/ Construct a map with the supplied mappings.  If the list
@@ -984,8 +989,8 @@ fromList = L.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
 -- the provided function to merge duplicate entries.
-fromListWith :: (v -> v -> v) -> [(Int, v)] -> UnorderedIntMap v
-fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
+fromListWith :: Coercible key Int => (v -> v -> v) -> [(key, v)] -> UnorderedIntMap v
+fromListWith f = L.foldl' (\ m (coerce -> k :: Int, v) -> unsafeInsertWith f k v m) empty
 {-# INLINE fromListWith #-}
 
 ------------------------------------------------------------------------
@@ -1004,8 +1009,8 @@ indexOf k0 ary0 = go k0 ary0 0 (A.length ary0)
                 | otherwise -> go k ary (i+1) n
 {-# INLINABLE indexOf #-}
 
-updateOrConcatWith :: (v -> v -> v) -> A.Array (Leaf v) -> A.Array (Leaf v) -> A.Array (Leaf v)
-updateOrConcatWith f = updateOrConcatWithKey (const f)
+updateOrConcatWith :: forall v. (v -> v -> v) -> A.Array (Leaf v) -> A.Array (Leaf v) -> A.Array (Leaf v)
+updateOrConcatWith f = updateOrConcatWithKey (const f :: Int -> v -> v -> v)
 {-# INLINABLE updateOrConcatWith #-}
 
 updateOrConcatWithKey :: (Int -> v -> v -> v) -> A.Array (Leaf v) -> A.Array (Leaf v) -> A.Array (Leaf v)
