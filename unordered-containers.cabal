@@ -31,6 +31,7 @@ library
     Data.HashMap.Lazy
     Data.HashMap.Strict
     Data.HashSet
+    Data.UnorderedIntMap
   other-modules:
     Data.HashMap.Array
     Data.HashMap.Base
@@ -50,6 +51,23 @@ library
   ghc-options: -feager-blackholing
   if flag(debug)
     cpp-options: -DASSERTS
+
+test-suite unorderedintmap-properties
+  hs-source-dirs: tests
+  main-is: UnorderedIntMapProperties.hs
+  type: exitcode-stdio-1.0
+
+  build-depends:
+    base,
+    containers >= 0.4,
+    hashable >= 1.0.1.1,
+    QuickCheck >= 2.4.0.1,
+    test-framework >= 0.3.3,
+    test-framework-quickcheck2 >= 0.2.9,
+    unordered-containers
+
+  ghc-options: -Wall
+  cpp-options: -DASSERTS
 
 test-suite hashmap-lazy-properties
   hs-source-dirs: tests

@@ -10,6 +10,7 @@ import Data.Hashable (Hashable)
 import qualified Data.ByteString as BS
 import qualified "hashmap" Data.HashMap as IHM
 import qualified Data.HashMap.Strict as HM
+import qualified Data.UnorderedIntMap as UIM
 import qualified Data.IntMap as IM
 import qualified Data.Map as M
 import Data.List (foldl')
@@ -62,6 +63,7 @@ data Env = Env {
     m     :: !(M.Map String Int),
     mbs   :: !(M.Map BS.ByteString Int),
     im    :: !(IM.IntMap Int),
+    him   :: !(UIM.UnorderedIntMap Int),
     ihm   :: !(IHM.Map String Int),
     ihmbs :: !(IHM.Map BS.ByteString Int)
     } deriving Generic
@@ -98,6 +100,7 @@ setupEnv = do
         m    = M.fromList elems
         mbs  = M.fromList elemsBS
         im   = IM.fromList elemsI
+        him  = UIM.fromList elemsI
         ihm  = IHM.fromList elems
         ihmbs = IHM.fromList elemsBS
     return Env{..}
@@ -182,7 +185,8 @@ main = do
           ]
 
           -- ** IntMap
-        , env setupEnv $ \ ~(Env{..}) ->
+         ,
+          env setupEnv $ \ ~(Env{..}) ->
           bgroup "IntMap"
           [ bench "lookup" $ whnf (lookupIM keysI) im
           , bench "lookup-miss" $ whnf (lookupIM keysI') im
@@ -192,6 +196,20 @@ main = do
           , bench "delete-miss" $ whnf (deleteIM keysI') im
           , bench "size" $ whnf IM.size im
           , bench "fromList" $ whnf IM.fromList elemsI
+          ]
+
+          ,
+
+          env setupEnv $ \ ~(Env{..}) ->
+          bgroup "UnorderedIntMap"
+          [ bench "lookup" $ whnf (lookupUIM keysI) him
+          , bench "lookup-miss" $ whnf (lookupUIM keysI') him
+          , bench "insert" $ whnf (insertUIM elemsI) UIM.empty
+          , bench "insert-dup" $ whnf (insertUIM elemsI) him
+          , bench "delete" $ whnf (deleteUIM keysI) him
+          , bench "delete-miss" $ whnf (deleteUIM keysI') him
+          , bench "size" $ whnf UIM.size him
+          , bench "fromList" $ whnf UIM.fromList elemsI
           ]
 
         , env setupEnv $ \ ~(Env{..}) ->
@@ -366,3 +384,15 @@ insertIM xs m0 = foldl' (\m (k, v) -> IM.insert k v m) m0 xs
 
 deleteIM :: [Int] -> IM.IntMap Int -> IM.IntMap Int
 deleteIM xs m0 = foldl' (\m k -> IM.delete k m) m0 xs
+
+------------------------------------------------------------------------
+-- * UnorderedIntMap
+
+lookupUIM :: [Int] -> UIM.UnorderedIntMap Int -> Int
+lookupUIM xs m = foldl' (\z k -> fromMaybe z (UIM.lookup k m)) 0 xs
+
+insertUIM :: [(Int, Int)] -> UIM.UnorderedIntMap Int -> UIM.UnorderedIntMap Int
+insertUIM xs m0 = foldl' (\m (k, v) -> UIM.insert k v m) m0 xs
+
+deleteUIM :: [Int] -> UIM.UnorderedIntMap Int -> UIM.UnorderedIntMap Int
+deleteUIM xs m0 = foldl' (\m k -> UIM.delete k m) m0 xs
