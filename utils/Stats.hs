@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 module Stats where
@@ -5,7 +6,7 @@ module Stats where
 import qualified Data.HashMap.Array as A
 import Data.HashMap.Base (HashMap(..))
 import qualified Data.HashMap.Base as HM
-import Data.Monoid
+import Data.Semigroup
 
 data Histogram = H {
       empty         :: !Int
@@ -15,15 +16,20 @@ data Histogram = H {
     , collision     :: !Int
     } deriving Show
 
-instance Monoid Histogram where
-    mempty = H 0 0 0 0 0
-    mappend h1 h2 = H {
+instance Semigroup Histogram where
+    h1 <> h2 = H {
           empty         = empty h1 + empty h2
         , leaf          = leaf h1 + leaf h2
         , bitmapIndexed = bitmapIndexed h1 + bitmapIndexed h2
         , full          = full h1 + full h2
         , collision     = collision h1 + collision h2
         }
+
+instance Monoid Histogram where
+    mempty = H 0 0 0 0 0
+#if __GLASGOW_HASKELL__ < 803
+    mappend = (<>)
+#endif
 
 -- | Count the number of node types at each level
 nodeHistogram :: HM.HashMap k v -> [Histogram]
