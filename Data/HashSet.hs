@@ -77,7 +77,8 @@ import Data.Data hiding (Typeable)
 import Data.HashMap.Base (HashMap, foldrWithKey, equalKeys)
 import Data.Hashable (Hashable(hashWithSalt))
 #if __GLASGOW_HASKELL__ >= 711
-import Data.Semigroup (Semigroup(..), Monoid(..))
+import Data.Semigroup (Semigroup(..))
+import Data.Monoid (Monoid(..))
 #elif __GLASGOW_HASKELL__ < 709
 import Data.Monoid (Monoid(..))
 #endif
