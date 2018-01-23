@@ -19,6 +19,7 @@ module Data.HashMap.Base
     , size
     , member
     , lookup
+    , findWithDefault
     , lookupDefault
     , (!)
     , insert
@@ -450,13 +451,25 @@ lookup k0 m0 = go h0 k0 0 m0
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
+--
+-- @since 0.2.9
+findWithDefault :: (Eq k, Hashable k)
+              => v          -- ^ Default value to return.
+              -> k -> HashMap k v -> v
+findWithDefault def k t = case lookup k t of
+    Just v -> v
+    _      -> def
+{-# INLINABLE findWithDefault #-}
+
+
+-- | /O(log n)/ Return the value to which the specified key is mapped,
+-- or the default value if this map contains no mapping for the key.
+{-# DEPRECATED lookupDefault "As of version 0.2.9, replaced by 'findWithDefault'." #-}
 lookupDefault :: (Eq k, Hashable k)
               => v          -- ^ Default value to return.
               -> k -> HashMap k v -> v
-lookupDefault def k t = case lookup k t of
-    Just v -> v
-    _      -> def
-{-# INLINABLE lookupDefault #-}
+lookupDefault def k t = findWithDefault def k t
+{-# INLINE lookupDefault #-}
 
 -- | /O(log n)/ Return the value to which the specified key is mapped.
 -- Calls 'error' if this map contains no mapping for the key.

@@ -38,6 +38,7 @@ module Data.HashMap.Lazy
     , size
     , member
     , HM.lookup
+    , findWithDefault
     , lookupDefault
     , (!)
     , insert
