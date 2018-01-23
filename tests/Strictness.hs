@@ -7,7 +7,7 @@ import Data.Hashable (Hashable(hashWithSalt))
 import Test.ChasingBottoms.IsBottom
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
-import Test.QuickCheck (Arbitrary(arbitrary), Property, (===), (.&&.))
+import Test.QuickCheck (Arbitrary(arbitrary), CoArbitrary, Property, (===), (.&&.))
 import Test.QuickCheck.Function
 import Test.QuickCheck.Poly (A)
 import Data.Maybe (fromMaybe, isJust)
@@ -25,7 +25,10 @@ import qualified Data.HashMap.Strict as HM
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Eq, Ord, Show)
+            deriving (Arbitrary, CoArbitrary, Eq, Ord, Show)
+
+instance Function Key where
+  function = functionMap unK K
 
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
@@ -71,23 +74,25 @@ pInsertKeyStrict v m = isBottom $ HM.insert bottom v m
 pInsertValueStrict :: Key -> HashMap Key Int -> Bool
 pInsertValueStrict k m = isBottom $ HM.insert k bottom m
 
-pInsertWithKeyStrict :: (Int -> Int -> Int) -> Int -> HashMap Key Int -> Bool
-pInsertWithKeyStrict f v m = isBottom $ HM.insertWith f bottom v m
+pInsertWithKeyStrict :: Fun (Int, Int) Int -> Int -> HashMap Key Int -> Bool
+pInsertWithKeyStrict f v m =
+  isBottom $ HM.insertWith (curry . apply $ f) bottom v m
 
-pInsertWithValueStrict :: (Int -> Int -> Int) -> Key -> Int -> HashMap Key Int
+pInsertWithValueStrict :: Fun (Int, Int) Int -> Key -> Int -> HashMap Key Int
                        -> Bool
 pInsertWithValueStrict f k v m
     | HM.member k m = isBottom $ HM.insertWith (const2 bottom) k v m
-    | otherwise     = isBottom $ HM.insertWith f k bottom m
+    | otherwise     = isBottom $ HM.insertWith (curry . apply $ f) k bottom m
 
-pInsertWithKeyKeyStrict :: (Key -> Int -> Int -> Int) -> Int -> HashMap Key Int -> Bool
-pInsertWithKeyKeyStrict f v m = isBottom $ HM.insertWithKey f bottom v m
+pInsertWithKeyKeyStrict :: Fun (Key, (Int, Int)) Int -> Int -> HashMap Key Int -> Bool
+pInsertWithKeyKeyStrict f v m =
+  isBottom $ HM.insertWithKey (curry . curry (apply f)) bottom v m
 
-pInsertWithKeyValueStrict :: (Key -> Int -> Int -> Int) -> Key -> Int -> HashMap Key Int
+pInsertWithKeyValueStrict :: Fun (Key, (Int, Int)) Int -> Key -> Int -> HashMap Key Int
                           -> Bool
 pInsertWithKeyValueStrict f k v m
     | HM.member k m = isBottom $ HM.insertWithKey (const2 bottom) k v m
-    | otherwise     = isBottom $ HM.insertWithKey f k bottom m
+    | otherwise     = isBottom $ HM.insertWithKey (curry . curry (apply f)) k bottom m
 
 pFromListKeyStrict :: Bool
 pFromListKeyStrict = isBottom $ HM.fromList [(undefined :: Key, 1 :: Int)]

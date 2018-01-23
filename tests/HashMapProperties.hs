@@ -17,14 +17,17 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Lazy as HM
 #endif
 import qualified Data.Map as M
-import Test.QuickCheck (Arbitrary, Property, (==>), (===))
-import Test.QuickCheck.Function (Fun, apply)
+import Test.QuickCheck (Arbitrary, CoArbitrary, Property, (==>), (===))
+import Test.QuickCheck.Function (Fun, Function(function), apply, functionMap)
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Eq, Ord, Read, Show)
+            deriving (Arbitrary, CoArbitrary, Eq, Ord, Read, Show)
+
+instance Function Key where
+    function = functionMap unK K
 
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
@@ -153,9 +156,9 @@ pInsertWith f k =
   M.insertWith f' k 1 `eq_` HM.insertWith f' k 1
   where f' = curry . apply $ f
 
-pInsertWithKey :: Fun (Int, Int, Int) Int -> Key -> [(Key, Int)] -> Bool
+pInsertWithKey :: Fun (Key, (Int, Int)) Int -> Key -> [(Key, Int)] -> Bool
 pInsertWithKey f k = M.insertWithKey f' k 1 `eq_` HM.insertWithKey f' k 1
-  where f' k' v1 v2 = apply f (unK k', v1, v2)
+  where f' = curry . curry (apply f)
 
 pAdjust :: Key -> [(Key, Int)] -> Bool
 pAdjust k = M.adjust succ k `eq_` HM.adjust succ k
