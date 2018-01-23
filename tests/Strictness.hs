@@ -8,7 +8,7 @@ import Test.ChasingBottoms.IsBottom
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck (Arbitrary(arbitrary), CoArbitrary, Property, (===), (.&&.))
-import Test.QuickCheck.Function
+import Test.QuickCheck.Function (Fun(Fun), Function(function), functionMap)
 import Test.QuickCheck.Poly (A)
 import Data.Maybe (fromMaybe, isJust)
 import Control.Arrow (second)
@@ -27,11 +27,11 @@ import qualified Data.HashMap.Strict as HM
 newtype Key = K { unK :: Int }
             deriving (Arbitrary, CoArbitrary, Eq, Ord, Show)
 
-instance Function Key where
-  function = functionMap unK K
-
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
+
+instance Function Key where
+  function = functionMap unK K
 
 instance (Arbitrary k, Arbitrary v, Eq k, Hashable k) =>
          Arbitrary (HashMap k v) where
@@ -42,6 +42,16 @@ instance Show (Int -> Int) where
 
 instance Show (Int -> Int -> Int) where
     show _ = "<function>"
+
+-- | Extracts the value of a ternary function.
+-- Copied from Test.QuickCheck.Function.applyFun3
+applyFun2 :: Fun (a, b) c -> (a -> b -> c)
+applyFun2 (Fun _ f) a b = f (a, b)
+
+-- | Extracts the value of a ternary function.
+-- Copied from Test.QuickCheck.Function.applyFun3
+applyFun3 :: Fun (a, b, c) d -> (a -> b -> c -> d)
+applyFun3 (Fun _ f) a b c = f (a, b, c)
 
 ------------------------------------------------------------------------
 -- * Properties
@@ -76,18 +86,13 @@ pInsertValueStrict k m = isBottom $ HM.insert k bottom m
 
 pInsertWithKeyStrict :: Fun (Int, Int) Int -> Int -> HashMap Key Int -> Bool
 pInsertWithKeyStrict f v m =
-  isBottom $ HM.insertWith (curry . apply $ f) bottom v m
+  isBottom $ HM.insertWith (applyFun2 f) bottom v m
 
 pInsertWithValueStrict :: Fun (Int, Int) Int -> Key -> Int -> HashMap Key Int
                        -> Bool
 pInsertWithValueStrict f k v m
     | HM.member k m = isBottom $ HM.insertWith (const2 bottom) k v m
-    | otherwise     = isBottom $ HM.insertWith (curry . apply $ f) k bottom m
-
--- | Extracts the value of a ternary function.
--- Copied from Test.QuickCheck.Function.applyFun3
-applyFun3 :: Fun (a, b, c) d -> (a -> b -> c -> d)
-applyFun3 (Fun _ f) a b c = f (a, b, c)
+    | otherwise     = isBottom $ HM.insertWith (applyFun2 f) k bottom m
 
 pInsertWithKeyKeyStrict :: Fun (Key, Int, Int) Int -> Int -> HashMap Key Int -> Bool
 pInsertWithKeyKeyStrict f v m =
@@ -149,11 +154,11 @@ pFromListWithValueResultStrict lst comb_lazy calc_good_raw
     calc_good Nothing y@(Just _) = cgr Nothing Nothing || cgr Nothing y
     calc_good x@(Just _) Nothing = cgr Nothing Nothing || cgr x Nothing
     calc_good x y = cgr Nothing Nothing || cgr Nothing y || cgr x Nothing || cgr x y
-    cgr = curry $ apply calc_good_raw
+    cgr = applyFun2 calc_good_raw
 
     -- The Maybe A -> Maybe A -> Maybe A that we're after, representing a
     -- potentially less total function than comb_lazy
-    comb x y = apply comb_lazy (x, y) <$ guard (calc_good x y)
+    comb x y = applyFun2 comb_lazy x y <$ guard (calc_good x y)
 
     -- What we get out of the conversion using fromListWith
     real_map = HM.fromListWith real_comb real_list

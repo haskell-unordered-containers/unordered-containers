@@ -18,7 +18,7 @@ import qualified Data.HashMap.Lazy as HM
 #endif
 import qualified Data.Map as M
 import Test.QuickCheck (Arbitrary, CoArbitrary, Property, (==>), (===))
-import Test.QuickCheck.Function (Fun(Fun), Function(function), apply, functionMap)
+import Test.QuickCheck.Function (Fun(Fun), Function(function), functionMap)
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 
@@ -26,11 +26,21 @@ import Test.Framework.Providers.QuickCheck2 (testProperty)
 newtype Key = K { unK :: Int }
             deriving (Arbitrary, CoArbitrary, Eq, Ord, Read, Show)
 
+instance Hashable Key where
+    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
+
 instance Function Key where
     function = functionMap unK K
 
-instance Hashable Key where
-    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
+-- | Extracts the value of a ternary function.
+-- Copied from Test.QuickCheck.Function.applyFun3
+applyFun2 :: Fun (a, b) c -> (a -> b -> c)
+applyFun2 (Fun _ f) a b = f (a, b)
+
+-- | Extracts the value of a ternary function.
+-- Copied from Test.QuickCheck.Function.applyFun3
+applyFun3 :: Fun (a, b, c) d -> (a -> b -> c -> d)
+applyFun3 (Fun _ f) a b c = f (a, b, c)
 
 ------------------------------------------------------------------------
 -- * Properties
@@ -153,17 +163,11 @@ pDeleteCollision k1 k2 k3 idx = (k1 /= k2) && (k2 /= k3) && (k1 /= k3) ==>
 
 pInsertWith :: Fun (Int, Int) Int -> Key -> [(Key, Int)] -> Bool
 pInsertWith f k =
-  M.insertWith f' k 1 `eq_` HM.insertWith f' k 1
-  where f' = curry . apply $ f
-
--- | Extracts the value of a ternary function.
--- Copied from Test.QuickCheck.Function.applyFun3
-applyFun3 :: Fun (a, b, c) d -> (a -> b -> c -> d)
-applyFun3 (Fun _ f) a b c = f (a, b, c)
+  M.insertWith (applyFun2 f) k 1 `eq_` HM.insertWith (applyFun2 f) k 1
 
 pInsertWithKey :: Fun (Key, Int, Int) Int -> Key -> [(Key, Int)] -> Bool
-pInsertWithKey f k = M.insertWithKey f' k 1 `eq_` HM.insertWithKey f' k 1
-  where f' = applyFun3 f
+pInsertWithKey f k =
+  M.insertWithKey (applyFun3 f) k 1 `eq_` HM.insertWithKey (applyFun3 f) k 1
 
 pAdjust :: Key -> [(Key, Int)] -> Bool
 pAdjust k = M.adjust succ k `eq_` HM.adjust succ k
