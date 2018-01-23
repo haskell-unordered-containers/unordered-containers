@@ -19,6 +19,7 @@ module Data.HashMap.Base
     , size
     , member
     , lookup
+    , (!?)
     , lookupDefault
     , (!)
     , insert
@@ -447,6 +448,17 @@ lookup k0 m0 = go h0 k0 0 m0
         | h == hx   = lookupInArray k v
         | otherwise = Nothing
 {-# INLINABLE lookup #-}
+
+-- | /O(log n)/ Return the value to which the specified key is mapped,
+-- or 'Nothing' if this map contains no mapping for the key.
+--
+-- This is a flipped version of 'lookup'.
+--
+-- @since 0.2.9
+(!?) :: (Eq k, Hashable k) => HashMap k v -> k -> Maybe v
+(!?) m k = lookup k m
+{-# INLINE (!?) #-}
+
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
