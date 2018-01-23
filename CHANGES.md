@@ -4,6 +4,7 @@
  * Remove support for GHC versions before 7.8. (Thanks, Dmitry Ivanov!)
  * Use `SmallArray#` instead of `Array#` for GHC versions 7.10 and above.
    (Thanks, Dmitry Ivanov!)
+ * Add `HashMap.!?`, a flipped version of `lookup`.
 
 ## 0.2.8.0
 
