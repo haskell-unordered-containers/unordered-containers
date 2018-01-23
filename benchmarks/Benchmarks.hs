@@ -217,6 +217,16 @@ main = do
             , bench "ByteString" $ whnf (insert elemsBS) hmbs
             , bench "Int" $ whnf (insert elemsI) hmi
             ]
+          , bgroup "insertWith"
+            [ bench "String" $ whnf (insertWith elems) HM.empty
+            , bench "ByteString" $ whnf (insertWith elemsBS) HM.empty
+            , bench "Int" $ whnf (insertWith elemsI) HM.empty
+            ]
+          , bgroup "insertWithKey"
+            [ bench "String" $ whnf (insertWithKey elems) HM.empty
+            , bench "ByteString" $ whnf (insertWithKey elemsBS) HM.empty
+            , bench "Int" $ whnf (insertWithKey elemsI) HM.empty
+            ]
           , bgroup "delete"
             [ bench "String" $ whnf (delete keys) hm
             , bench "ByteString" $ whnf (delete keysBS) hmbs
@@ -301,6 +311,27 @@ insert xs m0 = foldl' (\m (k, v) -> HM.insert k v m) m0 xs
                       -> HM.HashMap String Int #-}
 {-# SPECIALIZE insert :: [(BS.ByteString, Int)] -> HM.HashMap BS.ByteString Int
                       -> HM.HashMap BS.ByteString Int #-}
+
+insertWith :: (Eq k, Hashable k) => [(k, Int)] -> HM.HashMap k Int
+       -> HM.HashMap k Int
+insertWith xs m0 = foldl' (\m (k, v) -> HM.insertWith (+) k v m) m0 xs
+{-# SPECIALIZE insertWith :: [(Int, Int)] -> HM.HashMap Int Int
+                          -> HM.HashMap Int Int #-}
+{-# SPECIALIZE insertWith :: [(String, Int)] -> HM.HashMap String Int
+                          -> HM.HashMap String Int #-}
+{-# SPECIALIZE insertWith :: [(BS.ByteString, Int)] -> HM.HashMap BS.ByteString Int
+                          -> HM.HashMap BS.ByteString Int #-}
+
+insertWithKey :: (Eq k, Hashable k) => [(k, Int)] -> HM.HashMap k Int
+              -> HM.HashMap k Int
+insertWithKey xs m0 = foldl' (\m (k, v) -> HM.insertWithKey f k v m) m0 xs
+  where f = const (+)
+{-# SPECIALIZE insertWithKey :: [(Int, Int)] -> HM.HashMap Int Int
+                             -> HM.HashMap Int Int #-}
+{-# SPECIALIZE insertWithKey :: [(String, Int)] -> HM.HashMap String Int
+                             -> HM.HashMap String Int #-}
+{-# SPECIALIZE insertWithKey :: [(BS.ByteString, Int)] -> HM.HashMap BS.ByteString Int
+                             -> HM.HashMap BS.ByteString Int #-}
 
 delete :: (Eq k, Hashable k) => [k] -> HM.HashMap k Int -> HM.HashMap k Int
 delete xs m0 = foldl' (\m k -> HM.delete k m) m0 xs
