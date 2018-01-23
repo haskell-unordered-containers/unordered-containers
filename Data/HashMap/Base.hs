@@ -590,7 +590,7 @@ two = go
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
             -> HashMap k v
 insertWith f k v m = insertWithKey (const f) k v m
-{-# INLINABLE insertWith #-}
+{-# INLINE insertWith #-}
 
 -- | In-place update version of insertWith
 unsafeInsertWith :: forall k v. (Eq k, Hashable k)
