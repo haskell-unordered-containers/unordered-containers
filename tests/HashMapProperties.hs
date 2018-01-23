@@ -18,7 +18,7 @@ import qualified Data.HashMap.Lazy as HM
 #endif
 import qualified Data.Map as M
 import Test.QuickCheck (Arbitrary, CoArbitrary, Property, (==>), (===))
-import Test.QuickCheck.Function (Fun, Function(function), apply, functionMap)
+import Test.QuickCheck.Function (Fun(Fun), Function(function), apply, functionMap)
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 
@@ -156,9 +156,14 @@ pInsertWith f k =
   M.insertWith f' k 1 `eq_` HM.insertWith f' k 1
   where f' = curry . apply $ f
 
-pInsertWithKey :: Fun (Key, (Int, Int)) Int -> Key -> [(Key, Int)] -> Bool
+-- | Extracts the value of a ternary function.
+-- Copied from Test.QuickCheck.Function.applyFun3
+applyFun3 :: Fun (a, b, c) d -> (a -> b -> c -> d)
+applyFun3 (Fun _ f) a b c = f (a, b, c)
+
+pInsertWithKey :: Fun (Key, Int, Int) Int -> Key -> [(Key, Int)] -> Bool
 pInsertWithKey f k = M.insertWithKey f' k 1 `eq_` HM.insertWithKey f' k 1
-  where f' = curry . curry (apply f)
+  where f' = applyFun3 f
 
 pAdjust :: Key -> [(Key, Int)] -> Bool
 pAdjust k = M.adjust succ k `eq_` HM.adjust succ k

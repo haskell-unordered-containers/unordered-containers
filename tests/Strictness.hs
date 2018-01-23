@@ -84,15 +84,20 @@ pInsertWithValueStrict f k v m
     | HM.member k m = isBottom $ HM.insertWith (const2 bottom) k v m
     | otherwise     = isBottom $ HM.insertWith (curry . apply $ f) k bottom m
 
-pInsertWithKeyKeyStrict :: Fun (Key, (Int, Int)) Int -> Int -> HashMap Key Int -> Bool
-pInsertWithKeyKeyStrict f v m =
-  isBottom $ HM.insertWithKey (curry . curry (apply f)) bottom v m
+-- | Extracts the value of a ternary function.
+-- Copied from Test.QuickCheck.Function.applyFun3
+applyFun3 :: Fun (a, b, c) d -> (a -> b -> c -> d)
+applyFun3 (Fun _ f) a b c = f (a, b, c)
 
-pInsertWithKeyValueStrict :: Fun (Key, (Int, Int)) Int -> Key -> Int -> HashMap Key Int
+pInsertWithKeyKeyStrict :: Fun (Key, Int, Int) Int -> Int -> HashMap Key Int -> Bool
+pInsertWithKeyKeyStrict f v m =
+  isBottom $ HM.insertWithKey (applyFun3 f) bottom v m
+
+pInsertWithKeyValueStrict :: Fun (Key, Int, Int) Int -> Key -> Int -> HashMap Key Int
                           -> Bool
 pInsertWithKeyValueStrict f k v m
-    | HM.member k m = isBottom $ HM.insertWithKey (const2 bottom) k v m
-    | otherwise     = isBottom $ HM.insertWithKey (curry . curry (apply f)) k bottom m
+    | HM.member k m = isBottom $ HM.insertWithKey (const3 bottom) k v m
+    | otherwise     = isBottom $ HM.insertWithKey (applyFun3 f) k bottom m
 
 pFromListKeyStrict :: Bool
 pFromListKeyStrict = isBottom $ HM.fromList [(undefined :: Key, 1 :: Int)]
@@ -206,3 +211,6 @@ keyStrict f m = isBottom $ f bottom m
 
 const2 :: a -> b -> c -> a
 const2 x _ _ = x
+
+const3 :: a -> b -> c -> d -> a
+const3 x _ _ _ = x
