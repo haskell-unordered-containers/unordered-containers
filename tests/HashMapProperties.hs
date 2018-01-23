@@ -18,6 +18,7 @@ import qualified Data.HashMap.Lazy as HM
 #endif
 import qualified Data.Map as M
 import Test.QuickCheck (Arbitrary, Property, (==>), (===))
+import Test.QuickCheck.Function (Fun, apply)
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 
@@ -147,12 +148,14 @@ pDeleteCollision k1 k2 k3 idx = (k1 /= k2) && (k2 /= k3) && (k1 /= k3) ==>
         | which == 2 = k1
         | otherwise = error "Impossible"
 
-pInsertWith :: Key -> [(Key, Int)] -> Bool
-pInsertWith k = M.insertWith (+) k 1 `eq_` HM.insertWith (+) k 1
+pInsertWith :: Fun (Int, Int) Int -> Key -> [(Key, Int)] -> Bool
+pInsertWith f k =
+  M.insertWith f' k 1 `eq_` HM.insertWith f' k 1
+  where f' = curry . apply $ f
 
-pInsertWithKey :: Key -> [(Key, Int)] -> Bool
-pInsertWithKey k = M.insertWithKey f k 1 `eq_` HM.insertWithKey f k 1
-  where f (K k') a b = if k' >= 0 then a else b
+pInsertWithKey :: Fun (Int, Int, Int) Int -> Key -> [(Key, Int)] -> Bool
+pInsertWithKey f k = M.insertWithKey f' k 1 `eq_` HM.insertWithKey f' k 1
+  where f' k' v1 v2 = apply f (unK k', v1, v2)
 
 pAdjust :: Key -> [(Key, Int)] -> Bool
 pAdjust k = M.adjust succ k `eq_` HM.adjust succ k
