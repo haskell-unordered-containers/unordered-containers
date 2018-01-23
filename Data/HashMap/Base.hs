@@ -23,6 +23,7 @@ module Data.HashMap.Base
     , (!)
     , insert
     , insertWith
+    , insertWithKey
     , unsafeInsert
     , delete
     , adjust
@@ -654,6 +655,48 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsertWith #-}
+
+-- | /O(log n)/ Associate the value with the key in this map.  If this map
+-- previously contained a mapping for the key, the old value is replaced by the
+-- result of applying the given function to the key, the new value, and the old
+-- value.
+--
+-- ==== __Examples__
+--
+-- > insertWithKey f k v map
+-- >   where f k new old = if someCondition k then new else old
+insertWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> k -> v -> HashMap k v
+               -> HashMap k v
+insertWithKey f k0 v0 m0 = go h0 k0 v0 0 m0
+  where
+    h0 = hash k0
+    go !h !k x !_ Empty = Leaf h (L k x)
+    go h k x s (Leaf hy l@(L ky y))
+        | hy == h = if ky == k
+                    then Leaf h (L k (f k x y))
+                    else collision h l (L k x)
+        | otherwise = runST (two s h k x hy ky y)
+    go h k x s (BitmapIndexed b ary)
+        | b .&. m == 0 =
+            let ary' = A.insert ary i $! Leaf h (L k x)
+            in bitmapIndexedOrFull (b .|. m) ary'
+        | otherwise =
+            let st   = A.index ary i
+                st'  = go h k x (s+bitsPerSubkey) st
+                ary' = A.update ary i $! st'
+            in BitmapIndexed b ary'
+      where m = mask h s
+            i = sparseIndex b m
+    go h k x s (Full ary) =
+        let st   = A.index ary i
+            st'  = go h k x (s+bitsPerSubkey) st
+            ary' = update16 ary i $! st'
+        in Full ary'
+      where i = index h s
+    go h k x s t@(Collision hy v)
+        | h == hy   = Collision h (updateOrSnocWithKey f k x v)
+        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+{-# INLINABLE insertWithKey #-}
 
 -- | /O(log n)/ Remove the mapping for the specified key from this map
 -- if present.

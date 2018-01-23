@@ -150,6 +150,10 @@ pDeleteCollision k1 k2 k3 idx = (k1 /= k2) && (k2 /= k3) && (k1 /= k3) ==>
 pInsertWith :: Key -> [(Key, Int)] -> Bool
 pInsertWith k = M.insertWith (+) k 1 `eq_` HM.insertWith (+) k 1
 
+pInsertWithKey :: Key -> [(Key, Int)] -> Bool
+pInsertWithKey k = M.insertWithKey f k 1 `eq_` HM.insertWithKey f k 1
+  where f (K k') a b = if k' >= 0 then a else b
+
 pAdjust :: Key -> [(Key, Int)] -> Bool
 pAdjust k = M.adjust succ k `eq_` HM.adjust succ k
 
@@ -311,6 +315,7 @@ tests =
       , testProperty "delete" pDelete
       , testProperty "deleteCollision" pDeleteCollision
       , testProperty "insertWith" pInsertWith
+      , testProperty "insertWithKey" pInsertWithKey
       , testProperty "adjust" pAdjust
       , testProperty "updateAdjust" pUpdateAdjust
       , testProperty "updateDelete" pUpdateDelete

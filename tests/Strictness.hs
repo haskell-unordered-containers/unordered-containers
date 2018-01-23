@@ -80,6 +80,15 @@ pInsertWithValueStrict f k v m
     | HM.member k m = isBottom $ HM.insertWith (const2 bottom) k v m
     | otherwise     = isBottom $ HM.insertWith f k bottom m
 
+pInsertWithKeyKeyStrict :: (Key -> Int -> Int -> Int) -> Int -> HashMap Key Int -> Bool
+pInsertWithKeyKeyStrict f v m = isBottom $ HM.insertWithKey f bottom v m
+
+pInsertWithKeyValueStrict :: (Key -> Int -> Int -> Int) -> Key -> Int -> HashMap Key Int
+                          -> Bool
+pInsertWithKeyValueStrict f k v m
+    | HM.member k m = isBottom $ HM.insertWithKey (const2 bottom) k v m
+    | otherwise     = isBottom $ HM.insertWithKey f k bottom m
+
 pFromListKeyStrict :: Bool
 pFromListKeyStrict = isBottom $ HM.fromList [(undefined :: Key, 1 :: Int)]
 
@@ -169,6 +178,8 @@ tests =
       , testProperty "insert is value-strict" pInsertValueStrict
       , testProperty "insertWith is key-strict" pInsertWithKeyStrict
       , testProperty "insertWith is value-strict" pInsertWithValueStrict
+      , testProperty "insertWithKey is key-strict" pInsertWithKeyKeyStrict
+      , testProperty "insertWithKey is value-strict" pInsertWithKeyValueStrict
       , testProperty "fromList is key-strict" pFromListKeyStrict
       , testProperty "fromList is value-strict" pFromListValueStrict
       , testProperty "fromListWith is key-strict" pFromListWithKeyStrict
