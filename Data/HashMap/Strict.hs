@@ -44,6 +44,7 @@ module Data.HashMap.Strict
     , insertWith
     , delete
     , adjust
+    , adjustWithKey
     , update
     , alter
 
@@ -96,9 +97,9 @@ import Prelude hiding (map)
 import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
-    alter, adjust, fromList, fromListWith, insert, insertWith, differenceWith,
-    intersectionWith, intersectionWithKey, map, mapWithKey, mapMaybe,
-    mapMaybeWithKey, singleton, update, unionWith, unionWithKey)
+    alter, adjust, adjustWithKey, fromList, fromListWith, insert, insertWith,
+    differenceWith, intersectionWith, intersectionWithKey, map, mapWithKey,
+    mapMaybe, mapMaybeWithKey, singleton, update, unionWith, unionWithKey)
 import Data.HashMap.Unsafe (runST)
 
 -- $strictness
@@ -206,12 +207,18 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
 adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
-adjust f k0 m0 = go h0 k0 0 m0
+adjust f = adjustWithKey (const f)
+{-# INLINABLE adjust #-}
+
+-- | /O(log n)/ Adjust the value tied to a given key in this map only
+-- if it is present. Otherwise, leave the map alone.
+adjustWithKey :: (Eq k, Hashable k) => (k -> v -> v) -> k -> HashMap k v -> HashMap k v
+adjustWithKey f k0 m0 = go h0 k0 0 m0
   where
     h0 = hash k0
     go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky y))
-        | hy == h && ky == k = leaf h k (f y)
+        | hy == h && ky == k = leaf h k (f k y)
         | otherwise          = t
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 = t
@@ -228,9 +235,9 @@ adjust f k0 m0 = go h0 k0 0 m0
             ary' = update16 ary i $! st'
         in Full ary'
     go h k _ t@(Collision hy v)
-        | h == hy   = Collision h (updateWith f k v)
+        | h == hy   = Collision h (updateWithKey f k v)
         | otherwise = t
-{-# INLINABLE adjust #-}
+{-# INLINABLE adjustWithKey #-}
 
 -- | /O(log n)/  The expression (@'update' f k map@) updates the value @x@ at @k@,
 -- (if it is in the map). If (f k x) is @'Nothing', the element is deleted.
@@ -459,14 +466,18 @@ fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 -- Array operations
 
 updateWith :: Eq k => (v -> v) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
+updateWith f = updateWithKey (const f)
+{-# INLINABLE updateWith #-}
+
+updateWithKey :: Eq k => (k -> v -> v) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+updateWithKey f k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
         | i >= n    = ary
         | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> let !v' = f y in A.update ary i (L k v')
+            (L kx y) | k == kx   -> let !v' = f k y in A.update ary i (L k v')
                      | otherwise -> go k ary (i+1) n
-{-# INLINABLE updateWith #-}
+{-# INLINABLE updateWithKey #-}
 
 -- | Append the given key and value to the array. If the key is
 -- already present, instead update the value of the key by applying
