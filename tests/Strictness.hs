@@ -7,8 +7,8 @@ import Data.Hashable (Hashable(hashWithSalt))
 import Test.ChasingBottoms.IsBottom
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
-import Test.QuickCheck (Arbitrary(arbitrary), Property, (===), (.&&.))
-import Test.QuickCheck.Function
+import Test.QuickCheck (Arbitrary(arbitrary), CoArbitrary, Property, (===), (.&&.))
+import Test.QuickCheck.Function (Fun(Fun), Function(function), functionMap)
 import Test.QuickCheck.Poly (A)
 import Data.Maybe (fromMaybe, isJust)
 import Control.Arrow (second)
@@ -25,10 +25,13 @@ import qualified Data.HashMap.Strict as HM
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Eq, Ord, Show)
+            deriving (Arbitrary, CoArbitrary, Eq, Ord, Show)
 
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
+
+instance Function Key where
+    function = functionMap unK K
 
 instance (Arbitrary k, Arbitrary v, Eq k, Hashable k) =>
          Arbitrary (HashMap k v) where
@@ -39,6 +42,11 @@ instance Show (Int -> Int) where
 
 instance Show (Int -> Int -> Int) where
     show _ = "<function>"
+
+-- | Extracts the value of a ternary function.
+-- Copied from Test.QuickCheck.Function.applyFun3
+applyFun2 :: Fun (a, b) c -> (a -> b -> c)
+applyFun2 (Fun _ f) a b = f (a, b)
 
 ------------------------------------------------------------------------
 -- * Properties
@@ -60,6 +68,16 @@ pAdjustKeyStrict f m = isBottom $ HM.adjust f bottom m
 
 pAdjustValueStrict :: Key -> HashMap Key Int -> Bool
 pAdjustValueStrict k m
+    | k `HM.member` m = isBottom $ HM.adjust (const bottom) k m
+    | otherwise       = case HM.keys m of
+        []     -> True
+        (k':_) -> isBottom $ HM.adjust (const bottom) k' m
+
+pAdjustWithKeyKeyStrict :: Fun (Key, Int) Int -> HashMap Key Int -> Bool
+pAdjustWithKeyKeyStrict f m = isBottom $ HM.adjustWithKey (applyFun2 f) bottom m
+
+pAdjustWithKeyValueStrict :: Key -> HashMap Key Int -> Bool
+pAdjustWithKeyValueStrict k m
     | k `HM.member` m = isBottom $ HM.adjust (const bottom) k m
     | otherwise       = case HM.keys m of
         []     -> True
@@ -130,11 +148,11 @@ pFromListWithValueResultStrict lst comb_lazy calc_good_raw
     calc_good Nothing y@(Just _) = cgr Nothing Nothing || cgr Nothing y
     calc_good x@(Just _) Nothing = cgr Nothing Nothing || cgr x Nothing
     calc_good x y = cgr Nothing Nothing || cgr Nothing y || cgr x Nothing || cgr x y
-    cgr = curry $ apply calc_good_raw
+    cgr = applyFun2 calc_good_raw
 
     -- The Maybe A -> Maybe A -> Maybe A that we're after, representing a
     -- potentially less total function than comb_lazy
-    comb x y = apply comb_lazy (x, y) <$ guard (calc_good x y)
+    comb x y = applyFun2 comb_lazy x y <$ guard (calc_good x y)
 
     -- What we get out of the conversion using fromListWith
     real_map = HM.fromListWith real_comb real_list
@@ -165,6 +183,8 @@ tests =
       , testProperty "delete is key-strict" $ keyStrict HM.delete
       , testProperty "adjust is key-strict" pAdjustKeyStrict
       , testProperty "adjust is value-strict" pAdjustValueStrict
+      , testProperty "adjustWithKey is key-strict" pAdjustWithKeyKeyStrict
+      , testProperty "adjustWithKey is value-strict" pAdjustWithKeyValueStrict
       , testProperty "insert is key-strict" pInsertKeyStrict
       , testProperty "insert is value-strict" pInsertValueStrict
       , testProperty "insertWith is key-strict" pInsertWithKeyStrict

@@ -17,16 +17,25 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Lazy as HM
 #endif
 import qualified Data.Map as M
-import Test.QuickCheck (Arbitrary, Property, (==>), (===))
+import Test.QuickCheck (Arbitrary, CoArbitrary, Property, (==>), (===))
+import Test.QuickCheck.Function (Fun(Fun), Function(function), functionMap)
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Eq, Ord, Read, Show)
+            deriving (Arbitrary, CoArbitrary, Eq, Ord, Read, Show)
 
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
+
+instance Function Key where
+    function = functionMap unK K
+
+-- | Extracts the value of a ternary function.
+-- Copied from Test.QuickCheck.Function.applyFun3
+applyFun2 :: Fun (a, b) c -> (a -> b -> c)
+applyFun2 (Fun _ f) a b = f (a, b)
 
 ------------------------------------------------------------------------
 -- * Properties
@@ -155,6 +164,10 @@ pAdjust k = M.adjust succ k `eq_` HM.adjust succ k
 
 pUpdateAdjust :: Key -> [(Key, Int)] -> Bool
 pUpdateAdjust k = M.update (Just . succ) k `eq_` HM.update (Just . succ) k
+
+pAdjustWithKey :: Fun (Key, Int) Int -> Key -> [(Key, Int)] -> Bool
+pAdjustWithKey f k =
+    M.adjustWithKey (applyFun2 f) k `eq_` HM.adjustWithKey (applyFun2 f) k
 
 pUpdateDelete :: Key -> [(Key, Int)] -> Bool
 pUpdateDelete k = M.update (const Nothing) k `eq_` HM.update (const Nothing) k
@@ -313,6 +326,7 @@ tests =
       , testProperty "insertWith" pInsertWith
       , testProperty "adjust" pAdjust
       , testProperty "updateAdjust" pUpdateAdjust
+      , testProperty "adjustWithKey" pAdjustWithKey
       , testProperty "updateDelete" pUpdateDelete
       , testProperty "alterAdjust" pAlterAdjust
       , testProperty "alterInsert" pAlterInsert
