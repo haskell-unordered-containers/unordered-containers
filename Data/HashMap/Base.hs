@@ -830,8 +830,8 @@ delete k0 m0 = go h0 k0 0 m0
         let !st   = A.index ary i
             !st' = go h k (s+bitsPerSubkey) st
         in if st' `ptrEq` st
-           then t
-           else case st' of
+            then t
+            else case st' of
             Empty ->
                 let ary' = A.delete ary i
                     bm   = fullNodeMask .&. complement (1 `unsafeShiftL` i)
