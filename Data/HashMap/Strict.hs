@@ -259,7 +259,7 @@ alter f k m =
 -- a value in a map.
 --
 -- Note: 'alterF' is a flipped version of the 'at' combinator from
--- 'Control.Lens.At'.
+-- <https://hackage.haskell.org/package/lens-4.15.4/docs/Control-Lens-At.html#v:at Control.Lens.At>.
 --
 -- @since 0.2.9
 alterF :: (Functor f, Eq k, Hashable k)
@@ -288,7 +288,6 @@ alterF f k m = (<$> f mv) $ \fres ->
 
       -- Key existed before, no hash collision
       Present v collPos ->
-        -- TODO(m-renaud): Verify ptrEq is valid here.
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
