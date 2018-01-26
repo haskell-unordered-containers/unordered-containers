@@ -473,7 +473,7 @@ lookupRecordCollision
   => Hash -> k -> Int -> HashMap k v -> LookupRes v
 lookupRecordCollision !_ !_ !_ Empty = Absent
 lookupRecordCollision h k _ (Leaf hx (L kx x))
-    | h == hx && k == kx = Alone x
+    | h == hx && k == kx = Present x (-1)
     | otherwise          = Absent
 lookupRecordCollision h k s (BitmapIndexed b v)
     | b .&. m == 0 = Absent
@@ -488,7 +488,8 @@ lookupRecordCollision h k _ (Collision hx v)
 {-# INLINABLE lookupRecordCollision #-}
 
 -- The result of a lookup, keeping track of if a hash collision occured.
-data LookupRes a = Absent | Alone a | Collided a !Int
+-- If a collision did not occur then it will have the Int value (-1).
+data LookupRes a = Absent | Present a !Int
 
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
@@ -975,14 +976,11 @@ alterF f k m = (<$> f mv) $ \fres ->
     -- Delete the key from the map.
     Nothing -> case lookupRes of
 
-      -- Key didnot exist in the map to begin with, no-op
+      -- Key did not exist in the map to begin with, no-op
       Absent -> m
 
-      -- Key did exist, no collision
-      Alone _ -> deleteKeyExists (-1) h k 0 m
-
-      -- Key did exist, hash collision at collPos
-      Collided _ collPos -> deleteKeyExists collPos h k 0 m
+      -- Key did exist
+      Present _ collPos -> deleteKeyExists collPos h k 0 m
 
     ------------------------------
     -- Update value
@@ -992,29 +990,19 @@ alterF f k m = (<$> f mv) $ \fres ->
       Absent -> insertNewKey h k v' 0 m
 
       -- Key existed before, no hash collision
-      Alone v ->
+      Present v collPos ->
         -- TODO(m-renaud): Verify ptrEq is valid here.
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
         -- If the value changed, update the value.
-        else insertKeyExists (-1) h k v' 0 m
-
-      -- Key existed before, hash collision at collPos
-      Collided v collPos ->
-        -- TODO(m-renaud): Verify ptrEq is valid here.
-        if v `ptrEq` v'
-        -- If the value is identical, no-op
-        then m
-        -- If the value changed, update the value
         else insertKeyExists collPos h k v' 0 m
 
   where !h = hash k
         lookupRes = lookupRecordCollision h k 0 m
         mv = case lookupRes of
           Absent -> Nothing
-          Alone v -> Just v
-          Collided v _ -> Just v
+          Present v _ -> Just v
 {-# INLINABLE alterF #-}
 
 ------------------------------------------------------------------------
@@ -1478,7 +1466,7 @@ lookupInArrayWithPosition k0 ary0 = go k0 ary0 0 (A.length ary0)
         | i >= n    = Absent
         | otherwise = case A.index ary i of
             (L kx v)
-                | k == kx   -> Collided v i
+                | k == kx   -> Present v i
                 | otherwise -> go k ary (i+1) n
 {-# INLINABLE lookupInArrayWithPosition #-}
 
