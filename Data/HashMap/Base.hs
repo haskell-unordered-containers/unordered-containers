@@ -611,16 +611,15 @@ insertNewKey h k x s t@(Collision hy v)
 {-# INLINABLE insertNewKey #-}
 
 
--- Insert optimized for the case when we know the key is in the map and does not
--- have a hash collision.
+-- Insert optimized for the case when we know the key is in the map.
 --
 -- It is only valid to call this when the key exists in the map and you know the
 -- hash collision position if there was one. This information can be obtained
 -- from 'lookupRecordCollision'. If there is no collision pass (-1) as collPos
 -- (first argument).
 --
--- We can skip:
---  - the key equality check on a Leaf, we know the leaf must be for this key
+-- We can skip the key equality check on a Leaf because we know the leaf must be
+-- for this key.
 insertKeyExists :: Int -> Hash -> k -> v -> Int -> HashMap k v -> HashMap k v
 insertKeyExists _collPos h k x s t@(Leaf hy (L ky y))
     | hy == h = if x `ptrEq` y
@@ -960,6 +959,9 @@ alter f k m =
 -- | /O(log n)/  The expression (@'alterF' f k map@) alters the value @x@ at
 -- @k@, or absence thereof. @alterF@ can be used to insert, delete, or update
 -- a value in a map.
+--
+-- Note: 'alterF' is a flipped version of the 'at' combinator from
+-- 'Control.Lens.At'.
 --
 -- @since 0.2.9
 alterF :: (Functor f, Eq k, Hashable k)

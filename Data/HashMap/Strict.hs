@@ -258,6 +258,9 @@ alter f k m =
 -- @k@, or absence thereof. @alterF@ can be used to insert, delete, or update
 -- a value in a map.
 --
+-- Note: 'alterF' is a flipped version of the 'at' combinator from
+-- 'Control.Lens.At'.
+--
 -- @since 0.2.9
 alterF :: (Functor f, Eq k, Hashable k)
        => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
