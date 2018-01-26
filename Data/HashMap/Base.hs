@@ -93,12 +93,11 @@ module Data.HashMap.Base
     , equalKeys
     , lookup'
     , lookupRecordCollision
+    , LookupRes(..)
     , insert'
     , insertNewKey
-    , insertExistingKeyNoCollision
-    , insertExistingKeyCollision
-    , deleteNoCollision
-    , deleteCollision
+    , insertKeyExists
+    , deleteKeyExists
     , ptrEq
     ) where
 
@@ -469,32 +468,35 @@ lookup' h k _ (Collision hx v)
 --
 -- It is used by 'alterF' so that hash computation and key comparison only needs
 -- to be performed once. With this information you can use the more optimized
--- versions of insert ('insertNewKey', 'insertExistingKeyNoCollision',
--- 'insertExistingKeyCollision') and delete ('deleteNoCollision',
--- 'deleteCollision').
+-- versions of insert ('insertNewKey', 'insertKeyExists') and delete
+-- ('deleteKeyExists')
 --
 -- Outcomes:
---   Key not in map           => Nothing
---   Key in map, no collision => Just (v, Nothing)
---   Key in map, collision    => Just (v, position)
+--   Key not in map           => Absent
+--   Key in map, no collision => Alone v
+--   Key in map, collision    => Collide v position
 lookupRecordCollision
   :: (Eq k, Hashable k)
-  => Hash -> k -> Int -> HashMap k v -> Maybe (v, Maybe Int)
-lookupRecordCollision !_ !_ !_ Empty = Nothing
+  => Hash -> k -> Int -> HashMap k v -> LookupRes v
+lookupRecordCollision !_ !_ !_ Empty = Absent
 lookupRecordCollision h k _ (Leaf hx (L kx x))
-    | h == hx && k == kx = Just (x, Nothing)
-    | otherwise          = Nothing
+    | h == hx && k == kx = Alone x
+    | otherwise          = Absent
 lookupRecordCollision h k s (BitmapIndexed b v)
-    | b .&. m == 0 = Nothing
+    | b .&. m == 0 = Absent
     | otherwise    =
         lookupRecordCollision h k (s+bitsPerSubkey) (A.index v (sparseIndex b m))
   where m = mask h s
 lookupRecordCollision h k s (Full v) =
   lookupRecordCollision h k (s+bitsPerSubkey) (A.index v (index h s))
 lookupRecordCollision h k _ (Collision hx v)
-    | h == hx   = fmap (fmap Just) $ lookupInArrayWithPosition k v
-    | otherwise = Nothing
+    | h == hx   = lookupInArrayWithPosition k v
+    | otherwise = Absent
 {-# INLINABLE lookupRecordCollision #-}
+
+-- The result of a lookup, keeping track of if a hash collision occured.
+data LookupRes a = Absent | Alone a | Collided a !Int
+
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
@@ -505,6 +507,7 @@ lookupDefault def k t = case lookup k t of
     Just v -> v
     _      -> def
 {-# INLINABLE lookupDefault #-}
+
 
 -- | /O(log n)/ Return the value to which the specified key is mapped.
 -- Calls 'error' if this map contains no mapping for the key.
@@ -544,8 +547,8 @@ insert k v m = insert' (hash k) k v 0 m
 -- (lookup, delete) only need to calculate the hash once.
 --
 -- If it is known if the key already exists in the map or not, and if it does is
--- there a hash collision you can use the more optimized 'insertNewKey',
--- 'insertExistingKeyNoCollision', and 'insertExistingKeyCollision'
+-- there a hash collision you can use the more optimized 'insertNewKey' and
+-- 'insertKeyExists'.
 insert' :: (Eq k, Hashable k)
         => Hash -> k -> v -> Int -> HashMap k v -> HashMap k v
 insert' !h !k x !_ Empty = Leaf h (L k x)
@@ -586,7 +589,7 @@ insert' h k x s t@(Collision hy v)
 --
 -- We can skip:
 --  - the key equality check on a Leaf
---  - check for its existance in the array for a hash collision
+--  - check for its existence in the array for a hash collision
 insertNewKey :: Hashable k
              => Hash -> k -> v -> Int -> HashMap k v -> HashMap k v
 insertNewKey !h !k x !_ Empty = Leaf h (L k x)
@@ -630,82 +633,48 @@ insertNewKey h k x s t@(Collision hy v)
 -- Insert optimized for the case when we know the key is in the map and does not
 -- have a hash collision.
 --
--- It is only valid to call this when the key exists in the map and does not
--- have a hash collision with another key. This information can be obtained
--- from 'lookupRecordCollision'.
+-- It is only valid to call this when the key exists in the map and you know the
+-- hash collision position if there was one. This information can be obtained
+-- from 'lookupRecordCollision'. If there is no collision pass (-1) as collPos
+-- (first argument).
 --
 -- We can skip:
---  - the key equality check on a Leaf, we know the leaf must be for this key.
-insertExistingKeyNoCollision
+--  - the key equality check on a Leaf, we know the leaf must be for this key
+insertKeyExists
   :: Hashable k
-  => Hash -> k -> v -> Int -> HashMap k v -> HashMap k v
-insertExistingKeyNoCollision h k x s t@(Leaf hy (L ky y))
+  => Int -> Hash -> k -> v -> Int -> HashMap k v -> HashMap k v
+insertKeyExists _collPos h k x s t@(Leaf hy (L ky y))
     | hy == h = if x `ptrEq` y
                 then t
                 else Leaf h (L k x)
     | otherwise = runST (two s h k x hy ky y)
-insertExistingKeyNoCollision h k x s t@(BitmapIndexed b ary)
+insertKeyExists collPos h k x s t@(BitmapIndexed b ary)
     | b .&. m == 0 =
         let !ary' = A.insert ary i $! Leaf h (L k x)
         in bitmapIndexedOrFull (b .|. m) ary'
     | otherwise =
         let !st  = A.index ary i
-            !st' = insertExistingKeyNoCollision h k x (s+bitsPerSubkey) st
+            !st' = insertKeyExists collPos h k x (s+bitsPerSubkey) st
         in if st' `ptrEq` st
            then t
            else BitmapIndexed b (A.update ary i st')
   where m = mask h s
         i = sparseIndex b m
-insertExistingKeyNoCollision h k x s t@(Full ary) =
+insertKeyExists collPos h k x s t@(Full ary) =
     let !st  = A.index ary i
-        !st' = insertExistingKeyNoCollision h k x (s+bitsPerSubkey) st
+        !st' = insertKeyExists collPos h k x (s+bitsPerSubkey) st
     in if st' `ptrEq` st
         then t
         else Full (update16 ary i st')
   where i = index h s
-insertExistingKeyNoCollision h k x s t@(Collision hy _) =
-  insertExistingKeyNoCollision h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-insertExistingKeyNoCollision _ _ _ !_ Empty =
-  error "Internal error: insertExistingKeyNoCollision Empty"
-{-# INLINABLE insertExistingKeyNoCollision #-}
-
-
--- Insert optimized for the case when we know the key is in the map and has a
--- hash collision at @collPos@.
---
--- It is only valid to call this when the key exists in the map and has a a hash
--- collision with another key. This information can be obtained from
--- 'lookupRecordCollision'.
---
--- We can skip:
---   - the @Empty@ and @Leaf@ case entirely
---   - the bitmap check (b .&. m == 0)
---   - searching for the collision position (passed as collPos)
-insertExistingKeyCollision
-  :: Hashable k
-  => Int -> Hash -> k -> v -> Int -> HashMap k v -> HashMap k v
-insertExistingKeyCollision collPos h k x s t@(BitmapIndexed b ary) =
-    let !st  = A.index ary i
-        !st' = insertExistingKeyCollision collPos h k x (s+bitsPerSubkey) st
-    in if st' `ptrEq` st
-        then t
-        else BitmapIndexed b (A.update ary i st')
-  where m = mask h s
-        i = sparseIndex b m
-insertExistingKeyCollision collPos h k x s t@(Full ary) =
-    let !st  = A.index ary i
-        !st' = insertExistingKeyCollision collPos h k x (s+bitsPerSubkey) st
-    in if st' `ptrEq` st
-        then t
-        else Full (update16 ary i st')
-  where i = index h s
-insertExistingKeyCollision collPos h k x s t@(Collision hy v)
-    | h == hy   = Collision h (setAtPosition collPos k x v)
-    | otherwise = insertExistingKeyCollision collPos h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-insertExistingKeyCollision _ _ _ _ !_ Empty = error "Internal error: insertExistingKeyCollision Empty"
-insertExistingKeyCollision _ _ _ _ !_ (Leaf _ _) = error "Internal error: insertExistingKeyCollision Leaf"
-{-# INLINABLE insertExistingKeyCollision #-}
-
+insertKeyExists collPos h k x s t@(Collision hy v)
+    | h == hy   = if -1 == collPos
+                  then error "Internal error: insertKeyExists {collPos = -1}"
+                  else Collision h (setAtPosition collPos k x v)
+    | otherwise = insertKeyExists collPos h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+insertKeyExists _ _ _ _ !_ Empty =
+  error "Internal error: insertKeyExists Empty"
+{-# INLINABLE insertKeyExists #-}
 
 -- Replace the ith Leaf with Leaf k v.
 --
@@ -858,7 +827,7 @@ delete k m = delete' (hash k) k 0 m
 -- (lookup, insert) only need to calculate the hash once.
 --
 -- If it is known that the key already exists in the map you can use the more
--- optimized 'deleteNoCollision' and 'deleteCollision'.
+-- optimized delete ('deleteExistingKey').
 delete' :: (Eq k, Hashable k) => Hash -> k -> Int -> HashMap k v -> HashMap k v
 delete' !_ !_ !_ Empty = Empty
 delete' h k _ t@(Leaf hy (L ky _))
@@ -912,22 +881,22 @@ delete' h k _ t@(Collision hy v)
 -- Delete optimized for the case when we know the key is in the map and there is
 -- no collision.
 --
--- It is only valid to call this when the key exists in the map and does not
--- have a hash collision with another key. This information can be obtained
--- from 'lookupRecordCollision'.
+-- It is only valid to call this when the key exists in the map and you know the
+-- hash collision position if there was one. This information can be obtained
+-- from 'lookupRecordCollision'. If there is no collision pass (-1) as collPos.
 --
 -- We can skip:
 --  - the key equality check on the leaf, if we reach a leaf it must be the key
-deleteNoCollision :: Hashable k => Hash -> k -> Int -> HashMap k v -> HashMap k v
-deleteNoCollision h _ _ t@(Leaf hy (L _ _))
+deleteKeyExists :: Hashable k => Int -> Hash -> k -> Int -> HashMap k v -> HashMap k v
+deleteKeyExists _collPos h _ _ t@(Leaf hy (L _ _))
   -- TODO(mrenaud): Can this comparison be removed?
     | hy == h = Empty
     | otherwise = t
-deleteNoCollision h k s t@(BitmapIndexed b ary)
+deleteKeyExists collPos h k s t@(BitmapIndexed b ary)
     | b .&. m == 0 = t
     | otherwise =
         let !st = A.index ary i
-            !st' = deleteNoCollision h k (s+bitsPerSubkey) st
+            !st' = deleteKeyExists collPos h k (s+bitsPerSubkey) st
         in if st' `ptrEq` st
             then t
             else case st' of
@@ -944,9 +913,9 @@ deleteNoCollision h k s t@(BitmapIndexed b ary)
             _ -> BitmapIndexed b (A.update ary i st')
   where m = mask h s
         i = sparseIndex b m
-deleteNoCollision h k s t@(Full ary) =
+deleteKeyExists collPos h k s t@(Full ary) =
     let !st   = A.index ary i
-        !st' = deleteNoCollision h k (s+bitsPerSubkey) st
+        !st' = deleteKeyExists collPos h k (s+bitsPerSubkey) st
     in if st' `ptrEq` st
         then t
         else case st' of
@@ -956,55 +925,7 @@ deleteNoCollision h k s t@(Full ary) =
             in BitmapIndexed bm ary'
         _ -> Full (A.update ary i st')
   where i = index h s
-deleteNoCollision !_ !_ !_ Empty = error "Internal error: deleteNoCollision empty"
-deleteNoCollision _ _ _ (Collision _ _) = error "Internal error: deleteNoCollision Collision"
-{-# INLINABLE deleteNoCollision #-}
-
-
--- Delete optimized for the case when we know the key is in the map and there is
--- a hash collision at position @collPos@.
---
--- It is only valid to call this when the key exists in the map and has a hash
--- collision with another key. This information can be obtained from
--- 'lookupRecordCollision'.
---
--- We can skip:
---  - the key equality check on the leaf, if we reach a leaf it must be the key
-deleteCollision :: (Eq k, Hashable k) => Int -> Hash -> k -> Int -> HashMap k v -> HashMap k v
-deleteCollision collPos h k s t@(BitmapIndexed b ary)
-    | b .&. m == 0 = t
-    | otherwise =
-        let !st = A.index ary i
-            !st' = deleteCollision collPos h k (s+bitsPerSubkey) st
-        in if st' `ptrEq` st
-            then t
-            else case st' of
-            Empty | A.length ary == 1 -> Empty
-                  | A.length ary == 2 ->
-                      case (i, A.index ary 0, A.index ary 1) of
-                      (0, _, l) | isLeafOrCollision l -> l
-                      (1, l, _) | isLeafOrCollision l -> l
-                      _                               -> bIndexed
-                  | otherwise -> bIndexed
-                where
-                  bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
-            l | isLeafOrCollision l && A.length ary == 1 -> l
-            _ -> BitmapIndexed b (A.update ary i st')
-  where m = mask h s
-        i = sparseIndex b m
-deleteCollision collPos h k s t@(Full ary) =
-    let !st   = A.index ary i
-        !st' = deleteCollision collPos h k (s+bitsPerSubkey) st
-    in if st' `ptrEq` st
-        then t
-        else case st' of
-        Empty ->
-            let ary' = A.delete ary i
-                bm   = fullNodeMask .&. complement (1 `unsafeShiftL` i)
-            in BitmapIndexed bm ary'
-        _ -> Full (A.update ary i st')
-  where i = index h s
-deleteCollision collPos h _ _ t@(Collision hy v)
+deleteKeyExists collPos h _ _ t@(Collision hy v)
     | h == hy = case collPos of
         i
             | A.length v == 2 ->
@@ -1013,12 +934,8 @@ deleteCollision collPos h _ _ t@(Collision hy v)
                 else Leaf h (A.index v 0)
             | otherwise -> Collision h (A.delete v i)
     | otherwise = t
-deleteCollision !_ !_ !_ !_ Empty = Empty
-deleteCollision _ h k _ t@(Leaf hy (L ky _))
-    | hy == h && ky == k = Empty
-    | otherwise          = t
-
-{-# INLINABLE deleteCollision #-}
+deleteKeyExists !_ !_ !_ !_ Empty = error "Internal error: deleteKeyExists empty"
+{-# INLINABLE deleteKeyExists #-}
 
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
@@ -1082,45 +999,48 @@ alterF f k m = (<$> f mv) $ \fres ->
 
     ------------------------------
     -- Delete the key from the map.
-    Nothing -> case mvWithCollision of
+    Nothing -> case lookupRes of
 
       -- Key didnot exist in the map to begin with, no-op
-      Nothing -> m
+      Absent -> m
 
       -- Key did exist, no collision
-      Just (_, Nothing) -> deleteNoCollision h k 0 m
+      Alone _ -> deleteKeyExists (-1) h k 0 m
 
       -- Key did exist, hash collision at collPos
-      Just (_, Just collPos) -> deleteCollision collPos h k 0 m
+      Collided _ collPos -> deleteKeyExists collPos h k 0 m
 
     ------------------------------
     -- Update value
-    Just v' -> case mvWithCollision of
+    Just v' -> case lookupRes of
 
       -- Key did not exist before, insert v' under a new key
-      Nothing -> insertNewKey h k v' 0 m
+      Absent -> insertNewKey h k v' 0 m
 
       -- Key existed before, no hash collision
-      Just (v, Nothing) ->
+      Alone v ->
         -- TODO(m-renaud): Verify ptrEq is valid here.
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
         -- If the value changed, update the value.
-        else insertExistingKeyNoCollision h k v' 0 m
+        else insertKeyExists (-1) h k v' 0 m
 
       -- Key existed before, hash collision at collPos
-      Just (v, Just collPos) ->
+      Collided v collPos ->
         -- TODO(m-renaud): Verify ptrEq is valid here.
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
         -- If the value changed, update the value
-        else insertExistingKeyCollision collPos h k v' 0 m
+        else insertKeyExists collPos h k v' 0 m
 
   where !h = hash k
-        mvWithCollision = lookupRecordCollision h k 0 m
-        mv = fmap fst mvWithCollision
+        lookupRes = lookupRecordCollision h k 0 m
+        mv = case lookupRes of
+          Absent -> Nothing
+          Alone v -> Just v
+          Collided v _ -> Just v
 {-# INLINABLE alterF #-}
 
 ------------------------------------------------------------------------
@@ -1577,14 +1497,14 @@ lookupInArray k0 ary0 = go k0 ary0 0 (A.length ary0)
 
 -- | /O(n)/ Lookup the value associated with the given key in this
 -- array.  Returns 'Nothing' if the key wasn't found.
-lookupInArrayWithPosition :: Eq k => k -> A.Array (Leaf k v) -> Maybe (v, Int)
+lookupInArrayWithPosition :: Eq k => k -> A.Array (Leaf k v) -> LookupRes v
 lookupInArrayWithPosition k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
-        | i >= n    = Nothing
+        | i >= n    = Absent
         | otherwise = case A.index ary i of
             (L kx v)
-                | k == kx   -> Just (v, i)
+                | k == kx   -> Collided v i
                 | otherwise -> go k ary (i+1) n
 {-# INLINABLE lookupInArrayWithPosition #-}
 

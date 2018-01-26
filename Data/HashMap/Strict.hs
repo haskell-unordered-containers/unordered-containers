@@ -264,45 +264,48 @@ alterF f k m = (<$> f mv) $ \fres ->
 
     ------------------------------
     -- Delete the key from the map.
-    Nothing -> case mvWithCollision of
+    Nothing -> case lookupRes of
 
-      -- Key didnot exist in the map to begin with, no-op
-      Nothing -> m
+      -- Key did not exist in the map to begin with, no-op
+      Absent -> m
 
       -- Key did exist, no collision
-      Just (_, Nothing) -> deleteNoCollision h k 0 m
+      Alone _ -> deleteKeyExists (-1) h k 0 m
 
       -- Key did exist, hash collision at collPos
-      Just (_, Just collPos) -> deleteCollision collPos h k 0 m
+      Collided _ collPos -> deleteKeyExists collPos h k 0 m
 
     ------------------------------
     -- Update value
-    Just v' -> case mvWithCollision of
+    Just v' -> case lookupRes of
 
       -- Key did not exist before, insert v' under a new key
-      Nothing -> insertNewKey h k v' 0 m
+      Absent -> insertNewKey h k v' 0 m
 
       -- Key existed before, no hash collision
-      Just (v, Nothing) ->
+      Alone v ->
         -- TODO(m-renaud): Verify ptrEq is valid here.
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
         -- If the value changed, update the value.
-        else v' `seq` insertExistingKeyNoCollision h k v' 0 m
+        else v' `seq` insertKeyExists (-1) h k v' 0 m
 
       -- Key existed before, hash collision at collPos
-      Just (v, Just collPos) ->
+      Collided v collPos ->
         -- TODO(m-renaud): Verify ptrEq is valid here.
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
         -- If the value changed, update the value
-        else v' `seq` insertExistingKeyCollision collPos h k v' 0 m
+        else v' `seq` insertKeyExists collPos h k v' 0 m
 
   where !h = hash k
-        mvWithCollision = lookupRecordCollision h k 0 m
-        mv = fmap fst mvWithCollision
+        lookupRes = lookupRecordCollision h k 0 m
+        mv = case lookupRes of
+          Absent -> Nothing
+          Alone v -> Just v
+          Collided v _ -> Just v
 {-# INLINABLE alterF #-}
 
 ------------------------------------------------------------------------
