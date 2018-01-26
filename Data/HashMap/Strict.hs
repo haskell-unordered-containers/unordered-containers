@@ -46,6 +46,7 @@ module Data.HashMap.Strict
     , adjust
     , update
     , alter
+    , alterF
 
       -- * Combine
       -- ** Union
@@ -96,9 +97,9 @@ import Prelude hiding (map)
 import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
-    alter, adjust, fromList, fromListWith, insert, insertWith, differenceWith,
-    intersectionWith, intersectionWithKey, map, mapWithKey, mapMaybe,
-    mapMaybeWithKey, singleton, update, unionWith, unionWithKey)
+    alter, alterF, adjust, fromList, fromListWith, insert, insertWith,
+    differenceWith, intersectionWith, intersectionWithKey, map, mapWithKey,
+    mapMaybe, mapMaybeWithKey, singleton, update, unionWith, unionWithKey)
 import Data.HashMap.Unsafe (runST)
 
 -- $strictness
@@ -248,6 +249,61 @@ alter f k m =
     Nothing -> delete k m
     Just v  -> insert k v m
 {-# INLINABLE alter #-}
+
+-- | /O(log n)/  The expression (@'alterF' f k map@) alters the value @x@ at
+-- @k@, or absence thereof. @alterF@ can be used to insert, delete, or update
+-- a value in a map.
+--
+-- @since 0.2.9
+alterF :: (Functor f, Eq k, Hashable k)
+       => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
+-- Special care is taken to only calculate the hash and only perform a key
+-- comparison once.
+alterF f k m = (<$> f mv) $ \fres ->
+  case fres of
+
+    ------------------------------
+    -- Delete the key from the map.
+    Nothing -> case mvWithCollision of
+
+      -- Key didnot exist in the map to begin with, no-op
+      Nothing -> m
+
+      -- Key did exist, no collision
+      Just (_, Nothing) -> deleteNoCollision h k 0 m
+
+      -- Key did exist, hash collision at collPos
+      Just (_, Just collPos) -> deleteCollision collPos h k 0 m
+
+    ------------------------------
+    -- Update value
+    Just v' -> case mvWithCollision of
+
+      -- Key did not exist before, insert v' under a new key
+      Nothing -> insertNewKey h k v' 0 m
+
+      -- Key existed before, no hash collision
+      Just (v, Nothing) ->
+        -- TODO(m-renaud): Verify ptrEq is valid here.
+        if v `ptrEq` v'
+        -- If the value is identical, no-op
+        then m
+        -- If the value changed, update the value.
+        else v' `seq` insertExistingKeyNoCollision h k v' 0 m
+
+      -- Key existed before, hash collision at collPos
+      Just (v, Just collPos) ->
+        -- TODO(m-renaud): Verify ptrEq is valid here.
+        if v `ptrEq` v'
+        -- If the value is identical, no-op
+        then m
+        -- If the value changed, update the value
+        else v' `seq` insertExistingKeyCollision collPos h k v' 0 m
+
+  where !h = hash k
+        mvWithCollision = lookupRecordCollision h k 0 m
+        mv = fmap fst mvWithCollision
+{-# INLINABLE alterF #-}
 
 ------------------------------------------------------------------------
 -- * Combine
