@@ -468,9 +468,7 @@ lookup k0 m0 = go h0 k0 0 m0
 --   Key not in map           => Absent
 --   Key in map, no collision => Alone v
 --   Key in map, collision    => Collide v position
-lookupRecordCollision
-  :: (Eq k, Hashable k)
-  => Hash -> k -> Int -> HashMap k v -> LookupRes v
+lookupRecordCollision :: Eq k => Hash -> k -> Int -> HashMap k v -> LookupRes v
 lookupRecordCollision !_ !_ !_ Empty = Absent
 lookupRecordCollision h k _ (Leaf hx (L kx x))
     | h == hx && k == kx = Present x (-1)
@@ -501,7 +499,6 @@ lookupDefault def k t = case lookup k t of
     Just v -> v
     _      -> def
 {-# INLINABLE lookupDefault #-}
-
 
 -- | /O(log n)/ Return the value to which the specified key is mapped.
 -- Calls 'error' if this map contains no mapping for the key.
@@ -832,9 +829,9 @@ delete k0 m0 = go h0 k0 0 m0
     go h k s t@(Full ary) =
         let !st   = A.index ary i
             !st' = go h k (s+bitsPerSubkey) st
-         in if st' `ptrEq` st
-             then t
-             else case st' of
+        in if st' `ptrEq` st
+           then t
+           else case st' of
             Empty ->
                 let ary' = A.delete ary i
                     bm   = fullNodeMask .&. complement (1 `unsafeShiftL` i)
