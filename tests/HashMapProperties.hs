@@ -10,6 +10,7 @@ import qualified Data.Foldable as Foldable
 import Data.Function (on)
 import Data.Hashable (Hashable(hashWithSalt))
 import qualified Data.List as L
+import Data.Maybe (fromJust)
 import Data.Ord (comparing)
 #if defined(STRICT)
 import qualified Data.HashMap.Strict as HM
@@ -168,6 +169,25 @@ pAlterInsert k = M.alter (const $ Just 3) k `eq_` HM.alter (const $ Just 3) k
 pAlterDelete :: Key -> [(Key, Int)] -> Bool
 pAlterDelete k = M.alter (const Nothing) k `eq_` HM.alter (const Nothing) k
 
+#if MIN_VERSION_containers(0,5,8)
+-- If we have a recent containers version compare against its alterF.
+
+pAlterFAdjust :: Key -> [(Key, Int)] -> Bool
+pAlterFAdjust k =
+  fromJust . M.alterF (Just . fmap succ) k `eq_`
+  fromJust . HM.alterF (Just . fmap succ) k
+
+pAlterFInsert :: Key -> [(Key, Int)] -> Bool
+pAlterFInsert k =
+  fromJust . M.alterF (const . Just . Just $ 3) k `eq_`
+  fromJust . HM.alterF (const . Just . Just $ 3) k
+
+pAlterFDelete :: Key -> [(Key, Int)] -> Bool
+pAlterFDelete k =
+  fromJust . M.alterF (const (Just Nothing)) k `eq_`
+  fromJust . HM.alterF (const (Just Nothing)) k
+#endif
+
 ------------------------------------------------------------------------
 -- ** Combine
 
@@ -317,6 +337,11 @@ tests =
       , testProperty "alterAdjust" pAlterAdjust
       , testProperty "alterInsert" pAlterInsert
       , testProperty "alterDelete" pAlterDelete
+#if MIN_VERSION_containers(0,5,8)
+      , testProperty "alterFAdjust" pAlterFAdjust
+      , testProperty "alterFInsert" pAlterFInsert
+      , testProperty "alterFDelete" pAlterFDelete
+#endif
       ]
     -- Combine
     , testProperty "union" pUnion
@@ -370,6 +395,8 @@ eq :: (Eq a, Eq k, Hashable k, Ord k)
    -> Bool                   -- ^ True if the functions are equivalent
 eq f g xs = g (HM.fromList xs) == f (M.fromList xs)
 
+infix 4 `eq`
+
 eq_ :: (Eq k, Eq v, Hashable k, Ord k)
     => (Model k v -> Model k v)            -- ^ Function that modifies a 'Model'
     -> (HM.HashMap k v -> HM.HashMap k v)  -- ^ Function that modified a
@@ -379,6 +406,8 @@ eq_ :: (Eq k, Eq v, Hashable k, Ord k)
     -> Bool                                -- ^ True if the functions are
                                            -- equivalent
 eq_ f g = (M.toAscList . f) `eq` (toAscList . g)
+
+infix 4 `eq_`
 
 ------------------------------------------------------------------------
 -- * Test harness
