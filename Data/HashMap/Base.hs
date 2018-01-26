@@ -574,8 +574,7 @@ insert k0 v0 m0 = go h0 k0 v0 0 m0
 -- We can skip:
 --  - the key equality check on a Leaf
 --  - check for its existence in the array for a hash collision
-insertNewKey :: Hashable k
-             => Hash -> k -> v -> Int -> HashMap k v -> HashMap k v
+insertNewKey :: Hash -> k -> v -> Int -> HashMap k v -> HashMap k v
 insertNewKey !h !k x !_ Empty = Leaf h (L k x)
 insertNewKey h k x s (Leaf hy l@(L ky y))
     | hy == h = collision h l (L k x)
@@ -624,9 +623,7 @@ insertNewKey h k x s t@(Collision hy v)
 --
 -- We can skip:
 --  - the key equality check on a Leaf, we know the leaf must be for this key
-insertKeyExists
-  :: Hashable k
-  => Int -> Hash -> k -> v -> Int -> HashMap k v -> HashMap k v
+insertKeyExists :: Int -> Hash -> k -> v -> Int -> HashMap k v -> HashMap k v
 insertKeyExists _collPos h k x s t@(Leaf hy (L ky y))
     | hy == h = if x `ptrEq` y
                 then t
@@ -864,7 +861,7 @@ delete k0 m0 = go h0 k0 0 m0
 --
 -- We can skip:
 --  - the key equality check on the leaf, if we reach a leaf it must be the key
-deleteKeyExists :: Hashable k => Int -> Hash -> k -> Int -> HashMap k v -> HashMap k v
+deleteKeyExists :: Int -> Hash -> k -> Int -> HashMap k v -> HashMap k v
 deleteKeyExists _collPos h _ _ t@(Leaf hy (L _ _))
   -- TODO(mrenaud): Can this comparison be removed?
     | hy == h = Empty
