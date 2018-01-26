@@ -90,6 +90,10 @@ module Data.HashMap.Strict
     ) where
 
 import Data.Bits ((.&.), (.|.))
+
+#if !MIN_VERSION_base(4,8,0)
+import Data.Functor((<$>))
+#endif
 import qualified Data.List as L
 import Data.Hashable (Hashable)
 import Prelude hiding (map)
