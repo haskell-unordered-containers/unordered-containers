@@ -277,14 +277,14 @@ alterF f k m = (<$> f mv) $ \fres ->
       Absent -> m
 
       -- Key did exist, no collision
-      Present _ collPos -> deleteKeyExists collPos h k 0 m
+      Present _ collPos -> deleteKeyExists collPos h k m
 
     ------------------------------
     -- Update value
     Just v' -> case lookupRes of
 
       -- Key did not exist before, insert v' under a new key
-      Absent -> insertNewKey h k v' 0 m
+      Absent -> insertNewKey h k v' m
 
       -- Key existed before, no hash collision
       Present v collPos ->
@@ -292,10 +292,10 @@ alterF f k m = (<$> f mv) $ \fres ->
         -- If the value is identical, no-op
         then m
         -- If the value changed, update the value.
-        else v' `seq` insertKeyExists collPos h k v' 0 m
+        else v' `seq` insertKeyExists collPos h k v' m
 
   where !h = hash k
-        lookupRes = lookupRecordCollision h k 0 m
+        lookupRes = lookupRecordCollision h k m
         mv = case lookupRes of
           Absent -> Nothing
           Present v _ -> Just v
