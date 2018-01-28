@@ -438,26 +438,12 @@ member k m = case lookup k m of
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.
 lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
-lookup k0 m0 = go h0 k0 0 m0
-  where
-    h0 = hash k0
-    go !_ !_ !_ Empty = Nothing
-    go h k _ (Leaf hx (L kx x))
-        | h == hx && k == kx = Just x  -- TODO: Split test in two
-        | otherwise          = Nothing
-    go h k s (BitmapIndexed b v)
-        | b .&. m == 0 = Nothing
-        | otherwise    = go h k (s+bitsPerSubkey) (A.index v (sparseIndex b m))
-      where m = mask h s
-    go h k s (Full v) = go h k (s+bitsPerSubkey) (A.index v (index h s))
-    go h k _ (Collision hx v)
-        | h == hx   = lookupInArray k v
-        | otherwise = Nothing
+lookup k0 m0 = lookupCont Nothing (const Just) (hash k0) k0 m0
 {-# INLINABLE lookup #-}
 
--- Internal helper for lookup. This version takes the precomputed hash so
--- that functions that make multiple calls to lookup and related functions
--- (insert, delete) only need to calculate the hash once.
+-- Internal helper for lookup and lookupRecordCollision. This version takes the
+-- precomputed hash so that functions that make multiple calls to lookup and
+-- related functions (insert, delete) only need to calculate the hash once.
 --
 -- It is used by 'alterF' so that hash computation and key comparison only needs
 -- to be performed once. With this information you can use the more optimized
@@ -466,30 +452,38 @@ lookup k0 m0 = go h0 k0 0 m0
 --
 -- Outcomes:
 --   Key not in map           => Absent
---   Key in map, no collision => Alone v
---   Key in map, collision    => Collide v position
+--   Key in map, no collision => Present (-1) v
+--   Key in map, collision    => Present position v
 lookupRecordCollision :: Eq k => Hash -> k -> HashMap k v -> LookupRes v
-lookupRecordCollision h0 k0 m0 = go h0 k0 0 m0
-  where
-    go !_ !_ !_ Empty = Absent
-    go h k _ (Leaf hx (L kx x))
-        | h == hx && k == kx = Present x (-1)
-        | otherwise          = Absent
-    go h k s (BitmapIndexed b v)
-        | b .&. m == 0 = Absent
-        | otherwise    =
-            go h k (s+bitsPerSubkey) (A.index v (sparseIndex b m))
-      where m = mask h s
-    go h k s (Full v) =
-      go h k (s+bitsPerSubkey) (A.index v (index h s))
-    go h k _ (Collision hx v)
-        | h == hx   = lookupInArrayWithPosition k v
-        | otherwise = Absent
+lookupRecordCollision h0 k0 m0 = lookupCont Absent Present h0 k0 m0
 {-# INLINABLE lookupRecordCollision #-}
+
+-- Internal helper for 'lookup' and 'lookupRecordCollision'.
+--
+-- Performs a lookup and returns the value in a result (Just in the case of lookup,
+-- LookupRes in the case of lookupRecordCollision).
+lookupCont :: Eq k => res v -> (Int -> v -> res v) -> Hash -> k -> HashMap k v -> res v
+lookupCont absent0 present0 h0 k0 m0 = go absent0 present0 h0 k0 0 m0
+  where
+    go absent !_ !_ !_ !_ Empty = absent
+    go absent present h k _ (Leaf hx (L kx x))
+        | h == hx && k == kx = present (-1) x
+        | otherwise          = absent
+    go absent present h k s (BitmapIndexed b v)
+        | b .&. m == 0 = absent
+        | otherwise    =
+            go absent present h k (s+bitsPerSubkey) (A.index v (sparseIndex b m))
+      where m = mask h s
+    go absent present h k s (Full v) =
+      go absent present h k (s+bitsPerSubkey) (A.index v (index h s))
+    go absent present h k _ (Collision hx v)
+        | h == hx   = lookupInArrayWithPosition absent present k v
+        | otherwise = absent
+{-# INLINE lookupCont #-}
 
 -- The result of a lookup, keeping track of if a hash collision occured.
 -- If a collision did not occur then it will have the Int value (-1).
-data LookupRes a = Absent | Present a !Int
+data LookupRes a = Absent | Present !Int a
 
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
@@ -987,7 +981,7 @@ alterF f k m = (<$> f mv) $ \fres ->
       Absent -> m
 
       -- Key did exist
-      Present _ collPos -> deleteKeyExists collPos h k m
+      Present collPos _ -> deleteKeyExists collPos h k m
 
     ------------------------------
     -- Update value
@@ -997,7 +991,7 @@ alterF f k m = (<$> f mv) $ \fres ->
       Absent -> insertNewKey h k v' m
 
       -- Key existed before, no hash collision
-      Present v collPos ->
+      Present collPos v ->
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
@@ -1008,7 +1002,7 @@ alterF f k m = (<$> f mv) $ \fres ->
         lookupRes = lookupRecordCollision h k m
         mv = case lookupRes of
           Absent -> Nothing
-          Present v _ -> Just v
+          Present _ v -> Just v
 {-# INLINABLE alterF #-}
 
 ------------------------------------------------------------------------
@@ -1465,15 +1459,16 @@ lookupInArray k0 ary0 = go k0 ary0 0 (A.length ary0)
 
 -- | /O(n)/ Lookup the value associated with the given key in this
 -- array.  Returns 'Nothing' if the key wasn't found.
-lookupInArrayWithPosition :: Eq k => k -> A.Array (Leaf k v) -> LookupRes v
-lookupInArrayWithPosition k0 ary0 = go k0 ary0 0 (A.length ary0)
+lookupInArrayWithPosition
+  :: Eq k => res v -> (Int -> v -> res v) -> k -> A.Array (Leaf k v) -> res v
+lookupInArrayWithPosition absent0 present0 k0 ary0 = go absent0 present0 k0 ary0 0 (A.length ary0)
   where
-    go !k !ary !i !n
-        | i >= n    = Absent
+    go absent present !k !ary !i !n
+        | i >= n    = absent
         | otherwise = case A.index ary i of
             (L kx v)
-                | k == kx   -> Present v i
-                | otherwise -> go k ary (i+1) n
+                | k == kx   -> present i v
+                | otherwise -> go absent present k ary (i+1) n
 {-# INLINABLE lookupInArrayWithPosition #-}
 
 -- | /O(n)/ Lookup the value associated with the given key in this

@@ -277,7 +277,7 @@ alterF f k m = (<$> f mv) $ \fres ->
       Absent -> m
 
       -- Key did exist, no collision
-      Present _ collPos -> deleteKeyExists collPos h k m
+      Present collPos _ -> deleteKeyExists collPos h k m
 
     ------------------------------
     -- Update value
@@ -287,7 +287,7 @@ alterF f k m = (<$> f mv) $ \fres ->
       Absent -> insertNewKey h k v' m
 
       -- Key existed before, no hash collision
-      Present v collPos ->
+      Present collPos v ->
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
@@ -298,7 +298,7 @@ alterF f k m = (<$> f mv) $ \fres ->
         lookupRes = lookupRecordCollision h k m
         mv = case lookupRes of
           Absent -> Nothing
-          Present v _ -> Just v
+          Present _ v -> Just v
 {-# INLINABLE alterF #-}
 
 ------------------------------------------------------------------------
