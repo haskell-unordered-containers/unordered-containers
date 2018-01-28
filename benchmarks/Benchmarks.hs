@@ -372,10 +372,15 @@ alterDelete xs m0 =
 {-# SPECIALIZE alterDelete :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
                            -> HM.HashMap BS.ByteString Int #-}
 
+newtype I a = I { unI :: a }
+
+instance Functor I where
+  fmap f (I a) = I (f a)
+
 alterFInsert :: (Eq k, Hashable k) => [(k, Int)] -> HM.HashMap k Int
              -> HM.HashMap k Int
 alterFInsert xs m0 =
-  foldl' (\m (k, v) -> fromJust $ HM.alterF (const . Just . Just $ v) k m) m0 xs
+  foldl' (\m (k, v) -> unI $ HM.alterF (const . I . Just $ v) k m) m0 xs
 {-# SPECIALIZE alterFInsert :: [(Int, Int)] -> HM.HashMap Int Int
                             -> HM.HashMap Int Int #-}
 {-# SPECIALIZE alterFInsert :: [(String, Int)] -> HM.HashMap String Int
@@ -386,7 +391,7 @@ alterFInsert xs m0 =
 alterFDelete :: (Eq k, Hashable k) => [k] -> HM.HashMap k Int
              -> HM.HashMap k Int
 alterFDelete xs m0 =
-  foldl' (\m k -> fromJust $ HM.alterF (const . Just $ Nothing) k m) m0 xs
+  foldl' (\m k -> unI $ HM.alterF (const . I $ Nothing) k m) m0 xs
 {-# SPECIALIZE alterFDelete :: [Int] -> HM.HashMap Int Int
                             -> HM.HashMap Int Int #-}
 {-# SPECIALIZE alterFDelete :: [String] -> HM.HashMap String Int
