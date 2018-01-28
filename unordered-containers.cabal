@@ -67,7 +67,7 @@ test-suite hashmap-lazy-properties
 
   build-depends:
     base,
-    containers >= 0.4,
+    containers >= 0.5.8,
     hashable >= 1.0.1.1,
     QuickCheck >= 2.4.0.1,
     test-framework >= 0.3.3,
@@ -84,7 +84,7 @@ test-suite hashmap-strict-properties
 
   build-depends:
     base,
-    containers >= 0.4,
+    containers >= 0.5.8,
     hashable >= 1.0.1.1,
     QuickCheck >= 2.4.0.1,
     test-framework >= 0.3.3,
@@ -185,7 +185,7 @@ benchmark benchmarks
     Util.String
 
   build-depends:
-    base,
+    base >= 4.8.0,
     bytestring,
     containers,
     criterion >= 1.0 && < 1.3,

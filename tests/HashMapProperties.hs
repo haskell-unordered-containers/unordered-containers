@@ -10,17 +10,23 @@ import qualified Data.Foldable as Foldable
 import Data.Function (on)
 import Data.Hashable (Hashable(hashWithSalt))
 import qualified Data.List as L
-import Data.Maybe (fromJust)
 import Data.Ord (comparing)
 #if defined(STRICT)
 import qualified Data.HashMap.Strict as HM
+import qualified Data.Map.Strict as M
 #else
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Map.Lazy as M
 #endif
-import qualified Data.Map as M
 import Test.QuickCheck (Arbitrary, Property, (==>), (===))
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
+#if MIN_VERSION_base(4,8,0)
+import Data.Functor.Identity (Identity (..))
+#endif
+import Control.Applicative (Const (..))
+import Test.QuickCheck.Function (Fun, apply)
+import Test.QuickCheck.Poly (A, B)
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
@@ -169,24 +175,49 @@ pAlterInsert k = M.alter (const $ Just 3) k `eq_` HM.alter (const $ Just 3) k
 pAlterDelete :: Key -> [(Key, Int)] -> Bool
 pAlterDelete k = M.alter (const Nothing) k `eq_` HM.alter (const Nothing) k
 
-#if MIN_VERSION_containers(0,5,8)
--- If we have a recent containers version compare against its alterF.
+
+-- We choose the list functor here because we don't fuss with
+-- it in alterF rules and because it has a sufficiently interesting
+-- structure to have a good chance of breaking if something is wrong.
+pAlterF :: Key -> Fun (Maybe A) [Maybe A] -> [(Key, A)] -> Property
+pAlterF k f xs =
+  fmap M.toAscList (M.alterF (apply f) k (M.fromList xs))
+  ===
+  fmap toAscList (HM.alterF (apply f) k (HM.fromList xs))
+
+#if !MIN_VERSION_base(4,8,0)
+newtype Identity a = Identity {runIdentity :: a}
+instance Functor Identity where
+  fmap f (Identity x) = Identity (f x)
+#endif
 
 pAlterFAdjust :: Key -> [(Key, Int)] -> Bool
 pAlterFAdjust k =
-  fromJust . M.alterF (Just . fmap succ) k `eq_`
-  fromJust . HM.alterF (Just . fmap succ) k
+  runIdentity . M.alterF (Identity . fmap succ) k `eq_`
+  runIdentity . HM.alterF (Identity . fmap succ) k
 
 pAlterFInsert :: Key -> [(Key, Int)] -> Bool
 pAlterFInsert k =
-  fromJust . M.alterF (const . Just . Just $ 3) k `eq_`
-  fromJust . HM.alterF (const . Just . Just $ 3) k
+  runIdentity . M.alterF (const . Identity . Just $ 3) k `eq_`
+  runIdentity . HM.alterF (const . Identity . Just $ 3) k
+
+pAlterFInsertWith :: Key -> Fun Int Int -> [(Key, Int)] -> Bool
+pAlterFInsertWith k f =
+  runIdentity . M.alterF (Identity . Just . maybe 3 (apply f)) k `eq_`
+  runIdentity . HM.alterF (Identity . Just . maybe 3 (apply f)) k
 
 pAlterFDelete :: Key -> [(Key, Int)] -> Bool
 pAlterFDelete k =
-  fromJust . M.alterF (const (Just Nothing)) k `eq_`
-  fromJust . HM.alterF (const (Just Nothing)) k
-#endif
+  runIdentity . M.alterF (const (Identity Nothing)) k `eq_`
+  runIdentity . HM.alterF (const (Identity Nothing)) k
+
+pAlterFLookup :: Key
+              -> Fun (Maybe A) B
+              -> [(Key, A)] -> Bool
+pAlterFLookup k f =
+  getConst . M.alterF (Const . apply f :: Maybe A -> Const B (Maybe A)) k
+  `eq`
+  getConst . HM.alterF (Const . apply f) k
 
 ------------------------------------------------------------------------
 -- ** Combine
@@ -247,7 +278,7 @@ pIntersectionWithKey xs ys = M.intersectionWithKey go (M.fromList xs) `eq_`
 -- ** Folds
 
 pFoldr :: [(Int, Int)] -> Bool
-pFoldr = (L.sort . M.fold (:) []) `eq` (L.sort . HM.foldr (:) [])
+pFoldr = (L.sort . M.foldr (:) []) `eq` (L.sort . HM.foldr (:) [])
 
 pFoldrWithKey :: [(Int, Int)] -> Bool
 pFoldrWithKey = (sortByKey . M.foldrWithKey f []) `eq`
@@ -337,11 +368,12 @@ tests =
       , testProperty "alterAdjust" pAlterAdjust
       , testProperty "alterInsert" pAlterInsert
       , testProperty "alterDelete" pAlterDelete
-#if MIN_VERSION_containers(0,5,8)
+      , testProperty "alterF" pAlterF
       , testProperty "alterFAdjust" pAlterFAdjust
       , testProperty "alterFInsert" pAlterFInsert
+      , testProperty "alterFInsertWith" pAlterFInsertWith
       , testProperty "alterFDelete" pAlterFDelete
-#endif
+      , testProperty "alterFLookup" pAlterFLookup
       ]
     -- Combine
     , testProperty "union" pUnion
