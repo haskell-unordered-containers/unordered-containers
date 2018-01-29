@@ -46,6 +46,7 @@ module Data.HashMap.Lazy
     , adjust
     , update
     , alter
+    , alterF
 
       -- * Combine
       -- ** Union

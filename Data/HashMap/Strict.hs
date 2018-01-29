@@ -1,5 +1,7 @@
 {-# LANGUAGE BangPatterns, CPP, PatternGuards #-}
 {-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE UnboxedSums #-}
 
 ------------------------------------------------------------------------
 -- |
@@ -46,6 +48,7 @@ module Data.HashMap.Strict
     , adjust
     , update
     , alter
+    , alterF
 
       -- * Combine
       -- ** Union
@@ -89,6 +92,10 @@ module Data.HashMap.Strict
     ) where
 
 import Data.Bits ((.&.), (.|.))
+
+#if !MIN_VERSION_base(4,8,0)
+import Data.Functor((<$>))
+#endif
 import qualified Data.List as L
 import Data.Hashable (Hashable)
 import Prelude hiding (map)
@@ -96,9 +103,9 @@ import Prelude hiding (map)
 import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
-    alter, adjust, fromList, fromListWith, insert, insertWith, differenceWith,
-    intersectionWith, intersectionWithKey, map, mapWithKey, mapMaybe,
-    mapMaybeWithKey, singleton, update, unionWith, unionWithKey)
+    alter, alterF, adjust, fromList, fromListWith, insert, insertWith,
+    differenceWith, intersectionWith, intersectionWithKey, map, mapWithKey,
+    mapMaybe, mapMaybeWithKey, singleton, update, unionWith, unionWithKey)
 import Data.HashMap.Unsafe (runST)
 
 -- $strictness
@@ -248,6 +255,53 @@ alter f k m =
     Nothing -> delete k m
     Just v  -> insert k v m
 {-# INLINABLE alter #-}
+
+-- | /O(log n)/  The expression (@'alterF' f k map@) alters the value @x@ at
+-- @k@, or absence thereof. @alterF@ can be used to insert, delete, or update
+-- a value in a map.
+--
+-- Note: 'alterF' is a flipped version of the 'at' combinator from
+-- <https://hackage.haskell.org/package/lens-4.15.4/docs/Control-Lens-At.html#v:at Control.Lens.At>.
+--
+-- @since 0.2.9
+alterF :: (Functor f, Eq k, Hashable k)
+       => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
+-- Special care is taken to only calculate the hash and only perform a key
+-- comparison once.
+alterF f k m = (<$> f mv) $ \fres ->
+  case fres of
+
+    ------------------------------
+    -- Delete the key from the map.
+    Nothing -> case lookupRes of
+
+      -- Key did not exist in the map to begin with, no-op
+      (# (# #) | #) -> m
+
+      -- Key did exist, no collision
+      (# | (# collPos, _ #) #) -> deleteKeyExists collPos h k m
+
+    ------------------------------
+    -- Update value
+    Just v' -> case lookupRes of
+
+      -- Key did not exist before, insert v' under a new key
+      (# (# #) | #) -> insertNewKey h k v' m
+
+      -- Key existed before, no hash collision
+      (# | (# collPos, v #) #) ->
+        if v `ptrEq` v'
+        -- If the value is identical, no-op
+        then m
+        -- If the value changed, update the value.
+        else v' `seq` insertKeyExists collPos h k v' m
+
+  where !h = hash k
+        lookupRes = lookupRecordCollision h k m
+        mv = case lookupRes of
+          (# (# #) | #) -> Nothing
+          (# | (# _, v #) #) -> Just v
+{-# INLINABLE alterF #-}
 
 ------------------------------------------------------------------------
 -- * Combine
