@@ -3,6 +3,9 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeInType #-}
+{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE UnboxedSums #-}
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 
 module Data.HashMap.Base
@@ -91,7 +94,6 @@ module Data.HashMap.Base
     , filterMapAux
     , equalKeys
     , lookupRecordCollision
-    , LookupRes(..)
     , insertNewKey
     , insertKeyExists
     , deleteKeyExists
@@ -113,7 +115,7 @@ import Data.Bits ((.&.), (.|.), complement, popCount)
 import Data.Data hiding (Typeable)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as L
-import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
+import GHC.Exts (TYPE, (==#), build, reallyUnsafePtrEquality#)
 import Prelude hiding (filter, foldr, lookup, map, null, pred)
 import Text.Read hiding (step)
 
@@ -438,7 +440,7 @@ member k m = case lookup k m of
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.
 lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
-lookup k0 m0 = lookupCont Nothing (const Just) (hash k0) k0 m0
+lookup k0 m0 = lookupCont (\_ -> Nothing) (const Just) (hash k0) k0 m0
 {-# INLINABLE lookup #-}
 
 -- Internal helper for lookup and lookupRecordCollision. This version takes the
@@ -455,36 +457,38 @@ lookup k0 m0 = lookupCont Nothing (const Just) (hash k0) k0 m0
 --   Key in map, no collision => Present (-1) v
 --   Key in map, collision    => Present position v
 lookupRecordCollision :: Eq k => Hash -> k -> HashMap k v -> LookupRes v
-lookupRecordCollision h0 k0 m0 = lookupCont Absent Present h0 k0 m0
-{-# INLINABLE lookupRecordCollision #-}
+lookupRecordCollision h0 k0 m0 =
+  lookupCont (\_ -> (# (# #) | #)) (\p v -> (# | (# p, v #) #)) h0 k0 m0
+{-# INLINE lookupRecordCollision #-}
 
 -- Internal helper for 'lookup' and 'lookupRecordCollision'.
 --
 -- Performs a lookup and returns the value in a result (Just in the case of lookup,
 -- LookupRes in the case of lookupRecordCollision).
-lookupCont :: Eq k => res v -> (Int -> v -> res v) -> Hash -> k -> HashMap k v -> res v
-lookupCont absent0 present0 h0 k0 m0 = go absent0 present0 h0 k0 0 m0
+lookupCont
+  :: forall rep (res :: TYPE rep) k v. Eq k
+  => ((# #) -> res) -> (Int -> v -> res) -> Hash -> k -> HashMap k v -> res
+lookupCont absent0 present0 h0 k0 m0 = go h0 k0 0 m0
   where
-    go absent !_ !_ !_ !_ Empty = absent
-    go absent present h k _ (Leaf hx (L kx x))
-        | h == hx && k == kx = present (-1) x
-        | otherwise          = absent
-    go absent present h k s (BitmapIndexed b v)
-        | b .&. m == 0 = absent
+    go  !_ !_ !_ Empty = absent0 (# #)
+    go h k _ (Leaf hx (L kx x))
+        | h == hx && k == kx = present0 (-1) x
+        | otherwise          = absent0 (# #)
+    go h k s (BitmapIndexed b v)
+        | b .&. m == 0 = absent0 (# #)
         | otherwise    =
-            go absent present h k (s+bitsPerSubkey) (A.index v (sparseIndex b m))
+            go h k (s+bitsPerSubkey) (A.index v (sparseIndex b m))
       where m = mask h s
-    go absent present h k s (Full v) =
-      go absent present h k (s+bitsPerSubkey) (A.index v (index h s))
-    go absent present h k _ (Collision hx v)
-        | h == hx   = lookupInArrayWithPosition absent present k v
-        | otherwise = absent
+    go h k s (Full v) =
+      go h k (s+bitsPerSubkey) (A.index v (index h s))
+    go h k _ (Collision hx v)
+        | h == hx   = lookupInArrayWithPosition absent0 present0 k v
+        | otherwise = absent0 (# #)
 {-# INLINE lookupCont #-}
 
 -- The result of a lookup, keeping track of if a hash collision occured.
 -- If a collision did not occur then it will have the Int value (-1).
-data LookupRes a = Absent | Present !Int a
-
+type LookupRes a = (# (# #) | (# Int, a #) #)
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
@@ -952,20 +956,20 @@ alterF f k m = (<$> f mv) $ \fres ->
     Nothing -> case lookupRes of
 
       -- Key did not exist in the map to begin with, no-op
-      Absent -> m
+      (# (# #) | #) -> m
 
       -- Key did exist
-      Present collPos _ -> deleteKeyExists collPos h k m
+      (# | (# collPos, _ #) #) -> deleteKeyExists collPos h k m
 
     ------------------------------
     -- Update value
     Just v' -> case lookupRes of
 
       -- Key did not exist before, insert v' under a new key
-      Absent -> insertNewKey h k v' m
+      (# (# #) | #) -> insertNewKey h k v' m
 
       -- Key existed before, no hash collision
-      Present collPos v ->
+      (# | (# collPos, v #) #) ->
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
@@ -975,8 +979,8 @@ alterF f k m = (<$> f mv) $ \fres ->
   where !h = hash k
         lookupRes = lookupRecordCollision h k m
         mv = case lookupRes of
-          Absent -> Nothing
-          Present _ v -> Just v
+          (# (# #) | #) -> Nothing
+          (# | (# _, v #) #) -> Just v
 {-# INLINABLE alterF #-}
 
 ------------------------------------------------------------------------
@@ -1432,18 +1436,28 @@ lookupInArray k0 ary0 = go k0 ary0 0 (A.length ary0)
 {-# INLINABLE lookupInArray #-}
 
 -- | /O(n)/ Lookup the value associated with the given key in this
--- array.  Returns 'Nothing' if the key wasn't found.
+-- array.
+--
+-- @lookupInArraywithPosition absent present k ary@ return
+-- @absent (# #)@ if the key wasn't found.
+--
+-- TypeInType is required so we can express that this can either return
+-- a lifted type (such as @Maybe a@) or an unlifted type (an unboxed sum).
+--
+-- @((# #) -> res)@ is needed to avoid a prohibited representation-polymorphic
+-- argument.
 lookupInArrayWithPosition
-  :: Eq k => res v -> (Int -> v -> res v) -> k -> A.Array (Leaf k v) -> res v
-lookupInArrayWithPosition absent0 present0 k0 ary0 = go absent0 present0 k0 ary0 0 (A.length ary0)
+  :: forall rep (res :: TYPE rep) k v. Eq k
+  => ((# #) -> res) -> (Int -> v -> res) -> k -> A.Array (Leaf k v) -> res
+lookupInArrayWithPosition absent0 present0 k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
-    go absent present !k !ary !i !n
-        | i >= n    = absent
+    go !k !ary !i !n
+        | i >= n    = absent0 (# #)
         | otherwise = case A.index ary i of
             (L kx v)
-                | k == kx   -> present i v
-                | otherwise -> go absent present k ary (i+1) n
-{-# INLINABLE lookupInArrayWithPosition #-}
+                | k == kx   -> present0 i v
+                | otherwise -> go k ary (i+1) n
+{-# INLINE lookupInArrayWithPosition #-}
 
 -- | /O(n)/ Lookup the value associated with the given key in this
 -- array.  Returns 'Nothing' if the key wasn't found.

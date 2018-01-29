@@ -1,5 +1,7 @@
 {-# LANGUAGE BangPatterns, CPP, PatternGuards #-}
 {-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE UnboxedSums #-}
 
 ------------------------------------------------------------------------
 -- |
@@ -274,20 +276,20 @@ alterF f k m = (<$> f mv) $ \fres ->
     Nothing -> case lookupRes of
 
       -- Key did not exist in the map to begin with, no-op
-      Absent -> m
+      (# (# #) | #) -> m
 
       -- Key did exist, no collision
-      Present collPos _ -> deleteKeyExists collPos h k m
+      (# | (# collPos, _ #) #) -> deleteKeyExists collPos h k m
 
     ------------------------------
     -- Update value
     Just v' -> case lookupRes of
 
       -- Key did not exist before, insert v' under a new key
-      Absent -> insertNewKey h k v' m
+      (# (# #) | #) -> insertNewKey h k v' m
 
       -- Key existed before, no hash collision
-      Present collPos v ->
+      (# | (# collPos, v #) #) ->
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
@@ -297,8 +299,8 @@ alterF f k m = (<$> f mv) $ \fres ->
   where !h = hash k
         lookupRes = lookupRecordCollision h k m
         mv = case lookupRes of
-          Absent -> Nothing
-          Present _ v -> Just v
+          (# (# #) | #) -> Nothing
+          (# | (# _, v #) #) -> Just v
 {-# INLINABLE alterF #-}
 
 ------------------------------------------------------------------------
