@@ -1,9 +1,13 @@
-## next
+## 0.2.9.0
 
  * Add `Ord/Ord1/Ord2` instances.
- * Remove support for GHC versions before 7.8. (Thanks, Dmitry Ivanov!)
+
+ * Remove support for GHC versions before 7.8. (Thanks, Dmitry Ivanov)
+
  * Use `SmallArray#` instead of `Array#` for GHC versions 7.10 and above.
-   (Thanks, Dmitry Ivanov!)
+   (Thanks, Dmitry Ivanov)
+
+ * Adjust for `Semigroup => Monoid` proposal implementation.
 
 ## 0.2.8.0
 
