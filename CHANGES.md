@@ -1,13 +1,28 @@
 ## 0.2.9.0
 
- * Add `Ord/Ord1/Ord2` instances.
-
- * Remove support for GHC versions before 7.8. (Thanks, Dmitry Ivanov)
+ * Add `Ord/Ord1/Ord2` instances. (Thanks, Oleg Grenrus)
 
  * Use `SmallArray#` instead of `Array#` for GHC versions 7.10 and above.
    (Thanks, Dmitry Ivanov)
 
  * Adjust for `Semigroup => Monoid` proposal implementation.
+   (Thanks, Ryan Scott)
+
+### Bug fixes
+
+ * Fix a strictness bug in `fromListWith`.
+
+ * Enable eager blackholing for pre-8.2 GHC versions to work around
+   a runtime system bug. (Thanks, Ben Gamari)
+
+ * Avoid sketchy reimplementation of `ST` when compiling with recent
+   GHC.
+
+### Other changes
+
+ * Remove support for GHC versions before 7.8. (Thanks, Dmitry Ivanov)
+
+ * Add internal documentaton. (Thanks, Johan Tibell)
 
 ## 0.2.8.0
 
