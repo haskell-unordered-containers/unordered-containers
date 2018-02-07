@@ -998,8 +998,8 @@ intersectionWithKey f a b = foldlWithKey' go empty a
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
--- is evaluated before before using the result in the next
--- application.  This function is strict in the starting value.
+-- is evaluated before using the result in the next application. 
+-- This function is strict in the starting value.
 foldl' :: (a -> v -> a) -> a -> HashMap k v -> a
 foldl' f = foldlWithKey' (\ z _ v -> f z v)
 {-# INLINE foldl' #-}
@@ -1007,8 +1007,8 @@ foldl' f = foldlWithKey' (\ z _ v -> f z v)
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
--- is evaluated before before using the result in the next
--- application.  This function is strict in the starting value.
+-- is evaluated before using the result in the next application.  
+-- This function is strict in the starting value.
 foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
 foldlWithKey' f = go
   where
