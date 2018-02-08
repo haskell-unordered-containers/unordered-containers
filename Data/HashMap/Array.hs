@@ -31,6 +31,7 @@ module Data.HashMap.Array
 
     , unsafeFreeze
     , unsafeThaw
+    , unsafeSameArray
     , run
     , run2
     , copy
@@ -53,7 +54,7 @@ import qualified Data.Traversable as Traversable
 import Control.Applicative (Applicative)
 #endif
 import Control.DeepSeq
-import GHC.Exts(Int(..))
+import GHC.Exts(Int(..), Int#, reallyUnsafePtrEquality#, tagToEnum#, unsafeCoerce#, State#)
 import GHC.ST (ST(..))
 
 #if __GLASGOW_HASKELL__ >= 709
@@ -86,16 +87,57 @@ import Data.HashMap.Unsafe (runST)
 type Array# a = SmallArray# a
 type MutableArray# a = SmallMutableArray# a
 
+newArray# :: Int# -> a -> State# d -> (# State# d, SmallMutableArray# d a #)
 newArray# = newSmallArray#
-readArray# = readSmallArray#
-writeArray# = writeSmallArray#
-indexArray# = indexSmallArray#
+
+unsafeFreezeArray# :: SmallMutableArray# d a
+                   -> State# d -> (# State# d, SmallArray# a #)
 unsafeFreezeArray# = unsafeFreezeSmallArray#
+
+readArray# :: SmallMutableArray# d a
+           -> Int# -> State# d -> (# State# d, a #)
+readArray# = readSmallArray#
+
+writeArray# :: SmallMutableArray# d a
+            -> Int# -> a -> State# d -> State# d
+writeArray# = writeSmallArray#
+
+indexArray# :: SmallArray# a -> Int# -> (# a #)
+indexArray# = indexSmallArray#
+
+unsafeThawArray# :: SmallArray# a
+                 -> State# d -> (# State# d, SmallMutableArray# d a #)
 unsafeThawArray# = unsafeThawSmallArray#
+
+sizeofArray# :: SmallArray# a -> Int#
 sizeofArray# = sizeofSmallArray#
+
+copyArray# :: SmallArray# a
+           -> Int#
+           -> SmallMutableArray# d a
+           -> Int#
+           -> Int#
+           -> State# d
+           -> State# d
 copyArray# = copySmallArray#
+
+thawArray# :: SmallArray# a
+           -> Int#
+           -> Int#
+           -> State# d
+           -> (# State# d, SmallMutableArray# d a #)
 thawArray# = thawSmallArray#
+
+sizeofMutableArray# :: SmallMutableArray# s a -> Int#
 sizeofMutableArray# = sizeofSmallMutableArray#
+
+copyMutableArray# :: SmallMutableArray# d a
+                  -> Int#
+                  -> SmallMutableArray# d a
+                  -> Int#
+                  -> Int#
+                  -> State# d
+                  -> State# d
 copyMutableArray# = copySmallMutableArray#
 #endif
 
@@ -125,6 +167,13 @@ data Array a = Array {
 
 instance Show a => Show (Array a) where
     show = show . toList
+
+-- Determines whether two arrays have the same memory address.
+-- This is more reliable than testing pointer equality on the
+-- Array wrappers, but it's still somewhat bogus.
+unsafeSameArray :: Array a -> Array b -> Bool
+unsafeSameArray (Array xs) (Array ys) =
+  tagToEnum# (unsafeCoerce# reallyUnsafePtrEquality# xs ys)
 
 length :: Array a -> Int
 length ary = I# (sizeofArray# (unArray ary))

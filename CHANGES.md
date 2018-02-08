@@ -1,3 +1,7 @@
+## next
+
+ * Add `HashMap.alterF`.
+
 ## 0.2.9.0
 
  * Add `Ord/Ord1/Ord2` instances. (Thanks, Oleg Grenrus)
