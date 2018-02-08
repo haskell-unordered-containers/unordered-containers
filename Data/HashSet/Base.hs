@@ -9,7 +9,7 @@
 
 ------------------------------------------------------------------------
 -- |
--- Module      :  Data.HashSet
+-- Module      :  Data.HashSet.Base
 -- Copyright   :  2011 Bryan O'Sullivan
 -- License     :  BSD-style
 -- Maintainer  :  johan.tibell@gmail.com
@@ -28,7 +28,7 @@
 -- implementation uses a large base (i.e. 16) so in practice these
 -- operations are constant time.
 
-module Data.HashSet
+module Data.HashSet.Base
     (
       HashSet
 
@@ -70,6 +70,9 @@ module Data.HashSet
     -- * HashMaps
     , toMap
     , fromMap
+
+    -- Exported from Data.HashMap.{Strict, Lazy}
+    , keysSet
     ) where
 
 import Control.DeepSeq (NFData(..))
@@ -84,7 +87,7 @@ import Data.Monoid (Monoid(..))
 import GHC.Exts (build)
 import Prelude hiding (filter, foldr, map, null)
 import qualified Data.Foldable as Foldable
-import qualified Data.HashMap.Lazy as H
+import qualified Data.HashMap.Base as H
 import qualified Data.List as List
 import Data.Typeable (Typeable)
 import Text.Read
@@ -100,6 +103,8 @@ import Data.Functor.Classes
 #if MIN_VERSION_hashable(1,2,5)
 import qualified Data.Hashable.Lifted as H
 #endif
+
+import Data.Functor ((<$))
 
 -- | A set of values.  A set cannot contain duplicate values.
 newtype HashSet a = HashSet {
@@ -133,7 +138,7 @@ instance Ord1 HashSet where
 #endif
 
 instance Foldable.Foldable HashSet where
-    foldr = Data.HashSet.foldr
+    foldr = Data.HashSet.Base.foldr
     {-# INLINE foldr #-}
 
 #if __GLASGOW_HASKELL__ >= 711
@@ -209,6 +214,12 @@ toMap = asMap
 -- | /O(1)/ Convert from the equivalent 'HashMap'.
 fromMap :: HashMap a () -> HashSet a
 fromMap = HashSet
+
+-- | /O(n)/ Produce a 'HashSet' of all the keys in the given 'HashMap'.
+--
+-- @since 0.2.10.0
+keysSet :: HashMap k a -> HashSet k
+keysSet m = fromMap (() <$ m)
 
 -- | /O(n+m)/ Construct a set containing all elements from both sets.
 --

@@ -1,9 +1,8 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 
 ------------------------------------------------------------------------
 -- |
--- Module      :  Data.HashMap.Lazy
+-- Module      :  Data.HashMap.Strict
 -- Copyright   :  2010-2012 Johan Tibell
 -- License     :  BSD-style
 -- Maintainer  :  johan.tibell@gmail.com
@@ -22,7 +21,7 @@
 -- Many operations have a average-case complexity of /O(log n)/.  The
 -- implementation uses a large base (i.e. 16) so in practice these
 -- operations are constant time.
-module Data.HashMap.Lazy
+module Data.HashMap.Strict
     (
       -- * Strictness properties
       -- $strictness
@@ -92,12 +91,6 @@ module Data.HashMap.Lazy
     , HS.keysSet
     ) where
 
-import Data.HashMap.Base as HM
+import Data.HashMap.Strict.Base as HM
 import qualified Data.HashSet.Base as HS
 import Prelude ()
-
--- $strictness
---
--- This module satisfies the following strictness property:
---
--- * Key arguments are evaluated to WHNF

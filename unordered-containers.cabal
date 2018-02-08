@@ -34,9 +34,11 @@ library
   other-modules:
     Data.HashMap.Array
     Data.HashMap.Base
+    Data.HashMap.Strict.Base
     Data.HashMap.List
     Data.HashMap.Unsafe
     Data.HashMap.UnsafeShift
+    Data.HashSet.Base
 
   build-depends:
     base >= 4.7 && < 5,
@@ -177,9 +179,11 @@ benchmark benchmarks
     Data.HashMap.Base
     Data.HashMap.Lazy
     Data.HashMap.Strict
+    Data.HashMap.Strict.Base
     Data.HashMap.Unsafe
     Data.HashMap.UnsafeShift
     Data.HashSet
+    Data.HashSet.Base
     Util.ByteString
     Util.Int
     Util.String
