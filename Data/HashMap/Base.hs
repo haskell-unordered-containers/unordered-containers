@@ -512,8 +512,8 @@ data LookupRes a = Absent | Present a !Int
 --
 -- Outcomes:
 --   Key not in map           => Absent
---   Key in map, no collision => Alone v
---   Key in map, collision    => Collide v position
+--   Key in map, no collision => Present v (-1)
+--   Key in map, collision    => Present v position
 lookupRecordCollision :: Eq k => Hash -> k -> HashMap k v -> LookupRes v
 #if __GLASGOW_HASKELL__ >= 802
 lookupRecordCollision h k m = case lookupRecordCollision# h k m of
@@ -529,9 +529,11 @@ lookupRecordCollision h k m = case lookupRecordCollision# h k m of
 lookupRecordCollision# :: Eq k => Hash -> k -> HashMap k v -> (# (# #) | (# v, Int# #) #)
 lookupRecordCollision# h k m =
     lookupCont (\_ -> (# (# #) | #)) (\v (I# i) -> (# | (# v, i #) #)) h k m
+-- INLINABLE to specialize to the Eq instance.
 {-# INLINABLE lookupRecordCollision# #-}
-#else
--- Pre-8.2, no unboxed sums.
+
+#else /* GHC < 8.2 so there are no unboxed sums */
+
 lookupRecordCollision h k m = lookupCont (\_ -> Absent) Present h k m
 {-# INLINABLE lookupRecordCollision #-}
 #endif
@@ -972,8 +974,7 @@ delete' h0 k0 m0 = go h0 k0 0 m0
         | otherwise = t
 {-# INLINABLE delete' #-}
 
--- Delete optimized for the case when we know the key is in the map and there is
--- no collision.
+-- | Delete optimized for the case when we know the key is in the map.
 --
 -- It is only valid to call this when the key exists in the map and you know the
 -- hash collision position if there was one. This information can be obtained
