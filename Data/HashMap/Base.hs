@@ -107,6 +107,8 @@ module Data.HashMap.Base
     , insertModifying
     , ptrEq
     , adjust#
+    , unionWithKey#
+    , unsafeInsertModifying
     ) where
 
 #if __GLASGOW_HASKELL__ < 710
@@ -650,7 +652,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
             else Full (update16 ary i st')
       where i = index h s
     go h k x s t@(Collision hy v)
-        | h == hy   = Collision h (updateOrSnocWith const k x v)
+        | h == hy   = Collision h (updateOrSnocWith (\v1 _ -> (# v1 #)) k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE insert' #-}
 
@@ -773,7 +775,7 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         return t
       where i = index h s
     go h k x s t@(Collision hy v)
-        | h == hy   = return $! Collision h (updateOrSnocWith const k x v)
+        | h == hy   = return $! Collision h (updateOrSnocWith (\v1 _ -> (# v1 #)) k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsert #-}
 
@@ -809,7 +811,7 @@ insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
             -> HashMap k v
 -- We're not going to worry about allocating a function closure
 -- to pass to insertModifying. See comments at 'adjust'.
-insertWith f k new m = insertModifying new (\old -> (# f new old #)) k m
+insertWith f k new m = insertModifying (\ _ -> (# new #)) (\old -> (# f new old #)) k m
 {-# INLINE insertWith #-}
 
 -- | @insertModifying@ is a lot like insertWith; we use it to implement alterF.
@@ -817,22 +819,22 @@ insertWith f k new m = insertModifying new (\old -> (# f new old #)) k m
 -- to apply to calculate a new value when the key is present. Thanks
 -- to the unboxed unary tuple, we avoid introducing any unnecessary
 -- thunks in the tree.
-insertModifying :: (Eq k, Hashable k) => v -> (v -> (# v #)) -> k -> HashMap k v
+insertModifying :: (Eq k, Hashable k) => ((# #) -> (# v #)) -> (v -> (# v #)) -> k -> HashMap k v
             -> HashMap k v
 insertModifying x f k0 m0 = go h0 k0 0 m0
   where
     !h0 = hash k0
-    go !h !k !_ Empty = Leaf h (L k x)
+    go !h !k !_ Empty = case x (# #) of (# new #) -> Leaf h (L k new)
     go h k s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then case f y of
                       (# v' #) | ptrEq y v' -> t
                                | otherwise -> Leaf h (L k (v'))
-                    else collision h l (L k x)
-        | otherwise = runST (two s h k x hy ky y)
+                    else case x (# #) of (# new #) -> collision h l (L k new)
+        | otherwise = case x (# #) of (# new #) -> runST (two s h k new hy ky y)
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 =
-            let ary' = A.insert ary i $! Leaf h (L k x)
+            let ary' = case x (# #) of (# new #) -> A.insert ary i $! Leaf h (L k new)
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             let !st   = A.index ary i
@@ -861,7 +863,7 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
 {-# INLINABLE insertModifying #-}
 
 -- Like insertModifying for arrays; used to implement insertModifying
-insertModifyingArr :: Eq k => v -> (v -> (# v #)) -> k -> A.Array (Leaf k v)
+insertModifyingArr :: Eq k => ((# #) -> (# v #)) -> (v -> (# v #)) -> k -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
 insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
@@ -870,7 +872,7 @@ insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
             -- Not found, append to the end.
             mary <- A.new_ (n + 1)
             A.copy ary 0 mary 0 n
-            A.write mary n (L k x)
+            case x (# #) of (# new #) -> A.write mary n (L k new)
             return mary
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> case f y of
@@ -881,40 +883,40 @@ insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
 {-# INLINE insertModifyingArr #-}
 
 -- | In-place update version of insertWith
-unsafeInsertWith :: forall k v. (Eq k, Hashable k)
-                 => (v -> v -> v) -> k -> v -> HashMap k v
+unsafeInsertModifying :: forall k v. (Eq k, Hashable k)
+                 => ((# #) -> (# v #)) -> (v -> (# v #)) -> k -> HashMap k v
                  -> HashMap k v
-unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+unsafeInsertModifying v0 f k0 m0 = runST (go h0 k0 0 m0)
   where
     h0 = hash k0
-    go :: Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
-    go !h !k x !_ Empty = return $! Leaf h (L k x)
-    go h k x s (Leaf hy l@(L ky y))
+    go :: Hash -> k -> Shift -> HashMap k v -> ST s (HashMap k v)
+    go !h !k !_ Empty = case v0 (# #) of (# x #) -> return $! Leaf h (L k x)
+    go h k s (Leaf hy l@(L ky y))
         | hy == h = if ky == k
-                    then return $! Leaf h (L k (f x y))
-                    else return $! collision h l (L k x)
-        | otherwise = two s h k x hy ky y
-    go h k x s t@(BitmapIndexed b ary)
+                    then case f y of (# v #) -> return $! Leaf h (L k v)
+                    else case v0 (# #) of (# x #) -> return $! collision h l (L k x)
+        | otherwise = case v0 (# #) of (# x #) -> two s h k x hy ky y
+    go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- A.insertM ary i $! Leaf h (L k x)
+            ary' <- case v0 (# #) of (# x #) -> A.insertM ary i $! Leaf h (L k x)
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
-            st' <- go h k x (s+bitsPerSubkey) st
+            st' <- go h k (s+bitsPerSubkey) st
             A.unsafeUpdateM ary i st'
             return t
       where m = mask h s
             i = sparseIndex b m
-    go h k x s t@(Full ary) = do
+    go h k s t@(Full ary) = do
         st <- A.indexM ary i
-        st' <- go h k x (s+bitsPerSubkey) st
+        st' <- go h k (s+bitsPerSubkey) st
         A.unsafeUpdateM ary i st'
         return t
       where i = index h s
-    go h k x s t@(Collision hy v)
-        | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-{-# INLINABLE unsafeInsertWith #-}
+    go h k s t@(Collision hy v)
+        | h == hy   = return $! Collision h (insertModifyingArr v0 f k v)
+        | otherwise = go h k s $ BitmapIndexed (mask hy s) (A.singleton t)
+{-# INLINABLE unsafeInsertModifying #-}
 
 -- | /O(log n)/ Remove the mapping for the specified key from this map
 -- if present.
@@ -1157,7 +1159,7 @@ bogus# _ = error "Data.HashMap.alterF internal error: hit bogus#"
 -- We delay this rule to stage 1 so alterFconstant has a chance to fire.
 "alterFinsertWith" [1] forall (f :: Maybe a -> Identity (Maybe a)) x y.
   alterFWeird (coerce (Just x)) (coerce (Just y)) f =
-    coerce (insertModifying x (\mold -> case runIdentity (f (Just mold)) of
+    coerce (insertModifying (\_ -> (# x #)) (\mold -> case runIdentity (f (Just mold)) of
                                             Nothing -> bogus# (# #)
                                             Just new -> (# new #)))
 
@@ -1256,7 +1258,12 @@ unionWith f = unionWithKey (const f)
 -- result.
 unionWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
-unionWithKey f = go 0
+unionWithKey f m = unionWithKey# (\k v1 v2 -> (# f k v1 v2 #)) m
+{-# INLINE unionWithKey #-}
+
+unionWithKey# :: (Eq k, Hashable k) => (k -> v -> v -> (# v #)) -> HashMap k v -> HashMap k v
+          -> HashMap k v
+unionWithKey# f = go 0
   where
     -- empty vs. anything
     go !_ t1 Empty = t1
@@ -1264,14 +1271,14 @@ unionWithKey f = go 0
     -- leaf vs. leaf
     go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
-                      then Leaf h1 (L k1 (f k1 v1 v2))
+                      then case f k1 v1 v2 of (# v #) -> Leaf h1 (L k1 v)
                       else collision h1 l1 l2
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
         | h1 == h2  = Collision h1 (updateOrSnocWithKey f k1 v1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
-        | h1 == h2  = Collision h1 (updateOrSnocWithKey (flip . f) k2 v2 ls1)
+        | h1 == h2  = Collision h1 (updateOrSnocWithKey (\q w x -> f q x w) k2 v2 ls1)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
         | h1 == h2  = Collision h1 (updateOrConcatWithKey f ls1 ls2)
@@ -1336,7 +1343,8 @@ unionWithKey f = go 0
       where
         m1 = mask h1 s
         m2 = mask h2 s
-{-# INLINE unionWithKey #-}
+{-# INLINE unionWithKey# #-}
+
 
 -- | Strict in the result of @f@.
 unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.Array a -> A.Array a
@@ -1667,7 +1675,7 @@ fromList = L.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
 -- the provided function to merge duplicate entries.
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
+fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertModifying (\_ -> (# v #)) (\y -> (# f v y #)) k m) empty
 {-# INLINE fromListWith #-}
 
 ------------------------------------------------------------------------
@@ -1719,12 +1727,12 @@ updateWith# f k0 ary0 = go k0 ary0 0 (A.length ary0)
                      | otherwise -> go k ary (i+1) n
 {-# INLINABLE updateWith# #-}
 
-updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
+updateOrSnocWith :: Eq k => (v -> v -> (# v #)) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
 updateOrSnocWith f = updateOrSnocWithKey (const f)
 {-# INLINABLE updateOrSnocWith #-}
 
-updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.Array (Leaf k v)
+updateOrSnocWithKey :: Eq k => (k -> v -> v -> (# v #)) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
 updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
   where
@@ -1736,15 +1744,15 @@ updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
             A.write mary n (L k v)
             return mary
         | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> A.update ary i (L k (f k v y))
+            (L kx y) | k == kx   -> case f k v y of (# y' #) -> A.update ary i (L k y')
                      | otherwise -> go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWithKey #-}
 
-updateOrConcatWith :: Eq k => (v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+updateOrConcatWith :: Eq k => (v -> v -> (# v #)) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
 updateOrConcatWith f = updateOrConcatWithKey (const f)
 {-# INLINABLE updateOrConcatWith #-}
 
-updateOrConcatWithKey :: Eq k => (k -> v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+updateOrConcatWithKey :: Eq k => (k -> v -> v -> (# v #)) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
 updateOrConcatWithKey f ary1 ary2 = A.run $ do
     -- first: look up the position of each element of ary2 in ary1
     let indices = A.map (\(L k _) -> indexOf k ary1) ary2
@@ -1763,7 +1771,7 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
                Just i1 -> do -- key occurs in both arrays, store combination in position i1
                              L k v1 <- A.indexM ary1 i1
                              L _ v2 <- A.indexM ary2 i2
-                             A.write mary i1 (L k (f k v1 v2))
+                             case f k v1 v2 of (# v' #) -> A.write mary i1 (L k v')
                              go iEnd (i2+1)
                Nothing -> do -- key is only in ary2, append to end
                              A.write mary iEnd =<< A.indexM ary2 i2
