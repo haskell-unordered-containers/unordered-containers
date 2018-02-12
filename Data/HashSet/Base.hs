@@ -143,6 +143,11 @@ instance Foldable.Foldable HashSet where
 
 #if __GLASGOW_HASKELL__ >= 711
 -- | '<>' = 'union'
+--
+-- /O(n+m)/
+--
+-- To obtain good performance, the smaller set must be presented as
+-- the first argument.
 instance (Hashable a, Eq a) => Semigroup (HashSet a) where
     (<>) = union
     {-# INLINE (<>) #-}
@@ -151,6 +156,11 @@ instance (Hashable a, Eq a) => Semigroup (HashSet a) where
 -- | 'mempty' = 'empty'
 --
 -- 'mappend' = 'union'
+--
+-- /O(n+m)/
+--
+-- To obtain good performance, the smaller set must be presented as
+-- the first argument.
 instance (Hashable a, Eq a) => Monoid (HashSet a) where
     mempty = empty
     {-# INLINE mempty #-}

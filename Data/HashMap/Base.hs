@@ -200,6 +200,8 @@ instance Foldable.Foldable (HashMap k) where
 
 #if __GLASGOW_HASKELL__ >= 711
 -- | '<>' = 'union'
+--
+-- If a key occurs in both maps, the mapping from the first will be the mapping in the result.
 instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
   (<>) = union
   {-# INLINE (<>) #-}
@@ -208,6 +210,8 @@ instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
 -- | 'mempty' = 'empty'
 --
 -- 'mappend' = 'union'
+--
+-- If a key occurs in both maps, the mapping from the first will be the mapping in the result.
 instance (Eq k, Hashable k) => Monoid (HashMap k v) where
   mempty = empty
   {-# INLINE mempty #-}
