@@ -1247,6 +1247,11 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
 
 -- | /O(n+m)/ The union of two maps. If a key occurs in both maps, the
 -- mapping from the first will be the mapping in the result.
+--
+-- ==== __Examples__
+--
+-- >>> union (fromList [(1,'a'),(2,'b')]) (fromList [(2,'c'),(3,'d')])
+-- fromList [(1,'a'),(2,'b'),(3,'d')]
 union :: (Eq k, Hashable k) => HashMap k v -> HashMap k v -> HashMap k v
 union = unionWith const
 {-# INLINABLE union #-}
