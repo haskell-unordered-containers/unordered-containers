@@ -148,6 +148,11 @@ instance Foldable.Foldable HashSet where
 --
 -- To obtain good performance, the smaller set must be presented as
 -- the first argument.
+--
+-- ==== __Examples__
+--
+-- >>> fromList [1,2] <> fromList [2,3]
+-- fromList [1,2,3]
 instance (Hashable a, Eq a) => Semigroup (HashSet a) where
     (<>) = union
     {-# INLINE (<>) #-}
@@ -161,6 +166,11 @@ instance (Hashable a, Eq a) => Semigroup (HashSet a) where
 --
 -- To obtain good performance, the smaller set must be presented as
 -- the first argument.
+--
+-- ==== __Examples__
+--
+-- >>> mappend (fromList [1,2]) (fromList [2,3])
+-- fromList [1,2,3]
 instance (Hashable a, Eq a) => Monoid (HashSet a) where
     mempty = empty
     {-# INLINE mempty #-}

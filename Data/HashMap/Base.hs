@@ -202,6 +202,11 @@ instance Foldable.Foldable (HashMap k) where
 -- | '<>' = 'union'
 --
 -- If a key occurs in both maps, the mapping from the first will be the mapping in the result.
+--
+-- ==== __Examples__
+--
+-- >>> fromList [(1,'a'),(2,'b')] <> fromList [(2,'c'),(3,'d')]
+-- fromList [(1,'a'),(2,'b'),(3,'d')]
 instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
   (<>) = union
   {-# INLINE (<>) #-}
@@ -212,6 +217,11 @@ instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
 -- 'mappend' = 'union'
 --
 -- If a key occurs in both maps, the mapping from the first will be the mapping in the result.
+--
+-- ==== __Examples__
+--
+-- >>> mappend (fromList [(1,'a'),(2,'b')]) (fromList [(2,'c'),(3,'d')])
+-- fromList [(1,'a'),(2,'b'),(3,'d')]
 instance (Eq k, Hashable k) => Monoid (HashMap k v) where
   mempty = empty
   {-# INLINE mempty #-}
