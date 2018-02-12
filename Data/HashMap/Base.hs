@@ -199,11 +199,15 @@ instance Foldable.Foldable (HashMap k) where
     foldr f = foldrWithKey (const f)
 
 #if __GLASGOW_HASKELL__ >= 711
+-- | '<>' = 'union'
 instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
   (<>) = union
   {-# INLINE (<>) #-}
 #endif
 
+-- | 'mempty' = 'empty'
+--
+-- 'mappend' = 'union'
 instance (Eq k, Hashable k) => Monoid (HashMap k v) where
   mempty = empty
   {-# INLINE mempty #-}

@@ -142,11 +142,15 @@ instance Foldable.Foldable HashSet where
     {-# INLINE foldr #-}
 
 #if __GLASGOW_HASKELL__ >= 711
+-- | '<>' = 'union'
 instance (Hashable a, Eq a) => Semigroup (HashSet a) where
     (<>) = union
     {-# INLINE (<>) #-}
 #endif
 
+-- | 'mempty' = 'empty'
+--
+-- 'mappend' = 'union'
 instance (Hashable a, Eq a) => Monoid (HashSet a) where
     mempty = empty
     {-# INLINE mempty #-}
