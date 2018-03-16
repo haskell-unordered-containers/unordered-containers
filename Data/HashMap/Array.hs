@@ -28,6 +28,7 @@ module Data.HashMap.Array
     , insert
     , insertM
     , delete
+    , sameArray1
 
     , unsafeFreeze
     , unsafeThaw
@@ -81,6 +82,7 @@ import qualified Prelude
 #endif
 
 import Data.HashMap.Unsafe (runST)
+import Control.Monad ((>=>))
 
 
 #if __GLASGOW_HASKELL__ >= 710
@@ -170,10 +172,24 @@ instance Show a => Show (Array a) where
 
 -- Determines whether two arrays have the same memory address.
 -- This is more reliable than testing pointer equality on the
--- Array wrappers, but it's still somewhat bogus.
+-- Array wrappers, but it's still slightly bogus.
 unsafeSameArray :: Array a -> Array b -> Bool
 unsafeSameArray (Array xs) (Array ys) =
   tagToEnum# (unsafeCoerce# reallyUnsafePtrEquality# xs ys)
+
+sameArray1 :: (a -> b -> Bool) -> Array a -> Array b -> Bool
+sameArray1 eq !xs0 !ys0
+  | lenxs /= lenys = False
+  | otherwise = go 0 xs0 ys0
+  where
+    go !k !xs !ys
+      | k == lenxs = True
+      | (# x #) <- index# xs k
+      , (# y #) <- index# ys k
+      = eq x y && go (k + 1) xs ys
+
+    !lenxs = length xs0
+    !lenys = length ys0
 
 length :: Array a -> Int
 length ary = I# (sizeofArray# (unArray ary))
@@ -258,6 +274,12 @@ index ary _i@(I# i#) =
     CHECK_BOUNDS("index", length ary, _i)
         case indexArray# (unArray ary) i# of (# b #) -> b
 {-# INLINE index #-}
+
+index# :: Array a -> Int -> (# a #)
+index# ary _i@(I# i#) =
+    CHECK_BOUNDS("index#", length ary, _i)
+        indexArray# (unArray ary) i#
+{-# INLINE index# #-}
 
 indexM :: Array a -> Int -> ST s a
 indexM ary _i@(I# i#) =
@@ -361,16 +383,20 @@ foldl' :: (b -> a -> b) -> b -> Array a -> b
 foldl' f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
   where
     go ary n i !z
-        | i >= n    = z
-        | otherwise = go ary n (i+1) (f z (index ary i))
+        | i >= n = z
+        | otherwise
+        = case index# ary i of
+            (# x #) -> go ary n (i+1) (f z x)
 {-# INLINE foldl' #-}
 
 foldr :: (a -> b -> b) -> b -> Array a -> b
 foldr f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
   where
     go ary n i z
-        | i >= n    = z
-        | otherwise = f (index ary i) (go ary n (i+1) z)
+        | i >= n = z
+        | otherwise
+        = case index# ary i of
+            (# x #) -> f x (go ary n (i+1) z)
 {-# INLINE foldr #-}
 
 undefinedElem :: a
@@ -412,7 +438,8 @@ map f = \ ary ->
     go ary mary i n
         | i >= n    = return mary
         | otherwise = do
-             write mary i $ f (index ary i)
+             x <- indexM ary i
+             write mary i $ f x
              go ary mary (i+1) n
 {-# INLINE map #-}
 
@@ -427,7 +454,8 @@ map' f = \ ary ->
     go ary mary i n
         | i >= n    = return mary
         | otherwise = do
-             write mary i $! f (index ary i)
+             x <- indexM ary i
+             write mary i $! f x
              go ary mary (i+1) n
 {-# INLINE map' #-}
 
@@ -448,7 +476,27 @@ toList = foldr (:) []
 traverse :: Applicative f => (a -> f b) -> Array a -> f (Array b)
 traverse f = \ ary -> fromList (length ary) `fmap`
                       Traversable.traverse f (toList ary)
-{-# INLINE traverse #-}
+{-# INLINE [1] traverse #-}
+
+-- Traversing in ST, we don't need to make a list; we
+-- can just do it directly.
+traverseST :: (a -> ST s b) -> Array a -> ST s (Array b)
+traverseST f = \ ary0 ->
+  let
+    !len = length ary0
+    go k mary
+      | k == len = return mary
+      | otherwise = do
+          x <- indexM ary0 k
+          y <- f x
+          write mary k y
+          go (k + 1) mary
+  in new_ len >>= (go 0 >=> unsafeFreeze)
+{-# INLINE traverseST #-}
+
+{-# RULES
+"traverse/ST" forall f. traverse f = traverseST f
+ #-}
 
 filter :: (a -> Bool) -> Array a -> Array a
 filter p = \ ary ->
