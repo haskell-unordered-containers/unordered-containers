@@ -77,7 +77,7 @@ module Data.HashSet.Base
 
 import Control.DeepSeq (NFData(..))
 import Data.Data hiding (Typeable)
-import Data.HashMap.Base (HashMap, foldrWithKey, equalKeys)
+import Data.HashMap.Base (HashMap, foldrWithKey, equalKeys, equalKeys1)
 import Data.Hashable (Hashable(hashWithSalt))
 #if __GLASGOW_HASKELL__ >= 711
 import Data.Semigroup (Semigroup(..))
@@ -120,12 +120,12 @@ instance (NFData a) => NFData (HashSet a) where
     {-# INLINE rnf #-}
 
 instance (Eq a) => Eq (HashSet a) where
-    HashSet a == HashSet b = equalKeys (==) a b
+    HashSet a == HashSet b = equalKeys a b
     {-# INLINE (==) #-}
 
 #if MIN_VERSION_base(4,9,0)
 instance Eq1 HashSet where
-    liftEq eq (HashSet a) (HashSet b) = equalKeys eq a b
+    liftEq eq (HashSet a) (HashSet b) = equalKeys1 eq a b
 #endif
 
 instance (Ord a) => Ord (HashSet a) where

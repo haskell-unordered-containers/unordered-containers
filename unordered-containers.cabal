@@ -18,7 +18,7 @@ copyright:      2010-2014 Johan Tibell
                 2010 Edward Z. Yang
 category:       Data
 build-type:     Simple
-cabal-version:  >=1.8
+cabal-version:  >=1.10
 extra-source-files: CHANGES.md
 tested-with:    GHC==8.4.1, GHC==8.2.2, GHC==8.0.2, GHC==7.10.3, GHC==7.8.4
 
@@ -44,6 +44,8 @@ library
     base >= 4.7 && < 5,
     deepseq >= 1.1,
     hashable >= 1.0.1.1 && < 1.3
+
+  default-language: Haskell2010
 
   other-extensions:
     RoleAnnotations,
@@ -76,6 +78,7 @@ test-suite hashmap-lazy-properties
     test-framework-quickcheck2 >= 0.2.9,
     unordered-containers
 
+  default-language: Haskell2010
   ghc-options: -Wall
   cpp-options: -DASSERTS
 
@@ -93,6 +96,7 @@ test-suite hashmap-strict-properties
     test-framework-quickcheck2 >= 0.2.9,
     unordered-containers
 
+  default-language: Haskell2010
   ghc-options: -Wall
   cpp-options: -DASSERTS -DSTRICT
 
@@ -110,6 +114,7 @@ test-suite hashset-properties
     test-framework-quickcheck2 >= 0.2.9,
     unordered-containers
 
+  default-language: Haskell2010
   ghc-options: -Wall
   cpp-options: -DASSERTS
 
@@ -127,6 +132,7 @@ test-suite list-tests
     test-framework >= 0.3.3,
     test-framework-quickcheck2 >= 0.2.9
 
+  default-language: Haskell2010
   ghc-options: -Wall
   cpp-options: -DASSERTS
 
@@ -145,6 +151,7 @@ test-suite regressions
     test-framework-quickcheck2,
     unordered-containers
 
+  default-language: Haskell2010
   ghc-options: -Wall
   cpp-options: -DASSERTS
 
@@ -163,6 +170,7 @@ test-suite strictness-properties
     test-framework-quickcheck2 >= 0.2.9,
     unordered-containers
 
+  default-language: Haskell2010
   ghc-options: -Wall
   cpp-options: -DASSERTS
 
@@ -200,6 +208,7 @@ benchmark benchmarks
     mtl,
     random
 
+  default-language: Haskell2010
   ghc-options: -Wall -O2 -rtsopts -fwarn-tabs -ferror-spans
   if flag(debug)
     cpp-options: -DASSERTS

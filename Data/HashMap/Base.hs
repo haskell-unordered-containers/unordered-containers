@@ -96,6 +96,7 @@ module Data.HashMap.Base
     , updateOrConcatWithKey
     , filterMapAux
     , equalKeys
+    , equalKeys1
     , lookupRecordCollision
     , LookupRes(..)
     , insert'
@@ -269,18 +270,37 @@ instance Traversable (HashMap k) where
 
 #if MIN_VERSION_base(4,9,0)
 instance Eq2 HashMap where
-    liftEq2 = equal
+    liftEq2 = equal2
 
 instance Eq k => Eq1 (HashMap k) where
-    liftEq = equal (==)
+    liftEq = equal1
 #endif
 
 instance (Eq k, Eq v) => Eq (HashMap k v) where
-    (==) = equal (==) (==)
+    (==) = equal1 (==)
 
-equal :: (k -> k' -> Bool) -> (v -> v' -> Bool)
+-- We rely on there being no Empty constructors in the tree!
+-- This ensures that two equal HashMaps will have the same
+-- shape, modulo the order of entries in Collisions.
+equal1 :: Eq k
+       => (v -> v' -> Bool)
+       -> HashMap k v -> HashMap k v' -> Bool
+equal1 eq = go
+  where
+    go Empty Empty = True
+    go (BitmapIndexed bm1 ary1) (BitmapIndexed bm2 ary2)
+      = bm1 == bm2 && A.sameArray1 go ary1 ary2
+    go (Leaf h1 l1) (Leaf h2 l2) = h1 == h2 && leafEq l1 l2
+    go (Full ary1) (Full ary2) = A.sameArray1 go ary1 ary2
+    go (Collision h1 ary1) (Collision h2 ary2)
+      = h1 == h2 && isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
+    go _ _ = False
+
+    leafEq (L k1 v1) (L k2 v2) = k1 == k2 && eq v1 v2
+
+equal2 :: (k -> k' -> Bool) -> (v -> v' -> Bool)
       -> HashMap k v -> HashMap k' v' -> Bool
-equal eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
+equal2 eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
   where
     -- If the two trees are the same, then their lists of 'Leaf's and
     -- 'Collision's read from left to right should be the same (modulo the
@@ -339,8 +359,8 @@ cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
     leafCompare (L k v) (L k' v') = cmpk k k' `mappend` cmpv v v'
 
 -- Same as 'equal' but doesn't compare the values.
-equalKeys :: (k -> k' -> Bool) -> HashMap k v -> HashMap k' v' -> Bool
-equalKeys eq t1 t2 = go (toList' t1 []) (toList' t2 [])
+equalKeys1 :: (k -> k' -> Bool) -> HashMap k v -> HashMap k' v' -> Bool
+equalKeys1 eq t1 t2 = go (toList' t1 []) (toList' t2 [])
   where
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
       | k1 == k2 && leafEq l1 l2
@@ -353,6 +373,22 @@ equalKeys eq t1 t2 = go (toList' t1 []) (toList' t2 [])
     go _  _  = False
 
     leafEq (L k _) (L k' _) = eq k k'
+
+-- Same as 'equal1' but doesn't compare the values.
+equalKeys :: Eq k => HashMap k v -> HashMap k v' -> Bool
+equalKeys = go
+  where
+    go :: Eq k => HashMap k v -> HashMap k v' -> Bool
+    go Empty Empty = True
+    go (BitmapIndexed bm1 ary1) (BitmapIndexed bm2 ary2)
+      = bm1 == bm2 && A.sameArray1 go ary1 ary2
+    go (Leaf h1 l1) (Leaf h2 l2) = h1 == h2 && leafEq l1 l2
+    go (Full ary1) (Full ary2) = A.sameArray1 go ary1 ary2
+    go (Collision h1 ary1) (Collision h2 ary2)
+      = h1 == h2 && isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
+    go _ _ = False
+
+    leafEq (L k1 _) (L k2 _) = k1 == k2
 
 #if MIN_VERSION_hashable(1,2,5)
 instance H.Hashable2 HashMap where
@@ -1746,8 +1782,11 @@ updateOrConcatWith f = updateOrConcatWithKey (const f)
 
 updateOrConcatWithKey :: Eq k => (k -> v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
 updateOrConcatWithKey f ary1 ary2 = A.run $ do
+    -- TODO: instead of mapping and then folding, should we traverse?
+    -- We'll have to be careful to avoid allocating pairs or similar.
+
     -- first: look up the position of each element of ary2 in ary1
-    let indices = A.map (\(L k _) -> indexOf k ary1) ary2
+    let indices = A.map' (\(L k _) -> indexOf k ary1) ary2
     -- that tells us how large the overlap is:
     -- count number of Nothing constructors
     let nOnly2 = A.foldl' (\n -> maybe (n+1) (const n)) 0 indices
