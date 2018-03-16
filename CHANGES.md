@@ -4,6 +4,9 @@
 
  * Add `HashMap.keysSet`.
 
+ * Make `HashMap.Strict.traverseWithKey` force the results before
+   installing them in the map.
+
 ## 0.2.9.0
 
  * Add `Ord/Ord1/Ord2` instances. (Thanks, Oleg Grenrus)

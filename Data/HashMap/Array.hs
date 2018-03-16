@@ -46,14 +46,16 @@ module Data.HashMap.Array
     , map
     , map'
     , traverse
+    , traverse'
     , filter
     , toList
+    , fromList
     ) where
 
-import qualified Data.Traversable as Traversable
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative (Applicative)
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative (Applicative (..), (<$>))
 #endif
+import Control.Applicative (liftA2)
 import Control.DeepSeq
 import GHC.Exts(Int(..), Int#, reallyUnsafePtrEquality#, tagToEnum#, unsafeCoerce#, State#)
 import GHC.ST (ST(..))
@@ -473,10 +475,41 @@ fromList n xs0 =
 toList :: Array a -> [a]
 toList = foldr (:) []
 
+data SList a = SCons !a (SList a) | SNil
+
+traverseToSList
+  :: Applicative f
+  => (a -> f b) -> [a] -> f (SList b)
+traverseToSList f = go
+  where
+    go (a : as) = liftA2 SCons (f a) (go as)
+    go [] = pure SNil
+
+_slength :: SList a -> Int
+_slength = go 0 where
+  go !acc SNil = acc
+  go acc (SCons _ xs) = go (acc + 1) xs
+
+fromSList :: Int -> SList a -> Array a
+fromSList n xs0 =
+    CHECK_EQ("fromSList", n, _slength xs0)
+        run $ do
+            mary <- new_ n
+            go xs0 mary 0
+  where
+    go SNil !mary !_ = return mary
+    go (SCons x xs) mary i = do write mary i x
+                                go xs mary (i + 1)
+
 traverse :: Applicative f => (a -> f b) -> Array a -> f (Array b)
 traverse f = \ ary -> fromList (length ary) `fmap`
                       Traversable.traverse f (toList ary)
 {-# INLINE [1] traverse #-}
+
+traverse' :: Applicative f => (a -> f b) -> Array a -> f (Array b)
+traverse' f = \ary -> fromSList (length ary) `fmap`
+                      traverseToSList f (toList ary)
+{-# INLINE [1] traverse' #-}
 
 -- Traversing in ST, we don't need to make a list; we
 -- can just do it directly.
@@ -496,6 +529,26 @@ traverseST f = \ ary0 ->
 
 {-# RULES
 "traverse/ST" forall f. traverse f = traverseST f
+ #-}
+
+-- Traversing in ST, we don't need to make a list; we
+-- can just do it directly.
+traverseST' :: (a -> ST s b) -> Array a -> ST s (Array b)
+traverseST' f = \ ary0 ->
+  let
+    !len = length ary0
+    go k mary
+      | k == len = return mary
+      | otherwise = do
+          x <- indexM ary0 k
+          !y <- f x
+          write mary k y
+          go (k + 1) mary
+  in new_ len >>= (go 0 >=> unsafeFreeze)
+{-# INLINE traverseST' #-}
+
+{-# RULES
+"traverse'/ST" forall f. traverse' f = traverseST' f
  #-}
 
 filter :: (a -> Bool) -> Array a -> Array a
