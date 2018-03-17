@@ -93,7 +93,7 @@ module Data.HashMap.Strict.Base
 import Data.Bits ((.&.), (.|.))
 
 #if !MIN_VERSION_base(4,8,0)
-import Data.Functor((<$>))
+import Control.Applicative (Applicative (..), (<$>))
 #endif
 import qualified Data.List as L
 import Data.Hashable (Hashable)
