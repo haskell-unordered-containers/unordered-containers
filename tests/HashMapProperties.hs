@@ -246,6 +246,11 @@ pUnions xss = M.toAscList (M.unions (map M.fromList xss)) ==
 pMap :: [(Key, Int)] -> Bool
 pMap = M.map (+ 1) `eq_` HM.map (+ 1)
 
+pTraverse :: [(Key, Int)] -> Bool
+pTraverse xs =
+  L.sort (fmap (L.sort . M.toList) (M.traverseWithKey (\_ v -> [v + 1, v + 2]) (M.fromList (take 10 xs))))
+     == L.sort (fmap (L.sort . HM.toList) (HM.traverseWithKey (\_ v -> [v + 1, v + 2]) (HM.fromList (take 10 xs))))
+
 ------------------------------------------------------------------------
 -- ** Difference and intersection
 
@@ -382,6 +387,7 @@ tests =
     , testProperty "unions" pUnions
     -- Transformations
     , testProperty "map" pMap
+    , testProperty "traverse" pTraverse
     -- Folds
     , testGroup "folds"
       [ testProperty "foldr" pFoldr

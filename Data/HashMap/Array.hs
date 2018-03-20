@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, MagicHash, Rank2Types, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, CPP, MagicHash, Rank2Types, UnboxedTuples, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 
 -- | Zero based arrays.
@@ -46,17 +46,20 @@ module Data.HashMap.Array
     , map
     , map'
     , traverse
+    , traverse'
     , filter
     , toList
+    , fromList
     ) where
 
-import qualified Data.Traversable as Traversable
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative (Applicative)
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative (Applicative (..), (<$>))
 #endif
+import Control.Applicative (liftA2)
 import Control.DeepSeq
-import GHC.Exts(Int(..), Int#, reallyUnsafePtrEquality#, tagToEnum#, unsafeCoerce#, State#)
+import GHC.Exts(Int(..), Int#, reallyUnsafePtrEquality#, tagToEnum#, unsafeCoerce#, State#, (+#))
 import GHC.ST (ST(..))
+import Control.Monad.ST (stToIO)
 
 #if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding (filter, foldr, length, map, read, traverse)
@@ -473,18 +476,36 @@ fromList n xs0 =
 toList :: Array a -> [a]
 toList = foldr (:) []
 
-traverse :: Applicative f => (a -> f b) -> Array a -> f (Array b)
-traverse f = \ ary -> fromList (length ary) `fmap`
-                      Traversable.traverse f (toList ary)
+newtype STA a = STA {_runSTA :: forall s. MutableArray# s a -> ST s (Array a)}
+
+runSTA :: Int -> STA a -> Array a
+runSTA !n (STA m) = runST $ new_ n >>= \ (MArray ar) -> m ar
+
+traverse :: forall f a b. Applicative f => (a -> f b) -> Array a -> f (Array b)
+traverse f = \ !ary -> runSTA (length ary) <$> foldr go stop ary 0#
+  where
+    go :: a -> (Int# -> f (STA b)) -> Int# -> f (STA b)
+    go a r i = liftA2 (\b (STA m) -> STA $ \mry# -> write (MArray mry#) (I# i) b >> m mry#) (f a) (r (i +# 1#))
+    stop :: Int# -> f (STA b)
+    stop _i = pure (STA (\mry# -> unsafeFreeze (MArray mry#)))
 {-# INLINE [1] traverse #-}
 
--- Traversing in ST, we don't need to make a list; we
+traverse' :: forall f a b. Applicative f => (a -> f b) -> Array a -> f (Array b)
+traverse' f = \ !ary -> runSTA (length ary) <$> foldr go stop ary 0#
+  where
+    go :: a -> (Int# -> f (STA b)) -> Int# -> f (STA b)
+    go a r i = liftA2 (\ !b (STA m) -> STA $ \mry# -> write (MArray mry#) (I# i) b >> m mry#) (f a) (r (i +# 1#))
+    stop :: Int# -> f (STA b)
+    stop _i = pure (STA (\mry# -> unsafeFreeze (MArray mry#)))
+{-# INLINE [1] traverse' #-}
+
+-- Traversing in ST, we don't need to get fancy; we
 -- can just do it directly.
 traverseST :: (a -> ST s b) -> Array a -> ST s (Array b)
 traverseST f = \ ary0 ->
   let
     !len = length ary0
-    go k mary
+    go k !mary
       | k == len = return mary
       | otherwise = do
           x <- indexM ary0 k
@@ -494,8 +515,59 @@ traverseST f = \ ary0 ->
   in new_ len >>= (go 0 >=> unsafeFreeze)
 {-# INLINE traverseST #-}
 
+traverseIO :: (a -> IO b) -> Array a -> IO (Array b)
+traverseIO f = \ ary0 ->
+  let
+    !len = length ary0
+    go k !mary
+      | k == len = return mary
+      | otherwise = do
+          x <- stToIO $ indexM ary0 k
+          y <- f x
+          stToIO $ write mary k y
+          go (k + 1) mary
+  in stToIO (new_ len) >>= (go 0 >=> stToIO . unsafeFreeze)
+{-# INLINE traverseIO #-}
+
+
 {-# RULES
 "traverse/ST" forall f. traverse f = traverseST f
+"traverse/IO" forall f. traverse f = traverseIO f
+ #-}
+
+-- Traversing in ST, we don't need to get fancy; we
+-- can just do it directly.
+traverseST' :: (a -> ST s b) -> Array a -> ST s (Array b)
+traverseST' f = \ ary0 ->
+  let
+    !len = length ary0
+    go k !mary
+      | k == len = return mary
+      | otherwise = do
+          x <- indexM ary0 k
+          !y <- f x
+          write mary k y
+          go (k + 1) mary
+  in new_ len >>= (go 0 >=> unsafeFreeze)
+{-# INLINE traverseST' #-}
+
+traverseIO' :: (a -> IO b) -> Array a -> IO (Array b)
+traverseIO' f = \ ary0 ->
+  let
+    !len = length ary0
+    go k !mary
+      | k == len = return mary
+      | otherwise = do
+          x <- stToIO $ indexM ary0 k
+          !y <- f x
+          stToIO $ write mary k y
+          go (k + 1) mary
+  in stToIO (new_ len) >>= (go 0 >=> stToIO . unsafeFreeze)
+{-# INLINE traverseIO' #-}
+
+{-# RULES
+"traverse'/ST" forall f. traverse' f = traverseST' f
+"traverse'/IO" forall f. traverse' f = traverseIO' f
  #-}
 
 filter :: (a -> Bool) -> Array a -> Array a

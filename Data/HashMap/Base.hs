@@ -634,7 +634,7 @@ infixl 9 !
 
 -- | Create a 'Collision' value with two 'Leaf' values.
 collision :: Hash -> Leaf k v -> Leaf k v -> HashMap k v
-collision h e1 e2 =
+collision h !e1 !e2 =
     let v = A.run $ do mary <- A.new 2 e1
                        A.write mary 1 e2
                        return mary
@@ -1432,10 +1432,17 @@ map f = mapWithKey (const f)
 -- TODO: We should be able to use mutation to create the new
 -- 'HashMap'.
 
--- | /O(n)/ Transform this map by accumulating an Applicative result
--- from every value.
-traverseWithKey :: Applicative f => (k -> v1 -> f v2) -> HashMap k v1
-                -> f (HashMap k v2)
+-- | /O(n)/ Perform an 'Applicative' action for each key-value pair
+-- in a 'HashMap' and produce a 'HashMap' of all the results.
+--
+-- Note: the order in which the actions occur is unspecified. In particular,
+-- when the map contains hash collisions, the order in which the actions
+-- associated with the keys involved will depend in an unspecified way on
+-- their insertion order.
+traverseWithKey
+  :: Applicative f
+  => (k -> v1 -> f v2)
+  -> HashMap k v1 -> f (HashMap k v2)
 traverseWithKey f = go
   where
     go Empty                 = pure Empty
@@ -1443,7 +1450,7 @@ traverseWithKey f = go
     go (BitmapIndexed b ary) = BitmapIndexed b <$> A.traverse go ary
     go (Full ary)            = Full <$> A.traverse go ary
     go (Collision h ary)     =
-        Collision h <$> A.traverse (\ (L k v) -> L k <$> f k v) ary
+        Collision h <$> A.traverse' (\ (L k v) -> L k <$> f k v) ary
 {-# INLINE traverseWithKey #-}
 
 ------------------------------------------------------------------------

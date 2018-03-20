@@ -93,7 +93,7 @@ module Data.HashMap.Strict.Base
 import Data.Bits ((.&.), (.|.))
 
 #if !MIN_VERSION_base(4,8,0)
-import Data.Functor((<$>))
+import Control.Applicative (Applicative (..), (<$>))
 #endif
 import qualified Data.List as L
 import Data.Hashable (Hashable)
@@ -104,7 +104,8 @@ import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
     alter, alterF, adjust, fromList, fromListWith, insert, insertWith,
     differenceWith, intersectionWith, intersectionWithKey, map, mapWithKey,
-    mapMaybe, mapMaybeWithKey, singleton, update, unionWith, unionWithKey)
+    mapMaybe, mapMaybeWithKey, singleton, update, unionWith, unionWithKey,
+    traverseWithKey)
 import Data.HashMap.Unsafe (runST)
 #if MIN_VERSION_base(4,8,0)
 import Data.Functor.Identity
@@ -522,8 +523,31 @@ mapMaybe :: (v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
 mapMaybe f = mapMaybeWithKey (const f)
 {-# INLINE mapMaybe #-}
 
-
--- TODO: Should we add a strict traverseWithKey?
+-- | /O(n)/ Perform an 'Applicative' action for each key-value pair
+-- in a 'HashMap' and produce a 'HashMap' of all the results. Each 'HashMap'
+-- will be strict in all its values.
+--
+-- @
+-- traverseWithKey f = fmap ('map' id) . "Data.HashMap.Lazy".'Data.HashMap.Lazy.traverseWithKey' f
+-- @
+--
+-- Note: the order in which the actions occur is unspecified. In particular,
+-- when the map contains hash collisions, the order in which the actions
+-- associated with the keys involved will depend in an unspecified way on
+-- their insertion order.
+traverseWithKey
+  :: Applicative f
+  => (k -> v1 -> f v2)
+  -> HashMap k v1 -> f (HashMap k v2)
+traverseWithKey f = go
+  where
+    go Empty                 = pure Empty
+    go (Leaf h (L k v))      = leaf h k <$> f k v
+    go (BitmapIndexed b ary) = BitmapIndexed b <$> A.traverse' go ary
+    go (Full ary)            = Full <$> A.traverse' go ary
+    go (Collision h ary)     =
+        Collision h <$> A.traverse' (\ (L k v) -> (L k $!) <$> f k v) ary
+{-# INLINE traverseWithKey #-}
 
 ------------------------------------------------------------------------
 -- * Difference and intersection
@@ -643,5 +667,5 @@ updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
 -- inserted into the constructor.
 
 leaf :: Hash -> k -> v -> HashMap k v
-leaf h k !v = Leaf h (L k v)
+leaf h k = \ !v -> Leaf h (L k v)
 {-# INLINE leaf #-}
