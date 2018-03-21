@@ -267,6 +267,7 @@ instance (Show k, Show v) => Show (HashMap k v) where
 
 instance Traversable (HashMap k) where
     traverse f = traverseWithKey (const f)
+    {-# INLINABLE traverse #-}
 
 #if MIN_VERSION_base(4,9,0)
 instance Eq2 HashMap where
@@ -1387,7 +1388,9 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
             | m > b'        = return ()
             | b' .&. m == 0 = go i i1 i2 (m `unsafeShiftL` 1)
             | ba .&. m /= 0 = do
-                A.write mary i $! f (A.index ary1 i1) (A.index ary2 i2)
+                x1 <- A.indexM ary1 i1
+                x2 <- A.indexM ary2 i2
+                A.write mary i $! f x1 x2
                 go (i+1) (i1+1) (i2+1) (m `unsafeShiftL` 1)
             | b1 .&. m /= 0 = do
                 A.write mary i =<< A.indexM ary1 i1
@@ -1663,7 +1666,7 @@ filterMapAux onLeaf onColl = go
                                  return $! Collision h ary2
                   | otherwise -> do ary2 <- trim mary j
                                     return $! Collision h ary2
-            | Just el <- onColl (A.index ary i)
+            | Just el <- onColl $! A.index ary i
                 = A.write mary j el >> step ary mary (i+1) (j+1) n
             | otherwise = step ary mary (i+1) j n
 {-# INLINE filterMapAux #-}
@@ -1836,7 +1839,9 @@ update16M ary idx b = do
 
 -- | /O(n)/ Update the element at the given position in this array, by applying a function to it.
 update16With' :: A.Array e -> Int -> (e -> e) -> A.Array e
-update16With' ary idx f = update16 ary idx $! f (A.index ary idx)
+update16With' ary idx f
+  | (# x #) <- A.index# ary idx
+  = update16 ary idx $! f x
 {-# INLINE update16With' #-}
 
 -- | Unsafely clone an array of 16 elements.  The length of the input
