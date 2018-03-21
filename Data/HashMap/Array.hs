@@ -57,7 +57,7 @@ import Control.Applicative (Applicative (..), (<$>))
 #endif
 import Control.Applicative (liftA2)
 import Control.DeepSeq
-import GHC.Exts(Int(..), Int#, reallyUnsafePtrEquality#, tagToEnum#, unsafeCoerce#, State#, (+#))
+import GHC.Exts(Int(..), Int#, reallyUnsafePtrEquality#, tagToEnum#, unsafeCoerce#, State#)
 import GHC.ST (ST(..))
 import Control.Monad.ST (stToIO)
 
@@ -481,22 +481,30 @@ newtype STA a = STA {_runSTA :: forall s. MutableArray# s a -> ST s (Array a)}
 runSTA :: Int -> STA a -> Array a
 runSTA !n (STA m) = runST $ new_ n >>= \ (MArray ar) -> m ar
 
-traverse :: forall f a b. Applicative f => (a -> f b) -> Array a -> f (Array b)
-traverse f = \ !ary -> runSTA (length ary) <$> foldr go stop ary 0#
-  where
-    go :: a -> (Int# -> f (STA b)) -> Int# -> f (STA b)
-    go a r i = liftA2 (\b (STA m) -> STA $ \mry# -> write (MArray mry#) (I# i) b >> m mry#) (f a) (r (i +# 1#))
-    stop :: Int# -> f (STA b)
-    stop _i = pure (STA (\mry# -> unsafeFreeze (MArray mry#)))
+traverse :: Applicative f => (a -> f b) -> Array a -> f (Array b)
+traverse f = \ !ary ->
+  let
+    !len = length ary
+    go !i
+      | i == len = pure $ STA $ \mary -> unsafeFreeze (MArray mary)
+      | (# x #) <- index# ary i
+      = liftA2 (\b (STA m) -> STA $ \mary ->
+                  write (MArray mary) i b >> m mary)
+               (f x) (go (i + 1))
+  in runSTA len <$> go 0
 {-# INLINE [1] traverse #-}
 
-traverse' :: forall f a b. Applicative f => (a -> f b) -> Array a -> f (Array b)
-traverse' f = \ !ary -> runSTA (length ary) <$> foldr go stop ary 0#
-  where
-    go :: a -> (Int# -> f (STA b)) -> Int# -> f (STA b)
-    go a r i = liftA2 (\ !b (STA m) -> STA $ \mry# -> write (MArray mry#) (I# i) b >> m mry#) (f a) (r (i +# 1#))
-    stop :: Int# -> f (STA b)
-    stop _i = pure (STA (\mry# -> unsafeFreeze (MArray mry#)))
+traverse' :: Applicative f => (a -> f b) -> Array a -> f (Array b)
+traverse' f = \ !ary ->
+  let
+    !len = length ary
+    go !i
+      | i == len = pure $ STA $ \mary -> unsafeFreeze (MArray mary)
+      | (# x #) <- index# ary i
+      = liftA2 (\ !b (STA m) -> STA $ \mary ->
+                    write (MArray mary) i b >> m mary)
+               (f x) (go (i + 1))
+  in runSTA len <$> go 0
 {-# INLINE [1] traverse' #-}
 
 -- Traversing in ST, we don't need to get fancy; we
