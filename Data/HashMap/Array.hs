@@ -22,6 +22,7 @@ module Data.HashMap.Array
     , write
     , index
     , indexM
+    , index#
     , update
     , updateWith'
     , unsafeUpdateM
@@ -234,7 +235,10 @@ rnfArray ary0 = go ary0 n0 0
     n0 = length ary0
     go !ary !n !i
         | i >= n = ()
-        | otherwise = rnf (index ary i) `seq` go ary n (i+1)
+        | (# x #) <- index# ary i
+        = rnf x `seq` go ary n (i+1)
+-- We use index# just in case GHC can't see that the
+-- relevant rnf is strict, or in case it actually isn't.
 {-# INLINE rnfArray #-}
 
 -- | Create a new mutable array of specified size, in the specified
@@ -388,7 +392,9 @@ updateM ary idx b =
 -- applying a function to it.  Evaluates the element to WHNF before
 -- inserting it into the array.
 updateWith' :: Array e -> Int -> (e -> e) -> Array e
-updateWith' ary idx f = update ary idx $! f (index ary idx)
+updateWith' ary idx f
+  | (# x #) <- index# ary idx
+  = update ary idx $! f x
 {-# INLINE updateWith' #-}
 
 -- | /O(1)/ Update the element at the given position in this array,
