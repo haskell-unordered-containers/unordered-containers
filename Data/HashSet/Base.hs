@@ -196,7 +196,7 @@ fromListConstr :: Constr
 fromListConstr = mkConstr hashSetDataType "fromList" [] Prefix
 
 hashSetDataType :: DataType
-hashSetDataType = mkDataType "Data.HashSet" [fromListConstr]
+hashSetDataType = mkDataType "Data.HashSet.Base.HashSet" [fromListConstr]
 
 -- | /O(1)/ Construct an empty set.
 empty :: HashSet a
