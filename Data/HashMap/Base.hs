@@ -1562,14 +1562,6 @@ foldrWithKey f = go
 ------------------------------------------------------------------------
 -- * Filter
 
--- | Create a new array of the @n@ first elements of @mary@.
-trim :: A.MArray s a -> Int -> ST s (A.Array a)
-trim mary n = do
-    mary2 <- A.new_ n
-    A.copyM mary 0 mary2 0 n
-    A.unsafeFreeze mary2
-{-# INLINE trim #-}
-
 -- | /O(n)/ Transform this map by applying a function to every value
 --   and retaining only some of them.
 mapMaybeWithKey :: (k -> v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
@@ -1632,9 +1624,9 @@ filterMapAux onLeaf onColl = go
                     ch <- A.read mary 0
                     case ch of
                       t | isLeafOrCollision t -> return t
-                      _                       -> BitmapIndexed b <$> trim mary 1
+                      _                       -> BitmapIndexed b <$> A.trim mary 1
                 _ -> do
-                    ary2 <- trim mary j
+                    ary2 <- A.trim mary j
                     return $! if j == maxChildren
                               then Full ary2
                               else BitmapIndexed b ary2
@@ -1661,7 +1653,7 @@ filterMapAux onLeaf onColl = go
                         return $! Leaf h l
                 _ | i == j -> do ary2 <- A.unsafeFreeze mary
                                  return $! Collision h ary2
-                  | otherwise -> do ary2 <- trim mary j
+                  | otherwise -> do ary2 <- A.trim mary j
                                     return $! Collision h ary2
             | Just el <- onColl (A.index ary i)
                 = A.write mary j el >> step ary mary (i+1) (j+1) n

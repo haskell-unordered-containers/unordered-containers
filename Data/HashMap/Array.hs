@@ -29,6 +29,7 @@ module Data.HashMap.Array
     , insertM
     , delete
     , sameArray1
+    , trim
 
     , unsafeFreeze
     , unsafeThaw
@@ -70,13 +71,13 @@ import Prelude hiding (filter, foldr, length, map, read)
 import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
                  indexSmallArray#, unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                  SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
-                 sizeofSmallMutableArray#, copySmallMutableArray#)
+                 sizeofSmallMutableArray#, copySmallMutableArray#, cloneSmallMutableArray#)
 
 #else
 import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
                  indexArray#, unsafeFreezeArray#, unsafeThawArray#,
                  MutableArray#, sizeofArray#, copyArray#, thawArray#,
-                 sizeofMutableArray#, copyMutableArray#)
+                 sizeofMutableArray#, copyMutableArray#, cloneMutableArray#)
 #endif
 
 #if defined(ASSERTS)
@@ -124,6 +125,13 @@ copyArray# :: SmallArray# a
            -> State# d
            -> State# d
 copyArray# = copySmallArray#
+
+cloneMutableArray# :: SmallMutableArray# s a
+                   -> Int#
+                   -> Int#
+                   -> State# s
+                   -> (# State# s, SmallMutableArray# s a #)
+cloneMutableArray# = cloneSmallMutableArray#
 
 thawArray# :: SmallArray# a
            -> Int#
@@ -328,6 +336,19 @@ copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
     ST $ \ s# ->
     case copyMutableArray# (unMArray src) sidx# (unMArray dst) didx# n# s# of
         s2 -> (# s2, () #)
+
+cloneM :: MArray s a -> Int -> Int -> ST s (MArray s a)
+cloneM _mary@(MArray mary#) _off@(I# off#) _len@(I# len#) =
+    CHECK_BOUNDS("cloneM_off", lengthM _mary, _off - 1)
+    CHECK_BOUNDS("cloneM_end", lengthM _mary, _off + _len - 1)
+    ST $ \ s ->
+    case cloneMutableArray# mary# off# len# s of
+      (# s', mary'# #) -> (# s', MArray mary'# #)
+
+-- | Create a new array of the @n@ first elements of @mary@.
+trim :: MArray s a -> Int -> ST s (Array a)
+trim mary n = cloneM mary 0 n >>= unsafeFreeze
+{-# INLINE trim #-}
 
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
