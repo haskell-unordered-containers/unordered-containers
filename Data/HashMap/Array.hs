@@ -47,7 +47,6 @@ module Data.HashMap.Array
     , map'
     , traverse
     , traverse'
-    , filter
     , toList
     , fromList
     ) where
@@ -577,21 +576,3 @@ traverseIO' f = \ ary0 ->
 "traverse'/ST" forall f. traverse' f = traverseST' f
 "traverse'/IO" forall f. traverse' f = traverseIO' f
  #-}
-
-filter :: (a -> Bool) -> Array a -> Array a
-filter p = \ ary ->
-    let !n = length ary
-    in run $ do
-        mary <- new_ n
-        go ary mary 0 0 n
-  where
-    go ary mary i j n
-        | i >= n    = if i == j
-                      then return mary
-                      else do mary2 <- new_ j
-                              copyM mary 0 mary2 0 j
-                              return mary2
-        | p el      = write mary j el >> go ary mary (i+1) (j+1) n
-        | otherwise = go ary mary (i+1) j n
-      where el = index ary i
-{-# INLINE filter #-}
