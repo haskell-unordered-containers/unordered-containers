@@ -1418,8 +1418,10 @@ mapWithKey f = go
   where
     go Empty = Empty
     go (Leaf h (L k v)) = Leaf h $ L k (f k v)
-    go (BitmapIndexed b ary) = BitmapIndexed b $ A.map' go ary
-    go (Full ary) = Full $ A.map' go ary
+    go (BitmapIndexed b ary) = BitmapIndexed b $ A.map go ary
+    go (Full ary) = Full $ A.map go ary
+    -- Why map strictly over collision arrays? Because there's no
+    -- point suspending the O(1) work this does for each leaf.
     go (Collision h ary) = Collision h $
                            A.map' (\ (L k v) -> L k (f k v)) ary
 {-# INLINE mapWithKey #-}
