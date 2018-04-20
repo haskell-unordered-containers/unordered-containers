@@ -493,6 +493,9 @@ traverse f = \ !ary ->
   in runSTA len <$> go 0
 {-# INLINE [1] traverse #-}
 
+-- TODO: Would it be better to just use a lazy traversal
+-- and then force the elements of the result? My guess is
+-- yes.
 traverse' :: Applicative f => (a -> f b) -> Array a -> f (Array b)
 traverse' f = \ !ary ->
   let
@@ -537,42 +540,17 @@ traverseIO f = \ ary0 ->
 {-# INLINE traverseIO #-}
 
 
+-- Why don't we have similar RULES for traverse'? The efficient
+-- way to traverse strictly in IO or ST is to force results as
+-- they come in, which leads to different semantics. In particular,
+-- we need to ensure that
+--
+--  traverse' (\x -> print x *> pure undefined) xs
+--
+-- will actually print all the values and then return undefined.
+-- We could add a strict mapMWithIndex, operating in an arbitrary
+-- Monad, that supported such rules, but we don't have that right now.
 {-# RULES
 "traverse/ST" forall f. traverse f = traverseST f
 "traverse/IO" forall f. traverse f = traverseIO f
- #-}
-
--- Traversing in ST, we don't need to get fancy; we
--- can just do it directly.
-traverseST' :: (a -> ST s b) -> Array a -> ST s (Array b)
-traverseST' f = \ ary0 ->
-  let
-    !len = length ary0
-    go k !mary
-      | k == len = return mary
-      | otherwise = do
-          x <- indexM ary0 k
-          !y <- f x
-          write mary k y
-          go (k + 1) mary
-  in new_ len >>= (go 0 >=> unsafeFreeze)
-{-# INLINE traverseST' #-}
-
-traverseIO' :: (a -> IO b) -> Array a -> IO (Array b)
-traverseIO' f = \ ary0 ->
-  let
-    !len = length ary0
-    go k !mary
-      | k == len = return mary
-      | otherwise = do
-          x <- stToIO $ indexM ary0 k
-          !y <- f x
-          stToIO $ write mary k y
-          go (k + 1) mary
-  in stToIO (new_ len) >>= (go 0 >=> stToIO . unsafeFreeze)
-{-# INLINE traverseIO' #-}
-
-{-# RULES
-"traverse'/ST" forall f. traverse' f = traverseST' f
-"traverse'/IO" forall f. traverse' f = traverseIO' f
  #-}
