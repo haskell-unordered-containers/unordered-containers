@@ -1,2 +1,2 @@
-packages: . ../primitive
+packages: . ../primitive ./benchmarks
 
