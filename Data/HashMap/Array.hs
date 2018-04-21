@@ -51,6 +51,9 @@ module Data.HashMap.Array
     , traverse'
     , toList
     , fromList
+
+      -- * Forcing
+    , rnfArray
     ) where
 
 #if !MIN_VERSION_base(4,8,0)
@@ -61,24 +64,13 @@ import Control.DeepSeq
 import GHC.Exts(Int(..), Int#, reallyUnsafePtrEquality#, tagToEnum#, unsafeCoerce#, State#)
 import GHC.ST (ST(..))
 import Control.Monad.ST (stToIO)
+import Data.Primitive.SmallArray
+import qualified Data.Traversable
 
 #if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding (filter, foldr, length, map, read, traverse)
 #else
 import Prelude hiding (filter, foldr, length, map, read)
-#endif
-
-#if __GLASGOW_HASKELL__ >= 710
-import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
-                 indexSmallArray#, unsafeFreezeSmallArray#, unsafeThawSmallArray#,
-                 SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
-                 sizeofSmallMutableArray#, copySmallMutableArray#, cloneSmallMutableArray#)
-
-#else
-import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
-                 indexArray#, unsafeFreezeArray#, unsafeThawArray#,
-                 MutableArray#, sizeofArray#, copyArray#, thawArray#,
-                 sizeofMutableArray#, copyMutableArray#, cloneMutableArray#)
 #endif
 
 #if defined(ASSERTS)
@@ -87,72 +79,6 @@ import qualified Prelude
 
 import Data.HashMap.Unsafe (runST)
 import Control.Monad ((>=>))
-
-
-#if __GLASGOW_HASKELL__ >= 710
-type Array# a = SmallArray# a
-type MutableArray# a = SmallMutableArray# a
-
-newArray# :: Int# -> a -> State# d -> (# State# d, SmallMutableArray# d a #)
-newArray# = newSmallArray#
-
-unsafeFreezeArray# :: SmallMutableArray# d a
-                   -> State# d -> (# State# d, SmallArray# a #)
-unsafeFreezeArray# = unsafeFreezeSmallArray#
-
-readArray# :: SmallMutableArray# d a
-           -> Int# -> State# d -> (# State# d, a #)
-readArray# = readSmallArray#
-
-writeArray# :: SmallMutableArray# d a
-            -> Int# -> a -> State# d -> State# d
-writeArray# = writeSmallArray#
-
-indexArray# :: SmallArray# a -> Int# -> (# a #)
-indexArray# = indexSmallArray#
-
-unsafeThawArray# :: SmallArray# a
-                 -> State# d -> (# State# d, SmallMutableArray# d a #)
-unsafeThawArray# = unsafeThawSmallArray#
-
-sizeofArray# :: SmallArray# a -> Int#
-sizeofArray# = sizeofSmallArray#
-
-copyArray# :: SmallArray# a
-           -> Int#
-           -> SmallMutableArray# d a
-           -> Int#
-           -> Int#
-           -> State# d
-           -> State# d
-copyArray# = copySmallArray#
-
-cloneMutableArray# :: SmallMutableArray# s a
-                   -> Int#
-                   -> Int#
-                   -> State# s
-                   -> (# State# s, SmallMutableArray# s a #)
-cloneMutableArray# = cloneSmallMutableArray#
-
-thawArray# :: SmallArray# a
-           -> Int#
-           -> Int#
-           -> State# d
-           -> (# State# d, SmallMutableArray# d a #)
-thawArray# = thawSmallArray#
-
-sizeofMutableArray# :: SmallMutableArray# s a -> Int#
-sizeofMutableArray# = sizeofSmallMutableArray#
-
-copyMutableArray# :: SmallMutableArray# d a
-                  -> Int#
-                  -> SmallMutableArray# d a
-                  -> Int#
-                  -> Int#
-                  -> State# d
-                  -> State# d
-copyMutableArray# = copySmallMutableArray#
-#endif
 
 ------------------------------------------------------------------------
 
@@ -173,11 +99,6 @@ if not ((_lhs_) _op_ (_rhs_)) then error ("Data.HashMap.Array." ++ (_func_) ++ "
 # define CHECK_LE(_func_,_lhs_,_rhs_)
 # define CHECK_EQ(_func_,_lhs_,_rhs_)
 #endif
-
-data SmallArray a = SmallArray { unArray :: !(Array# a) }
-
-instance Show a => Show (SmallArray a) where
-    show = show . toList
 
 -- Determines whether two arrays have the same memory address.
 -- This is more reliable than testing pointer equality on the
@@ -200,32 +121,7 @@ sameArray1 eq !xs0 !ys0
     !lenxs = sizeofSmallArray xs0
     !lenys = sizeofSmallArray ys0
 
-sizeofSmallArray :: SmallArray a -> Int
-sizeofSmallArray ary = I# (sizeofArray# (unArray ary))
-{-# INLINE sizeofSmallArray #-}
-
--- | Smart constructor
-array :: Array# a -> Int -> SmallArray a
-array ary _n = SmallArray ary
-{-# INLINE array #-}
-
-data SmallMutableArray s a = SmallMutableArray {
-      unMArray :: !(MutableArray# s a)
-    }
-
-sizeofSmallMutableArray :: SmallMutableArray s a -> Int
-sizeofSmallMutableArray mary = I# (sizeofMutableArray# (unMArray mary))
-{-# INLINE sizeofSmallMutableArray #-}
-
--- | Smart constructor
-marray :: MutableArray# s a -> Int -> SmallMutableArray s a
-marray mary _n = SmallMutableArray mary
-{-# INLINE marray #-}
-
 ------------------------------------------------------------------------
-
-instance NFData a => NFData (SmallArray a) where
-    rnf = rnfArray
 
 rnfArray :: NFData a => SmallArray a -> ()
 rnfArray ary0 = go ary0 n0 0
@@ -243,12 +139,7 @@ rnfArray ary0 = go ary0 n0 0
 -- state thread, with each element containing the specified initial
 -- value.
 new :: Int -> a -> ST s (SmallMutableArray s a)
-new n@(I# n#) b =
-    CHECK_GT("new",n,(0 :: Int))
-    ST $ \s ->
-        case newArray# n# b s of
-            (# s', ary #) -> (# s', marray ary n #)
-{-# INLINE new #-}
+new = newSmallArray
 
 new_ :: Int -> ST s (SmallMutableArray s a)
 new_ n = new n undefinedElem
@@ -268,49 +159,6 @@ pair x y = run $ do
     return ary
 {-# INLINE pair #-}
 
-readSmallArray :: SmallMutableArray s a -> Int -> ST s a
-readSmallArray ary _i@(I# i#) = ST $ \ s ->
-    CHECK_BOUNDS("readSmallArray", sizeofSmallMutableArray ary, _i)
-        readArray# (unMArray ary) i# s
-{-# INLINE readSmallArray #-}
-
-writeSmallArray :: SmallMutableArray s a -> Int -> a -> ST s ()
-writeSmallArray ary _i@(I# i#) b = ST $ \ s ->
-    CHECK_BOUNDS("writeSmallArray", sizeofSmallMutableArray ary, _i)
-        case writeArray# (unMArray ary) i# b s of
-            s' -> (# s' , () #)
-{-# INLINE writeSmallArray #-}
-
-indexSmallArray :: SmallArray a -> Int -> a
-indexSmallArray ary _i@(I# i#) =
-    CHECK_BOUNDS("indexSmallArray", sizeofSmallArray ary, _i)
-        case indexArray# (unArray ary) i# of (# b #) -> b
-{-# INLINE indexSmallArray #-}
-
-indexSmallArray## :: SmallArray a -> Int -> (# a #)
-indexSmallArray## ary _i@(I# i#) =
-    CHECK_BOUNDS("indexSmallArray##", sizeofSmallArray ary, _i)
-        indexArray# (unArray ary) i#
-{-# INLINE indexSmallArray## #-}
-
-indexSmallArrayM :: SmallArray a -> Int -> ST s a
-indexSmallArrayM ary _i@(I# i#) =
-    CHECK_BOUNDS("indexSmallArrayM", sizeofSmallArray ary, _i)
-        case indexArray# (unArray ary) i# of (# b #) -> return b
-{-# INLINE indexSmallArrayM #-}
-
-unsafeFreezeSmallArray :: SmallMutableArray s a -> ST s (SmallArray a)
-unsafeFreezeSmallArray mary
-    = ST $ \s -> case unsafeFreezeArray# (unMArray mary) s of
-                   (# s', ary #) -> (# s', array ary (sizeofSmallMutableArray mary) #)
-{-# INLINE unsafeFreezeSmallArray #-}
-
-unsafeThawSmallArray :: SmallArray a -> ST s (SmallMutableArray s a)
-unsafeThawSmallArray ary
-    = ST $ \s -> case unsafeThawArray# (unArray ary) s of
-                   (# s', mary #) -> (# s', marray mary (sizeofSmallArray ary) #)
-{-# INLINE unsafeThawSmallArray #-}
-
 run :: (forall s . ST s (SmallMutableArray s e)) -> SmallArray e
 run act = runST $ act >>= unsafeFreezeSmallArray
 {-# INLINE run #-}
@@ -320,32 +168,6 @@ run2 k = runST (do
                  (marr,b) <- k
                  arr <- unsafeFreezeSmallArray marr
                  return (arr,b))
-
--- | Unsafely copy the elements of an array. Array bounds are not checked.
-copySmallArray :: SmallMutableArray s e -> Int -> SmallArray e -> Int -> Int -> ST s ()
-copySmallArray !dst !_didx@(I# didx#) !src !_sidx@(I# sidx#) _n@(I# n#) =
-    CHECK_LE("copySmallArray", _sidx + _n, sizeofSmallArray src)
-    CHECK_LE("copySmallArray", _didx + _n, sizeofSmallMutableArray dst)
-        ST $ \ s# ->
-        case copyArray# (unArray src) sidx# (unMArray dst) didx# n# s# of
-            s2 -> (# s2, () #)
-
--- | Unsafely copy the elements of an array. Array bounds are not checked.
-copySmallMutableArray :: SmallMutableArray s e -> Int -> SmallMutableArray s e -> Int -> Int -> ST s ()
-copySmallMutableArray !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
-    CHECK_BOUNDS("copySmallMutableArray: src", sizeofSmallMutableArray src, _sidx + _n - 1)
-    CHECK_BOUNDS("copySmallMutableArray: dst", sizeofSmallMutableArray dst, _didx + _n - 1)
-    ST $ \ s# ->
-    case copyMutableArray# (unMArray src) sidx# (unMArray dst) didx# n# s# of
-        s2 -> (# s2, () #)
-
-cloneSmallMutableArray :: SmallMutableArray s a -> Int -> Int -> ST s (SmallMutableArray s a)
-cloneSmallMutableArray _mary@(SmallMutableArray mary#) _off@(I# off#) _len@(I# len#) =
-    CHECK_BOUNDS("cloneM_off", sizeofSmallMutableArray _mary, _off - 1)
-    CHECK_BOUNDS("cloneM_end", sizeofSmallMutableArray _mary, _off + _len - 1)
-    ST $ \ s ->
-    case cloneMutableArray# mary# off# len# s of
-      (# s', mary'# #) -> (# s', SmallMutableArray mary'# #)
 
 -- | Create a new array of the @n@ first elements of @mary@.
 trim :: SmallMutableArray s a -> Int -> ST s (SmallArray a)
@@ -430,13 +252,6 @@ undefinedElem :: a
 undefinedElem = error "Data.HashMap.Array: Undefined element"
 {-# NOINLINE undefinedElem #-}
 
-thawSmallArray :: SmallArray e -> Int -> Int -> ST s (SmallMutableArray s e)
-thawSmallArray !ary !_o@(I# o#) !n@(I# n#) =
-    CHECK_LE("thawSmallArray", _o + n, sizeofSmallArray ary)
-        ST $ \ s -> case thawArray# (unArray ary) o# n# s of
-            (# s2, mary# #) -> (# s2, marray mary# n #)
-{-# INLINE thawSmallArray #-}
-
 -- | /O(n)/ Delete an element at the given position in this array,
 -- decreasing its size by one.
 delete :: SmallArray e -> Int -> SmallArray e
@@ -470,22 +285,6 @@ map f = \ ary ->
              go ary mary (i+1) n
 {-# INLINE map #-}
 
--- | Strict version of 'map'.
-mapSmallArray' :: (a -> b) -> SmallArray a -> SmallArray b
-mapSmallArray' f = \ ary ->
-    let !n = sizeofSmallArray ary
-    in run $ do
-        mary <- new_ n
-        go ary mary 0 n
-  where
-    go ary mary i n
-        | i >= n    = return mary
-        | otherwise = do
-             x <- indexSmallArrayM ary i
-             writeSmallArray mary i $! f x
-             go ary mary (i+1) n
-{-# INLINE mapSmallArray' #-}
-
 fromList :: Int -> [a] -> SmallArray a
 fromList n xs0 =
     CHECK_EQ("fromList", n, Prelude.length xs0)
@@ -500,82 +299,10 @@ fromList n xs0 =
 toList :: SmallArray a -> [a]
 toList = foldr (:) []
 
-newtype STA a = STA {_runSTA :: forall s. MutableArray# s a -> ST s (SmallArray a)}
-
-runSTA :: Int -> STA a -> SmallArray a
-runSTA !n (STA m) = runST $ new_ n >>= \ (SmallMutableArray ar) -> m ar
-
 traverse :: Applicative f => (a -> f b) -> SmallArray a -> f (SmallArray b)
-traverse f = \ !ary ->
-  let
-    !len = sizeofSmallArray ary
-    go !i
-      | i == len = pure $ STA $ \mary -> unsafeFreezeSmallArray (SmallMutableArray mary)
-      | (# x #) <- indexSmallArray## ary i
-      = liftA2 (\b (STA m) -> STA $ \mary ->
-                  writeSmallArray (SmallMutableArray mary) i b >> m mary)
-               (f x) (go (i + 1))
-  in runSTA len <$> go 0
-{-# INLINE [1] traverse #-}
+traverse = Data.Traversable.traverse
 
--- TODO: Would it be better to just use a lazy traversal
--- and then force the elements of the result? My guess is
--- yes.
+-- definitely fix this
 traverse' :: Applicative f => (a -> f b) -> SmallArray a -> f (SmallArray b)
-traverse' f = \ !ary ->
-  let
-    !len = sizeofSmallArray ary
-    go !i
-      | i == len = pure $ STA $ \mary -> unsafeFreezeSmallArray (SmallMutableArray mary)
-      | (# x #) <- indexSmallArray## ary i
-      = liftA2 (\ !b (STA m) -> STA $ \mary ->
-                    writeSmallArray (SmallMutableArray mary) i b >> m mary)
-               (f x) (go (i + 1))
-  in runSTA len <$> go 0
-{-# INLINE [1] traverse' #-}
+traverse' = Data.Traversable.traverse
 
--- Traversing in ST, we don't need to get fancy; we
--- can just do it directly.
-traverseST :: (a -> ST s b) -> SmallArray a -> ST s (SmallArray b)
-traverseST f = \ ary0 ->
-  let
-    !len = sizeofSmallArray ary0
-    go k !mary
-      | k == len = return mary
-      | otherwise = do
-          x <- indexSmallArrayM ary0 k
-          y <- f x
-          writeSmallArray mary k y
-          go (k + 1) mary
-  in new_ len >>= (go 0 >=> unsafeFreezeSmallArray)
-{-# INLINE traverseST #-}
-
-traverseIO :: (a -> IO b) -> SmallArray a -> IO (SmallArray b)
-traverseIO f = \ ary0 ->
-  let
-    !len = sizeofSmallArray ary0
-    go k !mary
-      | k == len = return mary
-      | otherwise = do
-          x <- stToIO $ indexSmallArrayM ary0 k
-          y <- f x
-          stToIO $ writeSmallArray mary k y
-          go (k + 1) mary
-  in stToIO (new_ len) >>= (go 0 >=> stToIO . unsafeFreezeSmallArray)
-{-# INLINE traverseIO #-}
-
-
--- Why don't we have similar RULES for traverse'? The efficient
--- way to traverse strictly in IO or ST is to force results as
--- they come in, which leads to different semantics. In particular,
--- we need to ensure that
---
---  traverse' (\x -> print x *> pure undefined) xs
---
--- will actually print all the values and then return undefined.
--- We could add a strict mapMWithIndex, operating in an arbitrary
--- Monad, that supported such rules, but we don't have that right now.
-{-# RULES
-"traverse/ST" forall f. traverse f = traverseST f
-"traverse/IO" forall f. traverse f = traverseIO f
- #-}

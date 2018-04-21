@@ -188,10 +188,10 @@ type role HashMap nominal representational
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Empty                 = ()
-    rnf (BitmapIndexed _ ary) = rnf ary
+    rnf (BitmapIndexed _ ary) = A.rnfArray ary
     rnf (Leaf _ l)            = rnf l
-    rnf (Full ary)            = rnf ary
-    rnf (Collision _ ary)     = rnf ary
+    rnf (Full ary)            = A.rnfArray ary
+    rnf (Collision _ ary)     = A.rnfArray ary
 
 instance Functor (HashMap k) where
     fmap = map
