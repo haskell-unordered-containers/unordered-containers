@@ -178,20 +178,20 @@ instance (NFData k, NFData v) => NFData (Leaf k v) where
 -- each key can map to at most one value.
 data HashMap k v
     = Empty
-    | BitmapIndexed !Bitmap !(A.Array (HashMap k v))
+    | BitmapIndexed !Bitmap !(A.SmallArray (HashMap k v))
     | Leaf !Hash !(Leaf k v)
-    | Full !(A.Array (HashMap k v))
-    | Collision !Hash !(A.Array (Leaf k v))
+    | Full !(A.SmallArray (HashMap k v))
+    | Collision !Hash !(A.SmallArray (Leaf k v))
       deriving (Typeable)
 
 type role HashMap nominal representational
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Empty                 = ()
-    rnf (BitmapIndexed _ ary) = rnf ary
+    rnf (BitmapIndexed _ ary) = A.rnfArray ary
     rnf (Leaf _ l)            = rnf l
-    rnf (Full ary)            = rnf ary
-    rnf (Collision _ ary)     = rnf ary
+    rnf (Full ary)            = A.rnfArray ary
+    rnf (Collision _ ary)     = A.rnfArray ary
 
 instance Functor (HashMap k) where
     fmap = map
@@ -313,7 +313,7 @@ equal2 eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
       = go tl1 tl2
     go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
       | k1 == k2 &&
-        A.length ary1 == A.length ary2 &&
+        A.sizeofSmallArray ary1 == A.sizeofSmallArray ary2 &&
         isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
       = go tl1 tl2
     go [] [] = True
@@ -347,7 +347,7 @@ cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
         go tl1 tl2
     go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
       = compare k1 k2 `mappend`
-        compare (A.length ary1) (A.length ary2) `mappend`
+        compare (A.sizeofSmallArray ary1) (A.sizeofSmallArray ary2) `mappend`
         unorderedCompare leafCompare (A.toList ary1) (A.toList ary2) `mappend`
         go tl1 tl2
     go (Leaf _ _ : _) (Collision _ _ : _) = LT
@@ -367,7 +367,7 @@ equalKeys1 eq t1 t2 = go (toList' t1 []) (toList' t2 [])
       | k1 == k2 && leafEq l1 l2
       = go tl1 tl2
     go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
-      | k1 == k2 && A.length ary1 == A.length ary2 &&
+      | k1 == k2 && A.sizeofSmallArray ary1 == A.sizeofSmallArray ary2 &&
         isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
       = go tl1 tl2
     go [] [] = True
@@ -408,11 +408,11 @@ instance H.Hashable2 HashMap where
         -- hashLeafWithSalt :: Int -> Leaf k v -> Int
         hashLeafWithSalt s (L k v) = (s `hk` k) `hv` v
 
-        -- hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
+        -- hashCollisionWithSalt :: Int -> A.SmallArray (Leaf k v) -> Int
         hashCollisionWithSalt s
           = L.foldl' H.hashWithSalt s . arrayHashesSorted s
 
-        -- arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
+        -- arrayHashesSorted :: Int -> A.SmallArray (Leaf k v) -> [Int]
         arrayHashesSorted s = L.sort . L.map (hashLeafWithSalt s) . A.toList
 
 instance (Hashable k) => H.Hashable1 (HashMap k) where
@@ -435,11 +435,11 @@ instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
         hashLeafWithSalt :: Int -> Leaf k v -> Int
         hashLeafWithSalt s (L k v) = s `H.hashWithSalt` k `H.hashWithSalt` v
 
-        hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
+        hashCollisionWithSalt :: Int -> A.SmallArray (Leaf k v) -> Int
         hashCollisionWithSalt s
           = L.foldl' H.hashWithSalt s . arrayHashesSorted s
 
-        arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
+        arrayHashesSorted :: Int -> A.SmallArray (Leaf k v) -> [Int]
         arrayHashesSorted s = L.sort . L.map (hashLeafWithSalt s) . A.toList
 
   -- Helper to get 'Leaf's and 'Collision's as a list.
@@ -483,7 +483,7 @@ size t = go t 0
     go (Leaf _ _)            n = n + 1
     go (BitmapIndexed _ ary) n = A.foldl' (flip go) n ary
     go (Full ary)            n = A.foldl' (flip go) n ary
-    go (Collision _ ary)     n = n + A.length ary
+    go (Collision _ ary)     n = n + A.sizeofSmallArray ary
 
 -- | /O(log n)/ Return 'True' if the specified key is present in the
 -- map, 'False' otherwise.
@@ -604,10 +604,10 @@ lookupCont absent present !h0 !k0 !m0 = go h0 k0 0 m0
     go h k s (BitmapIndexed b v)
         | b .&. m == 0 = absent (# #)
         | otherwise    =
-            go h k (s+bitsPerSubkey) (A.index v (sparseIndex b m))
+            go h k (s+bitsPerSubkey) (A.indexSmallArray v (sparseIndex b m))
       where m = mask h s
     go h k s (Full v) =
-      go h k (s+bitsPerSubkey) (A.index v (index h s))
+      go h k (s+bitsPerSubkey) (A.indexSmallArray v (index h s))
     go h k _ (Collision hx v)
         | h == hx   = lookupInArrayCont absent present k v
         | otherwise = absent (# #)
@@ -637,13 +637,13 @@ infixl 9 !
 collision :: Hash -> Leaf k v -> Leaf k v -> HashMap k v
 collision h !e1 !e2 =
     let v = A.run $ do mary <- A.new 2 e1
-                       A.write mary 1 e2
+                       A.writeSmallArray mary 1 e2
                        return mary
     in Collision h v
 {-# INLINE collision #-}
 
 -- | Create a 'BitmapIndexed' or 'Full' node.
-bitmapIndexedOrFull :: Bitmap -> A.Array (HashMap k v) -> HashMap k v
+bitmapIndexedOrFull :: Bitmap -> A.SmallArray (HashMap k v) -> HashMap k v
 bitmapIndexedOrFull b ary
     | b == fullNodeMask = Full ary
     | otherwise         = BitmapIndexed b ary
@@ -672,7 +672,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
             let !ary' = A.insert ary i $! Leaf h (L k x)
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
-            let !st  = A.index ary i
+            let !st  = A.indexSmallArray ary i
                 !st' = go h k x (s+bitsPerSubkey) st
             in if st' `ptrEq` st
                then t
@@ -680,7 +680,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
       where m = mask h s
             i = sparseIndex b m
     go h k x s t@(Full ary) =
-        let !st  = A.index ary i
+        let !st  = A.indexSmallArray ary i
             !st' = go h k x (s+bitsPerSubkey) st
         in if st' `ptrEq` st
             then t
@@ -710,13 +710,13 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
             let !ary' = A.insert ary i $! Leaf h (L k x)
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
-            let !st  = A.index ary i
+            let !st  = A.indexSmallArray ary i
                 !st' = go h k x (s+bitsPerSubkey) st
             in BitmapIndexed b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
     go h k x s (Full ary) =
-        let !st  = A.index ary i
+        let !st  = A.indexSmallArray ary i
             !st' = go h k x (s+bitsPerSubkey) st
         in Full (update16 ary i st')
       where i = index h s
@@ -725,12 +725,12 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
         | otherwise =
             go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
       where
-        snocNewLeaf :: Leaf k v -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+        snocNewLeaf :: Leaf k v -> A.SmallArray (Leaf k v) -> A.SmallArray (Leaf k v)
         snocNewLeaf leaf ary = A.run $ do
-          let n = A.length ary
+          let n = A.sizeofSmallArray ary
           mary <- A.new_ (n + 1)
-          A.copy ary 0 mary 0 n
-          A.write mary n leaf
+          A.copySmallArray mary 0 ary 0 n
+          A.writeSmallArray mary n leaf
           return mary
 {-# NOINLINE insertNewKey #-}
 
@@ -754,13 +754,13 @@ insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 0 m0
             let !ary' = A.insert ary i $ Leaf h (L k x)
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
-            let !st  = A.index ary i
+            let !st  = A.indexSmallArray ary i
                 !st' = go collPos h k x (s+bitsPerSubkey) st
             in BitmapIndexed b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
     go collPos h k x s (Full ary) =
-        let !st  = A.index ary i
+        let !st  = A.indexSmallArray ary i
             !st' = go collPos h k x (s+bitsPerSubkey) st
         in Full (update16 ary i st')
       where i = index h s
@@ -774,7 +774,7 @@ insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 0 m0
 -- Replace the ith Leaf with Leaf k v.
 --
 -- This does not check that @i@ is within bounds of the array.
-setAtPosition :: Int -> k -> v -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+setAtPosition :: Int -> k -> v -> A.SmallArray (Leaf k v) -> A.SmallArray (Leaf k v)
 setAtPosition i k x ary = A.update ary i (L k x)
 {-# INLINE setAtPosition #-}
 
@@ -797,14 +797,14 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
             ary' <- A.insertM ary i $! Leaf h (L k x)
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
-            st <- A.indexM ary i
+            st <- A.indexSmallArrayM ary i
             st' <- go h k x (s+bitsPerSubkey) st
             A.unsafeUpdateM ary i st'
             return t
       where m = mask h s
             i = sparseIndex b m
     go h k x s t@(Full ary) = do
-        st <- A.indexM ary i
+        st <- A.indexSmallArrayM ary i
         st' <- go h k x (s+bitsPerSubkey) st
         A.unsafeUpdateM ary i st'
         return t
@@ -825,8 +825,8 @@ two = go
             return $! BitmapIndexed bp1 ary
         | otherwise  = do
             mary <- A.new 2 $ Leaf h1 (L k1 v1)
-            A.write mary idx2 $ Leaf h2 (L k2 v2)
-            ary <- A.unsafeFreeze mary
+            A.writeSmallArray mary idx2 $ Leaf h2 (L k2 v2)
+            ary <- A.unsafeFreezeSmallArray mary
             return $! BitmapIndexed (bp1 .|. bp2) ary
       where
         bp1  = mask h1 s
@@ -872,7 +872,7 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
             let ary' = A.insert ary i $! Leaf h (L k x)
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
-            let !st   = A.index ary i
+            let !st   = A.indexSmallArray ary i
                 !st'  = go h k (s+bitsPerSubkey) st
                 ary'  = A.update ary i $! st'
             in if ptrEq st st'
@@ -881,7 +881,7 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
       where m = mask h s
             i = sparseIndex b m
     go h k s t@(Full ary) =
-        let !st   = A.index ary i
+        let !st   = A.indexSmallArray ary i
             !st'  = go h k (s+bitsPerSubkey) st
             ary' = update16 ary i $! st'
         in if ptrEq st st'
@@ -898,18 +898,18 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
 {-# INLINABLE insertModifying #-}
 
 -- Like insertModifying for arrays; used to implement insertModifying
-insertModifyingArr :: Eq k => v -> (v -> (# v #)) -> k -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
-insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
+insertModifyingArr :: Eq k => v -> (v -> (# v #)) -> k -> A.SmallArray (Leaf k v)
+                 -> A.SmallArray (Leaf k v)
+insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.sizeofSmallArray ary0)
   where
     go !k !ary !i !n
         | i >= n = A.run $ do
             -- Not found, append to the end.
             mary <- A.new_ (n + 1)
-            A.copy ary 0 mary 0 n
-            A.write mary n (L k x)
+            A.copySmallArray mary 0 ary 0 n
+            A.writeSmallArray mary n (L k x)
             return mary
-        | otherwise = case A.index ary i of
+        | otherwise = case A.indexSmallArray ary i of
             (L kx y) | k == kx   -> case f y of
                                       (# y' #) -> if ptrEq y y'
                                                   then ary
@@ -936,14 +936,14 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
             ary' <- A.insertM ary i $! Leaf h (L k x)
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
-            st <- A.indexM ary i
+            st <- A.indexSmallArrayM ary i
             st' <- go h k x (s+bitsPerSubkey) st
             A.unsafeUpdateM ary i st'
             return t
       where m = mask h s
             i = sparseIndex b m
     go h k x s t@(Full ary) = do
-        st <- A.indexM ary i
+        st <- A.indexSmallArrayM ary i
         st' <- go h k x (s+bitsPerSubkey) st
         A.unsafeUpdateM ary i st'
         return t
@@ -969,26 +969,26 @@ delete' h0 k0 m0 = go h0 k0 0 m0
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 = t
         | otherwise =
-            let !st = A.index ary i
+            let !st = A.indexSmallArray ary i
                 !st' = go h k (s+bitsPerSubkey) st
             in if st' `ptrEq` st
                 then t
                 else case st' of
-                Empty | A.length ary == 1 -> Empty
-                      | A.length ary == 2 ->
-                          case (i, A.index ary 0, A.index ary 1) of
+                Empty | A.sizeofSmallArray ary == 1 -> Empty
+                      | A.sizeofSmallArray ary == 2 ->
+                          case (i, A.indexSmallArray ary 0, A.indexSmallArray ary 1) of
                           (0, _, l) | isLeafOrCollision l -> l
                           (1, l, _) | isLeafOrCollision l -> l
                           _                               -> bIndexed
                       | otherwise -> bIndexed
                     where
                       bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
-                l | isLeafOrCollision l && A.length ary == 1 -> l
+                l | isLeafOrCollision l && A.sizeofSmallArray ary == 1 -> l
                 _ -> BitmapIndexed b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
     go h k s t@(Full ary) =
-        let !st   = A.index ary i
+        let !st   = A.indexSmallArray ary i
             !st' = go h k (s+bitsPerSubkey) st
         in if st' `ptrEq` st
             then t
@@ -1002,10 +1002,10 @@ delete' h0 k0 m0 = go h0 k0 0 m0
     go h k _ t@(Collision hy v)
         | h == hy = case indexOf k v of
             Just i
-                | A.length v == 2 ->
+                | A.sizeofSmallArray v == 2 ->
                     if i == 0
-                    then Leaf h (A.index v 1)
-                    else Leaf h (A.index v 0)
+                    then Leaf h (A.indexSmallArray v 1)
+                    else Leaf h (A.indexSmallArray v 0)
                 | otherwise -> Collision h (A.delete v i)
             Nothing -> t
         | otherwise = t
@@ -1025,24 +1025,24 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 0 m0
     go :: Int -> Hash -> k -> Int -> HashMap k v -> HashMap k v
     go !_collPos !_h !_k !_s (Leaf _ _) = Empty
     go collPos h k s (BitmapIndexed b ary) =
-            let !st = A.index ary i
+            let !st = A.indexSmallArray ary i
                 !st' = go collPos h k (s+bitsPerSubkey) st
             in case st' of
-                Empty | A.length ary == 1 -> Empty
-                      | A.length ary == 2 ->
-                          case (i, A.index ary 0, A.index ary 1) of
+                Empty | A.sizeofSmallArray ary == 1 -> Empty
+                      | A.sizeofSmallArray ary == 2 ->
+                          case (i, A.indexSmallArray ary 0, A.indexSmallArray ary 1) of
                           (0, _, l) | isLeafOrCollision l -> l
                           (1, l, _) | isLeafOrCollision l -> l
                           _                               -> bIndexed
                       | otherwise -> bIndexed
                     where
                       bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
-                l | isLeafOrCollision l && A.length ary == 1 -> l
+                l | isLeafOrCollision l && A.sizeofSmallArray ary == 1 -> l
                 _ -> BitmapIndexed b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
     go collPos h k s (Full ary) =
-        let !st   = A.index ary i
+        let !st   = A.indexSmallArray ary i
             !st' = go collPos h k (s+bitsPerSubkey) st
         in case st' of
             Empty ->
@@ -1052,10 +1052,10 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 0 m0
             _ -> Full (A.update ary i st')
       where i = index h s
     go collPos h _ _ (Collision _hy v)
-      | A.length v == 2
+      | A.sizeofSmallArray v == 2
       = if collPos == 0
-        then Leaf h (A.index v 1)
-        else Leaf h (A.index v 0)
+        then Leaf h (A.indexSmallArray v 1)
+        else Leaf h (A.indexSmallArray v 0)
       | otherwise = Collision h (A.delete v collPos)
     go !_ !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
 {-# NOINLINE deleteKeyExists #-}
@@ -1086,7 +1086,7 @@ adjust# f k0 m0 = go h0 k0 0 m0
         | otherwise          = t
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 = t
-        | otherwise = let !st   = A.index ary i
+        | otherwise = let !st   = A.indexSmallArray ary i
                           !st'  = go h k (s+bitsPerSubkey) st
                           ary' = A.update ary i $! st'
                       in if ptrEq st st'
@@ -1096,7 +1096,7 @@ adjust# f k0 m0 = go h0 k0 0 m0
             i = sparseIndex b m
     go h k s t@(Full ary) =
         let i    = index h s
-            !st   = A.index ary i
+            !st   = A.indexSmallArray ary i
             !st'  = go h k (s+bitsPerSubkey) st
             ary' = update16 ary i $! st'
         in if ptrEq st st'
@@ -1376,8 +1376,8 @@ unionWithKey f = go 0
 {-# INLINE unionWithKey #-}
 
 -- | Strict in the result of @f@.
-unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.Array a -> A.Array a
-             -> A.Array a
+unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.SmallArray a -> A.SmallArray a
+             -> A.SmallArray a
 unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
     let b' = b1 .|. b2
     mary <- A.new_ (popCount b')
@@ -1388,15 +1388,15 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
             | m > b'        = return ()
             | b' .&. m == 0 = go i i1 i2 (m `unsafeShiftL` 1)
             | ba .&. m /= 0 = do
-                x1 <- A.indexM ary1 i1
-                x2 <- A.indexM ary2 i2
-                A.write mary i $! f x1 x2
+                x1 <- A.indexSmallArrayM ary1 i1
+                x2 <- A.indexSmallArrayM ary2 i2
+                A.writeSmallArray mary i $! f x1 x2
                 go (i+1) (i1+1) (i2+1) (m `unsafeShiftL` 1)
             | b1 .&. m /= 0 = do
-                A.write mary i =<< A.indexM ary1 i1
+                A.writeSmallArray mary i =<< A.indexSmallArrayM ary1 i1
                 go (i+1) (i1+1) (i2  ) (m `unsafeShiftL` 1)
             | otherwise     = do
-                A.write mary i =<< A.indexM ary2 i2
+                A.writeSmallArray mary i =<< A.indexSmallArrayM ary2 i2
                 go (i+1) (i1  ) (i2+1) (m `unsafeShiftL` 1)
     go 0 0 0 (b' .&. negate b') -- XXX: b' must be non-zero
     return mary
@@ -1426,7 +1426,7 @@ mapWithKey f = go
     -- Why map strictly over collision arrays? Because there's no
     -- point suspending the O(1) work this does for each leaf.
     go (Collision h ary) = Collision h $
-                           A.map' (\ (L k v) -> L k (f k v)) ary
+                           A.mapSmallArray' (\ (L k v) -> L k (f k v)) ary
 {-# INLINE mapWithKey #-}
 
 -- | /O(n)/ Transform this map by applying a function to every value.
@@ -1614,19 +1614,19 @@ filterMapAux onLeaf onColl = go
     go (Collision h ary) = filterC ary h
 
     filterA ary0 b0 =
-        let !n = A.length ary0
+        let !n = A.sizeofSmallArray ary0
         in runST $ do
             mary <- A.new_ n
             step ary0 mary b0 0 0 1 n
       where
-        step :: A.Array (HashMap k v1) -> A.MArray s (HashMap k v2)
+        step :: A.SmallArray (HashMap k v1) -> A.SmallMutableArray s (HashMap k v2)
              -> Bitmap -> Int -> Int -> Bitmap -> Int
              -> ST s (HashMap k v2)
         step !ary !mary !b i !j !bi n
             | i >= n = case j of
                 0 -> return Empty
                 1 -> do
-                    ch <- A.read mary 0
+                    ch <- A.readSmallArray mary 0
                     case ch of
                       t | isLeafOrCollision t -> return t
                       _                       -> BitmapIndexed b <$> A.trim mary 1
@@ -1636,32 +1636,32 @@ filterMapAux onLeaf onColl = go
                               then Full ary2
                               else BitmapIndexed b ary2
             | bi .&. b == 0 = step ary mary b i j (bi `unsafeShiftL` 1) n
-            | otherwise = case go (A.index ary i) of
+            | otherwise = case go (A.indexSmallArray ary i) of
                 Empty -> step ary mary (b .&. complement bi) (i+1) j
                          (bi `unsafeShiftL` 1) n
-                t     -> do A.write mary j t
+                t     -> do A.writeSmallArray mary j t
                             step ary mary b (i+1) (j+1) (bi `unsafeShiftL` 1) n
 
     filterC ary0 h =
-        let !n = A.length ary0
+        let !n = A.sizeofSmallArray ary0
         in runST $ do
             mary <- A.new_ n
             step ary0 mary 0 0 n
       where
-        step :: A.Array (Leaf k v1) -> A.MArray s (Leaf k v2)
+        step :: A.SmallArray (Leaf k v1) -> A.SmallMutableArray s (Leaf k v2)
              -> Int -> Int -> Int
              -> ST s (HashMap k v2)
         step !ary !mary i !j n
             | i >= n    = case j of
                 0 -> return Empty
-                1 -> do l <- A.read mary 0
+                1 -> do l <- A.readSmallArray mary 0
                         return $! Leaf h l
-                _ | i == j -> do ary2 <- A.unsafeFreeze mary
+                _ | i == j -> do ary2 <- A.unsafeFreezeSmallArray mary
                                  return $! Collision h ary2
                   | otherwise -> do ary2 <- A.trim mary j
                                     return $! Collision h ary2
-            | Just el <- onColl $! A.index ary i
-                = A.write mary j el >> step ary mary (i+1) (j+1) n
+            | Just el <- onColl $! A.indexSmallArray ary i
+                = A.writeSmallArray mary j el >> step ary mary (i+1) (j+1) n
             | otherwise = step ary mary (i+1) j n
 {-# INLINE filterMapAux #-}
 
@@ -1721,13 +1721,13 @@ lookupInArrayCont ::
 #else
   forall r k v.
 #endif
-  Eq k => ((# #) -> r) -> (v -> Int -> r) -> k -> A.Array (Leaf k v) -> r
-lookupInArrayCont absent present k0 ary0 = go k0 ary0 0 (A.length ary0)
+  Eq k => ((# #) -> r) -> (v -> Int -> r) -> k -> A.SmallArray (Leaf k v) -> r
+lookupInArrayCont absent present k0 ary0 = go k0 ary0 0 (A.sizeofSmallArray ary0)
   where
-    go :: Eq k => k -> A.Array (Leaf k v) -> Int -> Int -> r
+    go :: Eq k => k -> A.SmallArray (Leaf k v) -> Int -> Int -> r
     go !k !ary !i !n
         | i >= n    = absent (# #)
-        | otherwise = case A.index ary i of
+        | otherwise = case A.indexSmallArray ary i of
             (L kx v)
                 | k == kx   -> present v i
                 | otherwise -> go k ary (i+1) n
@@ -1735,23 +1735,23 @@ lookupInArrayCont absent present k0 ary0 = go k0 ary0 0 (A.length ary0)
 
 -- | /O(n)/ Lookup the value associated with the given key in this
 -- array.  Returns 'Nothing' if the key wasn't found.
-indexOf :: Eq k => k -> A.Array (Leaf k v) -> Maybe Int
-indexOf k0 ary0 = go k0 ary0 0 (A.length ary0)
+indexOf :: Eq k => k -> A.SmallArray (Leaf k v) -> Maybe Int
+indexOf k0 ary0 = go k0 ary0 0 (A.sizeofSmallArray ary0)
   where
     go !k !ary !i !n
         | i >= n    = Nothing
-        | otherwise = case A.index ary i of
+        | otherwise = case A.indexSmallArray ary i of
             (L kx _)
                 | k == kx   -> Just i
                 | otherwise -> go k ary (i+1) n
 {-# INLINABLE indexOf #-}
 
-updateWith# :: Eq k => (v -> (# v #)) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-updateWith# f k0 ary0 = go k0 ary0 0 (A.length ary0)
+updateWith# :: Eq k => (v -> (# v #)) -> k -> A.SmallArray (Leaf k v) -> A.SmallArray (Leaf k v)
+updateWith# f k0 ary0 = go k0 ary0 0 (A.sizeofSmallArray ary0)
   where
     go !k !ary !i !n
         | i >= n    = ary
-        | otherwise = case A.index ary i of
+        | otherwise = case A.indexSmallArray ary i of
             (L kx y) | k == kx -> case f y of
                           (# y' #)
                              | ptrEq y y' -> ary
@@ -1759,57 +1759,57 @@ updateWith# f k0 ary0 = go k0 ary0 0 (A.length ary0)
                      | otherwise -> go k ary (i+1) n
 {-# INLINABLE updateWith# #-}
 
-updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
+updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.SmallArray (Leaf k v)
+                 -> A.SmallArray (Leaf k v)
 updateOrSnocWith f = updateOrSnocWithKey (const f)
 {-# INLINABLE updateOrSnocWith #-}
 
-updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
-updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
+updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.SmallArray (Leaf k v)
+                 -> A.SmallArray (Leaf k v)
+updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.sizeofSmallArray ary0)
   where
     go !k v !ary !i !n
         | i >= n = A.run $ do
             -- Not found, append to the end.
             mary <- A.new_ (n + 1)
-            A.copy ary 0 mary 0 n
-            A.write mary n (L k v)
+            A.copySmallArray mary 0 ary 0 n
+            A.writeSmallArray mary n (L k v)
             return mary
-        | otherwise = case A.index ary i of
+        | otherwise = case A.indexSmallArray ary i of
             (L kx y) | k == kx   -> A.update ary i (L k (f k v y))
                      | otherwise -> go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWithKey #-}
 
-updateOrConcatWith :: Eq k => (v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+updateOrConcatWith :: Eq k => (v -> v -> v) -> A.SmallArray (Leaf k v) -> A.SmallArray (Leaf k v) -> A.SmallArray (Leaf k v)
 updateOrConcatWith f = updateOrConcatWithKey (const f)
 {-# INLINABLE updateOrConcatWith #-}
 
-updateOrConcatWithKey :: Eq k => (k -> v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+updateOrConcatWithKey :: Eq k => (k -> v -> v -> v) -> A.SmallArray (Leaf k v) -> A.SmallArray (Leaf k v) -> A.SmallArray (Leaf k v)
 updateOrConcatWithKey f ary1 ary2 = A.run $ do
     -- TODO: instead of mapping and then folding, should we traverse?
     -- We'll have to be careful to avoid allocating pairs or similar.
 
     -- first: look up the position of each element of ary2 in ary1
-    let indices = A.map' (\(L k _) -> indexOf k ary1) ary2
+    let indices = A.mapSmallArray' (\(L k _) -> indexOf k ary1) ary2
     -- that tells us how large the overlap is:
     -- count number of Nothing constructors
     let nOnly2 = A.foldl' (\n -> maybe (n+1) (const n)) 0 indices
-    let n1 = A.length ary1
-    let n2 = A.length ary2
+    let n1 = A.sizeofSmallArray ary1
+    let n2 = A.sizeofSmallArray ary2
     -- copy over all elements from ary1
     mary <- A.new_ (n1 + nOnly2)
-    A.copy ary1 0 mary 0 n1
+    A.copySmallArray mary 0 ary1 0 n1
     -- append or update all elements from ary2
     let go !iEnd !i2
           | i2 >= n2 = return ()
-          | otherwise = case A.index indices i2 of
+          | otherwise = case A.indexSmallArray indices i2 of
                Just i1 -> do -- key occurs in both arrays, store combination in position i1
-                             L k v1 <- A.indexM ary1 i1
-                             L _ v2 <- A.indexM ary2 i2
-                             A.write mary i1 (L k (f k v1 v2))
+                             L k v1 <- A.indexSmallArrayM ary1 i1
+                             L _ v2 <- A.indexSmallArrayM ary2 i2
+                             A.writeSmallArray mary i1 (L k (f k v1 v2))
                              go iEnd (i2+1)
                Nothing -> do -- key is only in ary2, append to end
-                             A.write mary iEnd =<< A.indexM ary2 i2
+                             A.writeSmallArray mary iEnd =<< A.indexSmallArrayM ary2 i2
                              go (iEnd+1) (i2+1)
     go n1 0
     return mary
@@ -1819,30 +1819,30 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
 -- Manually unrolled loops
 
 -- | /O(n)/ Update the element at the given position in this array.
-update16 :: A.Array e -> Int -> e -> A.Array e
+update16 :: A.SmallArray e -> Int -> e -> A.SmallArray e
 update16 ary idx b = runST (update16M ary idx b)
 {-# INLINE update16 #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
-update16M :: A.Array e -> Int -> e -> ST s (A.Array e)
+update16M :: A.SmallArray e -> Int -> e -> ST s (A.SmallArray e)
 update16M ary idx b = do
     mary <- clone16 ary
-    A.write mary idx b
-    A.unsafeFreeze mary
+    A.writeSmallArray mary idx b
+    A.unsafeFreezeSmallArray mary
 {-# INLINE update16M #-}
 
 -- | /O(n)/ Update the element at the given position in this array, by applying a function to it.
-update16With' :: A.Array e -> Int -> (e -> e) -> A.Array e
+update16With' :: A.SmallArray e -> Int -> (e -> e) -> A.SmallArray e
 update16With' ary idx f
-  | (# x #) <- A.index# ary idx
+  | (# x #) <- A.indexSmallArray## ary idx
   = update16 ary idx $! f x
 {-# INLINE update16With' #-}
 
 -- | Unsafely clone an array of 16 elements.  The length of the input
 -- array is not checked.
-clone16 :: A.Array e -> ST s (A.MArray s e)
+clone16 :: A.SmallArray e -> ST s (A.SmallMutableArray s e)
 clone16 ary =
-    A.thaw ary 0 16
+    A.thawSmallArray ary 0 16
 
 ------------------------------------------------------------------------
 -- Bit twiddling
