@@ -162,14 +162,14 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
             let ary' = A.insert ary i $! leaf h k x
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
-            let st   = A.index ary i
+            let st   = A.indexSmallArray ary i
                 st'  = go h k x (s+bitsPerSubkey) st
                 ary' = A.update ary i $! st'
             in BitmapIndexed b ary'
       where m = mask h s
             i = sparseIndex b m
     go h k x s (Full ary) =
-        let st   = A.index ary i
+        let st   = A.indexSmallArray ary i
             st'  = go h k x (s+bitsPerSubkey) st
             ary' = update16 ary i $! st'
         in Full ary'
@@ -198,14 +198,14 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
             ary' <- A.insertM ary i $! leaf h k x
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
-            st <- A.indexM ary i
+            st <- A.indexSmallArrayM ary i
             st' <- go h k x (s+bitsPerSubkey) st
             A.unsafeUpdateM ary i st'
             return t
       where m = mask h s
             i = sparseIndex b m
     go h k x s t@(Full ary) = do
-        st <- A.indexM ary i
+        st <- A.indexSmallArrayM ary i
         st' <- go h k x (s+bitsPerSubkey) st
         A.unsafeUpdateM ary i st'
         return t
@@ -227,7 +227,7 @@ adjust f k0 m0 = go h0 k0 0 m0
         | otherwise          = t
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 = t
-        | otherwise = let st   = A.index ary i
+        | otherwise = let st   = A.indexSmallArray ary i
                           st'  = go h k (s+bitsPerSubkey) st
                           ary' = A.update ary i $! st'
                       in BitmapIndexed b ary'
@@ -235,7 +235,7 @@ adjust f k0 m0 = go h0 k0 0 m0
             i = sparseIndex b m
     go h k s (Full ary) =
         let i    = index h s
-            st   = A.index ary i
+            st   = A.indexSmallArray ary i
             st'  = go h k (s+bitsPerSubkey) st
             ary' = update16 ary i $! st'
         in Full ary'
@@ -491,10 +491,10 @@ mapWithKey f = go
   where
     go Empty                 = Empty
     go (Leaf h (L k v))      = leaf h k (f k v)
-    go (BitmapIndexed b ary) = BitmapIndexed b $ A.map' go ary
-    go (Full ary)            = Full $ A.map' go ary
+    go (BitmapIndexed b ary) = BitmapIndexed b $ A.mapSmallArray' go ary
+    go (Full ary)            = Full $ A.mapSmallArray' go ary
     go (Collision h ary)     =
-        Collision h $ A.map' (\ (L k v) -> let !v' = f k v in L k v') ary
+        Collision h $ A.mapSmallArray' (\ (L k v) -> let !v' = f k v in L k v') ary
 {-# INLINE mapWithKey #-}
 
 -- | /O(n)/ Transform this map by applying a function to every value.
@@ -618,12 +618,12 @@ fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 ------------------------------------------------------------------------
 -- Array operations
 
-updateWith :: Eq k => (v -> v) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
+updateWith :: Eq k => (v -> v) -> k -> A.SmallArray (Leaf k v) -> A.SmallArray (Leaf k v)
+updateWith f k0 ary0 = go k0 ary0 0 (A.sizeofSmallArray ary0)
   where
     go !k !ary !i !n
         | i >= n    = ary
-        | otherwise = case A.index ary i of
+        | otherwise = case A.indexSmallArray ary i of
             (L kx y) | k == kx   -> let !v' = f y in A.update ary i (L k v')
                      | otherwise -> go k ary (i+1) n
 {-# INLINABLE updateWith #-}
@@ -633,8 +633,8 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
 -- the given function to the new and old value (in that order). The
 -- value is always evaluated to WHNF before being inserted into the
 -- array.
-updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
+updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.SmallArray (Leaf k v)
+                 -> A.SmallArray (Leaf k v)
 updateOrSnocWith f = updateOrSnocWithKey (const f)
 {-# INLINABLE updateOrSnocWith #-}
 
@@ -643,19 +643,19 @@ updateOrSnocWith f = updateOrSnocWithKey (const f)
 -- the given function to the new and old value (in that order). The
 -- value is always evaluated to WHNF before being inserted into the
 -- array.
-updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
-updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
+updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.SmallArray (Leaf k v)
+                 -> A.SmallArray (Leaf k v)
+updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.sizeofSmallArray ary0)
   where
     go !k v !ary !i !n
         | i >= n = A.run $ do
             -- Not found, append to the end.
             mary <- A.new_ (n + 1)
-            A.copy ary 0 mary 0 n
+            A.copySmallArray mary 0 ary 0 n
             let !l = v `seq` (L k v)
-            A.write mary n l
+            A.writeSmallArray mary n l
             return mary
-        | otherwise = case A.index ary i of
+        | otherwise = case A.indexSmallArray ary i of
             (L kx y) | k == kx   -> let !v' = f k v y in A.update ary i (L k v')
                      | otherwise -> go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWithKey #-}

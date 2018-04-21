@@ -5,8 +5,8 @@
 --
 -- Note that no bounds checking are performed.
 module Data.HashMap.Array
-    ( Array
-    , MArray
+    ( SmallArray
+    , SmallMutableArray
 
       -- * Creation
     , new
@@ -16,13 +16,13 @@ module Data.HashMap.Array
     , pair
 
       -- * Basic interface
-    , length
-    , lengthM
-    , read
-    , write
-    , index
-    , indexM
-    , index#
+    , sizeofSmallArray
+    , sizeofSmallMutableArray
+    , readSmallArray
+    , writeSmallArray
+    , indexSmallArray
+    , indexSmallArrayM
+    , indexSmallArray##
     , update
     , updateWith'
     , unsafeUpdateM
@@ -32,21 +32,21 @@ module Data.HashMap.Array
     , sameArray1
     , trim
 
-    , unsafeFreeze
-    , unsafeThaw
+    , unsafeFreezeSmallArray
+    , unsafeThawSmallArray
     , unsafeSameArray
     , run
     , run2
-    , copy
-    , copyM
+    , copySmallArray
+    , copySmallMutableArray
 
       -- * Folds
     , foldl'
     , foldr
 
-    , thaw
+    , thawSmallArray
     , map
-    , map'
+    , mapSmallArray'
     , traverse
     , traverse'
     , toList
@@ -174,77 +174,75 @@ if not ((_lhs_) _op_ (_rhs_)) then error ("Data.HashMap.Array." ++ (_func_) ++ "
 # define CHECK_EQ(_func_,_lhs_,_rhs_)
 #endif
 
-data Array a = Array {
-      unArray :: !(Array# a)
-    }
+data SmallArray a = SmallArray { unArray :: !(Array# a) }
 
-instance Show a => Show (Array a) where
+instance Show a => Show (SmallArray a) where
     show = show . toList
 
 -- Determines whether two arrays have the same memory address.
 -- This is more reliable than testing pointer equality on the
 -- Array wrappers, but it's still slightly bogus.
-unsafeSameArray :: Array a -> Array b -> Bool
-unsafeSameArray (Array xs) (Array ys) =
+unsafeSameArray :: SmallArray a -> SmallArray b -> Bool
+unsafeSameArray (SmallArray xs) (SmallArray ys) =
   tagToEnum# (unsafeCoerce# reallyUnsafePtrEquality# xs ys)
 
-sameArray1 :: (a -> b -> Bool) -> Array a -> Array b -> Bool
+sameArray1 :: (a -> b -> Bool) -> SmallArray a -> SmallArray b -> Bool
 sameArray1 eq !xs0 !ys0
   | lenxs /= lenys = False
   | otherwise = go 0 xs0 ys0
   where
     go !k !xs !ys
       | k == lenxs = True
-      | (# x #) <- index# xs k
-      , (# y #) <- index# ys k
+      | (# x #) <- indexSmallArray## xs k
+      , (# y #) <- indexSmallArray## ys k
       = eq x y && go (k + 1) xs ys
 
-    !lenxs = length xs0
-    !lenys = length ys0
+    !lenxs = sizeofSmallArray xs0
+    !lenys = sizeofSmallArray ys0
 
-length :: Array a -> Int
-length ary = I# (sizeofArray# (unArray ary))
-{-# INLINE length #-}
+sizeofSmallArray :: SmallArray a -> Int
+sizeofSmallArray ary = I# (sizeofArray# (unArray ary))
+{-# INLINE sizeofSmallArray #-}
 
 -- | Smart constructor
-array :: Array# a -> Int -> Array a
-array ary _n = Array ary
+array :: Array# a -> Int -> SmallArray a
+array ary _n = SmallArray ary
 {-# INLINE array #-}
 
-data MArray s a = MArray {
+data SmallMutableArray s a = SmallMutableArray {
       unMArray :: !(MutableArray# s a)
     }
 
-lengthM :: MArray s a -> Int
-lengthM mary = I# (sizeofMutableArray# (unMArray mary))
-{-# INLINE lengthM #-}
+sizeofSmallMutableArray :: SmallMutableArray s a -> Int
+sizeofSmallMutableArray mary = I# (sizeofMutableArray# (unMArray mary))
+{-# INLINE sizeofSmallMutableArray #-}
 
 -- | Smart constructor
-marray :: MutableArray# s a -> Int -> MArray s a
-marray mary _n = MArray mary
+marray :: MutableArray# s a -> Int -> SmallMutableArray s a
+marray mary _n = SmallMutableArray mary
 {-# INLINE marray #-}
 
 ------------------------------------------------------------------------
 
-instance NFData a => NFData (Array a) where
+instance NFData a => NFData (SmallArray a) where
     rnf = rnfArray
 
-rnfArray :: NFData a => Array a -> ()
+rnfArray :: NFData a => SmallArray a -> ()
 rnfArray ary0 = go ary0 n0 0
   where
-    n0 = length ary0
+    n0 = sizeofSmallArray ary0
     go !ary !n !i
         | i >= n = ()
-        | (# x #) <- index# ary i
+        | (# x #) <- indexSmallArray## ary i
         = rnf x `seq` go ary n (i+1)
--- We use index# just in case GHC can't see that the
+-- We use indexSmallArray## just in case GHC can't see that the
 -- relevant rnf is strict, or in case it actually isn't.
 {-# INLINE rnfArray #-}
 
 -- | Create a new mutable array of specified size, in the specified
 -- state thread, with each element containing the specified initial
 -- value.
-new :: Int -> a -> ST s (MArray s a)
+new :: Int -> a -> ST s (SmallMutableArray s a)
 new n@(I# n#) b =
     CHECK_GT("new",n,(0 :: Int))
     ST $ \s ->
@@ -252,179 +250,179 @@ new n@(I# n#) b =
             (# s', ary #) -> (# s', marray ary n #)
 {-# INLINE new #-}
 
-new_ :: Int -> ST s (MArray s a)
+new_ :: Int -> ST s (SmallMutableArray s a)
 new_ n = new n undefinedElem
 
-singleton :: a -> Array a
+singleton :: a -> SmallArray a
 singleton x = runST (singletonM x)
 {-# INLINE singleton #-}
 
-singletonM :: a -> ST s (Array a)
-singletonM x = new 1 x >>= unsafeFreeze
+singletonM :: a -> ST s (SmallArray a)
+singletonM x = new 1 x >>= unsafeFreezeSmallArray
 {-# INLINE singletonM #-}
 
-pair :: a -> a -> Array a
+pair :: a -> a -> SmallArray a
 pair x y = run $ do
     ary <- new 2 x
-    write ary 1 y
+    writeSmallArray ary 1 y
     return ary
 {-# INLINE pair #-}
 
-read :: MArray s a -> Int -> ST s a
-read ary _i@(I# i#) = ST $ \ s ->
-    CHECK_BOUNDS("read", lengthM ary, _i)
+readSmallArray :: SmallMutableArray s a -> Int -> ST s a
+readSmallArray ary _i@(I# i#) = ST $ \ s ->
+    CHECK_BOUNDS("readSmallArray", sizeofSmallMutableArray ary, _i)
         readArray# (unMArray ary) i# s
-{-# INLINE read #-}
+{-# INLINE readSmallArray #-}
 
-write :: MArray s a -> Int -> a -> ST s ()
-write ary _i@(I# i#) b = ST $ \ s ->
-    CHECK_BOUNDS("write", lengthM ary, _i)
+writeSmallArray :: SmallMutableArray s a -> Int -> a -> ST s ()
+writeSmallArray ary _i@(I# i#) b = ST $ \ s ->
+    CHECK_BOUNDS("writeSmallArray", sizeofSmallMutableArray ary, _i)
         case writeArray# (unMArray ary) i# b s of
             s' -> (# s' , () #)
-{-# INLINE write #-}
+{-# INLINE writeSmallArray #-}
 
-index :: Array a -> Int -> a
-index ary _i@(I# i#) =
-    CHECK_BOUNDS("index", length ary, _i)
+indexSmallArray :: SmallArray a -> Int -> a
+indexSmallArray ary _i@(I# i#) =
+    CHECK_BOUNDS("indexSmallArray", sizeofSmallArray ary, _i)
         case indexArray# (unArray ary) i# of (# b #) -> b
-{-# INLINE index #-}
+{-# INLINE indexSmallArray #-}
 
-index# :: Array a -> Int -> (# a #)
-index# ary _i@(I# i#) =
-    CHECK_BOUNDS("index#", length ary, _i)
+indexSmallArray## :: SmallArray a -> Int -> (# a #)
+indexSmallArray## ary _i@(I# i#) =
+    CHECK_BOUNDS("indexSmallArray##", sizeofSmallArray ary, _i)
         indexArray# (unArray ary) i#
-{-# INLINE index# #-}
+{-# INLINE indexSmallArray## #-}
 
-indexM :: Array a -> Int -> ST s a
-indexM ary _i@(I# i#) =
-    CHECK_BOUNDS("indexM", length ary, _i)
+indexSmallArrayM :: SmallArray a -> Int -> ST s a
+indexSmallArrayM ary _i@(I# i#) =
+    CHECK_BOUNDS("indexSmallArrayM", sizeofSmallArray ary, _i)
         case indexArray# (unArray ary) i# of (# b #) -> return b
-{-# INLINE indexM #-}
+{-# INLINE indexSmallArrayM #-}
 
-unsafeFreeze :: MArray s a -> ST s (Array a)
-unsafeFreeze mary
+unsafeFreezeSmallArray :: SmallMutableArray s a -> ST s (SmallArray a)
+unsafeFreezeSmallArray mary
     = ST $ \s -> case unsafeFreezeArray# (unMArray mary) s of
-                   (# s', ary #) -> (# s', array ary (lengthM mary) #)
-{-# INLINE unsafeFreeze #-}
+                   (# s', ary #) -> (# s', array ary (sizeofSmallMutableArray mary) #)
+{-# INLINE unsafeFreezeSmallArray #-}
 
-unsafeThaw :: Array a -> ST s (MArray s a)
-unsafeThaw ary
+unsafeThawSmallArray :: SmallArray a -> ST s (SmallMutableArray s a)
+unsafeThawSmallArray ary
     = ST $ \s -> case unsafeThawArray# (unArray ary) s of
-                   (# s', mary #) -> (# s', marray mary (length ary) #)
-{-# INLINE unsafeThaw #-}
+                   (# s', mary #) -> (# s', marray mary (sizeofSmallArray ary) #)
+{-# INLINE unsafeThawSmallArray #-}
 
-run :: (forall s . ST s (MArray s e)) -> Array e
-run act = runST $ act >>= unsafeFreeze
+run :: (forall s . ST s (SmallMutableArray s e)) -> SmallArray e
+run act = runST $ act >>= unsafeFreezeSmallArray
 {-# INLINE run #-}
 
-run2 :: (forall s. ST s (MArray s e, a)) -> (Array e, a)
+run2 :: (forall s. ST s (SmallMutableArray s e, a)) -> (SmallArray e, a)
 run2 k = runST (do
                  (marr,b) <- k
-                 arr <- unsafeFreeze marr
+                 arr <- unsafeFreezeSmallArray marr
                  return (arr,b))
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
-copy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
-copy !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
-    CHECK_LE("copy", _sidx + _n, length src)
-    CHECK_LE("copy", _didx + _n, lengthM dst)
+copySmallArray :: SmallMutableArray s e -> Int -> SmallArray e -> Int -> Int -> ST s ()
+copySmallArray !dst !_didx@(I# didx#) !src !_sidx@(I# sidx#) _n@(I# n#) =
+    CHECK_LE("copySmallArray", _sidx + _n, sizeofSmallArray src)
+    CHECK_LE("copySmallArray", _didx + _n, sizeofSmallMutableArray dst)
         ST $ \ s# ->
         case copyArray# (unArray src) sidx# (unMArray dst) didx# n# s# of
             s2 -> (# s2, () #)
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
-copyM :: MArray s e -> Int -> MArray s e -> Int -> Int -> ST s ()
-copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
-    CHECK_BOUNDS("copyM: src", lengthM src, _sidx + _n - 1)
-    CHECK_BOUNDS("copyM: dst", lengthM dst, _didx + _n - 1)
+copySmallMutableArray :: SmallMutableArray s e -> Int -> SmallMutableArray s e -> Int -> Int -> ST s ()
+copySmallMutableArray !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
+    CHECK_BOUNDS("copySmallMutableArray: src", sizeofSmallMutableArray src, _sidx + _n - 1)
+    CHECK_BOUNDS("copySmallMutableArray: dst", sizeofSmallMutableArray dst, _didx + _n - 1)
     ST $ \ s# ->
     case copyMutableArray# (unMArray src) sidx# (unMArray dst) didx# n# s# of
         s2 -> (# s2, () #)
 
-cloneM :: MArray s a -> Int -> Int -> ST s (MArray s a)
-cloneM _mary@(MArray mary#) _off@(I# off#) _len@(I# len#) =
-    CHECK_BOUNDS("cloneM_off", lengthM _mary, _off - 1)
-    CHECK_BOUNDS("cloneM_end", lengthM _mary, _off + _len - 1)
+cloneSmallMutableArray :: SmallMutableArray s a -> Int -> Int -> ST s (SmallMutableArray s a)
+cloneSmallMutableArray _mary@(SmallMutableArray mary#) _off@(I# off#) _len@(I# len#) =
+    CHECK_BOUNDS("cloneM_off", sizeofSmallMutableArray _mary, _off - 1)
+    CHECK_BOUNDS("cloneM_end", sizeofSmallMutableArray _mary, _off + _len - 1)
     ST $ \ s ->
     case cloneMutableArray# mary# off# len# s of
-      (# s', mary'# #) -> (# s', MArray mary'# #)
+      (# s', mary'# #) -> (# s', SmallMutableArray mary'# #)
 
 -- | Create a new array of the @n@ first elements of @mary@.
-trim :: MArray s a -> Int -> ST s (Array a)
-trim mary n = cloneM mary 0 n >>= unsafeFreeze
+trim :: SmallMutableArray s a -> Int -> ST s (SmallArray a)
+trim mary n = cloneSmallMutableArray mary 0 n >>= unsafeFreezeSmallArray
 {-# INLINE trim #-}
 
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
-insert :: Array e -> Int -> e -> Array e
+insert :: SmallArray e -> Int -> e -> SmallArray e
 insert ary idx b = runST (insertM ary idx b)
 {-# INLINE insert #-}
 
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
-insertM :: Array e -> Int -> e -> ST s (Array e)
+insertM :: SmallArray e -> Int -> e -> ST s (SmallArray e)
 insertM ary idx b =
     CHECK_BOUNDS("insertM", count + 1, idx)
         do mary <- new_ (count+1)
-           copy ary 0 mary 0 idx
-           write mary idx b
-           copy ary idx mary (idx+1) (count-idx)
-           unsafeFreeze mary
-  where !count = length ary
+           copySmallArray mary 0 ary 0 idx
+           writeSmallArray mary idx b
+           copySmallArray mary (idx+1) ary idx (count-idx)
+           unsafeFreezeSmallArray mary
+  where !count = sizeofSmallArray ary
 {-# INLINE insertM #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
-update :: Array e -> Int -> e -> Array e
+update :: SmallArray e -> Int -> e -> SmallArray e
 update ary idx b = runST (updateM ary idx b)
 {-# INLINE update #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
-updateM :: Array e -> Int -> e -> ST s (Array e)
+updateM :: SmallArray e -> Int -> e -> ST s (SmallArray e)
 updateM ary idx b =
     CHECK_BOUNDS("updateM", count, idx)
-        do mary <- thaw ary 0 count
-           write mary idx b
-           unsafeFreeze mary
-  where !count = length ary
+        do mary <- thawSmallArray ary 0 count
+           writeSmallArray mary idx b
+           unsafeFreezeSmallArray mary
+  where !count = sizeofSmallArray ary
 {-# INLINE updateM #-}
 
 -- | /O(n)/ Update the element at the given positio in this array, by
 -- applying a function to it.  Evaluates the element to WHNF before
 -- inserting it into the array.
-updateWith' :: Array e -> Int -> (e -> e) -> Array e
+updateWith' :: SmallArray e -> Int -> (e -> e) -> SmallArray e
 updateWith' ary idx f
-  | (# x #) <- index# ary idx
+  | (# x #) <- indexSmallArray## ary idx
   = update ary idx $! f x
 {-# INLINE updateWith' #-}
 
 -- | /O(1)/ Update the element at the given position in this array,
 -- without copying.
-unsafeUpdateM :: Array e -> Int -> e -> ST s ()
+unsafeUpdateM :: SmallArray e -> Int -> e -> ST s ()
 unsafeUpdateM ary idx b =
-    CHECK_BOUNDS("unsafeUpdateM", length ary, idx)
-        do mary <- unsafeThaw ary
-           write mary idx b
-           _ <- unsafeFreeze mary
+    CHECK_BOUNDS("unsafeUpdateM", sizeofSmallArray ary, idx)
+        do mary <- unsafeThawSmallArray ary
+           writeSmallArray mary idx b
+           _ <- unsafeFreezeSmallArray mary
            return ()
 {-# INLINE unsafeUpdateM #-}
 
-foldl' :: (b -> a -> b) -> b -> Array a -> b
-foldl' f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
+foldl' :: (b -> a -> b) -> b -> SmallArray a -> b
+foldl' f = \ z0 ary0 -> go ary0 (sizeofSmallArray ary0) 0 z0
   where
     go ary n i !z
         | i >= n = z
         | otherwise
-        = case index# ary i of
+        = case indexSmallArray## ary i of
             (# x #) -> go ary n (i+1) (f z x)
 {-# INLINE foldl' #-}
 
-foldr :: (a -> b -> b) -> b -> Array a -> b
-foldr f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
+foldr :: (a -> b -> b) -> b -> SmallArray a -> b
+foldr f = \ z0 ary0 -> go ary0 (sizeofSmallArray ary0) 0 z0
   where
     go ary n i z
         | i >= n = z
         | otherwise
-        = case index# ary i of
+        = case indexSmallArray## ary i of
             (# x #) -> f x (go ary n (i+1) z)
 {-# INLINE foldr #-}
 
@@ -432,34 +430,34 @@ undefinedElem :: a
 undefinedElem = error "Data.HashMap.Array: Undefined element"
 {-# NOINLINE undefinedElem #-}
 
-thaw :: Array e -> Int -> Int -> ST s (MArray s e)
-thaw !ary !_o@(I# o#) !n@(I# n#) =
-    CHECK_LE("thaw", _o + n, length ary)
+thawSmallArray :: SmallArray e -> Int -> Int -> ST s (SmallMutableArray s e)
+thawSmallArray !ary !_o@(I# o#) !n@(I# n#) =
+    CHECK_LE("thawSmallArray", _o + n, sizeofSmallArray ary)
         ST $ \ s -> case thawArray# (unArray ary) o# n# s of
             (# s2, mary# #) -> (# s2, marray mary# n #)
-{-# INLINE thaw #-}
+{-# INLINE thawSmallArray #-}
 
 -- | /O(n)/ Delete an element at the given position in this array,
 -- decreasing its size by one.
-delete :: Array e -> Int -> Array e
+delete :: SmallArray e -> Int -> SmallArray e
 delete ary idx = runST (deleteM ary idx)
 {-# INLINE delete #-}
 
 -- | /O(n)/ Delete an element at the given position in this array,
 -- decreasing its size by one.
-deleteM :: Array e -> Int -> ST s (Array e)
+deleteM :: SmallArray e -> Int -> ST s (SmallArray e)
 deleteM ary idx = do
     CHECK_BOUNDS("deleteM", count, idx)
         do mary <- new_ (count-1)
-           copy ary 0 mary 0 idx
-           copy ary (idx+1) mary idx (count-(idx+1))
-           unsafeFreeze mary
-  where !count = length ary
+           copySmallArray mary 0 ary 0 idx
+           copySmallArray mary idx ary (idx+1) (count-(idx+1))
+           unsafeFreezeSmallArray mary
+  where !count = sizeofSmallArray ary
 {-# INLINE deleteM #-}
 
-map :: (a -> b) -> Array a -> Array b
+map :: (a -> b) -> SmallArray a -> SmallArray b
 map f = \ ary ->
-    let !n = length ary
+    let !n = sizeofSmallArray ary
     in run $ do
         mary <- new_ n
         go ary mary 0 n
@@ -467,15 +465,15 @@ map f = \ ary ->
     go ary mary i n
         | i >= n    = return mary
         | otherwise = do
-             x <- indexM ary i
-             write mary i $ f x
+             x <- indexSmallArrayM ary i
+             writeSmallArray mary i $ f x
              go ary mary (i+1) n
 {-# INLINE map #-}
 
 -- | Strict version of 'map'.
-map' :: (a -> b) -> Array a -> Array b
-map' f = \ ary ->
-    let !n = length ary
+mapSmallArray' :: (a -> b) -> SmallArray a -> SmallArray b
+mapSmallArray' f = \ ary ->
+    let !n = sizeofSmallArray ary
     in run $ do
         mary <- new_ n
         go ary mary 0 n
@@ -483,12 +481,12 @@ map' f = \ ary ->
     go ary mary i n
         | i >= n    = return mary
         | otherwise = do
-             x <- indexM ary i
-             write mary i $! f x
+             x <- indexSmallArrayM ary i
+             writeSmallArray mary i $! f x
              go ary mary (i+1) n
-{-# INLINE map' #-}
+{-# INLINE mapSmallArray' #-}
 
-fromList :: Int -> [a] -> Array a
+fromList :: Int -> [a] -> SmallArray a
 fromList n xs0 =
     CHECK_EQ("fromList", n, Prelude.length xs0)
         run $ do
@@ -496,26 +494,26 @@ fromList n xs0 =
             go xs0 mary 0
   where
     go [] !mary !_   = return mary
-    go (x:xs) mary i = do write mary i x
+    go (x:xs) mary i = do writeSmallArray mary i x
                           go xs mary (i+1)
 
-toList :: Array a -> [a]
+toList :: SmallArray a -> [a]
 toList = foldr (:) []
 
-newtype STA a = STA {_runSTA :: forall s. MutableArray# s a -> ST s (Array a)}
+newtype STA a = STA {_runSTA :: forall s. MutableArray# s a -> ST s (SmallArray a)}
 
-runSTA :: Int -> STA a -> Array a
-runSTA !n (STA m) = runST $ new_ n >>= \ (MArray ar) -> m ar
+runSTA :: Int -> STA a -> SmallArray a
+runSTA !n (STA m) = runST $ new_ n >>= \ (SmallMutableArray ar) -> m ar
 
-traverse :: Applicative f => (a -> f b) -> Array a -> f (Array b)
+traverse :: Applicative f => (a -> f b) -> SmallArray a -> f (SmallArray b)
 traverse f = \ !ary ->
   let
-    !len = length ary
+    !len = sizeofSmallArray ary
     go !i
-      | i == len = pure $ STA $ \mary -> unsafeFreeze (MArray mary)
-      | (# x #) <- index# ary i
+      | i == len = pure $ STA $ \mary -> unsafeFreezeSmallArray (SmallMutableArray mary)
+      | (# x #) <- indexSmallArray## ary i
       = liftA2 (\b (STA m) -> STA $ \mary ->
-                  write (MArray mary) i b >> m mary)
+                  writeSmallArray (SmallMutableArray mary) i b >> m mary)
                (f x) (go (i + 1))
   in runSTA len <$> go 0
 {-# INLINE [1] traverse #-}
@@ -523,47 +521,47 @@ traverse f = \ !ary ->
 -- TODO: Would it be better to just use a lazy traversal
 -- and then force the elements of the result? My guess is
 -- yes.
-traverse' :: Applicative f => (a -> f b) -> Array a -> f (Array b)
+traverse' :: Applicative f => (a -> f b) -> SmallArray a -> f (SmallArray b)
 traverse' f = \ !ary ->
   let
-    !len = length ary
+    !len = sizeofSmallArray ary
     go !i
-      | i == len = pure $ STA $ \mary -> unsafeFreeze (MArray mary)
-      | (# x #) <- index# ary i
+      | i == len = pure $ STA $ \mary -> unsafeFreezeSmallArray (SmallMutableArray mary)
+      | (# x #) <- indexSmallArray## ary i
       = liftA2 (\ !b (STA m) -> STA $ \mary ->
-                    write (MArray mary) i b >> m mary)
+                    writeSmallArray (SmallMutableArray mary) i b >> m mary)
                (f x) (go (i + 1))
   in runSTA len <$> go 0
 {-# INLINE [1] traverse' #-}
 
 -- Traversing in ST, we don't need to get fancy; we
 -- can just do it directly.
-traverseST :: (a -> ST s b) -> Array a -> ST s (Array b)
+traverseST :: (a -> ST s b) -> SmallArray a -> ST s (SmallArray b)
 traverseST f = \ ary0 ->
   let
-    !len = length ary0
+    !len = sizeofSmallArray ary0
     go k !mary
       | k == len = return mary
       | otherwise = do
-          x <- indexM ary0 k
+          x <- indexSmallArrayM ary0 k
           y <- f x
-          write mary k y
+          writeSmallArray mary k y
           go (k + 1) mary
-  in new_ len >>= (go 0 >=> unsafeFreeze)
+  in new_ len >>= (go 0 >=> unsafeFreezeSmallArray)
 {-# INLINE traverseST #-}
 
-traverseIO :: (a -> IO b) -> Array a -> IO (Array b)
+traverseIO :: (a -> IO b) -> SmallArray a -> IO (SmallArray b)
 traverseIO f = \ ary0 ->
   let
-    !len = length ary0
+    !len = sizeofSmallArray ary0
     go k !mary
       | k == len = return mary
       | otherwise = do
-          x <- stToIO $ indexM ary0 k
+          x <- stToIO $ indexSmallArrayM ary0 k
           y <- f x
-          stToIO $ write mary k y
+          stToIO $ writeSmallArray mary k y
           go (k + 1) mary
-  in stToIO (new_ len) >>= (go 0 >=> stToIO . unsafeFreeze)
+  in stToIO (new_ len) >>= (go 0 >=> stToIO . unsafeFreezeSmallArray)
 {-# INLINE traverseIO #-}
 
 
