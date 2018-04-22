@@ -101,7 +101,8 @@ module Data.HashMap.Base
     , LookupRes(..)
     , insert'
     , delete'
-    , lookup'
+    , insert''
+    , delete''
     , insertNewKey
     , insertKeyExists
     , deleteKeyExists
@@ -120,7 +121,7 @@ import Data.Word (Word)
 import Data.Semigroup (Semigroup((<>)))
 #endif
 import Control.DeepSeq (NFData(rnf))
-import Control.Monad.ST (ST)
+import Control.Monad.ST (ST, stToIO)
 import Data.Bits ((.&.), (.|.), complement, popCount)
 import Data.Data hiding (Typeable)
 import qualified Data.Foldable as Foldable
@@ -152,11 +153,8 @@ import qualified Data.Hashable.Lifted as H
 import GHC.Exts (TYPE, Int (..), Int#)
 #endif
 
-#if MIN_VERSION_base(4,8,0)
-import Data.Functor.Identity (Identity (..))
-#endif
-import Control.Applicative (Const (..))
-import Data.Coerce (coerce)
+import System.IO.Unsafe ( unsafeDupablePerformIO )
+import Data.IORef
 
 -- | A set of values.  A set cannot contain duplicate values.
 ------------------------------------------------------------------------
@@ -515,28 +513,9 @@ lookup k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) (hash k) k m
 {-# INLINABLE lookup #-}
 #endif
 
--- | lookup' is a version of lookup that takes the hash separately.
--- It is used to implement alterF.
-lookup' :: Eq k => Hash -> k -> HashMap k v -> Maybe v
-#if __GLASGOW_HASKELL__ >= 802
--- GHC does not yet perform a worker-wrapper transformation on
--- unboxed sums automatically. That seems likely to happen at some
--- point (possibly as early as GHC 8.6) but for now we do it manually.
--- lookup' would probably prefer to be implemented in terms of its own
--- lookup'#, but it's not important enough and we don't want too much
--- code.
-lookup' h k m = case lookupRecordCollision# h k m of
-  (# (# #) | #) -> Nothing
-  (# | (# a, _i #) #) -> Just a
-{-# INLINE lookup' #-}
-#else
-lookup' h k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) h k m
-{-# INLINABLE lookup' #-}
-#endif
-
 -- The result of a lookup, keeping track of if a hash collision occured.
 -- If a collision did not occur then it will have the Int value (-1).
-data LookupRes a = Absent | Present a !Int
+data LookupRes a = Unknown | Absent | Present a !Int
 
 -- Internal helper for lookup. This version takes the precomputed hash so
 -- that functions that make multiple calls to lookup and related functions
@@ -690,6 +669,77 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
         | h == hy   = Collision h (updateOrSnocWith const k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE insert' #-}
+
+insert'' :: Eq k
+         => Hash
+         -> k
+         -> IORef (LookupRes v)
+         -> v -> HashMap k v -> IO (HashMap k v)
+insert'' h0 k0 ivar0 v0 m0 = go h0 k0 ivar0 v0 0 m0
+  where
+    go :: Eq k
+             => Hash
+             -> k
+             -> IORef (LookupRes v)
+             -> v -> Int -> HashMap k v -> IO (HashMap k v)
+    go !h !k !iv x !_ Empty =
+      do
+        writeIORef iv Absent
+        return $! Leaf h (L k x)
+    go h k iv x s t@(Leaf hy l@(L ky y))
+        | hy == h = if ky == k
+                    then do
+                           writeIORef iv (Present y (-1))
+                           if x `ptrEq` y
+                             then return t
+                             else return $! Leaf h (L k x)
+                    else do
+                           writeIORef iv Absent
+                           return $! collision h l (L k x)
+        | otherwise
+        = do
+            writeIORef iv Absent
+            stToIO $ two s h k x hy ky y
+    go h k iv x s t@(BitmapIndexed b ary)
+        | b .&. m == 0 =
+            let !ary' = A.insert ary i $! Leaf h (L k x)
+            in do writeIORef iv Absent
+                  return $! bitmapIndexedOrFull (b .|. m) ary'
+        | otherwise =
+            let !st  = A.index ary i
+            in do
+                 !st' <- go h k iv x (s+bitsPerSubkey) st
+                 if st' `ptrEq` st
+                   then return t
+                   else return $! BitmapIndexed b (A.update ary i st')
+      where m = mask h s
+            i = sparseIndex b m
+    go h k iv x s t@(Full ary) =
+        let !st  = A.index ary i
+        in do
+             !st' <- go h k iv x (s+bitsPerSubkey) st
+             if st' `ptrEq` st
+               then return t
+               else return $! Full (update16 ary i st')
+      where i = index h s
+    go h k iv x s t@(Collision hy v)
+        | h == hy   = lookupInArrayCont not_here here k v
+        | otherwise = go h k iv x s $ BitmapIndexed (mask hy s) (A.singleton t)
+      where
+        not_here (# #) = do
+          writeIORef iv Absent
+          stToIO $ do
+            let n = A.length v
+            mary <- A.new_ (n + 1)
+            A.copy v 0 mary 0 n
+            A.write mary n (L k x)
+            v' <- A.unsafeFreeze mary
+            return (Collision h v')
+        here old loc = do
+          writeIORef iv (Present old loc)
+          v' <- stToIO $ A.updateM v loc (L k x)
+          return (Collision h v')
+{-# INLINABLE insert'' #-}
 
 -- Insert optimized for the case when we know the key is not in the map.
 --
@@ -1011,6 +1061,61 @@ delete' h0 k0 m0 = go h0 k0 0 m0
         | otherwise = t
 {-# INLINABLE delete' #-}
 
+delete'' :: Eq k => Hash -> k -> IORef (LookupRes v) -> HashMap k v -> IO (HashMap k v)
+delete'' h0 k0 iv0 m0 = go h0 k0 iv0 0 m0
+  where
+    go !_ !_ !iv !_ Empty = writeIORef iv Absent >> return Empty
+    go h k iv _ t@(Leaf hy (L ky v))
+        | hy == h && ky == k = writeIORef iv (Present v (-1)) >> return Empty
+        | otherwise          = writeIORef iv Absent >> return t
+    go h k iv s t@(BitmapIndexed b ary)
+        | b .&. m == 0 = writeIORef iv Absent >> return t
+        | otherwise = do
+            let !st = A.index ary i
+            !st' <- go h k iv (s+bitsPerSubkey) st
+            if st' `ptrEq` st
+              then return t
+              else case st' of
+                Empty | A.length ary == 1 -> return Empty
+                      | A.length ary == 2 ->
+                          case (i, A.index ary 0, A.index ary 1) of
+                          (0, _, l) | isLeafOrCollision l -> return l
+                          (1, l, _) | isLeafOrCollision l -> return l
+                          _                               -> return bIndexed
+                      | otherwise -> return $! bIndexed
+                    where
+                      bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
+                l | isLeafOrCollision l && A.length ary == 1 -> return l
+                _ -> return $! BitmapIndexed b (A.update ary i st')
+      where m = mask h s
+            i = sparseIndex b m
+    go h k iv s t@(Full ary) = do
+        let !st   = A.index ary i
+        !st' <- go h k iv (s+bitsPerSubkey) st
+        if st' `ptrEq` st
+          then return $! t
+          else case st' of
+            Empty ->
+                let ary' = A.delete ary i
+                    bm   = fullNodeMask .&. complement (1 `unsafeShiftL` i)
+                in return $! BitmapIndexed bm ary'
+            _ -> return $! Full (A.update ary i st')
+      where i = index h s
+    go h k iv _ t@(Collision hy v)
+        | h == hy
+        = lookupInArrayCont not_here here k v
+        | otherwise = writeIORef iv Absent >> return t
+        where
+          not_here (# #) = writeIORef iv Absent >> return t
+          here old i = do
+            writeIORef iv (Present old i)
+            if A.length v == 2
+              then if i == 0
+                   then return $! Leaf h (A.index v 1)
+                   else return $! Leaf h (A.index v 0)
+              else return $! Collision h (A.delete v i)
+{-# INLINABLE delete'' #-}
+
 -- | Delete optimized for the case when we know the key is in the map.
 --
 -- It is only valid to call this when the key exists in the map and you know the
@@ -1147,128 +1252,30 @@ alterF :: (Functor f, Eq k, Hashable k)
 alterF f = \ !k !m ->
   let
     !h = hash k
-    mv = lookup' h k m
-  in (<$> f mv) $ \fres ->
-    case fres of
-      Nothing -> delete' h k m
-      Just v' -> insert' h k v' m
-
--- We unconditionally rewrite alterF in RULES, but we expose an
--- unfolding just in case it's used in some way that prevents the
--- rule from firing.
-{-# INLINABLE [0] alterF #-}
-
-#if MIN_VERSION_base(4,8,0)
--- This is just a bottom value. See the comment on the "alterFWeird"
--- rule.
-test_bottom :: a
-test_bottom = error "Data.HashMap.alterF internal error: hit test_bottom"
-
--- We use this as an error result in RULES to ensure we don't get
--- any useless CallStack nonsense.
-bogus# :: (# #) -> (# a #)
-bogus# _ = error "Data.HashMap.alterF internal error: hit bogus#"
-
-{-# RULES
--- We probe the behavior of @f@ by applying it to Nothing and to
--- Just test_bottom. Based on the results, and how they relate to
--- each other, we choose the best implementation.
-
-"alterFWeird" forall f. alterF f =
-   alterFWeird (f Nothing) (f (Just test_bottom)) f
-
--- This rule covers situations where alterF is used to simply insert or
--- delete in some functor (most likely via Control.Lens.At). We recognize here
--- (through the repeated @x@ on the LHS) that
---
--- @f Nothing = f (Just bottom)@,
---
--- which guarantees that @f@ doesn't care what its argument is, so
--- we don't have to either.
-"alterFconstant" forall (f :: Maybe a -> f (Maybe a)) x.
-  alterFWeird x x f = \ !k !m ->
-    fmap (\case {Nothing -> delete k m; Just a -> insert k a m}) x
-
--- This rule handles the case where 'alterF' is used to do 'insertWith'-like
--- things. Whenever possible, GHC will get rid of the Maybe nonsense for us.
--- We delay this rule to stage 1 so alterFconstant has a chance to fire.
-"alterFinsertWith" [1] forall (f :: Maybe a -> Identity (Maybe a)) x y.
-  alterFWeird (coerce (Just x)) (coerce (Just y)) f =
-    coerce (insertModifying x (\mold -> case runIdentity (f (Just mold)) of
-                                            Nothing -> bogus# (# #)
-                                            Just new -> (# new #)))
-
--- Handle the case where someone uses 'alterF' instead of 'adjust'. This
--- rule is kind of picky; it will only work if the function doesn't
--- do anything between case matching on the Maybe and producing a result.
-"alterFadjust" forall (f :: Maybe a -> Identity (Maybe a)) _y.
-  alterFWeird (coerce Nothing) (coerce (Just _y)) f =
-    coerce (adjust# (\x -> case runIdentity (f (Just x)) of
-                               Just x' -> (# x' #)
-                               Nothing -> bogus# (# #)))
-
--- The simple specialization to Const; in this case we can look up
--- the key without caring what position it's in. This is only a tiny
--- optimization.
-"alterFlookup" forall _ign1 _ign2 (f :: Maybe a -> Const r (Maybe a)).
-  alterFWeird _ign1 _ign2 f = \ !k !m -> Const (getConst (f (lookup k m)))
- #-}
-
--- This is a very unsafe version of alterF used for RULES. When calling
--- alterFWeird x y f, the following *must* hold:
---
--- x = f Nothing
--- y = f (Just _|_)
---
--- Failure to abide by these laws will make demons come out of your nose.
-alterFWeird
-       :: (Functor f, Eq k, Hashable k)
-       => f (Maybe v)
-       -> f (Maybe v)
-       -> (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
-alterFWeird _ _ f = alterFEager f
-{-# INLINE [0] alterFWeird #-}
-
--- | This is the default version of alterF that we use in most non-trivial
--- cases. It's called "eager" because it looks up the given key in the map
--- eagerly, whether or not the given function requires that information.
-alterFEager :: (Functor f, Eq k, Hashable k)
-       => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
-alterFEager f !k m = (<$> f mv) $ \fres ->
-  case fres of
-
-    ------------------------------
-    -- Delete the key from the map.
-    Nothing -> case lookupRes of
-
-      -- Key did not exist in the map to begin with, no-op
-      Absent -> m
-
-      -- Key did exist
-      Present _ collPos -> deleteKeyExists collPos h k m
-
-    ------------------------------
-    -- Update value
-    Just v' -> case lookupRes of
-
-      -- Key did not exist before, insert v' under a new key
-      Absent -> insertNewKey h k v' m
-
-      -- Key existed before
-      Present v collPos ->
-        if v `ptrEq` v'
-        -- If the value is identical, no-op
-        then m
-        -- If the value changed, update the value.
-        else insertKeyExists collPos h k v' m
-
-  where !h = hash k
-        !lookupRes = lookupRecordCollision h k m
-        !mv = case lookupRes of
-           Absent -> Nothing
-           Present v _ -> Just v
-{-# INLINABLE alterFEager #-}
-#endif
+  in unsafeDupablePerformIO $ do
+    ivar <- newIORef Unknown
+    let mv = unsafeDupablePerformIO $
+         do
+           status <- readIORef ivar
+           case status of
+             Absent -> return Nothing
+             Present v _ -> return (Just v)
+             Unknown -> case lookupRecordCollision h k m of
+                          res@(Present v _) -> writeIORef ivar res >> return (Just v)
+                          _ -> writeIORef ivar Absent >> return Nothing
+    return $ (<$> f mv) $ \fres -> unsafeDupablePerformIO $ do
+      status <- readIORef ivar
+      case fres of
+        Nothing ->
+          case status of
+            Absent -> return m
+            Present _ pos -> return $! deleteKeyExists pos h k m
+            Unknown -> delete'' h k ivar m
+        Just v' ->
+          case status of
+            Absent -> return $! insertNewKey h k v' m
+            Present _ pos -> return $! insertKeyExists pos h k v' m
+            Unknown -> insert'' h k ivar v' m
 
 
 ------------------------------------------------------------------------

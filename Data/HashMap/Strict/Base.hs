@@ -107,11 +107,8 @@ import Data.HashMap.Base hiding (
     mapMaybe, mapMaybeWithKey, singleton, update, unionWith, unionWithKey,
     traverseWithKey)
 import Data.HashMap.Unsafe (runST)
-#if MIN_VERSION_base(4,8,0)
-import Data.Functor.Identity
-#endif
-import Control.Applicative (Const (..))
-import Data.Coerce
+import Data.IORef
+import System.IO.Unsafe (unsafeDupablePerformIO)
 
 -- $strictness
 --
@@ -271,120 +268,38 @@ alter f k m =
 -- @since 0.2.9
 alterF :: (Functor f, Eq k, Hashable k)
        => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
--- Special care is taken to only calculate the hash once. When we rewrite
--- with RULES, we also ensure that we only compare the key for equality
--- once. We force the value of the map for consistency with the rewritten
+-- We only calculate the hash once, but unless this is rewritten
+-- by rules we may test for key equality multiple times.
+-- We force the value of the map for consistency with the rewritten
 -- version; otherwise someone could tell the difference using a lazy
 -- @f@ and a functor that is similar to Const but not actually Const.
 alterF f = \ !k !m ->
-  let !h = hash k
-      mv = lookup' h k m
-  in (<$> f mv) $ \fres ->
-    case fres of
-      Nothing -> delete' h k m
-      Just !v' -> insert' h k v' m
-
--- We rewrite this function unconditionally in RULES, but we expose
--- an unfolding just in case it's used in a context where the rules
--- don't fire.
-{-# INLINABLE [0] alterF #-}
-
-#if MIN_VERSION_base(4,8,0)
--- See notes in Data.HashMap.Base
-test_bottom :: a
-test_bottom = error "Data.HashMap.alterF internal error: hit test_bottom"
-
-bogus# :: (# #) -> (# a #)
-bogus# _ = error "Data.HashMap.alterF internal error: hit bogus#"
-
-impossibleAdjust :: a
-impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
-
-{-# RULES
-
--- See detailed notes on alterF rules in Data.HashMap.Base.
-
-"alterFWeird" forall f. alterF f =
-    alterFWeird (f Nothing) (f (Just test_bottom)) f
-
-"alterFconstant" forall (f :: Maybe a -> f (Maybe a)) x.
-  alterFWeird x x f = \ !k !m ->
-    fmap (\case {Nothing -> delete k m; Just a -> insert k a m}) x
-
-"alterFinsertWith" [1] forall (f :: Maybe a -> Identity (Maybe a)) x y.
-  alterFWeird (coerce (Just x)) (coerce (Just y)) f =
-    coerce (insertModifying x (\mold -> case runIdentity (f (Just mold)) of
-                                            Nothing -> bogus# (# #)
-                                            Just !new -> (# new #)))
-
--- This rule is written a bit differently than the one for lazy
--- maps because the adjust here is strict. We could write it the
--- same general way anyway, but this seems simpler.
-"alterFadjust" forall (f :: Maybe a -> Identity (Maybe a)) x.
-  alterFWeird (coerce Nothing) (coerce (Just x)) f =
-    coerce (adjust (\a -> case runIdentity (f (Just a)) of
-                               Just a' -> a'
-                               Nothing -> impossibleAdjust))
-
-"alterFlookup" forall _ign1 _ign2 (f :: Maybe a -> Const r (Maybe a)) .
-  alterFWeird _ign1 _ign2 f = \ !k !m -> Const (getConst (f (lookup k m)))
- #-}
-
--- This is a very unsafe version of alterF used for RULES. When calling
--- alterFWeird x y f, the following *must* hold:
---
--- x = f Nothing
--- y = f (Just _|_)
---
--- Failure to abide by these laws will make demons come out of your nose.
-alterFWeird
-       :: (Functor f, Eq k, Hashable k)
-       => f (Maybe v)
-       -> f (Maybe v)
-       -> (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
-alterFWeird _ _ f = alterFEager f
-{-# INLINE [0] alterFWeird #-}
-
--- | This is the default version of alterF that we use in most non-trivial
--- cases. It's called "eager" because it looks up the given key in the map
--- eagerly, whether or not the given function requires that information.
-alterFEager :: (Functor f, Eq k, Hashable k)
-       => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
-alterFEager f !k !m = (<$> f mv) $ \fres ->
-  case fres of
-
-    ------------------------------
-    -- Delete the key from the map.
-    Nothing -> case lookupRes of
-
-      -- Key did not exist in the map to begin with, no-op
-      Absent -> m
-
-      -- Key did exist, no collision
-      Present _ collPos -> deleteKeyExists collPos h k m
-
-    ------------------------------
-    -- Update value
-    Just v' -> case lookupRes of
-
-      -- Key did not exist before, insert v' under a new key
-      Absent -> insertNewKey h k v' m
-
-      -- Key existed before, no hash collision
-      Present v collPos -> v' `seq`
-        if v `ptrEq` v'
-        -- If the value is identical, no-op
-        then m
-        -- If the value changed, update the value.
-        else insertKeyExists collPos h k v' m
-
-  where !h = hash k
-        !lookupRes = lookupRecordCollision h k m
-        !mv = case lookupRes of
-          Absent -> Nothing
-          Present v _ -> Just v
-{-# INLINABLE alterFEager #-}
-#endif
+  let
+    !h = hash k
+  in unsafeDupablePerformIO $ do
+    ivar <- newIORef Unknown
+    let mv = unsafeDupablePerformIO $
+         do
+           status <- readIORef ivar
+           case status of
+             Absent -> return Nothing
+             Present v _ -> return (Just v)
+             Unknown -> case lookupRecordCollision h k m of
+                          res@(Present v _) -> writeIORef ivar res >> return (Just v)
+                          _ -> writeIORef ivar Absent >> return Nothing
+    return $ (<$> f mv) $ \fres -> unsafeDupablePerformIO $ do
+      status <- readIORef ivar
+      case fres of
+        Nothing ->
+          case status of
+            Absent -> return m
+            Present _ pos -> return $! deleteKeyExists pos h k m
+            Unknown -> delete'' h k ivar m
+        Just !v' ->
+          case status of
+            Absent -> return $! insertNewKey h k v' m
+            Present _ pos -> return $! insertKeyExists pos h k v' m
+            Unknown -> insert'' h k ivar v' m
 
 ------------------------------------------------------------------------
 -- * Combine
