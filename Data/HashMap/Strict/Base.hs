@@ -307,9 +307,9 @@ impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
 "alterFWeird" forall f. alterF f =
     alterFWeird (f Nothing) (f (Just test_bottom)) f
 
-"alterFconstant" forall (f :: Maybe a -> f (Maybe a)) x.
+"alterFconstant" forall (f :: Maybe a -> Identity (Maybe a)) x.
   alterFWeird x x f = \ !k !m ->
-    fmap (\case {Nothing -> delete k m; Just a -> insert k a m}) x
+    Identity (case runIdentity x of {Nothing -> delete k m; Just a -> insert k a m})
 
 "alterFinsertWith" [1] forall (f :: Maybe a -> Identity (Maybe a)) x y.
   alterFWeird (coerce (Just x)) (coerce (Just y)) f =
