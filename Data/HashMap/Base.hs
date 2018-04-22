@@ -1178,16 +1178,23 @@ bogus# _ = error "Data.HashMap.alterF internal error: hit bogus#"
    alterFWeird (f Nothing) (f (Just test_bottom)) f
 
 -- This rule covers situations where alterF is used to simply insert or
--- delete in some functor (most likely via Control.Lens.At). We recognize here
+-- delete in Identity (most likely via Control.Lens.At). We recognize here
 -- (through the repeated @x@ on the LHS) that
 --
 -- @f Nothing = f (Just bottom)@,
 --
 -- which guarantees that @f@ doesn't care what its argument is, so
 -- we don't have to either.
-"alterFconstant" forall (f :: Maybe a -> f (Maybe a)) x.
+--
+-- Why only Identity? A variant of this rule is actually valid regardless of
+-- the functor, but for some functors (e.g., []), it can lead to the
+-- same keys being compared multiple times, which is bad if they're
+-- ugly things like strings. This is unfortunate, since the rule is likely
+-- a good idea for almost all realistic uses, but I don't like nasty
+-- edge cases.
+"alterFconstant" forall (f :: Maybe a -> Identity (Maybe a)) x.
   alterFWeird x x f = \ !k !m ->
-    fmap (\case {Nothing -> delete k m; Just a -> insert k a m}) x
+    Identity (case runIdentity x of {Nothing -> delete k m; Just a -> insert k a m})
 
 -- This rule handles the case where 'alterF' is used to do 'insertWith'-like
 -- things. Whenever possible, GHC will get rid of the Maybe nonsense for us.
