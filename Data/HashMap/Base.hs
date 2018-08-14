@@ -181,7 +181,7 @@ data HashMap k v
     | BitmapIndexed !Bitmap !(A.Array (HashMap k v))
     | Leaf !Hash !(Leaf k v)
     | Full !(A.Array (HashMap k v))
-    | Collision !Hash !(A.Array (Leaf k v))
+    | Collision !Hash !Salt !(HashMap k v)
       deriving (Typeable)
 
 type role HashMap nominal representational
@@ -191,7 +191,7 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf (BitmapIndexed _ ary) = rnf ary
     rnf (Leaf _ l)            = rnf l
     rnf (Full ary)            = rnf ary
-    rnf (Collision _ ary)     = rnf ary
+    rnf (Collision _ _ ary)     = rnf ary
 
 instance Functor (HashMap k) where
     fmap = map
@@ -231,6 +231,7 @@ hashMapDataType :: DataType
 hashMapDataType = mkDataType "Data.HashMap.Base.HashMap" [fromListConstr]
 
 type Hash   = Word
+type Salt   = Int
 type Bitmap = Word
 type Shift  = Int
 
@@ -293,8 +294,8 @@ equal1 eq = go
       = bm1 == bm2 && A.sameArray1 go ary1 ary2
     go (Leaf h1 l1) (Leaf h2 l2) = h1 == h2 && leafEq l1 l2
     go (Full ary1) (Full ary2) = A.sameArray1 go ary1 ary2
-    go (Collision h1 ary1) (Collision h2 ary2)
-      = h1 == h2 && isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
+    go (Collision h1 s1 hm1) (Collision h2 s2 hm2)
+      = h1 == h2 && s1 == s2 && go hm1 hm2
     go _ _ = False
 
     leafEq (L k1 v1) (L k2 v2) = k1 == k2 && eq v1 v2
@@ -311,10 +312,10 @@ equal2 eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
       | k1 == k2 &&
         leafEq l1 l2
       = go tl1 tl2
-    go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
-      | k1 == k2 &&
-        A.length ary1 == A.length ary2 &&
-        isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
+    go (Collision h1 s1 hm1 : tl1) (Collision h2 s2 hm2 : tl2)
+      | h1 == h2 &&
+        s1 == s2 &&
+        go (toList' hm1 []) (toList' hm2 [])
       = go tl1 tl2
     go [] [] = True
     go _  _  = False
@@ -345,13 +346,13 @@ cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
       = compare k1 k2 `mappend`
         leafCompare l1 l2 `mappend`
         go tl1 tl2
-    go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
-      = compare k1 k2 `mappend`
-        compare (A.length ary1) (A.length ary2) `mappend`
-        unorderedCompare leafCompare (A.toList ary1) (A.toList ary2) `mappend`
+    go (Collision h1 s1 hm1 : tl1) (Collision h2 s2 hm2 : tl2)
+      = compare h1 h2 `mappend`
+        compare s1 s2 `mappend`
+        go (toList' hm1 []) (toList' hm2 []) `mappend`
         go tl1 tl2
-    go (Leaf _ _ : _) (Collision _ _ : _) = LT
-    go (Collision _ _ : _) (Leaf _ _ : _) = GT
+    go (Leaf _ _ : _) (Collision _ _ _ : _) = LT
+    go (Collision _ _ _ : _) (Leaf _ _ : _) = GT
     go [] [] = EQ
     go [] _  = LT
     go _  [] = GT
@@ -366,9 +367,9 @@ equalKeys1 eq t1 t2 = go (toList' t1 []) (toList' t2 [])
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
       | k1 == k2 && leafEq l1 l2
       = go tl1 tl2
-    go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
-      | k1 == k2 && A.length ary1 == A.length ary2 &&
-        isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
+    go (Collision h1 s1 hm1 : tl1) (Collision h2 s2 hm2 : tl2)
+      | h1 == h2 && s1 == s2 &&
+        go (toList' hm1 []) (toList' hm2 [])
       = go tl1 tl2
     go [] [] = True
     go _  _  = False
@@ -385,8 +386,8 @@ equalKeys = go
       = bm1 == bm2 && A.sameArray1 go ary1 ary2
     go (Leaf h1 l1) (Leaf h2 l2) = h1 == h2 && leafEq l1 l2
     go (Full ary1) (Full ary2) = A.sameArray1 go ary1 ary2
-    go (Collision h1 ary1) (Collision h2 ary2)
-      = h1 == h2 && isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
+    go (Collision h1 s1 hm1) (Collision h2 s2 hm2)
+      = h1 == h2 && s1 == s2 && go hm1 hm2
     go _ _ = False
 
     leafEq (L k1 _) (L k2 _) = k1 == k2
@@ -401,19 +402,12 @@ instance H.Hashable2 HashMap where
           = s `hashLeafWithSalt` l `go` tl
         -- For collisions we hashmix hash value
         -- and then array of values' hashes sorted
-        go s (Collision h a : tl)
-          = (s `H.hashWithSalt` h) `hashCollisionWithSalt` a `go` tl
+        go s (Collision h s' hm' : tl)
+          = (((s `H.hashWithSalt` h) `H.hashWithSalt` s') `go` (toList' hm' [])) `go` tl
         go s (_ : tl) = s `go` tl
 
         -- hashLeafWithSalt :: Int -> Leaf k v -> Int
         hashLeafWithSalt s (L k v) = (s `hk` k) `hv` v
-
-        -- hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
-        hashCollisionWithSalt s
-          = L.foldl' H.hashWithSalt s . arrayHashesSorted s
-
-        -- arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
-        arrayHashesSorted s = L.sort . L.map (hashLeafWithSalt s) . A.toList
 
 instance (Hashable k) => H.Hashable1 (HashMap k) where
     liftHashWithSalt = H.liftHashWithSalt2 H.hashWithSalt
@@ -428,33 +422,26 @@ instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
           = s `hashLeafWithSalt` l `go` tl
         -- For collisions we hashmix hash value
         -- and then array of values' hashes sorted
-        go s (Collision h a : tl)
-          = (s `H.hashWithSalt` h) `hashCollisionWithSalt` a `go` tl
+        go s (Collision h s' hm' : tl)
+          = (((s `H.hashWithSalt` h) `H.hashWithSalt` s') `go` (toList' hm' [])) `go` tl
         go s (_ : tl) = s `go` tl
 
         hashLeafWithSalt :: Int -> Leaf k v -> Int
         hashLeafWithSalt s (L k v) = s `H.hashWithSalt` k `H.hashWithSalt` v
 
-        hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
-        hashCollisionWithSalt s
-          = L.foldl' H.hashWithSalt s . arrayHashesSorted s
-
-        arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
-        arrayHashesSorted s = L.sort . L.map (hashLeafWithSalt s) . A.toList
-
-  -- Helper to get 'Leaf's and 'Collision's as a list.
+  -- Helper to get 'Leaf's as a list.
 toList' :: HashMap k v -> [HashMap k v] -> [HashMap k v]
 toList' (BitmapIndexed _ ary) a = A.foldr toList' a ary
 toList' (Full ary)            a = A.foldr toList' a ary
 toList' l@(Leaf _ _)          a = l : a
-toList' c@(Collision _ _)     a = c : a
+toList' (Collision _ _ hm)    a = toList' hm a
 toList' Empty                 a = a
 
 -- Helper function to detect 'Leaf's and 'Collision's.
 isLeafOrCollision :: HashMap k v -> Bool
-isLeafOrCollision (Leaf _ _)      = True
-isLeafOrCollision (Collision _ _) = True
-isLeafOrCollision _               = False
+isLeafOrCollision (Leaf _ _)        = True
+isLeafOrCollision (Collision _ _ _) = True
+isLeafOrCollision _                 = False
 
 ------------------------------------------------------------------------
 -- * Construction
@@ -483,7 +470,7 @@ size t = go t 0
     go (Leaf _ _)            n = n + 1
     go (BitmapIndexed _ ary) n = A.foldl' (flip go) n ary
     go (Full ary)            n = A.foldl' (flip go) n ary
-    go (Collision _ ary)     n = n + A.length ary
+    go (Collision _ _ hm)    n = go hm n
 
 -- | /O(log n)/ Return 'True' if the specified key is present in the
 -- map, 'False' otherwise.
