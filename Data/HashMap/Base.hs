@@ -625,12 +625,14 @@ infixl 9 !
 
 -- | Create a 'Collision' value with two 'Leaf' values.
 collision :: (Eq k, Hashable k) => Hash -> Salt -> Leaf k v -> Leaf k v -> HashMap k v
-collision h s !(L k1 v1) !(L k2 v2) =
+collision h s !l1@(L k1 v1) !l2@(L k2 v2) =
   let s' = nextSalt s
       rehash = hashWithSalt s'
       h1 = rehash k1
       h2 = rehash k2
-      hm = runST $ two 0 h1 k1 v1 h2 k2 v2
+      hm = if h1 == h2
+        then Collision h s' $ collision h1 s' l1 l2
+        else runST $ two 0 h1 k1 v1 h2 k2 v2
   in Collision h s' hm
 {-# INLINE collision #-}
 
@@ -690,7 +692,7 @@ insert' h0 s0 k0 v0 m0 = go h0 s0 k0 v0 0 m0
             else Full (update16 ary i st')
       where i = index h bs
     go h s k x bs t@(Collision hx sx hmx)
-        | h == hx   = Collision hx sx $ insert' (hashWithSalt sx k) sx k x hmx
+        | h == hx   = Collision hx sx $ go (hashWithSalt sx k) sx k x 0 hmx
         | otherwise = go h s k x bs $ BitmapIndexed (mask hx bs) (A.singleton t)
 {-# INLINABLE insert' #-}
 
@@ -724,7 +726,7 @@ insertNewKey !h0 !s0 !k0 x0 !m0 = go h0 s0 k0 x0 0 m0
         in Full (update16 ary i st')
       where i = index h bs
     go h s k x bs t@(Collision hx sx hmx)
-        | h == hx   = Collision hx sx $ insertNewKey (hashWithSalt sx k) sx k x hmx
+        | h == hx   = Collision hx sx $ go (hashWithSalt sx k) sx k x 0 hmx
         | otherwise =
             go h s k x bs $ BitmapIndexed (mask hx bs) (A.singleton t)
 {-# NOINLINE insertNewKey #-}
@@ -755,7 +757,7 @@ insertKeyExists !h0 !s0 !k0 x0 !m0 = go h0 s0 k0 x0 0 m0
         in Full (update16 ary i st')
       where i = index h bs
     go h s k x bs t@(Collision hx sx hmx)
-        | h == hx   = Collision hx sx $ insertKeyExists (hashWithSalt sx k) sx k x hmx
+        | h == hx   = Collision hx sx $ go (hashWithSalt sx k) sx k x 0 hmx
         | otherwise =
             go h s k x bs $ BitmapIndexed (mask hx bs) (A.singleton t)
     go _ _ _ _ _ Empty = Empty -- error "Internal error: go Empty"
@@ -776,7 +778,7 @@ unsafeInsert k0 v0 m0 = runST (go h0 s0 k0 v0 0 m0)
   where
     h0 = hashWithSalt s0 k0
     s0 = defaultSalt
-    go !h _ !k x !_ Empty = return $! Leaf h (L k x)
+    go !h !_ !k x !_ Empty = return $! Leaf h (L k x)
     go h s k x bs t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then if x `ptrEq` y
@@ -883,7 +885,7 @@ insertModifying x f k0 m0 = go h0 s0 k0 0 m0
       where i = index h bs
     go h s k bs t@(Collision hx sx hmx)
         | h == hx   =
-            go (hashWithSalt sx k) sx k 0 hmx
+            Collision hx sx $ go (hashWithSalt sx k) sx k 0 hmx
         | otherwise = go h s k bs $ BitmapIndexed (mask hx bs) (A.singleton t)
 {-# INLINABLE insertModifying #-}
 
@@ -991,7 +993,7 @@ delete' h0 s0 k0 m0 = go h0 s0 k0 0 m0
             _ -> Full (A.update ary i st')
       where i = index h bs
     go h s k _ t@(Collision hx sx hmx)
-        | h == hx = go (hashWithSalt sx k) sx k 0 hmx
+        | h == hx = Collision hx sx $ go (hashWithSalt sx k) sx k 0 hmx
         | otherwise = t
 {-# INLINABLE delete' #-}
 
@@ -1032,7 +1034,7 @@ deleteKeyExists !h0 s0 !k0 !m0 = go h0 s0 k0 0 m0
             _ -> Full (A.update ary i st')
       where i = index h bs
     go h s k _ t@(Collision hx sx hmx)
-        | h == hx = go (hashWithSalt sx k) sx k 0 hmx
+        | h == hx = Collision hx sx $ go (hashWithSalt sx k) sx k 0 hmx
         | otherwise = Empty -- error "Internal error: unexpected collision"
     go !_ !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
 {-# NOINLINE deleteKeyExists #-}
@@ -1081,7 +1083,7 @@ adjust# f k0 m0 = go h0 k0 0 m0
            then t
            else Full ary'
     go h k _ t@(Collision hx sx hmx)
-        | h == hx   = go (hashWithSalt sx k) k 0 hmx
+        | h == hx   = Collision hx sx $ go (hashWithSalt sx k) k 0 hmx
         | otherwise = t
 {-# INLINABLE adjust# #-}
 
@@ -1595,7 +1597,7 @@ filterMapAux onLeaf onColl = go
         | otherwise = Empty
     go (BitmapIndexed b ary) = filterA ary b
     go (Full ary) = filterA ary fullNodeMask
-    go (Collision _ _ hm) = go hm
+    go (Collision _ _ hm) = undefined hm -- TODO
 
     filterA ary0 b0 =
         let !n = A.length ary0
