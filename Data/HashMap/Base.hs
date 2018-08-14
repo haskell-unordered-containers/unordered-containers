@@ -1276,86 +1276,87 @@ unionWith f = unionWithKey (const f)
 -- result.
 unionWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
-unionWithKey f = go 0
+unionWithKey f = go 0 s0
   where
+    s0 = defaultSalt
     -- empty vs. anything
-    go !_ t1 Empty = t1
-    go _ Empty t2 = t2
+    go !_ !_ t1 Empty = t1
+    go _ _ Empty t2 = t2
     -- leaf vs. leaf
-    go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
+    go bs s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
                       then Leaf h1 (L k1 (f k1 v1 v2))
-                      else collision h1 l1 l2
-        | otherwise = goDifferentHash s h1 h2 t1 t2
-    go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
-        | h1 == h2  = Collision h1 (updateOrSnocWithKey f k1 v1 ls2)
-        | otherwise = goDifferentHash s h1 h2 t1 t2
-    go s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
-        | h1 == h2  = Collision h1 (updateOrSnocWithKey (flip . f) k2 v2 ls1)
-        | otherwise = goDifferentHash s h1 h2 t1 t2
-    go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
-        | h1 == h2  = Collision h1 (updateOrConcatWithKey f ls1 ls2)
-        | otherwise = goDifferentHash s h1 h2 t1 t2
+                      else collision h1 s l1 l2
+        | otherwise = goDifferentHash bs s h1 h2 t1 t2
+    go bs s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 s2 hm2)
+        | h1 == h2  = Collision h1 s2 $ insert' (hashWithSalt s2 k1) s2 k1 v1 hm2
+        | otherwise = goDifferentHash bs s h1 h2 t1 t2
+    go bs s t1@(Collision h1 s1 hm1) t2@(Leaf h2 (L k2 v2))
+        | h1 == h2  = Collision h1 s1 $ insert' (hashWithSalt s1 k2) s1 k2 v2 hm1
+        | otherwise = goDifferentHash bs s h1 h2 t1 t2
+    go bs s t1@(Collision h1 s1 hm1) t2@(Collision h2 _ hm2) -- Second salt must be equal
+        | h1 == h2  = Collision h1 s1 $ go 0 s1 hm1 hm2
+        | otherwise = goDifferentHash bs s h1 h2 t1 t2
     -- branch vs. branch
-    go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
+    go bs s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
         let b'   = b1 .|. b2
-            ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 b2 ary1 ary2
+            ary' = unionArrayBy (go (bs+bitsPerSubkey) s) b1 b2 ary1 ary2
         in bitmapIndexedOrFull b' ary'
-    go s (BitmapIndexed b1 ary1) (Full ary2) =
-        let ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 fullNodeMask ary1 ary2
+    go bs s (BitmapIndexed b1 ary1) (Full ary2) =
+        let ary' = unionArrayBy (go (bs+bitsPerSubkey) s) b1 fullNodeMask ary1 ary2
         in Full ary'
-    go s (Full ary1) (BitmapIndexed b2 ary2) =
-        let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask b2 ary1 ary2
+    go bs s (Full ary1) (BitmapIndexed b2 ary2) =
+        let ary' = unionArrayBy (go (bs+bitsPerSubkey) s) fullNodeMask b2 ary1 ary2
         in Full ary'
-    go s (Full ary1) (Full ary2) =
-        let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask fullNodeMask
+    go bs s (Full ary1) (Full ary2) =
+        let ary' = unionArrayBy (go (bs+bitsPerSubkey) s) fullNodeMask fullNodeMask
                    ary1 ary2
         in Full ary'
     -- leaf vs. branch
-    go s (BitmapIndexed b1 ary1) t2
+    go bs s (BitmapIndexed b1 ary1) t2
         | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
                                b'   = b1 .|. m2
                            in bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
-                                   go (s+bitsPerSubkey) st1 t2
+                                   go (bs+bitsPerSubkey) s st1 t2
                            in BitmapIndexed b1 ary'
         where
           h2 = leafHashCode t2
-          m2 = mask h2 s
+          m2 = mask h2 bs
           i = sparseIndex b1 m2
-    go s t1 (BitmapIndexed b2 ary2)
+    go bs s t1 (BitmapIndexed b2 ary2)
         | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
                                b'   = b2 .|. m1
                            in bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
-                                   go (s+bitsPerSubkey) t1 st2
+                                   go (bs+bitsPerSubkey) s t1 st2
                            in BitmapIndexed b2 ary'
       where
         h1 = leafHashCode t1
-        m1 = mask h1 s
+        m1 = mask h1 bs
         i = sparseIndex b2 m1
-    go s (Full ary1) t2 =
+    go bs s (Full ary1) t2 =
         let h2   = leafHashCode t2
-            i    = index h2 s
-            ary' = update16With' ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
+            i    = index h2 bs
+            ary' = update16With' ary1 i $ \st1 -> go (bs+bitsPerSubkey) s st1 t2
         in Full ary'
-    go s t1 (Full ary2) =
+    go bs s t1 (Full ary2) =
         let h1   = leafHashCode t1
-            i    = index h1 s
-            ary' = update16With' ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
+            i    = index h1 bs
+            ary' = update16With' ary2 i $ \st2 -> go (bs+bitsPerSubkey) s t1 st2
         in Full ary'
 
     leafHashCode (Leaf h _) = h
-    leafHashCode (Collision h _) = h
+    leafHashCode (Collision h _ _) = h
     leafHashCode _ = error "leafHashCode"
 
-    goDifferentHash s h1 h2 t1 t2
-        | m1 == m2  = BitmapIndexed m1 (A.singleton $! go (s+bitsPerSubkey) t1 t2)
+    goDifferentHash bs s h1 h2 t1 t2
+        | m1 == m2  = BitmapIndexed m1 (A.singleton $! go (bs+bitsPerSubkey) s t1 t2)
         | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
         | otherwise = BitmapIndexed (m1 .|. m2) (A.pair t2 t1)
       where
-        m1 = mask h1 s
-        m2 = mask h2 s
+        m1 = mask h1 bs
+        m2 = mask h2 bs
 {-# INLINE unionWithKey #-}
 
 -- | Strict in the result of @f@.
