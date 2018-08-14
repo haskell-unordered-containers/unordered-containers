@@ -1409,8 +1409,7 @@ mapWithKey f = go
     go (Full ary) = Full $ A.map go ary
     -- Why map strictly over collision arrays? Because there's no
     -- point suspending the O(1) work this does for each leaf.
-    go (Collision h ary) = Collision h $
-                           A.map' (\ (L k v) -> L k (f k v)) ary
+    go (Collision h s hm) = Collision h s $ go hm
 {-# INLINE mapWithKey #-}
 
 -- | /O(n)/ Transform this map by applying a function to every value.
@@ -1438,8 +1437,8 @@ traverseWithKey f = go
     go (Leaf h (L k v))      = Leaf h . L k <$> f k v
     go (BitmapIndexed b ary) = BitmapIndexed b <$> A.traverse go ary
     go (Full ary)            = Full <$> A.traverse go ary
-    go (Collision h ary)     =
-        Collision h <$> A.traverse' (\ (L k v) -> L k <$> f k v) ary
+    go (Collision h s hm)    =
+        Collision h s <$> go hm
 {-# INLINE traverseWithKey #-}
 
 ------------------------------------------------------------------------
@@ -1525,7 +1524,7 @@ foldlWithKey' f = go
     go z (Leaf _ (L k v))      = f z k v
     go z (BitmapIndexed _ ary) = A.foldl' go z ary
     go z (Full ary)            = A.foldl' go z ary
-    go z (Collision _ ary)     = A.foldl' (\ z' (L k v) -> f z' k v) z ary
+    go z (Collision _ _ hm)    = go z hm
 {-# INLINE foldlWithKey' #-}
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
@@ -1545,7 +1544,7 @@ foldrWithKey f = go
     go z (Leaf _ (L k v))      = f k v z
     go z (BitmapIndexed _ ary) = A.foldr (flip go) z ary
     go z (Full ary)            = A.foldr (flip go) z ary
-    go z (Collision _ ary)     = A.foldr (\ (L k v) z' -> f k v z') z ary
+    go z (Collision _ _ hm)    = go z hm
 {-# INLINE foldrWithKey #-}
 
 ------------------------------------------------------------------------
