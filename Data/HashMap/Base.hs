@@ -996,20 +996,16 @@ delete' h0 s0 k0 m0 = go h0 s0 k0 0 m0
 
 -- | Delete optimized for the case when we know the key is in the map.
 --
--- It is only valid to call this when the key exists in the map and you know the
--- hash collision position if there was one. This information can be obtained
--- from 'lookupRecordCollision'. If there is no collision pass (-1) as collPos.
---
 -- We can skip:
 --  - the key equality check on the leaf, if we reach a leaf it must be the key
-deleteKeyExists :: Int -> Hash -> k -> HashMap k v -> HashMap k v
-deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 0 m0
+deleteKeyExists :: Hashable k => Hash -> Salt -> k -> HashMap k v -> HashMap k v
+deleteKeyExists !h0 s0 !k0 !m0 = go h0 s0 k0 0 m0
   where
-    go :: Int -> Hash -> k -> Int -> HashMap k v -> HashMap k v
-    go !_collPos !_h !_k !_s (Leaf _ _) = Empty
-    go collPos h k s (BitmapIndexed b ary) =
+    go :: Hashable k => Hash -> Salt -> k -> Int -> HashMap k v -> HashMap k v
+    go !_h !_s !_k !_bs (Leaf _ _) = Empty
+    go h s k bs (BitmapIndexed b ary) =
             let !st = A.index ary i
-                !st' = go collPos h k (s+bitsPerSubkey) st
+                !st' = go h s k (bs+bitsPerSubkey) st
             in case st' of
                 Empty | A.length ary == 1 -> Empty
                       | A.length ary == 2 ->
@@ -1022,24 +1018,21 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 0 m0
                       bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
                 l | isLeafOrCollision l && A.length ary == 1 -> l
                 _ -> BitmapIndexed b (A.update ary i st')
-      where m = mask h s
+      where m = mask h bs
             i = sparseIndex b m
-    go collPos h k s (Full ary) =
+    go h s k bs (Full ary) =
         let !st   = A.index ary i
-            !st' = go collPos h k (s+bitsPerSubkey) st
+            !st' = go h s k (bs+bitsPerSubkey) st
         in case st' of
             Empty ->
                 let ary' = A.delete ary i
                     bm   = fullNodeMask .&. complement (1 `unsafeShiftL` i)
                 in BitmapIndexed bm ary'
             _ -> Full (A.update ary i st')
-      where i = index h s
-    go collPos h _ _ (Collision _hy v)
-      | A.length v == 2
-      = if collPos == 0
-        then Leaf h (A.index v 1)
-        else Leaf h (A.index v 0)
-      | otherwise = Collision h (A.delete v collPos)
+      where i = index h bs
+    go h s k _ t@(Collision hx sx hmx)
+        | h == hx = go (hashWithSalt sx k) sx k 0 hmx
+        | otherwise = Empty -- error "Internal error: unexpected collision"
     go !_ !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
 {-# NOINLINE deleteKeyExists #-}
 
@@ -1060,36 +1053,34 @@ adjust f k m = adjust# (\v -> (# f v #)) k m
 adjust# :: (Eq k, Hashable k) => (v -> (# v #)) -> k -> HashMap k v -> HashMap k v
 adjust# f k0 m0 = go h0 k0 0 m0
   where
-    h0 = hash k0
+    h0 = hashWithSalt s0 k0
+    s0 = defaultSalt
     go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky y))
         | hy == h && ky == k = case f y of
             (# y' #) | ptrEq y y' -> t
                      | otherwise -> Leaf h (L k y')
         | otherwise          = t
-    go h k s t@(BitmapIndexed b ary)
+    go h k bs t@(BitmapIndexed b ary)
         | b .&. m == 0 = t
         | otherwise = let !st   = A.index ary i
-                          !st'  = go h k (s+bitsPerSubkey) st
+                          !st'  = go h k (bs+bitsPerSubkey) st
                           ary' = A.update ary i $! st'
                       in if ptrEq st st'
                          then t
                          else BitmapIndexed b ary'
-      where m = mask h s
+      where m = mask h bs
             i = sparseIndex b m
-    go h k s t@(Full ary) =
-        let i    = index h s
+    go h k bs t@(Full ary) =
+        let i    = index h bs
             !st   = A.index ary i
-            !st'  = go h k (s+bitsPerSubkey) st
+            !st'  = go h k (bs+bitsPerSubkey) st
             ary' = update16 ary i $! st'
         in if ptrEq st st'
            then t
            else Full ary'
-    go h k _ t@(Collision hy v)
-        | h == hy   = let !v' = updateWith# f k v
-                      in if A.unsafeSameArray v v'
-                         then t
-                         else Collision h v'
+    go h k _ t@(Collision hx sx hmx)
+        | h == hx   = go (hashWithSalt sx k) k 0 hmx
         | otherwise = t
 {-# INLINABLE adjust# #-}
 
@@ -1129,12 +1120,13 @@ alterF :: (Functor f, Eq k, Hashable k)
 -- @f@ and a functor that is similar to Const but not actually Const.
 alterF f = \ !k !m ->
   let
-    !h = hash k
-    mv = lookup' h k m
+    !h = hashWithSalt s k
+    s = defaultSalt
+    mv = lookup' h s k m
   in (<$> f mv) $ \fres ->
     case fres of
-      Nothing -> delete' h k m
-      Just v' -> insert' h k v' m
+      Nothing -> delete' h s k m
+      Just v' -> insert' h s k v' m
 
 -- We unconditionally rewrite alterF in RULES, but we expose an
 -- unfolding just in case it's used in some way that prevents the
@@ -1235,14 +1227,14 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
       Absent -> m
 
       -- Key did exist
-      Present _ collPos -> deleteKeyExists collPos h k m
+      Present _ _ -> deleteKeyExists h s k m
 
     ------------------------------
     -- Update value
     Just v' -> case lookupRes of
 
       -- Key did not exist before, insert v' under a new key
-      Absent -> insertNewKey h k v' m
+      Absent -> insertNewKey h s k v' m
 
       -- Key existed before
       Present v collPos ->
@@ -1250,10 +1242,11 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
         -- If the value is identical, no-op
         then m
         -- If the value changed, update the value.
-        else insertKeyExists collPos h k v' m
+        else insertKeyExists h s k v' m
 
-  where !h = hash k
-        !lookupRes = lookupRecordCollision h k m
+  where !h = hashWithSalt s k
+        !s = defaultSalt
+        !lookupRes = lookupRecordCollision h s k m
         !mv = case lookupRes of
            Absent -> Nothing
            Present v _ -> Just v
