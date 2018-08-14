@@ -82,7 +82,7 @@ module Data.HashMap.Base
     , Bitmap
     , bitmapIndexedOrFull
     , collision
-    , hash
+    , hashWithSalt
     , mask
     , index
     , bitsPerSubkey
@@ -1594,7 +1594,7 @@ filterMapAux onLeaf onColl = go
         | otherwise = Empty
     go (BitmapIndexed b ary) = filterA ary b
     go (Full ary) = filterA ary fullNodeMask
-    go (Collision h ary) = filterC ary h
+    go (Collision _ _ hm) = go hm
 
     filterA ary0 b0 =
         let !n = A.length ary0
@@ -1624,28 +1624,6 @@ filterMapAux onLeaf onColl = go
                          (bi `unsafeShiftL` 1) n
                 t     -> do A.write mary j t
                             step ary mary b (i+1) (j+1) (bi `unsafeShiftL` 1) n
-
-    filterC ary0 h =
-        let !n = A.length ary0
-        in runST $ do
-            mary <- A.new_ n
-            step ary0 mary 0 0 n
-      where
-        step :: A.Array (Leaf k v1) -> A.MArray s (Leaf k v2)
-             -> Int -> Int -> Int
-             -> ST s (HashMap k v2)
-        step !ary !mary i !j n
-            | i >= n    = case j of
-                0 -> return Empty
-                1 -> do l <- A.read mary 0
-                        return $! Leaf h l
-                _ | i == j -> do ary2 <- A.unsafeFreeze mary
-                                 return $! Collision h ary2
-                  | otherwise -> do ary2 <- A.trim mary j
-                                    return $! Collision h ary2
-            | Just el <- onColl $! A.index ary i
-                = A.write mary j el >> step ary mary (i+1) (j+1) n
-            | otherwise = step ary mary (i+1) j n
 {-# INLINE filterMapAux #-}
 
 -- | /O(n)/ Filter this map by retaining only elements which values
