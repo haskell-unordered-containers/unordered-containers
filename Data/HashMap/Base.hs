@@ -83,6 +83,7 @@ module Data.HashMap.Base
     , bitmapIndexedOrFull
     , collision
     , hashWithSalt
+    , defaultSalt
     , mask
     , index
     , bitsPerSubkey

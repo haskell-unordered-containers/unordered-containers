@@ -148,99 +148,102 @@ insert k !v = HM.insert k v
 -- >   where f new old = new + old
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
            -> HashMap k v
-insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
+insertWith f k0 v0 m0 = go h0 s0 k0 v0 0 m0
   where
-    h0 = hash k0
-    go !h !k x !_ Empty = leaf h k x
-    go h k x s (Leaf hy l@(L ky y))
+    h0 = hashWithSalt s0 k0
+    s0 = defaultSalt
+    go !h _ !k x !_ Empty = leaf h k x
+    go h s k x bs (Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then leaf h k (f x y)
-                    else x `seq` (collision h l (L k x))
-        | otherwise = x `seq` runST (two s h k x hy ky y)
-    go h k x s (BitmapIndexed b ary)
+                    else x `seq` (collision h s l (L k x))
+        | otherwise = x `seq` runST (two bs h k x hy ky y)
+    go h s k x bs (BitmapIndexed b ary)
         | b .&. m == 0 =
             let ary' = A.insert ary i $! leaf h k x
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             let st   = A.index ary i
-                st'  = go h k x (s+bitsPerSubkey) st
+                st'  = go h s k x (bs+bitsPerSubkey) st
                 ary' = A.update ary i $! st'
             in BitmapIndexed b ary'
-      where m = mask h s
+      where m = mask h bs
             i = sparseIndex b m
-    go h k x s (Full ary) =
+    go h s k x bs (Full ary) =
         let st   = A.index ary i
-            st'  = go h k x (s+bitsPerSubkey) st
+            st'  = go h s k x (bs+bitsPerSubkey) st
             ary' = update16 ary i $! st'
         in Full ary'
-      where i = index h s
-    go h k x s t@(Collision hy v)
-        | h == hy   = Collision h (updateOrSnocWith f k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+      where i = index h bs
+    go h s k x bs t@(Collision hx sx hm)
+        | h == hx   = Collision hx sx $ go (hashWithSalt sx k) sx k x 0 hm
+        | otherwise = go h s k x bs $ BitmapIndexed (mask hx bs) (A.singleton t)
 {-# INLINABLE insertWith #-}
 
 -- | In-place update version of insertWith
 unsafeInsertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
                  -> HashMap k v
-unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+unsafeInsertWith f k0 v0 m0 = runST (go h0 s0 k0 v0 0 m0)
   where
-    h0 = hash k0
-    go !h !k x !_ Empty = return $! leaf h k x
-    go h k x s (Leaf hy l@(L ky y))
+    h0 = hashWithSalt s0 k0
+    s0 = defaultSalt
+    go !h !_ !k x !_ Empty = return $! leaf h k x
+    go h s k x bs (Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then return $! leaf h k (f x y)
                     else do
                         let l' = x `seq` (L k x)
-                        return $! collision h l l'
-        | otherwise = x `seq` two s h k x hy ky y
-    go h k x s t@(BitmapIndexed b ary)
+                        return $! collision h s l l'
+        | otherwise = x `seq` two bs h k x hy ky y
+    go h s k x bs t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
             ary' <- A.insertM ary i $! leaf h k x
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
-            st' <- go h k x (s+bitsPerSubkey) st
+            st' <- go h s k x (bs+bitsPerSubkey) st
             A.unsafeUpdateM ary i st'
             return t
-      where m = mask h s
+      where m = mask h bs
             i = sparseIndex b m
-    go h k x s t@(Full ary) = do
+    go h s k x bs t@(Full ary) = do
         st <- A.indexM ary i
-        st' <- go h k x (s+bitsPerSubkey) st
+        st' <- go h s k x (bs+bitsPerSubkey) st
         A.unsafeUpdateM ary i st'
         return t
-      where i = index h s
-    go h k x s t@(Collision hy v)
-        | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+      where i = index h bs
+    go h s k x bs t@(Collision hx sx hm)
+        | h == hx   = Collision hx sx <$> go (hashWithSalt sx k) sx k x 0 hm
+        | otherwise = go h s k x bs $ BitmapIndexed (mask hx bs) (A.singleton t)
 {-# INLINABLE unsafeInsertWith #-}
 
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
 adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
-adjust f k0 m0 = go h0 k0 0 m0
+adjust f k0 m0 = go h0 s0 k0 0 m0
   where
-    h0 = hash k0
-    go !_ !_ !_ Empty = Empty
-    go h k _ t@(Leaf hy (L ky y))
+    h0 = hashWithSalt s0 k0
+    s0 = defaultSalt
+    go !_ !_ !_ !_ Empty = Empty
+    go h _ k _ t@(Leaf hy (L ky y))
         | hy == h && ky == k = leaf h k (f y)
         | otherwise          = t
-    go h k s t@(BitmapIndexed b ary)
+    go h s k bs t@(BitmapIndexed b ary)
         | b .&. m == 0 = t
         | otherwise = let st   = A.index ary i
-                          st'  = go h k (s+bitsPerSubkey) st
+                          st'  = go h s k (bs+bitsPerSubkey) st
                           ary' = A.update ary i $! st'
                       in BitmapIndexed b ary'
-      where m = mask h s
+      where m = mask h bs
             i = sparseIndex b m
-    go h k s (Full ary) =
-        let i    = index h s
+    go h s k bs (Full ary) =
+        let i    = index h bs
             st   = A.index ary i
-            st'  = go h k (s+bitsPerSubkey) st
+            st'  = go h s k (bs+bitsPerSubkey) st
             ary' = update16 ary i $! st'
         in Full ary'
-    go h k _ t@(Collision hy v)
-        | h == hy   = Collision h (updateWith f k v)
+    go h s k _ t@(Collision hx sx hm)
+        | h == hx   = Collision hx sx $ go (hashWithSalt sx k) sx k 0 hm
         | otherwise = t
 {-# INLINABLE adjust #-}
 
@@ -277,12 +280,13 @@ alterF :: (Functor f, Eq k, Hashable k)
 -- version; otherwise someone could tell the difference using a lazy
 -- @f@ and a functor that is similar to Const but not actually Const.
 alterF f = \ !k !m ->
-  let !h = hash k
-      mv = lookup' h k m
+  let !h = hashWithSalt s k
+      s = defaultSalt
+      mv = lookup' h s k m
   in (<$> f mv) $ \fres ->
     case fres of
-      Nothing -> delete' h k m
-      Just !v' -> insert' h k v' m
+      Nothing -> delete' h s k m
+      Just !v' -> insert' h s k v' m
 
 -- We rewrite this function unconditionally in RULES, but we expose
 -- an unfolding just in case it's used in a context where the rules
@@ -361,14 +365,14 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
       Absent -> m
 
       -- Key did exist, no collision
-      Present _ collPos -> deleteKeyExists collPos h k m
+      Present _ _ -> deleteKeyExists h s k m
 
     ------------------------------
     -- Update value
     Just v' -> case lookupRes of
 
       -- Key did not exist before, insert v' under a new key
-      Absent -> insertNewKey h k v' m
+      Absent -> insertNewKey h s k v' m
 
       -- Key existed before, no hash collision
       Present v collPos -> v' `seq`
@@ -376,10 +380,11 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
         -- If the value is identical, no-op
         then m
         -- If the value changed, update the value.
-        else insertKeyExists collPos h k v' m
+        else insertKeyExists h s k v' m
 
-  where !h = hash k
-        !lookupRes = lookupRecordCollision h k m
+  where !h = hashWithSalt s k
+        !s = defaultSalt
+        !lookupRes = lookupRecordCollision h s k m
         !mv = case lookupRes of
           Absent -> Nothing
           Present v _ -> Just v
@@ -400,86 +405,87 @@ unionWith f = unionWithKey (const f)
 -- the provided function (first argument) will be used to compute the result.
 unionWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
-unionWithKey f = go 0
+unionWithKey f = go 0 s0
   where
+    s0 = defaultSalt
     -- empty vs. anything
-    go !_ t1 Empty = t1
-    go _ Empty t2 = t2
+    go !_ !_ t1 Empty = t1
+    go _ _ Empty t2 = t2
     -- leaf vs. leaf
-    go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
+    go bs s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
                       then leaf h1 k1 (f k1 v1 v2)
-                      else collision h1 l1 l2
-        | otherwise = goDifferentHash s h1 h2 t1 t2
-    go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
-        | h1 == h2  = Collision h1 (updateOrSnocWithKey f k1 v1 ls2)
-        | otherwise = goDifferentHash s h1 h2 t1 t2
-    go s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
-        | h1 == h2  = Collision h1 (updateOrSnocWithKey (flip . f) k2 v2 ls1)
-        | otherwise = goDifferentHash s h1 h2 t1 t2
-    go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
-        | h1 == h2  = Collision h1 (updateOrConcatWithKey f ls1 ls2)
-        | otherwise = goDifferentHash s h1 h2 t1 t2
+                      else collision h1 s l1 l2
+        | otherwise = goDifferentHash bs s h1 h2 t1 t2
+    go bs s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 s2 hm2)
+        | h1 == h2  = Collision h1 s2 $ insert' (hashWithSalt s2 k1) s2 k1 v1 hm2
+        | otherwise = goDifferentHash bs s h1 h2 t1 t2
+    go bs s t1@(Collision h1 s1 hm1) t2@(Leaf h2 (L k2 v2))
+        | h1 == h2  = Collision h1 s1 $ insert' (hashWithSalt s1 k2) s1 k2 v2 hm1
+        | otherwise = goDifferentHash bs s h1 h2 t1 t2
+    go bs s t1@(Collision h1 s1 hm1) t2@(Collision h2 _ hm2) -- Second salt must be equal
+        | h1 == h2  = Collision h1 s1 $ go 0 s1 hm1 hm2
+        | otherwise = goDifferentHash bs s h1 h2 t1 t2
     -- branch vs. branch
-    go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
+    go bs s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
         let b'   = b1 .|. b2
-            ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 b2 ary1 ary2
+            ary' = unionArrayBy (go (bs+bitsPerSubkey) s) b1 b2 ary1 ary2
         in bitmapIndexedOrFull b' ary'
-    go s (BitmapIndexed b1 ary1) (Full ary2) =
-        let ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 fullNodeMask ary1 ary2
+    go bs s (BitmapIndexed b1 ary1) (Full ary2) =
+        let ary' = unionArrayBy (go (bs+bitsPerSubkey) s) b1 fullNodeMask ary1 ary2
         in Full ary'
-    go s (Full ary1) (BitmapIndexed b2 ary2) =
-        let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask b2 ary1 ary2
+    go bs s (Full ary1) (BitmapIndexed b2 ary2) =
+        let ary' = unionArrayBy (go (bs+bitsPerSubkey) s) fullNodeMask b2 ary1 ary2
         in Full ary'
-    go s (Full ary1) (Full ary2) =
-        let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask fullNodeMask
+    go bs s (Full ary1) (Full ary2) =
+        let ary' = unionArrayBy (go (bs+bitsPerSubkey) s) fullNodeMask fullNodeMask
                    ary1 ary2
         in Full ary'
     -- leaf vs. branch
-    go s (BitmapIndexed b1 ary1) t2
+    go bs s (BitmapIndexed b1 ary1) t2
         | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
                                b'   = b1 .|. m2
                            in bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
-                                   go (s+bitsPerSubkey) st1 t2
+                                   go (bs+bitsPerSubkey) s st1 t2
                            in BitmapIndexed b1 ary'
         where
           h2 = leafHashCode t2
-          m2 = mask h2 s
+          m2 = mask h2 bs
           i = sparseIndex b1 m2
-    go s t1 (BitmapIndexed b2 ary2)
+    go bs s t1 (BitmapIndexed b2 ary2)
         | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
                                b'   = b2 .|. m1
                            in bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
-                                   go (s+bitsPerSubkey) t1 st2
+                                   go (bs+bitsPerSubkey) s t1 st2
                            in BitmapIndexed b2 ary'
       where
         h1 = leafHashCode t1
-        m1 = mask h1 s
+        m1 = mask h1 bs
         i = sparseIndex b2 m1
-    go s (Full ary1) t2 =
+    go bs s (Full ary1) t2 =
         let h2   = leafHashCode t2
-            i    = index h2 s
-            ary' = update16With' ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
+            i    = index h2 bs
+            ary' = update16With' ary1 i $ \st1 -> go (bs+bitsPerSubkey) s st1 t2
         in Full ary'
-    go s t1 (Full ary2) =
+    go bs s t1 (Full ary2) =
         let h1   = leafHashCode t1
-            i    = index h1 s
-            ary' = update16With' ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
+            i    = index h1 bs
+            ary' = update16With' ary2 i $ \st2 -> go (bs+bitsPerSubkey) s t1 st2
         in Full ary'
 
     leafHashCode (Leaf h _) = h
-    leafHashCode (Collision h _) = h
+    leafHashCode (Collision h _ _) = h
     leafHashCode _ = error "leafHashCode"
 
-    goDifferentHash s h1 h2 t1 t2
-        | m1 == m2  = BitmapIndexed m1 (A.singleton $! go (s+bitsPerSubkey) t1 t2)
+    goDifferentHash bs s h1 h2 t1 t2
+        | m1 == m2  = BitmapIndexed m1 (A.singleton $! go (bs+bitsPerSubkey) s t1 t2)
         | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
         | otherwise = BitmapIndexed (m1 .|. m2) (A.pair t2 t1)
       where
-        m1 = mask h1 s
-        m2 = mask h2 s
+        m1 = mask h1 bs
+        m2 = mask h2 bs
 {-# INLINE unionWithKey #-}
 
 ------------------------------------------------------------------------
@@ -493,8 +499,8 @@ mapWithKey f = go
     go (Leaf h (L k v))      = leaf h k (f k v)
     go (BitmapIndexed b ary) = BitmapIndexed b $ A.map' go ary
     go (Full ary)            = Full $ A.map' go ary
-    go (Collision h ary)     =
-        Collision h $ A.map' (\ (L k v) -> let !v' = f k v in L k v') ary
+    go (Collision h s hm)     =
+        Collision h s $ go hm
 {-# INLINE mapWithKey #-}
 
 -- | /O(n)/ Transform this map by applying a function to every value.
@@ -545,8 +551,8 @@ traverseWithKey f = go
     go (Leaf h (L k v))      = leaf h k <$> f k v
     go (BitmapIndexed b ary) = BitmapIndexed b <$> A.traverse' go ary
     go (Full ary)            = Full <$> A.traverse' go ary
-    go (Collision h ary)     =
-        Collision h <$> A.traverse' (\ (L k v) -> (L k $!) <$> f k v) ary
+    go (Collision h s hm)     =
+        Collision h s <$> go hm
 {-# INLINE traverseWithKey #-}
 
 ------------------------------------------------------------------------
