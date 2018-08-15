@@ -1293,11 +1293,11 @@ unionWithKey f = go 0 s0
                       then Leaf h1 (L k1 (f k1 v1 v2))
                       else collision h1 s l1 l2
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
-    go bs s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 s2 hm2)
-        | h1 == h2  = Collision h1 s2 $ insert' (hashWithSalt s2 k1) s2 k1 v1 hm2
+    go bs s t1@(Leaf h1 l1@(L k1 v1)) t2@(Collision h2 s2 hm2)
+        | h1 == h2  = Collision h1 s2 $ go 0 s2 (Leaf (hashWithSalt s2 k1) l1) hm2
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
-    go bs s t1@(Collision h1 s1 hm1) t2@(Leaf h2 (L k2 v2))
-        | h1 == h2  = Collision h1 s1 $ insert' (hashWithSalt s1 k2) s1 k2 v2 hm1
+    go bs s t1@(Collision h1 s1 hm1) t2@(Leaf h2 l2@(L k2 v2))
+        | h1 == h2  = Collision h1 s1 $ go 0 s1 hm1 (Leaf (hashWithSalt s1 k2) l2)
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
     go bs s t1@(Collision h1 s1 hm1) t2@(Collision h2 _ hm2) -- Second salt must be equal
         | h1 == h2  = Collision h1 s1 $ go 0 s1 hm1 hm2
