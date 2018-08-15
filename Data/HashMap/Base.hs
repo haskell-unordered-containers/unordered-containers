@@ -137,7 +137,6 @@ import qualified Data.Hashable as H
 import Data.Hashable (Hashable)
 import Data.HashMap.Unsafe (runST)
 import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
-import Data.HashMap.List (isPermutationBy, unorderedCompare)
 import Data.Typeable (Typeable)
 
 import GHC.Exts (isTrue#)
@@ -624,7 +623,7 @@ infixl 9 !
 
 -- | Create a 'Collision' value with two 'Leaf' values.
 collision :: (Eq k, Hashable k) => Hash -> Salt -> Leaf k v -> Leaf k v -> HashMap k v
-collision h0 s0 !l1@(L k1 v1) !l2@(L k2 v2) = go h0 s0
+collision h0 s0 !(L k1 v1) !(L k2 v2) = go h0 s0
   where
     go h s =
       let s' = nextSalt s
@@ -765,14 +764,6 @@ insertKeyExists !h0 !s0 !k0 x0 !m0 = go h0 s0 k0 x0 0 m0
 
 {-# NOINLINE insertKeyExists #-}
 
--- Replace the ith Leaf with Leaf k v.
---
--- This does not check that @i@ is within bounds of the array.
-setAtPosition :: Int -> k -> v -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-setAtPosition i k x ary = A.update ary i (L k x)
-{-# INLINE setAtPosition #-}
-
-
 -- | In-place update version of insert
 unsafeInsert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 unsafeInsert k0 v0 m0 = runST (go h0 s0 k0 v0 0 m0)
@@ -889,26 +880,6 @@ insertModifying x f k0 m0 = go h0 s0 k0 0 m0
             Collision hx $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k 0 hmx
         | otherwise = go h s k bs $ BitmapIndexed (mask hx bs) (A.singleton t)
 {-# INLINABLE insertModifying #-}
-
--- Like insertModifying for arrays; used to implement insertModifying
-insertModifyingArr :: Eq k => v -> (v -> (# v #)) -> k -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
-insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
-  where
-    go !k !ary !i !n
-        | i >= n = A.run $ do
-            -- Not found, append to the end.
-            mary <- A.new_ (n + 1)
-            A.copy ary 0 mary 0 n
-            A.write mary n (L k x)
-            return mary
-        | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> case f y of
-                                      (# y' #) -> if ptrEq y y'
-                                                  then ary
-                                                  else A.update ary i (L k y')
-                     | otherwise -> go k ary (i+1) n
-{-# INLINE insertModifyingArr #-}
 
 -- | In-place update version of insertWith
 unsafeInsertWith :: forall k v. (Eq k, Hashable k)
@@ -1034,7 +1005,7 @@ deleteKeyExists !h0 s0 !k0 !m0 = go h0 s0 k0 0 m0
                 in BitmapIndexed bm ary'
             _ -> Full (A.update ary i st')
       where i = index h bs
-    go h s k _ t@(Collision hx hmx)
+    go h s k _ (Collision hx hmx)
         | h == hx = Collision hx $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k 0 hmx
         | otherwise = Empty -- error "Internal error: unexpected collision"
     go !_ !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
@@ -1241,7 +1212,7 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
       Absent -> insertNewKey h s k v' m
 
       -- Key existed before
-      Present v collPos ->
+      Present v _ ->
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
@@ -1292,10 +1263,10 @@ unionWithKey f = go 0 s0
                       then Leaf h1 (L k1 (f k1 v1 v2))
                       else collision h1 s l1 l2
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
-    go bs s t1@(Leaf h1 l1@(L k1 v1)) t2@(Collision h2 hm2)
+    go bs s t1@(Leaf h1 l1@(L k1 _)) t2@(Collision h2 hm2)
         | h1 == h2  = Collision h1 $ go 0 (nextSalt s) (Leaf (hashWithSalt (nextSalt s) k1) l1) hm2
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
-    go bs s t1@(Collision h1 hm1) t2@(Leaf h2 l2@(L k2 v2))
+    go bs s t1@(Collision h1 hm1) t2@(Leaf h2 l2@(L k2 _))
         | h1 == h2  = Collision h1 $ go 0 (nextSalt s) hm1 (Leaf (hashWithSalt (nextSalt s) k2) l2)
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
     go bs s t1@(Collision h1 hm1) t2@(Collision h2 hm2)
@@ -1678,26 +1649,6 @@ fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 ------------------------------------------------------------------------
 -- Array operations
 
--- | /O(n)/ Look up the value associated with the given key in an
--- array.
-lookupInArrayCont ::
-#if __GLASGOW_HASKELL__ >= 802
-  forall rep (r :: TYPE rep) k v.
-#else
-  forall r k v.
-#endif
-  Eq k => ((# #) -> r) -> (v -> Int -> r) -> k -> A.Array (Leaf k v) -> r
-lookupInArrayCont absent present k0 ary0 = go k0 ary0 0 (A.length ary0)
-  where
-    go :: Eq k => k -> A.Array (Leaf k v) -> Int -> Int -> r
-    go !k !ary !i !n
-        | i >= n    = absent (# #)
-        | otherwise = case A.index ary i of
-            (L kx v)
-                | k == kx   -> present v i
-                | otherwise -> go k ary (i+1) n
-{-# INLINE lookupInArrayCont #-}
-
 -- | /O(n)/ Lookup the value associated with the given key in this
 -- array.  Returns 'Nothing' if the key wasn't found.
 indexOf :: Eq k => k -> A.Array (Leaf k v) -> Maybe Int
@@ -1710,40 +1661,6 @@ indexOf k0 ary0 = go k0 ary0 0 (A.length ary0)
                 | k == kx   -> Just i
                 | otherwise -> go k ary (i+1) n
 {-# INLINABLE indexOf #-}
-
-updateWith# :: Eq k => (v -> (# v #)) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-updateWith# f k0 ary0 = go k0 ary0 0 (A.length ary0)
-  where
-    go !k !ary !i !n
-        | i >= n    = ary
-        | otherwise = case A.index ary i of
-            (L kx y) | k == kx -> case f y of
-                          (# y' #)
-                             | ptrEq y y' -> ary
-                             | otherwise -> A.update ary i (L k y')
-                     | otherwise -> go k ary (i+1) n
-{-# INLINABLE updateWith# #-}
-
-updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
-updateOrSnocWith f = updateOrSnocWithKey (const f)
-{-# INLINABLE updateOrSnocWith #-}
-
-updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
-updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
-  where
-    go !k v !ary !i !n
-        | i >= n = A.run $ do
-            -- Not found, append to the end.
-            mary <- A.new_ (n + 1)
-            A.copy ary 0 mary 0 n
-            A.write mary n (L k v)
-            return mary
-        | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> A.update ary i (L k (f k v y))
-                     | otherwise -> go k v ary (i+1) n
-{-# INLINABLE updateOrSnocWithKey #-}
 
 updateOrConcatWith :: Eq k => (v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
 updateOrConcatWith f = updateOrConcatWithKey (const f)

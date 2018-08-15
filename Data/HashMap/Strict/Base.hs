@@ -375,7 +375,7 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
       Absent -> insertNewKey h s k v' m
 
       -- Key existed before, no hash collision
-      Present v collPos -> v' `seq`
+      Present v _ -> v' `seq`
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
@@ -417,10 +417,10 @@ unionWithKey f = go 0 s0
                       then leaf h1 k1 (f k1 v1 v2)
                       else collision h1 s l1 l2
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
-    go bs s t1@(Leaf h1 l1@(L k1 v1)) t2@(Collision h2 hm2)
+    go bs s t1@(Leaf h1 l1@(L k1 _)) t2@(Collision h2 hm2)
         | h1 == h2  = Collision h1 $ go 0 (nextSalt s) (Leaf (hashWithSalt (nextSalt s) k1) l1) hm2
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
-    go bs s t1@(Collision h1 hm1) t2@(Leaf h2 l2@(L k2 v2))
+    go bs s t1@(Collision h1 hm1) t2@(Leaf h2 l2@(L k2 _))
         | h1 == h2  = Collision h1 $ go 0 (nextSalt s) hm1 (Leaf (hashWithSalt (nextSalt s) k2) l2)
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
     go bs s t1@(Collision h1 hm1) t2@(Collision h2 hm2) -- Second salt must be equal
@@ -617,51 +617,6 @@ fromList = L.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) empty
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 {-# INLINE fromListWith #-}
-
-------------------------------------------------------------------------
--- Array operations
-
-updateWith :: Eq k => (v -> v) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
-  where
-    go !k !ary !i !n
-        | i >= n    = ary
-        | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> let !v' = f y in A.update ary i (L k v')
-                     | otherwise -> go k ary (i+1) n
-{-# INLINABLE updateWith #-}
-
--- | Append the given key and value to the array. If the key is
--- already present, instead update the value of the key by applying
--- the given function to the new and old value (in that order). The
--- value is always evaluated to WHNF before being inserted into the
--- array.
-updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
-updateOrSnocWith f = updateOrSnocWithKey (const f)
-{-# INLINABLE updateOrSnocWith #-}
-
--- | Append the given key and value to the array. If the key is
--- already present, instead update the value of the key by applying
--- the given function to the new and old value (in that order). The
--- value is always evaluated to WHNF before being inserted into the
--- array.
-updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
-updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
-  where
-    go !k v !ary !i !n
-        | i >= n = A.run $ do
-            -- Not found, append to the end.
-            mary <- A.new_ (n + 1)
-            A.copy ary 0 mary 0 n
-            let !l = v `seq` (L k v)
-            A.write mary n l
-            return mary
-        | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> let !v' = f k v y in A.update ary i (L k v')
-                     | otherwise -> go k v ary (i+1) n
-{-# INLINABLE updateOrSnocWithKey #-}
 
 ------------------------------------------------------------------------
 -- Smart constructors
