@@ -128,19 +128,17 @@ pInsert k v = M.insert k v `eq_` HM.insert k v
 pDelete :: Key -> [(Key, Int)] -> Bool
 pDelete k = M.delete k `eq_` HM.delete k
 
-newtype AlwaysCollide = AC Int
-    deriving (Arbitrary, Eq, Ord, Show)
-
-instance Hashable AlwaysCollide where
-    hashWithSalt _ _ = 1
-
 -- White-box test that tests the case of deleting one of two keys from
 -- a map, where the keys' hash values collide.
-pDeleteCollision :: AlwaysCollide -> AlwaysCollide -> AlwaysCollide -> Int
+pDeleteCollision :: Key -> Key -> Key -> Int
                  -> Property
-pDeleteCollision k1 k2 k3 idx = (k1 /= k2) && (k2 /= k3) && (k1 /= k3) ==>
-                                HM.member toKeep $ HM.delete toDelete $
-                                HM.fromList [(k1, 1 :: Int), (k2, 2), (k3, 3)]
+pDeleteCollision k1 k2 k3 idx =
+  (k1 /= k2) && (k2 /= k3) && (k1 /= k3) &&
+  (hashWithSalt defaultSalt k1 == hashWithSalt defaultSalt k2) &&
+  (hashWithSalt defaultSalt k2 == hashWithSalt defaultSalt k3) &&
+  (hashWithSalt defaultSalt k1 == hashWithSalt defaultSalt k3) ==>
+  HM.member toKeep $ HM.delete toDelete $
+  HM.fromList [(k1, 1 :: Int), (k2, 2), (k3, 3)]
   where
     which = idx `mod` 3
     toDelete
@@ -153,6 +151,7 @@ pDeleteCollision k1 k2 k3 idx = (k1 /= k2) && (k2 /= k3) && (k1 /= k3) ==>
         | which == 1 = k3
         | which == 2 = k1
         | otherwise = error "Impossible"
+    defaultSalt = -2578643520546668380 -- TODO what do do with this test?
 
 pInsertWith :: Key -> [(Key, Int)] -> Bool
 pInsertWith k = M.insertWith (+) k 1 `eq_` HM.insertWith (+) k 1
