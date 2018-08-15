@@ -1558,12 +1558,9 @@ foldrWithKey f = go
 -- | /O(n)/ Transform this map by applying a function to every value
 --   and retaining only some of them.
 mapMaybeWithKey :: (k -> v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
-mapMaybeWithKey f = filterMapAux onLeaf onColl
+mapMaybeWithKey f = filterMapAux onLeaf
   where onLeaf (Leaf h (L k v)) | Just v' <- f k v = Just (Leaf h (L k v'))
         onLeaf _ = Nothing
-
-        onColl (L k v) | Just v' <- f k v = Just (L k v')
-                       | otherwise = Nothing
 {-# INLINE mapMaybeWithKey #-}
 
 -- | /O(n)/ Transform this map by applying a function to every value
@@ -1575,12 +1572,9 @@ mapMaybe f = mapMaybeWithKey (const f)
 -- | /O(n)/ Filter this map by retaining only elements satisfying a
 -- predicate.
 filterWithKey :: forall k v. (k -> v -> Bool) -> HashMap k v -> HashMap k v
-filterWithKey pred = filterMapAux onLeaf onColl
+filterWithKey pred = filterMapAux onLeaf
   where onLeaf t@(Leaf _ (L k v)) | pred k v = Just t
         onLeaf _ = Nothing
-
-        onColl el@(L k v) | pred k v = Just el
-        onColl _ = Nothing
 {-# INLINE filterWithKey #-}
 
 
@@ -1588,10 +1582,9 @@ filterWithKey pred = filterMapAux onLeaf onColl
 --   allowing the former to former to reuse terms.
 filterMapAux :: forall k v1 v2
               . (HashMap k v1 -> Maybe (HashMap k v2))
-             -> (Leaf k v1 -> Maybe (Leaf k v2))
              -> HashMap k v1
              -> HashMap k v2
-filterMapAux onLeaf onColl = go
+filterMapAux onLeaf = go
   where
     go Empty = Empty
     go t@Leaf{}
@@ -1599,7 +1592,7 @@ filterMapAux onLeaf onColl = go
         | otherwise = Empty
     go (BitmapIndexed b ary) = filterA ary b
     go (Full ary) = filterA ary fullNodeMask
-    go (Collision _ _ hm) = undefined hm -- TODO
+    go (Collision h s hm) = filterC h s hm
 
     filterA ary0 b0 =
         let !n = A.length ary0
@@ -1629,6 +1622,8 @@ filterMapAux onLeaf onColl = go
                          (bi `unsafeShiftL` 1) n
                 t     -> do A.write mary j t
                             step ary mary b (i+1) (j+1) (bi `unsafeShiftL` 1) n
+
+    filterC h s hm = Collision h s $ go hm -- TODO deal with the collision being deleted?
 {-# INLINE filterMapAux #-}
 
 -- | /O(n)/ Filter this map by retaining only elements which values

@@ -515,12 +515,9 @@ map f = mapWithKey (const f)
 -- | /O(n)/ Transform this map by applying a function to every value
 --   and retaining only some of them.
 mapMaybeWithKey :: (k -> v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
-mapMaybeWithKey f = filterMapAux onLeaf onColl
+mapMaybeWithKey f = filterMapAux onLeaf
   where onLeaf (Leaf h (L k v)) | Just v' <- f k v = Just (leaf h k v')
         onLeaf _ = Nothing
-
-        onColl (L k v) | Just v' <- f k v = Just (L k v')
-                       | otherwise = Nothing
 {-# INLINE mapMaybeWithKey #-}
 
 -- | /O(n)/ Transform this map by applying a function to every value
