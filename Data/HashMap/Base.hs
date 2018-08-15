@@ -1622,7 +1622,12 @@ filterMapAux onLeaf = go
                 t     -> do A.write mary j t
                             step ary mary b (i+1) (j+1) (bi `unsafeShiftL` 1) n
 
-    filterC h hm = Collision h $ go hm -- TODO deal with the collision being deleted?
+    filterC h hm =
+      let hm' = go hm
+      in case hm' of
+        Empty -> Empty
+        Leaf _ l -> Leaf h l
+        _ -> Collision h hm'
 {-# INLINE filterMapAux #-}
 
 -- | /O(n)/ Filter this map by retaining only elements which values
