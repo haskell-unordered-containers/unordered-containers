@@ -423,7 +423,7 @@ unionWithKey f = go 0 s0
     go bs s t1@(Collision h1 hm1) t2@(Leaf h2 l2@(L k2 _))
         | h1 == h2  = Collision h1 $ go 0 (nextSalt s) hm1 (Leaf (hashWithSalt (nextSalt s) k2) l2)
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
-    go bs s t1@(Collision h1 hm1) t2@(Collision h2 hm2) -- Second salt must be equal
+    go bs s t1@(Collision h1 hm1) t2@(Collision h2 hm2)
         | h1 == h2  = Collision h1 $ go 0 (nextSalt s) hm1 hm2
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
     -- branch vs. branch
