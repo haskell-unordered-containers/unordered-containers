@@ -168,7 +168,7 @@ hashWithSalt :: H.Hashable a => Salt -> a -> Hash
 hashWithSalt s v = fromIntegral $ H.hashWithSalt s v
 
 data Leaf k v = L !k v
-  deriving (Eq)
+  deriving (Show, Eq)
 
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L k v) = rnf k `seq` rnf v
@@ -184,7 +184,7 @@ data HashMap k v
     | Leaf !Hash !(Leaf k v)
     | Full !(A.Array (HashMap k v))
     | Collision !Hash !Salt !(HashMap k v) -- The new salt (TODO remove this comment)
-      deriving (Typeable)
+      deriving (Show, Typeable)
 
 type role HashMap nominal representational
 
@@ -264,9 +264,9 @@ instance (Eq k, Hashable k, Read k, Read e) => Read (HashMap k e) where
 
     readListPrec = readListPrecDefault
 
-instance (Show k, Show v) => Show (HashMap k v) where
-    showsPrec d m = showParen (d > 10) $
-      showString "fromList " . shows (toList m)
+--instance (Show k, Show v) => Show (HashMap k v) where
+--    showsPrec d m = showParen (d > 10) $
+--      showString "fromList " . shows (toList m)
 
 instance Traversable (HashMap k) where
     traverse f = traverseWithKey (const f)
@@ -506,7 +506,7 @@ lookup k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) (hashWithSalt s k) def
 
 -- | lookup' is a version of lookup that takes the hash separately.
 -- It is used to implement alterF.
-lookup' :: Eq k => Hash -> Salt -> k -> HashMap k v -> Maybe v
+lookup' :: (Eq k, Hashable k) => Hash -> Salt -> k -> HashMap k v -> Maybe v
 #if __GLASGOW_HASKELL__ >= 802
 -- GHC does not yet perform a worker-wrapper transformation on
 -- unboxed sums automatically. That seems likely to happen at some
@@ -540,7 +540,7 @@ data LookupRes a = Absent | Present a !Int
 --   Key not in map           => Absent
 --   Key in map, no collision => Present v (-1)
 --   Key in map, collision    => Present v position
-lookupRecordCollision :: Eq k => Hash -> Salt -> k -> HashMap k v -> LookupRes v
+lookupRecordCollision :: (Eq k, Hashable k) => Hash -> Salt -> k -> HashMap k v -> LookupRes v
 #if __GLASGOW_HASKELL__ >= 802
 lookupRecordCollision h s k m = case lookupRecordCollision# h s k m of
   (# (# #) | #) -> Absent
@@ -552,7 +552,7 @@ lookupRecordCollision h s k m = case lookupRecordCollision# h s k m of
 -- may be changing in GHC 8.6 or so (there is some work in progress), but
 -- for now we use Int# explicitly here. We don't need to push the Int#
 -- into lookupCont because inlining takes care of that.
-lookupRecordCollision# :: Eq k => Hash -> Salt -> k -> HashMap k v -> (# (# #) | (# v, Int# #) #)
+lookupRecordCollision# :: (Eq k, Hashable k) => Hash -> Salt -> k -> HashMap k v -> (# (# #) | (# v, Int# #) #)
 lookupRecordCollision# h s k m =
     lookupCont (\_ -> (# (# #) | #)) (\v (I# i) -> (# | (# v, i #) #)) h s k m
 -- INLINABLE to specialize to the Eq instance.
@@ -578,7 +578,7 @@ lookupCont ::
 #else
   forall r k v.
 #endif
-     Eq k
+     (Eq k, Hashable k)
   => ((# #) -> r)    -- Absent continuation
   -> (v -> Int -> r) -- Present continuation
   -> Hash -- The hash of the key
@@ -595,11 +595,11 @@ lookupCont absent present !h0 !s0 !k0 !m0 = go h0 s0 k0 0 m0
         | b .&. m == 0 = absent (# #)
         | otherwise    =
             go h s k (bs+bitsPerSubkey) (A.index v (sparseIndex b m))
-      where m = mask h s
+      where m = mask h bs
     go h s k bs (Full v) =
-      go h s k (bs+bitsPerSubkey) (A.index v (index h s))
+      go h s k (bs+bitsPerSubkey) (A.index v (index h bs))
     go h s k _ (Collision hx sx hmx)
-        | h == hx   = go h sx k 0 hmx
+        | h == hx   = go (hashWithSalt sx k) sx k 0 hmx
         | otherwise = absent (# #)
 {-# INLINE lookupCont #-}
 
@@ -625,15 +625,17 @@ infixl 9 !
 
 -- | Create a 'Collision' value with two 'Leaf' values.
 collision :: (Eq k, Hashable k) => Hash -> Salt -> Leaf k v -> Leaf k v -> HashMap k v
-collision h s !l1@(L k1 v1) !l2@(L k2 v2) =
-  let s' = nextSalt s
-      rehash = hashWithSalt s'
-      h1 = rehash k1
-      h2 = rehash k2
-      hm = if h1 == h2
-        then Collision h s' $ collision h1 s' l1 l2
-        else runST $ two 0 h1 k1 v1 h2 k2 v2
-  in Collision h s' hm
+collision h0 s0 !l1@(L k1 v1) !l2@(L k2 v2) = go h0 s0
+  where
+    go h s =
+      let s' = nextSalt s
+          rehash = hashWithSalt s'
+          h1 = rehash k1
+          h2 = rehash k2
+          hm = if h1 == h2
+            then go h1 s'
+            else runST $ two 0 h1 k1 v1 h2 k2 v2
+      in Collision h s' hm
 {-# INLINE collision #-}
 
 defaultSalt :: Int

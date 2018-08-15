@@ -1,13 +1,16 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
 module Main
     ( module Main
     , module Data.HashMap.Base
+    , ppShow
     ) where
 
 import Data.HashMap.Base
 import Data.Hashable
 import Test.QuickCheck
+import Text.Show.Pretty
 
 newtype Key = K
     { unK :: Int
