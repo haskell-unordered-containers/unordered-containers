@@ -169,7 +169,7 @@ hashWithSalt :: H.Hashable a => Salt -> a -> Hash
 hashWithSalt s v = fromIntegral $ H.hashWithSalt s v
 
 data Leaf k v = L !k v
-  deriving (Show, Eq)
+  deriving (Eq)
 
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L k v) = rnf k `seq` rnf v
@@ -185,7 +185,7 @@ data HashMap k v
     | Leaf !Hash !(Leaf k v)
     | Full !(A.Array (HashMap k v))
     | Collision !Hash !(HashMap k v)
-      deriving (Show, Typeable)
+      deriving (Typeable)
 
 type role HashMap nominal representational
 
@@ -265,9 +265,9 @@ instance (Eq k, Hashable k, Read k, Read e) => Read (HashMap k e) where
 
     readListPrec = readListPrecDefault
 
---instance (Show k, Show v) => Show (HashMap k v) where
---    showsPrec d m = showParen (d > 10) $
---      showString "fromList " . shows (toList m)
+instance (Show k, Show v) => Show (HashMap k v) where
+    showsPrec d m = showParen (d > 10) $
+      showString "fromList " . shows (toList m)
 
 instance Traversable (HashMap k) where
     traverse f = traverseWithKey (const f)
