@@ -183,7 +183,7 @@ data HashMap k v
     | BitmapIndexed !Bitmap !(A.Array (HashMap k v))
     | Leaf !Hash !(Leaf k v)
     | Full !(A.Array (HashMap k v))
-    | Collision !Hash !(HashMap k v)
+    | Collision !Hash !(HashMap k v) -- Only necessary to simplify the code
       deriving (Typeable)
 
 type role HashMap nominal representational
