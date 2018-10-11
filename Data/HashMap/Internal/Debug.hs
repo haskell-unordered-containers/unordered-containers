@@ -65,6 +65,7 @@ data Error k
   | INV8_bad_Full_size !Int
   | INV9_Collision_size !Int
   | INV10_Collision_duplicate_key k !Hash
+  | INV11_Negative_HM_Size !Int
   deriving (Eq, Show)
 
 -- TODO: Name this 'Index'?!
@@ -100,9 +101,12 @@ valid t     = validInternal initialSubHashPath t
   where
     validInternal p Empty                 = Invalid INV1_internal_Empty p
     validInternal p (Leaf h l)            = validHash p h <> validLeaf p h l
-    validInternal p (Collision h ary)     = validHash p h <> validCollision p h ary
-    validInternal p (BitmapIndexed b ary) = validBitmapIndexed p b ary
-    validInternal p (Full ary)            = validFull p ary
+    validInternal p (Collision sz h ary)     = validSize p sz <> validHash p h <> validCollision p h ary
+    validInternal p (BitmapIndexed sz b ary) = validSize p sz <> validBitmapIndexed p b ary
+    validInternal p (Full sz ary)            = validSize p sz <> validFull p ary
+
+    validSize p sze | sze >= 0 = Valid
+                    | otherwise = Invalid (INV11_Negative_HM_Size sze) p
 
     validHash p h | hashMatchesSubHashPath p h = Valid
                   | otherwise                  = Invalid (INV6_misplaced_hash h) p
