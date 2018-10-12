@@ -178,8 +178,8 @@ insertWith f k0 v0 m0 = go h0 s0 k0 v0 0 m0
     go h s k x bs t@(Collision hx l1@(L k1 v1) l2@(L k2 v2) hm)
         | h == hx   =
            let go'
-                 | k == k1   = Collision hx (L k (f x v1)) l2 hm
-                 | k == k2   = Collision hx l1 (L k (f x v2)) hm
+                 | k == k1   = Collision hx (L k $! f x v1) l2 hm
+                 | k == k2   = Collision hx l1 (L k $! f x v2) hm
                  | otherwise = Collision hx l1 l2 $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k x 0 hm
            in go'
         | otherwise = go h s k x bs $ BitmapIndexed (mask hx bs) (A.singleton t)
@@ -255,8 +255,8 @@ adjust f k0 m0 = go h0 s0 k0 0 m0
     go h s k _ t@(Collision hx l1@(L k1 v1) l2@(L k2 v2) hm)
         | h == hx   =
           let go'
-                | k == k1   = Collision hx (L k (f v1)) l2 hm
-                | k == k2   = Collision hx l1 (L k (f v2)) hm
+                | k == k1   = Collision hx (L k $! f v1) l2 hm
+                | k == k2   = Collision hx l1 (L k $! f v2) hm
                 | otherwise = Collision hx l1 l2 $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k 0 hm
           in go'
         | otherwise = t
