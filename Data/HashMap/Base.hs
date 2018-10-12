@@ -636,11 +636,13 @@ collision h0 s0 !(L k1 v1) !(L k2 v2) = go h0 s0
       in Collision h hm
 {-# INLINE collision #-}
 
+-- These are taken from wikipedia:
+-- https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function#FNV_hash_parameters
 defaultSalt :: Int
 #if WORD_SIZE_IN_BITS == 64
-defaultSalt = -2578643520546668380  -- 0xdc36d1615b7400a4
+defaultSalt = 14695981039346656037 -- 0xcbf29ce484222325 in hex
 #else
-defaultSalt = 0x087fc72c
+defaultSalt = 2166136261 -- 0x811c9dc5 in hex
 #endif
 
 nextSalt :: Salt -> Salt
