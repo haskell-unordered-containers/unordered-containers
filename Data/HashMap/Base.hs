@@ -1003,8 +1003,14 @@ delete' h0 s0 k0 m0 = go h0 s0 k0 0 m0
     go h s k _ t@(Collision hx l1@(L k1 v1) l2@(L k2 v2) hmx)
         | h == hx =
           let go'
-                | k == k1 = undefined
-                | k == k2 = undefined
+                | k == k1 = case unConsHM hmx of
+                    WasEmpty -> Leaf hx l2
+                    NowEmpty l3 -> Collision hx l2 l3 Empty
+                    UnConsed l3 hmx' -> Collision hx l2 l3 hmx'
+                | k == k2 = case unConsHM hmx of
+                    WasEmpty -> Leaf hx l1
+                    NowEmpty l3 -> Collision hx l1 l3 Empty
+                    UnConsed l3 hmx' -> Collision hx l1 l3 hmx'
                 | otherwise = Collision hx l1 l2 $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k 0 hmx
           in go'
         | otherwise = t
@@ -1759,6 +1765,57 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
     go n1 0
     return mary
 {-# INLINABLE updateOrConcatWithKey #-}
+
+-- Helper functions for very rare cases.
+
+-- Remove (any) one element from an array of hashmaps
+unConsA :: A.Array (HashMap k v) -> UnCons k v (A.Array (HashMap k v))
+unConsA ary = case A.length ary of
+  0 -> WasEmpty
+  1 -> case A.index ary 0 of
+    Empty -> WasEmpty -- That would be weird, but fine.
+    Leaf _ l -> NowEmpty l
+    BitmapIndexed bm ary' -> case unConsA ary' of
+      WasEmpty -> WasEmpty -- That would be weird, but fine.
+      NowEmpty l -> NowEmpty l
+      UnConsed l a' -> UnConsed l (A.singleton (BitmapIndexed bm a'))
+    Full ary' -> case unConsA ary' of
+        WasEmpty -> WasEmpty -- That would be weird, but fine.
+        NowEmpty l -> NowEmpty l
+        UnConsed l a' -> UnConsed l (A.singleton (Full a'))
+    Collision h l1 l2 hm -> UnConsed l1 $ A.singleton $ case unConsHM hm of
+      WasEmpty -> Leaf h l2
+      NowEmpty l3 -> Collision h l2 l3 Empty
+      UnConsed l3 hm' -> Collision h l2 l3 hm'
+  _ -> goA 0
+  where
+    goA ix = case unConsHM $ A.index ary ix of
+      WasEmpty -> goA $ ix + 1 -- TODO this is probably problematic when the entire array only houses Empty hashmaps
+      NowEmpty l -> UnConsed l $ A.delete ary ix
+      UnConsed l hm' -> UnConsed l $ A.update ary ix hm'
+
+-- Remove (any) one element from a hashmap
+unConsHM :: HashMap k v -> UnCons k v (HashMap k v)
+unConsHM hm = case hm of
+  Empty -> WasEmpty
+  Leaf _ l -> NowEmpty l
+  BitmapIndexed bm ary' -> case unConsA ary' of
+    WasEmpty -> WasEmpty
+    NowEmpty l -> NowEmpty l
+    UnConsed l a' -> UnConsed l (BitmapIndexed bm a')
+  Full ary' -> case unConsA ary' of
+    WasEmpty -> WasEmpty -- That would be weird, but fine.
+    NowEmpty l -> NowEmpty l
+    UnConsed l a' -> UnConsed l (Full a') -- TODO This 'Full' seems wrong
+  Collision h l1 l2 hm -> UnConsed l1 $ case unConsHM hm of
+    WasEmpty -> Leaf h l2
+    NowEmpty l3 -> Collision h l2 l3 Empty
+    UnConsed l3 hm' -> Collision h l2 l3 hm'
+
+data UnCons k v f
+  = WasEmpty
+  | NowEmpty (Leaf k v)
+  | UnConsed (Leaf k v) f
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops
