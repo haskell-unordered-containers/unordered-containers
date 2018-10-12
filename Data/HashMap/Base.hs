@@ -1111,8 +1111,12 @@ adjust# f k0 m0 = go h0 s0 k0 0 m0
     go h s k _ t@(Collision hx l1@(L k1 v1) l2@(L k2 v2) hmx)
         | h == hx   =
           let go'
-                | k == k1 = undefined
-                | k == k2 = undefined
+                | k == k1 = case f v1 of
+                    (# v1' #) | ptrEq v1 v1' -> t
+                              | otherwise -> Collision hx (L k v1') l2 hmx
+                | k == k2 = case f v2 of
+                    (# v2' #) | ptrEq v2 v2' -> t
+                              | otherwise -> Collision hx l1 (L k v2') hmx
                 | otherwise = Collision hx l1 l2 $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k 0 hmx
           in go'
         | otherwise = t
