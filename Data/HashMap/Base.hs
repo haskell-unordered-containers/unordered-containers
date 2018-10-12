@@ -1057,8 +1057,14 @@ deleteKeyExists !h0 s0 !k0 !m0 = go h0 s0 k0 0 m0
     go h s k _ (Collision hx l1@(L k1 v1) l2@(L k2 v2) hmx)
         | h == hx =
           let go'
-                | k == k1 = undefined
-                | k == k2 = undefined
+                | k == k1 = case unConsHM hmx of
+                    WasEmpty -> Leaf hx l2
+                    NowEmpty l3 -> Collision hx l2 l3 Empty
+                    UnConsed l3 hmx' -> Collision hx l2 l3 hmx'
+                | k == k2 = case unConsHM hmx of
+                    WasEmpty -> Leaf hx l1
+                    NowEmpty l3 -> Collision hx l1 l3 Empty
+                    UnConsed l3 hmx' -> Collision hx l1 l3 hmx'
                 | otherwise = Collision hx l1 l2 $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k 0 hmx
           in go'
         | otherwise = Empty -- error "Internal error: unexpected collision"
