@@ -152,7 +152,7 @@ import qualified Data.Hashable.Lifted as H
 #endif
 
 #if __GLASGOW_HASKELL__ >= 802
-import GHC.Exts (TYPE, Int (..), Int#)
+import GHC.Exts (TYPE)
 #endif
 
 #if MIN_VERSION_base(4,8,0)
@@ -521,7 +521,7 @@ lookup k m = case lookup# k m of
 {-# INLINE lookup #-}
 
 lookup# :: (Eq k, Hashable k) => k -> HashMap k v -> (# (# #) | v #)
-lookup# k m = lookupCont (\_ -> (# (# #) | #)) (\v _i -> (# | v #)) (hashWithSalt defaultSalt k) defaultSalt k m
+lookup# k m = lookupCont (\_ -> (# (# #) | #)) (\v -> (# | v #)) (hashWithSalt defaultSalt k) defaultSalt k m
 {-# INLINABLE lookup# #-}
 
 #else
@@ -542,7 +542,7 @@ lookup' :: (Eq k, Hashable k) => Hash -> Salt -> k -> HashMap k v -> Maybe v
 -- code.
 lookup' h s k m = case lookupRecordCollision# h s k m of
   (# (# #) | #) -> Nothing
-  (# | (# a, _i #) #) -> Just a
+  (# | a #) -> Just a
 {-# INLINE lookup' #-}
 #else
 lookup' h s k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) h s k m
@@ -551,7 +551,7 @@ lookup' h s k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) h s k m
 
 -- The result of a lookup, keeping track of if a hash collision occured.
 -- If a collision did not occur then it will have the Int value (-1).
-data LookupRes a = Absent | Present a !Int
+data LookupRes a = Absent | Present a
 
 -- Internal helper for lookup. This version takes the precomputed hash so
 -- that functions that make multiple calls to lookup and related functions
@@ -570,7 +570,7 @@ lookupRecordCollision :: (Eq k, Hashable k) => Hash -> Salt -> k -> HashMap k v 
 #if __GLASGOW_HASKELL__ >= 802
 lookupRecordCollision h s k m = case lookupRecordCollision# h s k m of
   (# (# #) | #) -> Absent
-  (# | (# a, i #) #) -> Present a (I# i) -- GHC will eliminate the I#
+  (# | a #) -> Present a
 {-# INLINE lookupRecordCollision #-}
 
 -- Why do we produce an Int# instead of an Int? Unfortunately, GHC is not
@@ -578,9 +578,9 @@ lookupRecordCollision h s k m = case lookupRecordCollision# h s k m of
 -- may be changing in GHC 8.6 or so (there is some work in progress), but
 -- for now we use Int# explicitly here. We don't need to push the Int#
 -- into lookupCont because inlining takes care of that.
-lookupRecordCollision# :: (Eq k, Hashable k) => Hash -> Salt -> k -> HashMap k v -> (# (# #) | (# v, Int# #) #)
+lookupRecordCollision# :: (Eq k, Hashable k) => Hash -> Salt -> k -> HashMap k v -> (# (# #) | v #)
 lookupRecordCollision# h s k m =
-    lookupCont (\_ -> (# (# #) | #)) (\v (I# i) -> (# | (# v, i #) #)) h s k m
+    lookupCont (\_ -> (# (# #) | #)) (\v -> (# | v #)) h s k m
 -- INLINABLE to specialize to the Eq instance.
 {-# INLINABLE lookupRecordCollision# #-}
 
@@ -606,7 +606,7 @@ lookupCont ::
 #endif
      (Eq k, Hashable k)
   => ((# #) -> r)    -- Absent continuation
-  -> (v -> Int -> r) -- Present continuation
+  -> (v -> r) -- Present continuation
   -> Hash -- The hash of the key
   -> Salt -- The salt that was used to obtain that hash
   -> k -> HashMap k v -> r
@@ -615,7 +615,7 @@ lookupCont absent present !h0 !s0 !k0 !m0 = go h0 s0 k0 0 m0
     go :: Eq k => Hash -> Salt -> k -> Int -> HashMap k v -> r
     go !_ !_ !_ !_ Empty = absent (# #)
     go h _ k _ (Leaf hx (L kx x))
-        | h == hx && k == kx = present x (-1)
+        | h == hx && k == kx = present x
         | otherwise          = absent (# #)
     go h s k bs (BitmapIndexed b v)
         | b .&. m == 0 = absent (# #)
@@ -626,8 +626,8 @@ lookupCont absent present !h0 !s0 !k0 !m0 = go h0 s0 k0 0 m0
       go h s k (bs+bitsPerSubkey) (A.index v (index h bs))
     go h s k _ (Collision hx (L k1 v1) (L k2 v2) hmx)
         | h == hx   = case () of
-          ()    | k == k1   -> present v1 (-1)
-                | k == k2   -> present v2 (-1)
+          ()    | k == k1   -> present v1
+                | k == k2   -> present v2
                 | otherwise -> go (hashWithSalt (nextSalt s) k) (nextSalt s) k 0 hmx
         | otherwise = absent (# #)
 {-# INLINE lookupCont #-}
@@ -1284,7 +1284,7 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
       Absent -> m
 
       -- Key did exist
-      Present _ _ -> deleteKeyExists h s k m
+      Present _ -> deleteKeyExists h s k m
 
     ------------------------------
     -- Update value
@@ -1294,7 +1294,7 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
       Absent -> insertNewKey h s k v' m
 
       -- Key existed before
-      Present v _ ->
+      Present v ->
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
@@ -1306,7 +1306,7 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
         !lookupRes = lookupRecordCollision h s k m
         !mv = case lookupRes of
            Absent -> Nothing
-           Present v _ -> Just v
+           Present v -> Just v
 {-# INLINABLE alterFEager #-}
 #endif
 

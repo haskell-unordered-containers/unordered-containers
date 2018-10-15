@@ -378,7 +378,7 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
       Absent -> m
 
       -- Key did exist, no collision
-      Present _ _ -> deleteKeyExists h s k m
+      Present _ -> deleteKeyExists h s k m
 
     ------------------------------
     -- Update value
@@ -388,7 +388,7 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
       Absent -> insertNewKey h s k v' m
 
       -- Key existed before, no hash collision
-      Present v _ -> v' `seq`
+      Present v -> v' `seq`
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
@@ -400,7 +400,7 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
         !lookupRes = lookupRecordCollision h s k m
         !mv = case lookupRes of
           Absent -> Nothing
-          Present v _ -> Just v
+          Present v -> Just v
 {-# INLINABLE alterFEager #-}
 #endif
 
