@@ -137,6 +137,7 @@ import qualified Data.Hashable as H
 import Data.Hashable (Hashable)
 import Data.HashMap.Unsafe (runST)
 import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
+import Data.HashMap.List (isPermutationBy, unorderedCompare)
 import Data.Typeable (Typeable)
 
 import GHC.Exts (isTrue#)
@@ -296,8 +297,11 @@ equal1 eq = go
       = bm1 == bm2 && A.sameArray1 go ary1 ary2
     go (Leaf h1 l1) (Leaf h2 l2) = h1 == h2 && leafEq l1 l2
     go (Full ary1) (Full ary2) = A.sameArray1 go ary1 ary2
-    go (Collision h1 l11 l12 hm1) (Collision h2 l21 l22 hm2)
-      = h1 == h2 && l11 `leafEq` l21 && l12 `leafEq` l22 && go hm1 hm2
+    go (Collision h1 (L k11 v11) (L k12 v12) hm1) (Collision h2 (L k21 v21) (L k22 v22) hm2)
+      = h1 == h2
+      && isPermutationBy (\(k1, v1) (k2, v2) -> k1 == k2 && eq v1 v2)
+           ((k11, v11) : (k12, v12) : toList hm1)
+           ((k21, v21) : (k22, v22) : toList hm2)
     go _ _ = False
 
     leafEq (L k1 v1) (L k2 v2) = k1 == k2 && eq v1 v2
@@ -310,15 +314,16 @@ equal2 eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
     -- 'Collision's read from left to right should be the same (modulo the
     -- order of elements in 'Collision').
 
-    go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
-      | k1 == k2 &&
+    go (Leaf h1 l1 : tl1) (Leaf h2 l2 : tl2)
+      | h1 == h2 &&
         leafEq l1 l2
       = go tl1 tl2
-    go (Collision h1 l11 l12 hm1 : tl1) (Collision h2 l21 l22 hm2 : tl2)
+    go (Collision h1 (L k11 v11) (L k12 v12) hm1 : tl1) (Collision h2 (L k21 v21) (L k22 v22) hm2 : tl2)
       | h1 == h2 &&
-        leafEq l11 l21 &&
-        leafEq l12 l22 &&
-        go (toList' hm1 []) (toList' hm2 [])
+        (length hm1 == length hm2) &&
+        isPermutationBy (\(k1, v1) (k2, v2) -> eqk k1 k2 && eqv v1 v2)
+          ((k11, v11) : (k12, v12) : toList hm1)
+          ((k21, v21) : (k22, v22) : toList hm2)
       = go tl1 tl2
     go [] [] = True
     go _  _  = False
@@ -349,11 +354,12 @@ cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
       = compare k1 k2 `mappend`
         leafCompare l1 l2 `mappend`
         go tl1 tl2
-    go (Collision h1 l11 l12 hm1 : tl1) (Collision h2 l21 l22 hm2 : tl2)
+    go (Collision h1 (L k11 v11) (L k12 v12) hm1 : tl1) (Collision h2 (L k21 v21) (L k22 v22) hm2 : tl2)
       = compare h1 h2 `mappend`
-        leafCompare l11 l21 `mappend`
-        leafCompare l12 l22 `mappend`
-        go (toList' hm1 []) (toList' hm2 []) `mappend`
+        compare (length hm1) (length hm2) `mappend`
+        unorderedCompare (\(k1, v1) (k2, v2) -> (k1 `cmpk` k2) `mappend` (v1 `cmpv` v2))
+          ((k11, v11) : (k12, v12) : toList hm1)
+          ((k21, v21) : (k22, v22) : toList hm2) `mappend`
         go tl1 tl2
     go (Leaf _ _ : _) (Collision _ _ _ _ : _) = LT
     go (Collision _ _ _ _ : _) (Leaf _ _ : _) = GT
@@ -371,11 +377,12 @@ equalKeys1 eq t1 t2 = go (toList' t1 []) (toList' t2 [])
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
       | k1 == k2 && leafEq l1 l2
       = go tl1 tl2
-    go (Collision h1 l11 l12 hm1 : tl1) (Collision h2 l21 l22 hm2 : tl2)
+    go (Collision h1 (L k11 _) (L k12 _) hm1 : tl1) (Collision h2 (L k21 _) (L k22 _) hm2 : tl2)
       | h1 == h2 &&
-        leafEq l11 l21 &&
-        leafEq l12 l22 &&
-        go (toList' hm1 []) (toList' hm2 [])
+        (length hm1 == length hm2) &&
+        isPermutationBy eq
+          (k11 : k12 : keys hm1)
+          (k21 : k22 : keys hm2)
       = go tl1 tl2
     go [] [] = True
     go _  _  = False
@@ -392,11 +399,12 @@ equalKeys = go
       = bm1 == bm2 && A.sameArray1 go ary1 ary2
     go (Leaf h1 l1) (Leaf h2 l2) = h1 == h2 && leafEq l1 l2
     go (Full ary1) (Full ary2) = A.sameArray1 go ary1 ary2
-    go (Collision h1 l11 l12 hm1) (Collision h2 l21 l22 hm2)
+    go (Collision h1 (L k11 _) (L k12 _) hm1) (Collision h2 (L k21 _) (L k22 _) hm2)
       = h1 == h2 &&
-        leafEq l11 l21 &&
-        leafEq l12 l22 &&
-        go hm1 hm2
+        (length hm1 == length hm2) &&
+        isPermutationBy (==)
+          (k11 : k12 : keys hm1)
+          (k21 : k22 : keys hm2)
     go _ _ = False
 
     leafEq (L k1 _) (L k2 _) = k1 == k2
