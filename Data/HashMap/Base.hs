@@ -1815,7 +1815,7 @@ unConsA ary = case A.length ary of
     Full ary' -> case unConsA ary' of
         WasEmpty -> WasEmpty -- That would be weird, but fine.
         NowEmpty l -> NowEmpty l
-        UnConsed l a' -> UnConsed l (A.singleton (Full a')) -- 'Full' seems wrong
+        UnConsed l a' -> UnConsed l (A.singleton (Full a')) -- TODO 'Full' seems wrong
     Collision h l1 l2 hm -> UnConsed l1 $ A.singleton $ case unConsHM hm of
       Nothing -> Leaf h l2
       Just (l3, hm') -> Collision h l2 l3 hm'
@@ -1823,7 +1823,9 @@ unConsA ary = case A.length ary of
   where
     goA ix = case unConsHM $ A.index ary ix of
       Nothing -> goA $ ix + 1 -- TODO this is probably problematic when the entire array only houses Empty hashmaps
-      Just (l, hm') -> UnConsed l $ A.update ary ix hm'
+      Just (l, hm') -> case hm' of
+        Empty -> UnConsed l $ A.delete ary ix
+        _ -> UnConsed l $ A.update ary ix hm'
 
 data UnCons k v
   = WasEmpty
