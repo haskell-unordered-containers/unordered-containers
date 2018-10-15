@@ -432,28 +432,25 @@ unionWithKey f = go 0 s0
                       then leaf h1 k1 (f k1 v1 v2)
                       else collision h1 s l1 l2
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
-    go bs s t1@(Leaf h1 l1@(L k1 _)) t2@(Collision h2 l21@(L k21 v21) l22@(L k22 v22) hm2)
+    go bs s t1@(Leaf h1 l1@(L k1 v1)) t2@(Collision h2 l21@(L k21 v21) l22@(L k22 v22) hm2)
         | h1 == h2  =
           let go'
-                | True = undefined
-                | otherwise = Collision h1 undefined undefined $ go 0 (nextSalt s) (Leaf (hashWithSalt (nextSalt s) k1) l1) hm2
+                | k1 == k21 = Collision h1 (L k1 (f k1 v1 v21)) l22 hm2
+                | k1 == k22 = Collision h1 l21 (L k1 (f k1 v1 v22)) hm2
+                | otherwise = Collision h1 l21 l22 $ go 0 (nextSalt s) (Leaf (hashWithSalt (nextSalt s) k1) l1) hm2
           in go'
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
-    go bs s t1@(Collision h1 l11@(L k11 v11) l12@(L k12 v12) hm1) t2@(Leaf h2 l2@(L k2 _))
+    go bs s t1@(Collision h1 l11@(L k11 v11) l12@(L k12 v12) hm1) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  =
           let go'
-                | True = undefined
-                | otherwise = Collision h1 undefined undefined $ go 0 (nextSalt s) hm1 (Leaf (hashWithSalt (nextSalt s) k2) l2)
+                | k2 == k11 = Collision h1 (L k2 (f k2 v11 v2)) l12 hm1
+                | k2 == k12 = Collision h1 l11 (L k2 (f k2 v12 v2)) hm1
+                | otherwise = Collision h1 l11 l12 $ go 0 (nextSalt s) hm1 (Leaf (hashWithSalt (nextSalt s) k2) l2)
           in go'
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
-    go bs s t1@(Collision h1 l11@(L k11 v11) l12@(L k12 v12) hm1) t2@(Collision h2 l21@(L k21 v21) l22@(L k22 v22) hm2)
-        | h1 == h2  =
-          let go'
-                | True = undefined
-                | otherwise = Collision h1 undefined undefined $ go 0 (nextSalt s) hm1 hm2
-          in go'
+    go bs s t1@(Collision h1 _ _ _) t2@(Collision h2 _ _ _)
+        | h1 == h2  = L.foldl' (\h (k,v) -> go 0 s h (Leaf (hashWithSalt s k) (L k v))) t1 $ toList t2 -- Nothing better we can do, unfortunately.
         | otherwise = goDifferentHash bs s h1 h2 t1 t2
-    -- branch vs. branch
     go bs s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
         let b'   = b1 .|. b2
             ary' = unionArrayBy (go (bs+bitsPerSubkey) s) b1 b2 ary1 ary2
