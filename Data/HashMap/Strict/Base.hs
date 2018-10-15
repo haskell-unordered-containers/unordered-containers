@@ -153,10 +153,10 @@ insertWith f k0 v0 m0 = go h0 s0 k0 v0 0 m0
     h0 = hashWithSalt s0 k0
     s0 = defaultSalt
     go !h _ !k x !_ Empty = leaf h k x
-    go h s k x bs (Leaf hy l@(L ky y))
+    go h s k x bs (Leaf hy lf@(L ky y))
         | hy == h = if ky == k
                     then leaf h k (f x y)
-                    else x `seq` (collision h s l (L k x))
+                    else collision h s lf (l k x)
         | otherwise = x `seq` runST (two bs h k x hy ky y)
     go h s k x bs (BitmapIndexed b ary)
         | b .&. m == 0 =
@@ -178,8 +178,8 @@ insertWith f k0 v0 m0 = go h0 s0 k0 v0 0 m0
     go h s k x bs t@(Collision hx l1@(L k1 v1) l2@(L k2 v2) hm)
         | h == hx   =
            let go'
-                 | k == k1   = Collision hx (L k $! f x v1) l2 hm
-                 | k == k2   = Collision hx l1 (L k $! f x v2) hm
+                 | k == k1   = Collision hx (l k (f x v1)) l2 hm
+                 | k == k2   = Collision hx l1 (l k (f x v2)) hm
                  | otherwise = Collision hx l1 l2 $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k x 0 hm
            in go'
         | otherwise = go h s k x bs $ BitmapIndexed (mask hx bs) (A.singleton t)
@@ -193,12 +193,10 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 s0 k0 v0 0 m0)
     h0 = hashWithSalt s0 k0
     s0 = defaultSalt
     go !h !_ !k x !_ Empty = return $! leaf h k x
-    go h s k x bs (Leaf hy l@(L ky y))
+    go h s k x bs (Leaf hy lf@(L ky y))
         | hy == h = if ky == k
                     then return $! leaf h k (f x y)
-                    else do
-                        let l' = x `seq` (L k x)
-                        return $! collision h s l l'
+                    else return $! collision h s lf (l k x)
         | otherwise = x `seq` two bs h k x hy ky y
     go h s k x bs t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
@@ -217,11 +215,11 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 s0 k0 v0 0 m0)
         A.unsafeUpdateM ary i st'
         return t
       where i = index h bs
-    go h s k x bs t@(Collision hx l1@(L k1 _) l2@(L k2 _) hm)
+    go h s k x bs t@(Collision hx l1@(L k1 v1) l2@(L k2 v2) hm)
         | h == hx   =
           let go'
-                | k == k1   = return $! Collision hx (L k x) l2 hm
-                | k == k2   = return $! Collision hx l1 (L k x) hm
+                | k == k1   = return $! Collision hx (l k (f x v1)) l2 hm
+                | k == k2   = return $! Collision hx l1 (l k (f x v2)) hm
                 | otherwise = Collision hx l1 l2 <$> go (hashWithSalt (nextSalt s) k) (nextSalt s) k x 0 hm
           in go'
         | otherwise = go h s k x bs $ BitmapIndexed (mask hx bs) (A.singleton t)
@@ -649,5 +647,8 @@ fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 -- inserted into the constructor.
 
 leaf :: Hash -> k -> v -> HashMap k v
-leaf h k = \ !v -> Leaf h (L k v)
+leaf h k = \ !v -> Leaf h (l k v)
+
+l :: k -> v -> Leaf k v
+l k = \ !v -> L k v
 {-# INLINE leaf #-}
