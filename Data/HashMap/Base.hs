@@ -1641,12 +1641,25 @@ filterMapAux onLeaf = go
         | otherwise = Empty
     go (BitmapIndexed b ary) = filterA ary b
     go (Full ary) = filterA ary fullNodeMask
-    go (Collision h l1 l2 hm) = undefined
-         --  let hm' = go hm
-         --  in case hm' of
-         --    Empty -> Empty
-         --    Leaf _ l -> Leaf h l
-         --    _ -> Collision h hm'
+    go (Collision h l1 l2 hm) = case (onLeaf (Leaf h l1), onLeaf (Leaf h l2)) of
+      (Just (Leaf _ l1'), Just (Leaf _ l2')) -> Collision h l1' l2' $ go hm
+      (Just (Leaf _ l1'), Nothing) -> case go' hm of
+        Nothing -> Leaf h l1'
+        Just (Leaf _ l3', hm') -> Collision h l1' l3' hm'
+      (Nothing, Just (Leaf _ l2')) -> case go' hm of
+        Nothing -> Leaf h l2'
+        Just (Leaf _ l3', hm') -> Collision h l2' l3' hm'
+      (Nothing, Nothing) -> go hm
+      _ -> error "Should not happen, can be fixed with refactoring I think."
+      where
+        go' hm = case unConsHM hm of
+          WasEmpty -> Nothing
+          NowEmpty l -> case onLeaf (Leaf h l) of
+            Nothing -> Nothing
+            Just l' -> Just (l', Empty)
+          UnConsed l hm' -> case onLeaf (Leaf h l) of
+            Nothing -> go' hm'
+            Just l' -> Just (l', go hm')
 
     filterA ary0 b0 =
         let !n = A.length ary0
