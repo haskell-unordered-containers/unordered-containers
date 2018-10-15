@@ -1004,13 +1004,11 @@ delete' h0 s0 k0 m0 = go h0 s0 k0 0 m0
         | h == hx =
           let go'
                 | k == k1 = case unConsHM hmx of
-                    WasEmpty -> Leaf hx l2
-                    NowEmpty l3 -> Collision hx l2 l3 Empty
-                    UnConsed l3 hmx' -> Collision hx l2 l3 hmx'
+                    Nothing -> Leaf hx l2
+                    Just (l3, hmx') -> Collision hx l2 l3 hmx'
                 | k == k2 = case unConsHM hmx of
-                    WasEmpty -> Leaf hx l1
-                    NowEmpty l3 -> Collision hx l1 l3 Empty
-                    UnConsed l3 hmx' -> Collision hx l1 l3 hmx'
+                    Nothing -> Leaf hx l1
+                    Just (l3, hmx') -> Collision hx l1 l3 hmx'
                 | otherwise = Collision hx l1 l2 $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k 0 hmx
           in go'
         | otherwise = t
@@ -1058,13 +1056,11 @@ deleteKeyExists !h0 s0 !k0 !m0 = go h0 s0 k0 0 m0
         | h == hx =
           let go'
                 | k == k1 = case unConsHM hmx of
-                    WasEmpty -> Leaf hx l2
-                    NowEmpty l3 -> Collision hx l2 l3 Empty
-                    UnConsed l3 hmx' -> Collision hx l2 l3 hmx'
+                    Nothing -> Leaf hx l2
+                    Just (l3, hmx') -> Collision hx l2 l3 hmx'
                 | k == k2 = case unConsHM hmx of
-                    WasEmpty -> Leaf hx l1
-                    NowEmpty l3 -> Collision hx l1 l3 Empty
-                    UnConsed l3 hmx' -> Collision hx l1 l3 hmx'
+                    Nothing -> Leaf hx l1
+                    Just (l3, hmx') -> Collision hx l1 l3 hmx'
                 | otherwise = Collision hx l1 l2 $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k 0 hmx
           in go'
         | otherwise = Empty -- error "Internal error: unexpected collision"
@@ -1653,11 +1649,8 @@ filterMapAux onLeaf = go
       _ -> error "Should not happen, can be fixed with refactoring I think."
       where
         go' hm = case unConsHM hm of
-          WasEmpty -> Nothing
-          NowEmpty l -> case onLeaf (Leaf h l) of
-            Nothing -> Nothing
-            Just l' -> Just (l', Empty)
-          UnConsed l hm' -> case onLeaf (Leaf h l) of
+          Nothing -> Nothing
+          Just (l, hm') -> case onLeaf (Leaf h l) of
             Nothing -> go' hm'
             Just l' -> Just (l', go hm')
 
@@ -1805,33 +1798,30 @@ unConsA ary = case A.length ary of
         NowEmpty l -> NowEmpty l
         UnConsed l a' -> UnConsed l (A.singleton (Full a'))
     Collision h l1 l2 hm -> UnConsed l1 $ A.singleton $ case unConsHM hm of
-      WasEmpty -> Leaf h l2
-      NowEmpty l3 -> Collision h l2 l3 Empty
-      UnConsed l3 hm' -> Collision h l2 l3 hm'
+      Nothing -> Leaf h l2
+      Just (l3, hm') -> Collision h l2 l3 hm'
   _ -> goA 0
   where
     goA ix = case unConsHM $ A.index ary ix of
-      WasEmpty -> goA $ ix + 1 -- TODO this is probably problematic when the entire array only houses Empty hashmaps
-      NowEmpty l -> UnConsed l $ A.delete ary ix
-      UnConsed l hm' -> UnConsed l $ A.update ary ix hm'
+      Nothing -> goA $ ix + 1 -- TODO this is probably problematic when the entire array only houses Empty hashmaps
+      Just (l, hm') -> UnConsed l $ A.update ary ix hm'
 
 -- Remove (any) one element from a hashmap
-unConsHM :: HashMap k v -> UnCons k v (HashMap k v)
+unConsHM :: HashMap k v -> Maybe (Leaf k v, HashMap k v)
 unConsHM hm = case hm of
-  Empty -> WasEmpty
-  Leaf _ l -> NowEmpty l
+  Empty -> Nothing
+  Leaf _ l -> Just (l, Empty)
   BitmapIndexed bm ary' -> case unConsA ary' of
-    WasEmpty -> WasEmpty
-    NowEmpty l -> NowEmpty l
-    UnConsed l a' -> UnConsed l (BitmapIndexed bm a')
+    WasEmpty -> Nothing
+    NowEmpty l -> Just (l, Empty)
+    UnConsed l a' -> Just (l, BitmapIndexed bm a')
   Full ary' -> case unConsA ary' of
-    WasEmpty -> WasEmpty -- That would be weird, but fine.
-    NowEmpty l -> NowEmpty l
-    UnConsed l a' -> UnConsed l (Full a') -- TODO This 'Full' seems wrong
-  Collision h l1 l2 hm -> UnConsed l1 $ case unConsHM hm of
-    WasEmpty -> Leaf h l2
-    NowEmpty l3 -> Collision h l2 l3 Empty
-    UnConsed l3 hm' -> Collision h l2 l3 hm'
+    WasEmpty -> Nothing -- That would be weird, but fine.
+    NowEmpty l -> Just (l, Empty)
+    UnConsed l a' -> Just (l, Full a') -- TODO This 'Full' seems wrong
+  Collision h l1 l2 hm -> Just $ (,) l1 $ case unConsHM hm of
+    Nothing -> Leaf h l2
+    Just (l3, hm') -> Collision h l2 l3 hm'
 
 data UnCons k v f
   = WasEmpty
