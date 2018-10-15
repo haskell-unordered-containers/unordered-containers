@@ -3,7 +3,7 @@
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
 -- comparing them to a simpler model, an association list.
 
-module Main (main) where
+module Main where
 
 import Control.Monad ( guard )
 import qualified Data.Foldable as Foldable
