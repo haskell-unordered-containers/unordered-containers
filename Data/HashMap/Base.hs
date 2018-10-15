@@ -1000,7 +1000,7 @@ delete' h0 s0 k0 m0 = go h0 s0 k0 0 m0
                 in BitmapIndexed bm ary'
             _ -> Full (A.update ary i st')
       where i = index h bs
-    go h s k _ t@(Collision hx l1@(L k1 v1) l2@(L k2 v2) hmx)
+    go h s k _ t@(Collision hx l1@(L k1 _) l2@(L k2 _) hmx)
         | h == hx =
           let go'
                 | k == k1 = case unConsHM hmx of
@@ -1052,7 +1052,7 @@ deleteKeyExists !h0 s0 !k0 !m0 = go h0 s0 k0 0 m0
                 in BitmapIndexed bm ary'
             _ -> Full (A.update ary i st')
       where i = index h bs
-    go h s k _ (Collision hx l1@(L k1 v1) l2@(L k2 v2) hmx)
+    go h s k _ (Collision hx l1@(L k1 _) l2@(L k2 _) hmx)
         | h == hx =
           let go'
                 | k == k1 = case unConsHM hmx of
@@ -1642,17 +1642,19 @@ filterMapAux onLeaf = go
       (Just (Leaf _ l1'), Nothing) -> case go' hm of
         Nothing -> Leaf h l1'
         Just (Leaf _ l3', hm') -> Collision h l1' l3' hm'
+        _ -> error "Should not happen, can be fixed with refactoring I think."
       (Nothing, Just (Leaf _ l2')) -> case go' hm of
         Nothing -> Leaf h l2'
         Just (Leaf _ l3', hm') -> Collision h l2' l3' hm'
+        _ -> error "Should not happen, can be fixed with refactoring I think."
       (Nothing, Nothing) -> go hm
       _ -> error "Should not happen, can be fixed with refactoring I think."
       where
-        go' hm = case unConsHM hm of
+        go' hm_ = case unConsHM hm_ of
           Nothing -> Nothing
-          Just (l, hm') -> case onLeaf (Leaf h l) of
-            Nothing -> go' hm'
-            Just l' -> Just (l', go hm')
+          Just (l, hm_') -> case onLeaf (Leaf h l) of
+            Nothing -> go' hm_'
+            Just l' -> Just (l', go hm_')
 
     filterA ary0 b0 =
         let !n = A.length ary0
@@ -1783,7 +1785,7 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
 -- Helper functions for very rare cases.
 
 -- Remove (any) one element from an array of hashmaps
-unConsA :: A.Array (HashMap k v) -> UnCons k v (A.Array (HashMap k v))
+unConsA :: A.Array (HashMap k v) -> UnCons k v
 unConsA ary = case A.length ary of
   0 -> WasEmpty
   1 -> case A.index ary 0 of
@@ -1796,7 +1798,7 @@ unConsA ary = case A.length ary of
     Full ary' -> case unConsA ary' of
         WasEmpty -> WasEmpty -- That would be weird, but fine.
         NowEmpty l -> NowEmpty l
-        UnConsed l a' -> UnConsed l (A.singleton (Full a'))
+        UnConsed l a' -> UnConsed l (A.singleton (Full a')) -- 'Full' seems wrong
     Collision h l1 l2 hm -> UnConsed l1 $ A.singleton $ case unConsHM hm of
       Nothing -> Leaf h l2
       Just (l3, hm') -> Collision h l2 l3 hm'
@@ -1805,6 +1807,11 @@ unConsA ary = case A.length ary of
     goA ix = case unConsHM $ A.index ary ix of
       Nothing -> goA $ ix + 1 -- TODO this is probably problematic when the entire array only houses Empty hashmaps
       Just (l, hm') -> UnConsed l $ A.update ary ix hm'
+
+data UnCons k v
+  = WasEmpty
+  | NowEmpty (Leaf k v)
+  | UnConsed (Leaf k v) (A.Array (HashMap k v))
 
 -- Remove (any) one element from a hashmap
 unConsHM :: HashMap k v -> Maybe (Leaf k v, HashMap k v)
@@ -1819,14 +1826,9 @@ unConsHM hm = case hm of
     WasEmpty -> Nothing -- That would be weird, but fine.
     NowEmpty l -> Just (l, Empty)
     UnConsed l a' -> Just (l, Full a') -- TODO This 'Full' seems wrong
-  Collision h l1 l2 hm -> Just $ (,) l1 $ case unConsHM hm of
+  Collision h l1 l2 hm' -> Just $ (,) l1 $ case unConsHM hm' of
     Nothing -> Leaf h l2
-    Just (l3, hm') -> Collision h l2 l3 hm'
-
-data UnCons k v f
-  = WasEmpty
-  | NowEmpty (Leaf k v)
-  | UnConsed (Leaf k v) f
+    Just (l3, hm'') -> Collision h l2 l3 hm''
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops
