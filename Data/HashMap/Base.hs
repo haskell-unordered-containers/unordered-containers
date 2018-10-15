@@ -419,10 +419,14 @@ instance H.Hashable2 HashMap where
           = s `hashLeafWithSalt` l `go` tl
         -- For collisions we hashmix hash value
         -- and then array of values' hashes sorted
-        go s (Collision h l1 l2 hm' : tl)
-          = (((s `H.hashWithSalt` h) `hashLeafWithSalt` l1 `hashLeafWithSalt` l2)
-             `go` (toList' hm' [])) `go` tl
+        go s (Collision _ l1 l2 hm' : tl)
+          = collisionHash l1 l2 hm' s `go` tl
         go s (_ : tl) = s `go` tl
+
+        collisionHash (L k1 v1) (L k2 v2) hm' s
+                = L.foldl' H.hashWithSalt s
+                $ L.sort . L.map (\(k, v) -> (s `hk` k) `hv` v)
+                $ (k1, v1) : (k2, v2) : toList hm'
 
         -- hashLeafWithSalt :: Int -> Leaf k v -> Int
         hashLeafWithSalt s (L k v) = (s `hk` k) `hv` v
@@ -440,20 +444,25 @@ instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
           = s `hashLeafWithSalt` l `go` tl
         -- For collisions we hashmix hash value
         -- and then array of values' hashes sorted
-        go s (Collision h l1 l2 hm' : tl)
-          = (((s `H.hashWithSalt` h) `hashLeafWithSalt` l1 `hashLeafWithSalt` l2)
-             `go` (toList' hm' [])) `go` tl
+        go s (Collision _ l1 l2 hm' : tl)
+          = collisionHash l1 l2 hm' s `go` tl
         go s (_ : tl) = s `go` tl
+
+        collisionHash :: Leaf k v -> Leaf k v -> HashMap k v -> Int -> Int
+        collisionHash (L k1 v1) (L k2 v2) hm' s
+                = L.foldl' H.hashWithSalt s
+                $ L.sort . L.map (H.hashWithSalt s)
+                $ (k1, v1) : (k2, v2) : toList hm'
 
         hashLeafWithSalt :: Int -> Leaf k v -> Int
         hashLeafWithSalt s (L k v) = s `H.hashWithSalt` k `H.hashWithSalt` v
 
-  -- Helper to get 'Leaf's as a list.
+  -- Helper to get 'Leaf's as a list, leave collisions as-is.
 toList' :: HashMap k v -> [HashMap k v] -> [HashMap k v]
 toList' (BitmapIndexed _ ary)   a = A.foldr toList' a ary
 toList' (Full ary)              a = A.foldr toList' a ary
 toList' l@(Leaf _ _)            a = l : a
-toList' (Collision h l1 l2 hm)  a = (Leaf h l1) : (Leaf h l2) : toList' hm a
+toList' (Collision h l1 l2 hm)  a = Collision h l1 l2 hm : a
 toList' Empty                   a = a
 
 -- Helper function to detect 'Leaf's and 'Collision's.

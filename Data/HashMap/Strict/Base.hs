@@ -217,7 +217,7 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 s0 k0 v0 0 m0)
         A.unsafeUpdateM ary i st'
         return t
       where i = index h bs
-    go h s k x bs t@(Collision hx l1@(L k1 v1) l2@(L k2 v2) hm)
+    go h s k x bs t@(Collision hx l1@(L k1 _) l2@(L k2 _) hm)
         | h == hx   =
           let go'
                 | k == k1   = return $! Collision hx (L k x) l2 hm
