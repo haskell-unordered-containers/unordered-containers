@@ -397,7 +397,7 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
 
   where !h = hashWithSalt s k
         !s = defaultSalt
-        !lookupRes = lookupRecordCollision h s k m
+        !lookupRes = lookupWithRes h s k m
         !mv = case lookupRes of
           Absent -> Nothing
           Present v -> Just v

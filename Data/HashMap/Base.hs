@@ -100,7 +100,7 @@ module Data.HashMap.Base
     , filterMapAux
     , equalKeys
     , equalKeys1
-    , lookupRecordCollision
+    , lookupWithRes
     , LookupRes(..)
     , insert'
     , delete'
@@ -540,7 +540,7 @@ lookup' :: (Eq k, Hashable k) => Hash -> Salt -> k -> HashMap k v -> Maybe v
 -- lookup' would probably prefer to be implemented in terms of its own
 -- lookup'#, but it's not important enough and we don't want too much
 -- code.
-lookup' h s k m = case lookupRecordCollision# h s k m of
+lookup' h s k m = case lookupWithRes# h s k m of
   (# (# #) | #) -> Nothing
   (# | a #) -> Just a
 {-# INLINE lookup' #-}
@@ -564,34 +564,33 @@ data LookupRes a = Absent | Present a
 --
 -- Outcomes:
 --   Key not in map           => Absent
---   Key in map, no collision => Present v (-1)
---   Key in map, collision    => Present v position
-lookupRecordCollision :: (Eq k, Hashable k) => Hash -> Salt -> k -> HashMap k v -> LookupRes v
+--   Key in map               => Present v
+--
+-- TODO(syd): We could add some optimisation here where we optimise for the common case
+-- where a collision is in the first two elements and not in the recursive HashMap.
+-- This could mean turning 'Present a' into 'Present a ColPos' with
+-- 'data ColPos = NoCollision | CollisionFirst | CollisionSecond | CollisionRest'
+lookupWithRes :: (Eq k, Hashable k) => Hash -> Salt -> k -> HashMap k v -> LookupRes v
 #if __GLASGOW_HASKELL__ >= 802
-lookupRecordCollision h s k m = case lookupRecordCollision# h s k m of
+lookupWithRes h s k m = case lookupWithRes# h s k m of
   (# (# #) | #) -> Absent
   (# | a #) -> Present a
-{-# INLINE lookupRecordCollision #-}
+{-# INLINE lookupWithRes #-}
 
--- Why do we produce an Int# instead of an Int? Unfortunately, GHC is not
--- yet any good at unboxing things *inside* products, let alone sums. That
--- may be changing in GHC 8.6 or so (there is some work in progress), but
--- for now we use Int# explicitly here. We don't need to push the Int#
--- into lookupCont because inlining takes care of that.
-lookupRecordCollision# :: (Eq k, Hashable k) => Hash -> Salt -> k -> HashMap k v -> (# (# #) | v #)
-lookupRecordCollision# h s k m =
+lookupWithRes# :: (Eq k, Hashable k) => Hash -> Salt -> k -> HashMap k v -> (# (# #) | v #)
+lookupWithRes# h s k m =
     lookupCont (\_ -> (# (# #) | #)) (\v -> (# | v #)) h s k m
 -- INLINABLE to specialize to the Eq instance.
-{-# INLINABLE lookupRecordCollision# #-}
+{-# INLINABLE lookupWithRes# #-}
 
 #else /* GHC < 8.2 so there are no unboxed sums */
 
-lookupRecordCollision h s k m = lookupCont (\_ -> Absent) Present h s k m
-{-# INLINABLE lookupRecordCollision #-}
+lookupWithRes h s k m = lookupCont (\_ -> Absent) Present h s k m
+{-# INLINABLE lookupWithRes #-}
 #endif
 
--- A two-continuation version of lookupRecordCollision. This lets us
--- share source code between lookup and lookupRecordCollision without
+-- A two-continuation version of lookupWithRes. This lets us
+-- share source code between lookup and lookupWithRes without
 -- risking any performance degradation.
 --
 -- The absent continuation has type @((# #) -> r)@ instead of just @r@
@@ -687,7 +686,7 @@ insert' :: (Eq k, Hashable k) => Hash -> Salt -> k -> v -> HashMap k v -> HashMa
 insert' h0 s0 k0 v0 m0 = go h0 s0 k0 v0 0 m0
   where
     go :: (Eq k, Hashable k) => Hash -> Salt -> k -> v -> Int -> HashMap k v -> HashMap k v
-    go !h _ !k x !_ Empty = Leaf h (L k x)
+    go !h !_ !k x !_ Empty = Leaf h (L k x)
     go h s k x bs t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then if x `ptrEq` y
@@ -784,15 +783,10 @@ insertKeyExists !h0 !s0 !k0 x0 !m0 = go h0 s0 k0 x0 0 m0
             !st' = go h s k x (bs+bitsPerSubkey) st
         in Full (update16 ary i st')
       where i = index h bs
-    go h s k x bs t@(Collision hx l1@(L k1 v1) l2@(L k2 v2) hmx)
-        | h == hx   =
-          let go'
-                | k == k1   = if x `ptrEq` v1 then t else Collision hx (L k x) l2 hmx
-                | k == k2   = if x `ptrEq` v2 then t else Collision hx l1 (L k x) hmx
-                | otherwise = Collision hx l1 l2 $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k x 0 hmx
-          in go'
-        | otherwise =
-            go h s k x bs $ BitmapIndexed (mask hx bs) (A.singleton t)
+    go _ s k x _ t@(Collision hx l1@(L k1 v1) l2@(L k2 v2) hmx)
+        | k == k1   = if x `ptrEq` v1 then t else Collision hx (L k x) l2 hmx
+        | k == k2   = if x `ptrEq` v2 then t else Collision hx l1 (L k x) hmx
+        | otherwise = Collision hx l1 l2 $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k x 0 hmx
     go _ _ _ _ _ Empty = Empty -- error "Internal error: go Empty"
 
 {-# NOINLINE insertKeyExists #-}
@@ -1303,7 +1297,7 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
 
   where !h = hashWithSalt s k
         !s = defaultSalt
-        !lookupRes = lookupRecordCollision h s k m
+        !lookupRes = lookupWithRes h s k m
         !mv = case lookupRes of
            Absent -> Nothing
            Present v -> Just v
