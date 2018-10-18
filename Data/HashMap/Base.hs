@@ -277,17 +277,17 @@ instance Traversable (HashMap k) where
 instance Eq2 HashMap where
     liftEq2 = equal2
 
-instance Eq k => Eq1 (HashMap k) where
+instance (Eq k, Hashable k) => Eq1 (HashMap k) where
     liftEq = equal1
 #endif
 
-instance (Eq k, Eq v) => Eq (HashMap k v) where
+instance (Eq k, Hashable k, Eq v) => Eq (HashMap k v) where
     (==) = equal1 (==)
 
 -- We rely on there being no Empty constructors in the tree!
 -- This ensures that two equal HashMaps will have the same
 -- shape, modulo the order of entries in Collisions.
-equal1 :: Eq k
+equal1 :: (Eq k, Hashable k)
        => (v -> v' -> Bool)
        -> HashMap k v -> HashMap k v' -> Bool
 equal1 eq = go
@@ -297,11 +297,9 @@ equal1 eq = go
       = bm1 == bm2 && A.sameArray1 go ary1 ary2
     go (Leaf h1 l1) (Leaf h2 l2) = h1 == h2 && leafEq l1 l2
     go (Full ary1) (Full ary2) = A.sameArray1 go ary1 ary2
-    go (Collision h1 (L k11 v11) (L k12 v12) hm1) (Collision h2 (L k21 v21) (L k22 v22) hm2)
-      = h1 == h2
-      && isPermutationBy (\(k1, v1) (k2, v2) -> k1 == k2 && eq v1 v2)
-           ((k11, v11) : (k12, v12) : toList hm1)
-           ((k21, v21) : (k22, v22) : toList hm2)
+    go t1@(Collision h1 _ _ _) t2@(Collision h2 _ _ _) = h1 == h2 &&
+         size t1 == size t2
+         && foldrWithKey (\k v r -> maybe False (eq v) (lookup k t2) && r) True t1
     go _ _ = False
 
     leafEq (L k1 v1) (L k2 v2) = k1 == k2 && eq v1 v2
@@ -334,7 +332,7 @@ equal2 eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
 instance Ord2 HashMap where
     liftCompare2 = cmp
 
-instance Ord k => Ord1 (HashMap k) where
+instance (Ord k, Hashable k) => Ord1 (HashMap k) where
     liftCompare = cmp compare
 #endif
 
@@ -343,7 +341,7 @@ instance Ord k => Ord1 (HashMap k) where
 -- /Note:/ Because the hash is not guaranteed to be stable across library
 -- versions, OSes, or architectures, neither is an actual order of elements in
 -- 'HashMap' or an result of `compare`.is stable.
-instance (Ord k, Ord v) => Ord (HashMap k v) where
+instance (Ord k, Hashable k, Ord v) => Ord (HashMap k v) where
     compare = cmp compare compare
 
 cmp :: (k -> k' -> Ordering) -> (v -> v' -> Ordering)
@@ -467,9 +465,9 @@ toList' Empty                   a = a
 
 -- Helper function to detect 'Leaf's and 'Collision's.
 isLeafOrCollision :: HashMap k v -> Bool
-isLeafOrCollision (Leaf _ _)          = True
-isLeafOrCollision (Collision _ _ _ _) = True
-isLeafOrCollision _                   = False
+isLeafOrCollision (Leaf {})      = True
+isLeafOrCollision (Collision {}) = True
+isLeafOrCollision _              = False
 
 ------------------------------------------------------------------------
 -- * Construction
@@ -498,7 +496,7 @@ size t = go t 0
     go (Leaf _ _)            n = n + 1
     go (BitmapIndexed _ ary) n = A.foldl' (flip go) n ary
     go (Full ary)            n = A.foldl' (flip go) n ary
-    go (Collision _ _ _ hm)  n = go hm n + 2
+    go (Collision _ _ _ hm)  n = go hm (n + 2)
 
 -- | /O(log n)/ Return 'True' if the specified key is present in the
 -- map, 'False' otherwise.
@@ -1798,7 +1796,6 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
 -- Remove (any) one element from an array of hashmaps
 unConsA :: A.Array (HashMap k v) -> UnCons k v
 unConsA ary = case A.length ary of
-  0 -> WasEmpty
   1 -> case A.index ary 0 of
     Empty -> WasEmpty -- That would be weird, but fine.
     Leaf _ l -> NowEmpty l
