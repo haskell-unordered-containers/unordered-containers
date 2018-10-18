@@ -297,8 +297,9 @@ equal1 eq = go
       = bm1 == bm2 && A.sameArray1 go ary1 ary2
     go (Leaf h1 l1) (Leaf h2 l2) = h1 == h2 && leafEq l1 l2
     go (Full ary1) (Full ary2) = A.sameArray1 go ary1 ary2
-    go t1@(Collision h1 _ _ _) t2@(Collision h2 _ _ _) = h1 == h2 &&
-         size t1 == size t2
+    go t1@(Collision h1 _ _ _) t2@(Collision h2 _ _ _) =
+         h1 == h2
+         && size t1 == size t2
          && foldrWithKey (\k v r -> maybe False (eq v) (lookup k t2) && r) True t1
     go _ _ = False
 
@@ -397,12 +398,10 @@ equalKeys = go
       = bm1 == bm2 && A.sameArray1 go ary1 ary2
     go (Leaf h1 l1) (Leaf h2 l2) = h1 == h2 && leafEq l1 l2
     go (Full ary1) (Full ary2) = A.sameArray1 go ary1 ary2
-    go (Collision h1 (L k11 _) (L k12 _) hm1) (Collision h2 (L k21 _) (L k22 _) hm2)
-      = h1 == h2 &&
-        (length hm1 == length hm2) &&
-        isPermutationBy (==)
-          (k11 : k12 : keys hm1)
-          (k21 : k22 : keys hm2)
+    go t1@(Collision h1 _ _ _) t2@(Collision h2 _ _ _)
+      = h1 == h2
+        && size t1 == size t2
+        && L.foldr (\k r -> (k `elem` (keys t2)) && r) True (keys t1)
     go _ _ = False
 
     leafEq (L k1 _) (L k2 _) = k1 == k2
