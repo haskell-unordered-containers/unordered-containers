@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main (main) where
@@ -11,13 +12,13 @@ import GHC.Generics (Generic)
 
 import Data.Validity
 import Data.Bits (popCount)
-import Control.Monad (replicateM)
+import Data.List (nub)
+import Control.Monad (foldM)
 import Data.Hashable (Hashable(hashWithSalt))
 #if defined(STRICT)
 import qualified Data.HashMap.Strict as HM
 #else
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.HashMap.Base as HM
 #endif
 import Data.HashMap.Base (HashMap(..), Leaf(..))
 import qualified Data.HashMap.Base as HM (defaultSalt, hashWithSalt, nextSalt, bitsPerSubkey)
@@ -25,8 +26,8 @@ import qualified Data.HashMap.Array as A
 
 import Data.Validity (Validity)
 import Data.GenValidity (GenUnchecked(..), GenValid(..), genSplit, genSplit4)
-import Test.Validity (producesValidsOnValids, producesValidsOnValids2, producesValidsOnValids3, genGeneratesValid)
-import Test.QuickCheck (Arbitrary, CoArbitrary, Function, Property, Gen, sized, oneof, resize, scale)
+import Test.Validity (producesValidsOnValids, producesValidsOnValids2, producesValidsOnValids3, shouldBeValid)
+import Test.QuickCheck (Arbitrary, CoArbitrary, Function, Property, Gen, sized, oneof, resize, scale, suchThat, forAll)
 import Test.Framework(Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck.Function (Fun, apply, applyFun2, applyFun3)
@@ -40,33 +41,43 @@ instance (Validity k, Validity v) => Validity (Leaf k v) where
 instance Validity a => Validity (A.Array a) where
     validate a = annotate (A.toList a) "The array elements"
 
-instance (Hashable k, Validity k, Validity v) => Validity (HashMap k v) where
+instance (Eq k, Hashable k, Validity k, Validity v) => Validity (HashMap k v) where
     validate = go HM.defaultSalt
       where
         go s hm = case hm of
             Empty -> mempty
-            (Leaf h l@(L k _)) -> mconcat
+            (Leaf h l@(L k _)) -> decorate "Leaf" $ mconcat
                 [ annotate h "Hash"
                 , annotate l "Leaf"
                 , check (HM.hashWithSalt s k == h) "The hash is correct."
                 ]
-            (BitmapIndexed bm a) -> mconcat
+            (BitmapIndexed bm a) -> decorate "BitmapIndexed" $ mconcat
                 [ annotate bm "Bitmap"
                 , decorate "Array" $ decorateList (A.toList a) $ go s
                 , check (A.length a == popCount bm)
-                  "Within 'BitmapIndexed' are values in the array equal to popCount bm."
+                  "There are values in the array equal to popCount bm."
+                , check (uniques $ concatMap HM.keys $ A.toList a) "The keys are unique."
                 ]
-            (Full a) -> mconcat
+            (Full a) -> decorate "Full" $ mconcat
                 [ decorate "Array" $ decorateList (A.toList a) $ go s
                 , check (A.length a == 2 ^ HM.bitsPerSubkey)
-                  "Within 'Full' are 2 ^ bitsPerSubkey values in the array."
+                  "There are 2 ^ bitsPerSubkey values in the array."
+                , check (uniques $ concatMap HM.keys $ A.toList a) "The keys are unique."
                 ]
-            (Collision h l1 l2 hm') -> mconcat
+            (Collision h l1@(L k1 _) l2@(L k2 _) hm') -> decorate "Collision" $ mconcat
                 [ annotate h "Hash"
                 , annotate l1 "The first collision"
                 , annotate l2 "The second collision"
+                , check (HM.hashWithSalt s k1 == h) "The hash of the first collision is correct."
+                , check (HM.hashWithSalt s k2 == h) "The hash of the second collision is correct."
+                , check (k1 /= k2) "The keys within the collision are not equal."
+                , check (uniques (k1 : k2 : HM.keys hm')) "The keys are unique."
                 , decorate "The recursive HashMap" $ go (HM.nextSalt s) hm'
+                -- TODO the recursive hashmap has to collide on the current hash too
                 ]
+
+uniques :: Eq a => [a] -> Bool
+uniques l = length (nub l) == length l
 
 #if !MIN_VERSION_validity(0,6,0)
 -- | Decorate a validation with a location
@@ -139,35 +150,58 @@ instance (GenUnchecked k, GenUnchecked v) => GenUnchecked (HashMap k v) where
         ]
     shrinkUnchecked _ = [] -- TODO: write shrinking
 
-instance (Hashable k, GenValid k, GenValid v) => GenValid (HashMap k v) where
-    genValid = go HM.defaultSalt
+instance (Eq k, Hashable k, GenValid k, GenValid v) => GenValid (HashMap k v) where
+    genValid = go [] HM.defaultSalt
       where
-        go s = sized $ \n -> case n of
-          0 -> pure Empty
+        genKey :: [k] -> Gen k
+        genKey keys = genValid `suchThat` (`notElem` keys)
+        genL :: [k] -> Gen (Leaf k v)
+        genL keys = sized $ \n -> do
+          (a, b) <- genSplit n
+          k <- resize a $ genKey keys
+          v <- resize b genValid
+          pure $ L k v
+        genFixedNbOfHms :: Int -> [k] -> Int -> Gen ([k], [HashMap k v])
+        genFixedNbOfHms nb keys s = do
+            let go' :: ([k], [HashMap k v]) -> Int -> Gen ([k], [HashMap k v])
+                go' (ks, hms) _ = do
+                  (ks', hm') <- scale (`div` nb) $ genAndRecordKeys ks s
+                  pure (ks' ++ ks, hm': hms)
+            (keys', values) <- foldM go' (keys, []) [1 .. nb]
+            pure (keys', values)
+        genAndRecordKeys :: [k] -> Int -> Gen ([k], HashMap k v)
+        genAndRecordKeys keys s = sized $ \n -> case n of
+          0 -> pure (keys, Empty)
           _ -> oneof
             [ do
-                (a, b) <- genSplit n
-                k <- resize a genValid
-                v <- resize b genValid
-                pure $ Leaf (HM.hashWithSalt s k) (L k v)
+                l@(L k _) <- genL keys
+                let hm' = Leaf (HM.hashWithSalt s k) l :: HashMap k v
+                pure $ (k : keys, hm')
             , do
-                bm <- genValid
-                let pc = popCount bm
-                values <- replicateM pc $ scale (`div` pc) $ go s -- TODO Redistribute size better.
-                pure $ BitmapIndexed bm $ A.fromList pc values
+                bm <- genValid :: Gen Word
+                let pc = popCount bm :: Int
+                (keys', hms) <- genFixedNbOfHms pc keys s :: Gen ([k], [HashMap k v])
+                let hm' = BitmapIndexed bm $ A.fromList pc hms :: HashMap k v
+                pure (keys', hm')
             , do
                 let l = 2 ^ (4 :: Int) -- 4 == bitsPerSubkey
-                values <- replicateM l $ scale (`div` l) $ go s -- TODO Redistribute size better.
-                pure $ Full $ A.fromList l values
+                (keys', hms) <- genFixedNbOfHms l keys s
+                let hm' = Full $ A.fromList l hms :: HashMap k v
+                pure (keys', hm') :: Gen ([k], HashMap k v)
             , do
-                (a,b,c,d) <- genSplit4 n
-                hm' <- resize d $ go (HM.nextSalt s)
-                Collision
-                  <$> resize a genValid
-                  <*> resize b genValid
-                  <*> resize c genValid
-                  <*> pure hm'
+                (a,b) <- genSplit n
+                (l1@(L k1 _), l2@(L k2 _)) <- resize a $
+                  ((,) <$> genL keys <*> genL keys)
+                  `suchThat`
+                  (\((L k1 _), (L k2 _)) -> HM.hashWithSalt s k1 == HM.hashWithSalt s k2 && k1 /= k2)
+                  -- Note: this can take long for keys that don't have a lot of collisions, so best
+                  -- to only use it with the 'Key' in this module.
+                (keys', hm') <- resize b $ genAndRecordKeys (k1 : k2 : keys) (HM.nextSalt s)
+                pure (keys', Collision (HM.hashWithSalt s k1) l1 l2 hm') :: Gen ([k], HashMap k v)
             ]
+        -- Carry the keys that have already been used, and the salt on the current level.
+        go :: [k] -> Int -> Gen (HashMap k v)
+        go keys s = snd <$> genAndRecordKeys keys s
 
 -- Key type that generates more hash collisions.
 newtype Key = K
@@ -175,7 +209,7 @@ newtype Key = K
     deriving (Arbitrary, CoArbitrary, Validity, GenUnchecked, GenValid, Eq, Ord, Read, Show, Generic)
 
 instance Hashable Key where
-    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
+    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 10
 
 instance Function Key
 
@@ -300,15 +334,17 @@ pFromListWith f = producesValidsOnValids (HM.fromListWith (applyFun2 f) :: [(Key
 
 tests :: [Test]
 tests =
+  let genValidHelper gen = forAll gen shouldBeValid
+  in
     [
     -- Basic interface
       testGroup "HashMap"
       [ testProperty "genValid generates valid values for Leaf" $
-        genGeneratesValid (genValid :: Gen (Leaf Key Int)) shrinkValid
+        genValidHelper (genValid :: Gen (Leaf Key Int))
       , testProperty "genValid generates valid values for Array" $
-        genGeneratesValid (genValid :: Gen (A.Array Key)) shrinkValid
+        genValidHelper (genValid :: Gen (A.Array Key))
       , testProperty "genValid generates valid values for HashMap" $
-        genGeneratesValid (genValid :: Gen (HashMap Key Int)) shrinkValid
+        genValidHelper (genValid :: Gen (HashMap Key Int))
       ]
     , testGroup "HashMap"
       [ testProperty "singleton produces valid HashMaps" pSingleton
