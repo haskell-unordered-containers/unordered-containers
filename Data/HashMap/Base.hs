@@ -1656,7 +1656,7 @@ filterMapAux onLeaf = go
         Nothing -> Leaf h l2'
         Just (Leaf _ l3', hm') -> Collision h l2' l3' hm'
         _ -> error "Should not happen, can be fixed with refactoring I think."
-      (Nothing, Nothing) -> go hm
+      (Nothing, Nothing) -> rehash h $ go hm
       _ -> error "Should not happen, can be fixed with refactoring I think."
       where
         go' hm_ = case unConsHM hm_ of
@@ -1664,6 +1664,7 @@ filterMapAux onLeaf = go
           Just (l, hm_') -> case onLeaf (Leaf h l) of
             Nothing -> go' hm_'
             Just l' -> Just (l', go hm_')
+    rehash = undefined
 
     filterA ary0 b0 =
         let !n = A.length ary0
