@@ -124,7 +124,7 @@ instance GenUnchecked a => GenUnchecked (A.Array a) where
     genUnchecked = do
       l <- genUnchecked
       pure $ A.fromList (length l) l
-    shrinkUnchecked _ = [] -- TODO: whrite shrinking
+    shrinkUnchecked _ = [] -- TODO: write shrinking
 
 instance GenValid a => GenValid (A.Array a) where
     genValid = do
@@ -154,12 +154,22 @@ instance (GenUnchecked k, GenUnchecked v) => GenUnchecked (HashMap k v) where
               <*> resize c genUnchecked
               <*> resize d genUnchecked
         ]
-    shrinkUnchecked _ = [] -- TODO: write shrinking
+    shrinkUnchecked hm = case hm of
+      Empty -> []
+      Leaf h l -> [Leaf h' l' | (h', l') <- shrinkUnchecked (h, l)]
+      BitmapIndexed bm a -> [BitmapIndexed bm' a' | (bm', a') <- shrinkUnchecked (bm, a)]
+      Full a -> Full <$> shrinkUnchecked a
+      Collision h l1 l2 hm_ ->
+        [ Collision h' l1' l2' hm_'
+        | (h', l1', l2', hm_') <- shrinkUnchecked (h, l1, l2, hm_)
+        ]
 
 -- It turns out it's almost impossible to write this instance without using internals.
 -- This is good-enough for now.
 instance (Eq k, Hashable k, GenValid k, GenValid v) => GenValid (HashMap k v) where
     genValid = HM.fromList <$> genValid
+    shrinkValid hm = HM.fromList <$> shrinkValid (HM.toList hm)
+      -- TODO improve the shrinking
 
 -- Key type that generates more hash collisions.
 newtype Key = K
