@@ -9,6 +9,7 @@ module Main (main) where
 
 import GHC.Generics (Generic)
 
+import Data.Validity
 import Data.Bits (popCount)
 import Control.Monad (replicateM)
 import Data.Hashable (Hashable(hashWithSalt))
@@ -19,7 +20,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashMap.Base as HM
 #endif
 import Data.HashMap.Base (HashMap(..), Leaf(..))
-import qualified Data.HashMap.Base as HM (defaultSalt, hashWithSalt, nextSalt)
+import qualified Data.HashMap.Base as HM (defaultSalt, hashWithSalt, nextSalt, bitsPerSubkey)
 import qualified Data.HashMap.Array as A
 
 import Data.Validity (Validity)
@@ -29,6 +30,63 @@ import Test.QuickCheck (Arbitrary, CoArbitrary, Function, Property, Gen, sized, 
 import Test.Framework(Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck.Function (Fun, apply, applyFun2, applyFun3)
+
+instance (Validity k, Validity v) => Validity (Leaf k v) where
+    validate (L k v) = mconcat
+        [ annotate k "key"
+        , annotate v "value"
+        ]
+
+instance Validity a => Validity (A.Array a) where
+    validate a = annotate (A.toList a) "The array elements"
+
+instance (Hashable k, Validity k, Validity v) => Validity (HashMap k v) where
+    validate = go HM.defaultSalt
+      where
+        go s hm = case hm of
+            Empty -> mempty
+            (Leaf h l@(L k _)) -> mconcat
+                [ annotate h "Hash"
+                , annotate l "Leaf"
+                , check (HM.hashWithSalt s k == h) "The hash is correct."
+                ]
+            (BitmapIndexed bm a) -> mconcat
+                [ annotate bm "Bitmap"
+                , decorate "Array" $ decorateList (A.toList a) $ go s
+                , check (A.length a == popCount bm)
+                  "Within 'BitmapIndexed' are values in the array equal to popCount bm."
+                ]
+            (Full a) -> mconcat
+                [ decorate "Array" $ decorateList (A.toList a) $ go s
+                , check (A.length a == 2 ^ HM.bitsPerSubkey)
+                  "Within 'Full' are 2 ^ bitsPerSubkey values in the array."
+                ]
+            (Collision h l1 l2 hm') -> mconcat
+                [ annotate h "Hash"
+                , annotate l1 "The first collision"
+                , annotate l2 "The second collision"
+                , decorate "The recursive HashMap" $ go (HM.nextSalt s) hm'
+                ]
+
+#if !MIN_VERSION_validity(0,6,0)
+-- | Decorate a validation with a location
+decorate :: String -> Validation -> Validation
+decorate = flip annotateValidation
+
+annotateValidation :: Validation -> String -> Validation
+annotateValidation val s =
+    case val of
+      Validation errs -> Validation $ map (Location s) errs
+#endif
+
+#if !MIN_VERSION_validity(0,8,0)
+-- | Decorate a piecewise validation of a list with their location in the list
+decorateList :: [a] -> (a -> Validation) -> Validation
+decorateList as func = mconcat $
+    flip map (zip [0..] as) $ \(i, a) ->
+        decorate (unwords ["The element at index", show (i :: Integer), "in the list"]) $
+        func a
+#endif
 
 instance (GenUnchecked k, GenUnchecked v) => GenUnchecked (Leaf k v) where
     genUnchecked = sized $ \n -> do

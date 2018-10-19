@@ -128,7 +128,6 @@ import Data.Bits ((.&.), (.|.), complement, popCount)
 import Data.Data hiding (Typeable)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as L
-import Data.Validity
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
 import Prelude hiding (filter, foldr, lookup, map, null, pred)
 import Text.Read hiding (step)
@@ -172,12 +171,6 @@ hashWithSalt s v = fromIntegral $ H.hashWithSalt s v
 data Leaf k v = L !k v
   deriving (Show, Eq)
 
-instance (Validity k, Validity v) => Validity (Leaf k v) where
-    validate (L k v) = mconcat
-        [ annotate k "key"
-        , annotate v "value"
-        ]
-
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L k v) = rnf k `seq` rnf v
 
@@ -195,59 +188,6 @@ data HashMap k v
       deriving (Typeable)
 
 type role HashMap nominal representational
-
--- TODO
--- * The keys do hash to the hash they should
---   * In Collision
---   * In Collision's recursive hashmap
--- * Validate the array structure too
-instance (Hashable k, Validity k, Validity v) => Validity (HashMap k v) where
-    validate = go defaultSalt
-      where
-        go s hm = case hm of
-            Empty -> mempty
-            (Leaf h l@(L k _)) -> mconcat
-                [ annotate h "Hash"
-                , annotate l "Leaf"
-                , check (hashWithSalt s k == h) "The hash is correct."
-                ]
-            (BitmapIndexed bm a) -> mconcat
-                [ annotate bm "Bitmap"
-                , decorate "Array" $ decorateList (A.toList a) $ go s
-                , check (A.length a == popCount bm)
-                  "Within 'BitmapIndexed' are values in the array equal to popCount bm."
-                ]
-            (Full a) -> mconcat
-                [ decorate "Array" $ decorateList (A.toList a) $ go s
-                , check (A.length a == 2 ^ bitsPerSubkey)
-                  "Within 'Full' are 2 ^ bitsPerSubkey values in the array."
-                ]
-            (Collision h l1 l2 hm') -> mconcat
-                [ annotate h "Hash"
-                , annotate l1 "The first collision"
-                , annotate l2 "The second collision"
-                , decorate "The recursive HashMap" $ go (nextSalt s) hm'
-                ]
-
-#if !MIN_VERSION_validity(0,6,0)
--- | Decorate a validation with a location
-decorate :: String -> Validation -> Validation
-decorate = flip annotateValidation
-
-annotateValidation :: Validation -> String -> Validation
-annotateValidation val s =
-    case val of
-      Validation errs -> Validation $ L.map (Location s) errs
-#endif
-
-#if !MIN_VERSION_validity(0,8,0)
--- | Decorate a piecewise validation of a list with their location in the list
-decorateList :: [a] -> (a -> Validation) -> Validation
-decorateList as func = mconcat $
-    flip L.map (zip [0..] as) $ \(i, a) ->
-        decorate (unwords ["The element at index", show (i :: Integer), "in the list"]) $
-        func a
-#endif
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Empty                   = ()

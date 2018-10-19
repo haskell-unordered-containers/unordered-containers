@@ -85,7 +85,6 @@ import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
 import qualified Prelude
 #endif
 
-import Data.Validity
 import Data.HashMap.Unsafe (runST)
 import Control.Monad ((>=>))
 
@@ -178,9 +177,6 @@ if not ((_lhs_) _op_ (_rhs_)) then error ("Data.HashMap.Array." ++ (_func_) ++ "
 data Array a = Array {
       unArray :: !(Array# a)
     }
-
-instance Validity a => Validity (Array a) where
-    validate a = annotate (toList a) "The array elements"
 
 instance Show a => Show (Array a) where
     show = show . toList
