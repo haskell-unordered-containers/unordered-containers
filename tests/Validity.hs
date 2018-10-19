@@ -10,9 +10,10 @@ module Main (main) where
 
 import GHC.Generics (Generic)
 
-import Data.Validity
 import Data.Bits (popCount)
+import Data.Foldable (foldl')
 import Data.List (nub)
+import Data.Validity
 import Control.Monad (foldM)
 import Data.Hashable (Hashable(hashWithSalt))
 #if defined(STRICT)
@@ -20,7 +21,7 @@ import qualified Data.HashMap.Strict as HM
 #else
 import qualified Data.HashMap.Lazy as HM
 #endif
-import Data.HashMap.Base (HashMap(..), Leaf(..))
+import Data.HashMap.Base (HashMap(..), Leaf(..), Salt, Hash)
 import qualified Data.HashMap.Base as HM (defaultSalt, hashWithSalt, nextSalt, bitsPerSubkey)
 import qualified Data.HashMap.Array as A
 
@@ -73,7 +74,8 @@ instance (Eq k, Hashable k, Validity k, Validity v) => Validity (HashMap k v) wh
                 , check (k1 /= k2) "The keys within the collision are not equal."
                 , check (uniques (k1 : k2 : HM.keys hm')) "The keys are unique."
                 , decorate "The recursive HashMap" $ go (HM.nextSalt s) hm'
-                -- TODO the recursive hashmap has to collide on the current hash too
+                , check (all (\k -> HM.hashWithSalt s k == h) (HM.keys hm'))
+                  "All recursive keys hash to the hash within the collision."
                 ]
 
 uniques :: Eq a => [a] -> Bool
@@ -150,58 +152,64 @@ instance (GenUnchecked k, GenUnchecked v) => GenUnchecked (HashMap k v) where
         ]
     shrinkUnchecked _ = [] -- TODO: write shrinking
 
+-- Note: This instance has to generate collisions.
+-- this can take long for keys that don't have a lot of collisions, so best
+-- to only use it with the 'Key' in this module.
 instance (Eq k, Hashable k, GenValid k, GenValid v) => GenValid (HashMap k v) where
-    genValid = go [] HM.defaultSalt
+    genValid = snd <$> genAndRecordKeys [] [] HM.defaultSalt
       where
-        genKey :: [k] -> Gen k
-        genKey keys = genValid `suchThat` (`notElem` keys)
-        genL :: [k] -> Gen (Leaf k v)
-        genL keys = sized $ \n -> do
+        genKey :: [(Salt, Hash)] -> [k] -> Gen k
+        genKey hs keys =
+          foldl'
+            (\g (s,h) -> modGenWith s h g) 
+            (genValid `suchThat` (`notElem` keys))
+            hs
+          where
+            modGenWith :: Salt -> Hash -> Gen k -> Gen k
+            modGenWith s h g = g `suchThat` (\k -> HM.hashWithSalt s k == h)
+        genL :: [(Salt, Hash)] -> [k] -> Gen (Leaf k v)
+        genL hs keys = sized $ \n -> do
           (a, b) <- genSplit n
-          k <- resize a $ genKey keys
+          k <- resize a $ genKey hs keys
           v <- resize b genValid
           pure $ L k v
-        genFixedNbOfHms :: Int -> [k] -> Int -> Gen ([k], [HashMap k v])
-        genFixedNbOfHms nb keys s = do
+        genFixedNbOfHms :: Int -> [(Salt, Hash)] -> [k] -> Salt -> Gen ([k], [HashMap k v])
+        genFixedNbOfHms nb hs keys s = do
             let go' :: ([k], [HashMap k v]) -> Int -> Gen ([k], [HashMap k v])
                 go' (ks, hms) _ = do
-                  (ks', hm') <- scale (`div` nb) $ genAndRecordKeys ks s
+                  (ks', hm') <- scale (`div` nb) $ genAndRecordKeys hs ks s
                   pure (ks' ++ ks, hm': hms)
             (keys', values) <- foldM go' (keys, []) [1 .. nb]
             pure (keys', values)
-        genAndRecordKeys :: [k] -> Int -> Gen ([k], HashMap k v)
-        genAndRecordKeys keys s = sized $ \n -> case n of
+        genAndRecordKeys :: [(Salt, Hash)] -> [k] -> Salt -> Gen ([k], HashMap k v)
+        genAndRecordKeys hs keys s = sized $ \n -> case n of
           0 -> pure (keys, Empty)
           _ -> oneof
             [ do
-                l@(L k _) <- genL keys
+                l@(L k _) <- genL hs keys
                 let hm' = Leaf (HM.hashWithSalt s k) l :: HashMap k v
                 pure $ (k : keys, hm')
             , do
                 bm <- genValid :: Gen Word
                 let pc = popCount bm :: Int
-                (keys', hms) <- genFixedNbOfHms pc keys s :: Gen ([k], [HashMap k v])
+                (keys', hms) <- genFixedNbOfHms pc hs keys s :: Gen ([k], [HashMap k v])
                 let hm' = BitmapIndexed bm $ A.fromList pc hms :: HashMap k v
                 pure (keys', hm')
             , do
                 let l = 2 ^ (4 :: Int) -- 4 == bitsPerSubkey
-                (keys', hms) <- genFixedNbOfHms l keys s
+                (keys', hms) <- genFixedNbOfHms l hs keys s
                 let hm' = Full $ A.fromList l hms :: HashMap k v
                 pure (keys', hm') :: Gen ([k], HashMap k v)
             , do
                 (a,b) <- genSplit n
                 (l1@(L k1 _), l2@(L k2 _)) <- resize a $
-                  ((,) <$> genL keys <*> genL keys)
+                  ((,) <$> genL hs keys <*> genL hs keys)
                   `suchThat`
                   (\((L k1 _), (L k2 _)) -> HM.hashWithSalt s k1 == HM.hashWithSalt s k2 && k1 /= k2)
-                  -- Note: this can take long for keys that don't have a lot of collisions, so best
-                  -- to only use it with the 'Key' in this module.
-                (keys', hm') <- resize b $ genAndRecordKeys (k1 : k2 : keys) (HM.nextSalt s)
-                pure (keys', Collision (HM.hashWithSalt s k1) l1 l2 hm') :: Gen ([k], HashMap k v)
+                let h = HM.hashWithSalt s k1
+                (keys', hm') <- resize b $ genAndRecordKeys ((s, h) : hs) (k1 : k2 : keys) (HM.nextSalt s)
+                pure (keys', Collision h l1 l2 hm') :: Gen ([k], HashMap k v)
             ]
-        -- Carry the keys that have already been used, and the salt on the current level.
-        go :: [k] -> Int -> Gen (HashMap k v)
-        go keys s = snd <$> genAndRecordKeys keys s
 
 -- Key type that generates more hash collisions.
 newtype Key = K
