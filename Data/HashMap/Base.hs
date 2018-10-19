@@ -179,6 +179,7 @@ instance (NFData k, NFData v) => NFData (Leaf k v) where
 
 -- | A map from keys to values.  A map cannot contain duplicate keys;
 -- each key can map to at most one value.
+-- TODO document all invariants
 data HashMap k v
     = Empty
     | BitmapIndexed !Bitmap !(A.Array (HashMap k v))

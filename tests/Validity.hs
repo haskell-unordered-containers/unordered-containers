@@ -11,24 +11,22 @@ module Main (main) where
 import GHC.Generics (Generic)
 
 import Data.Bits (popCount)
-import Data.Foldable (foldl')
 import Data.List (nub)
 import Data.Validity
-import Control.Monad (foldM)
 import Data.Hashable (Hashable(hashWithSalt))
 #if defined(STRICT)
 import qualified Data.HashMap.Strict as HM
 #else
 import qualified Data.HashMap.Lazy as HM
 #endif
-import Data.HashMap.Base (HashMap(..), Leaf(..), Salt, Hash)
+import Data.HashMap.Base (HashMap(..), Leaf(..))
 import qualified Data.HashMap.Base as HM (defaultSalt, hashWithSalt, nextSalt, bitsPerSubkey)
 import qualified Data.HashMap.Array as A
 
 import Data.Validity (Validity)
 import Data.GenValidity (GenUnchecked(..), GenValid(..), genSplit, genSplit4)
 import Test.Validity (producesValidsOnValids, producesValidsOnValids2, producesValidsOnValids3, shouldBeValid)
-import Test.QuickCheck (Arbitrary, CoArbitrary, Function, Property, Gen, sized, oneof, resize, scale, suchThat, forAll)
+import Test.QuickCheck (Arbitrary, CoArbitrary, Function, Property, Gen, sized, oneof, resize, forAll)
 import Test.Framework(Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck.Function (Fun, apply, applyFun2, applyFun3)
@@ -54,13 +52,19 @@ instance (Eq k, Hashable k, Validity k, Validity v) => Validity (HashMap k v) wh
                 ]
             (BitmapIndexed bm a) -> decorate "BitmapIndexed" $ mconcat
                 [ annotate bm "Bitmap"
-                , decorate "Array" $ decorateList (A.toList a) $ go s
+                , decorate "Array" $ decorateList (A.toList a) $ \hm_ -> mconcat
+                    [ go s hm_
+                    , check (not $ HM.null hm_) "The sub HashMap is not empty"
+                    ]
                 , check (A.length a == popCount bm)
                   "There are values in the array equal to popCount bm."
                 , check (uniques $ concatMap HM.keys $ A.toList a) "The keys are unique."
                 ]
             (Full a) -> decorate "Full" $ mconcat
-                [ decorate "Array" $ decorateList (A.toList a) $ go s
+                [ decorate "Array" $ decorateList (A.toList a) $ \hm_ -> mconcat
+                    [ go s hm_
+                    , check (not $ HM.null hm_) "The sub HashMap is not empty"
+                    ]
                 , check (A.length a == 2 ^ HM.bitsPerSubkey)
                   "There are 2 ^ bitsPerSubkey values in the array."
                 , check (uniques $ concatMap HM.keys $ A.toList a) "The keys are unique."
@@ -152,64 +156,10 @@ instance (GenUnchecked k, GenUnchecked v) => GenUnchecked (HashMap k v) where
         ]
     shrinkUnchecked _ = [] -- TODO: write shrinking
 
--- Note: This instance has to generate collisions.
--- this can take long for keys that don't have a lot of collisions, so best
--- to only use it with the 'Key' in this module.
+-- It turns out it's almost impossible to write this instance without using internals.
+-- This is good-enough for now.
 instance (Eq k, Hashable k, GenValid k, GenValid v) => GenValid (HashMap k v) where
-    genValid = snd <$> genAndRecordKeys [] [] HM.defaultSalt
-      where
-        genKey :: [(Salt, Hash)] -> [k] -> Gen k
-        genKey hs keys =
-          foldl'
-            (\g (s,h) -> modGenWith s h g) 
-            (genValid `suchThat` (`notElem` keys))
-            hs
-          where
-            modGenWith :: Salt -> Hash -> Gen k -> Gen k
-            modGenWith s h g = g `suchThat` (\k -> HM.hashWithSalt s k == h)
-        genL :: [(Salt, Hash)] -> [k] -> Gen (Leaf k v)
-        genL hs keys = sized $ \n -> do
-          (a, b) <- genSplit n
-          k <- resize a $ genKey hs keys
-          v <- resize b genValid
-          pure $ L k v
-        genFixedNbOfHms :: Int -> [(Salt, Hash)] -> [k] -> Salt -> Gen ([k], [HashMap k v])
-        genFixedNbOfHms nb hs keys s = do
-            let go' :: ([k], [HashMap k v]) -> Int -> Gen ([k], [HashMap k v])
-                go' (ks, hms) _ = do
-                  (ks', hm') <- scale (`div` nb) $ genAndRecordKeys hs ks s
-                  pure (ks' ++ ks, hm': hms)
-            (keys', values) <- foldM go' (keys, []) [1 .. nb]
-            pure (keys', values)
-        genAndRecordKeys :: [(Salt, Hash)] -> [k] -> Salt -> Gen ([k], HashMap k v)
-        genAndRecordKeys hs keys s = sized $ \n -> case n of
-          0 -> pure (keys, Empty)
-          _ -> oneof
-            [ do
-                l@(L k _) <- genL hs keys
-                let hm' = Leaf (HM.hashWithSalt s k) l :: HashMap k v
-                pure $ (k : keys, hm')
-            , do
-                bm <- genValid :: Gen Word
-                let pc = popCount bm :: Int
-                (keys', hms) <- genFixedNbOfHms pc hs keys s :: Gen ([k], [HashMap k v])
-                let hm' = BitmapIndexed bm $ A.fromList pc hms :: HashMap k v
-                pure (keys', hm')
-            , do
-                let l = 2 ^ (4 :: Int) -- 4 == bitsPerSubkey
-                (keys', hms) <- genFixedNbOfHms l hs keys s
-                let hm' = Full $ A.fromList l hms :: HashMap k v
-                pure (keys', hm') :: Gen ([k], HashMap k v)
-            , do
-                (a,b) <- genSplit n
-                (l1@(L k1 _), l2@(L k2 _)) <- resize a $
-                  ((,) <$> genL hs keys <*> genL hs keys)
-                  `suchThat`
-                  (\((L k1 _), (L k2 _)) -> HM.hashWithSalt s k1 == HM.hashWithSalt s k2 && k1 /= k2)
-                let h = HM.hashWithSalt s k1
-                (keys', hm') <- resize b $ genAndRecordKeys ((s, h) : hs) (k1 : k2 : keys) (HM.nextSalt s)
-                pure (keys', Collision h l1 l2 hm') :: Gen ([k], HashMap k v)
-            ]
+    genValid = HM.fromList <$> genValid
 
 -- Key type that generates more hash collisions.
 newtype Key = K
@@ -217,7 +167,7 @@ newtype Key = K
     deriving (Arbitrary, CoArbitrary, Validity, GenUnchecked, GenValid, Eq, Ord, Read, Show, Generic)
 
 instance Hashable Key where
-    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 10
+    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 4
 
 instance Function Key
 
