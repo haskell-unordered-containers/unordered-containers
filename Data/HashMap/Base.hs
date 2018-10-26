@@ -109,6 +109,9 @@ module Data.HashMap.Base
     , insertKeyExists
     , deleteKeyExists
     , insertModifying
+    , unConsA
+    , UnCons(..)
+    , unConsHM
     , ptrEq
     , adjust#
     ) where
@@ -1565,7 +1568,7 @@ intersectionWithKey f a b = foldlWithKey' go empty a
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
--- is evaluated before using the result in the next application. 
+-- is evaluated before using the result in the next application.
 -- This function is strict in the starting value.
 foldl' :: (a -> v -> a) -> a -> HashMap k v -> a
 foldl' f = foldlWithKey' (\ z _ v -> f z v)
@@ -1574,7 +1577,7 @@ foldl' f = foldlWithKey' (\ z _ v -> f z v)
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
--- is evaluated before using the result in the next application.  
+-- is evaluated before using the result in the next application.
 -- This function is strict in the starting value.
 foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
 foldlWithKey' f = go
@@ -1664,7 +1667,12 @@ filterMapAux onLeaf = go
           Just (l, hm_') -> case onLeaf (Leaf h l) of
             Nothing -> go' hm_'
             Just l' -> Just (l', go hm_')
-    rehash = undefined
+    rehash h hm = case hm of
+      Empty -> Empty
+      Leaf _ l -> Leaf h l
+      BitmapIndexed b ary -> undefined -- filterA ary b
+      Full ary -> undefined -- filterA ary fullNodeMask
+      Collision h' l1 l2 hm' -> Collision h l1 l2 $ rehash h' hm'
 
     filterA ary0 b0 =
         let !n = A.length ary0
@@ -1823,6 +1831,7 @@ data UnCons k v
   = WasEmpty
   | NowEmpty (Leaf k v)
   | UnConsed (Leaf k v) (A.Array (HashMap k v))
+  deriving (Show)
 
 -- Remove (any) one element from a hashmap
 unConsHM :: HashMap k v -> Maybe (Leaf k v, HashMap k v)
