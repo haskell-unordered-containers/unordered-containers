@@ -49,9 +49,13 @@ instance Validity a => Validity (A.Array a) where
 instance (Eq k, Hashable k, Validity k, Validity v) =>
          Validity (UnCons k v) where
     validate (NowEmpty l) = decorate "NowEmpty" $ validate l
-    validate (UnConsed l a) =
+    validate (UnConsed ix l a) =
         decorate "UnConsed" $
-        mconcat [decorate "Leaf" $ validate l, decorate "Array" $ validate a]
+        mconcat
+            [ decorate "Int" $ validate ix
+            , decorate "Leaf" $ validate l
+            , decorate "Array" $ validate a
+            ]
 
 instance (Eq k, Hashable k, Validity k, Validity v) =>
          Validity (HashMap k v) where

@@ -1810,26 +1810,29 @@ unConsA ary = case A.length ary of
     Leaf _ l -> NowEmpty l
     BitmapIndexed bm ary' -> case unConsA ary' of
       NowEmpty l -> NowEmpty l
-      UnConsed l a' -> UnConsed l (A.singleton (BitmapIndexed bm a'))
+      UnConsed _ l a' -> UnConsed 0 l (A.singleton (BitmapIndexed bm a'))
     Full ary' -> case unConsA ary' of
         NowEmpty l -> NowEmpty l
-        UnConsed l a' ->
-          let bm = undefined
-          in UnConsed l (A.singleton (BitmapIndexed bm a')) -- TODO 'Full' seems wrong
-    Collision h l1 l2 hm -> UnConsed l1 $ A.singleton $ case unConsHM hm of
+        UnConsed i l a' ->
+          let bm = fullNodeMask .&. complement (1 `unsafeShiftL` i)
+          in UnConsed 0 l (A.singleton (BitmapIndexed bm a'))
+    Collision h l1 l2 hm -> UnConsed 0 l1 $ A.singleton $ case unConsHM hm of
       Nothing -> Leaf h l2
       Just (l3, hm') -> Collision h l2 l3 hm'
   _ -> goA 0
   where
     goA ix = case unConsHM $ A.index ary ix of
-      Nothing -> goA $ ix + 1 -- this is fine because the array only houses nonempty hashmaps
+      Nothing -> goA $ ix + 1 -- This is fine because the array only houses nonempty hashmaps.
       Just (l, hm') -> case hm' of
-        Empty -> UnConsed l $ A.delete ary ix
-        _ -> UnConsed l $ A.update ary ix hm'
+        Empty -> UnConsed ix l $ A.delete ary ix -- This is fine because the array cannot become empty.
+        _ -> UnConsed ix l $ A.update ary ix hm'
 
 data UnCons k v
   = NowEmpty (Leaf k v)
-  | UnConsed (Leaf k v) (A.Array (HashMap k v))
+  | UnConsed
+    Int -- The indexed of the array that was un-consed from
+    (Leaf k v) -- The leaf that was un-consed
+    (A.Array (HashMap k v)) -- The leftover array
   deriving (Show)
 
 -- Remove (any) one element from a hashmap
@@ -1839,10 +1842,12 @@ unConsHM hm = case hm of
   Leaf _ l -> Just (l, Empty)
   BitmapIndexed bm ary' -> case unConsA ary' of
     NowEmpty l -> Just (l, Empty)
-    UnConsed l a' -> Just (l, BitmapIndexed bm a')
+    UnConsed _ l a' -> Just (l, BitmapIndexed bm a') -- TODO ignore the index?
   Full ary' -> case unConsA ary' of
     NowEmpty l -> Just (l, Empty)
-    UnConsed l a' -> Just (l, Full a') -- TODO This 'Full' seems wrong
+    UnConsed i l a' ->
+      let bm = fullNodeMask .&. complement (1 `unsafeShiftL` i)
+      in Just (l, BitmapIndexed bm a')
   Collision h l1 l2 hm' -> Just $ (,) l1 $ case unConsHM hm' of
     Nothing -> Leaf h l2
     Just (l3, hm'') -> Collision h l2 l3 hm''
