@@ -46,8 +46,8 @@ instance (Validity k, Validity v) => Validity (Leaf k v) where
 instance Validity a => Validity (A.Array a) where
     validate a = annotate (A.toList a) "The array elements"
 
-instance (Eq k, Hashable k, Validity k, Validity v) => Validity (UnCons k v) where
-    validate WasEmpty = mempty
+instance (Eq k, Hashable k, Validity k, Validity v) =>
+         Validity (UnCons k v) where
     validate (NowEmpty l) = decorate "NowEmpty" $ validate l
     validate (UnConsed l a) =
         decorate "UnConsed" $
@@ -433,15 +433,15 @@ pFromListWith f =
     producesValidsOnValids
         (HM.fromListWith (applyFun2 f) :: [(Key, Int)] -> HashMap Key Int)
 
-pUnConsA :: Property
-pUnConsA =
-    producesValidsOnValids
-        (HM.unConsA :: A.Array (HashMap Key Int) -> UnCons Key Int)
-
 pUnConsHM :: Property
 pUnConsHM =
     producesValidsOnValids
         (HM.unConsHM :: HashMap Key Int -> Maybe (Leaf Key Int, HashMap Key Int))
+
+pUnConsA :: Property
+pUnConsA =
+    producesValidsOnValids
+        (HM.unConsA :: A.Array (HashMap Key Int) -> UnCons Key Int)
 
 ------------------------------------------------------------------------
 -- * Test list
@@ -514,8 +514,8 @@ tests =
              , testProperty "toList produces valid lists" pToList
              , testProperty "fromList produces valid HashMaps" pFromList
              , testProperty "fromListWith produces valid HashMaps" pFromListWith
-             , testProperty "unConsA produces valid results" pUnConsA
              , testProperty "unConsHM produces valid HashMaps" pUnConsHM
+             , testProperty "unConsA produces valid results" pUnConsA
              ]
        ]
 

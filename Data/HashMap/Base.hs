@@ -1806,30 +1806,29 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
 unConsA :: A.Array (HashMap k v) -> UnCons k v
 unConsA ary = case A.length ary of
   1 -> case A.index ary 0 of
-    Empty -> WasEmpty -- That would be weird, but fine.
+    Empty -> error "Invariant violated: Empty hashmap in array."
     Leaf _ l -> NowEmpty l
     BitmapIndexed bm ary' -> case unConsA ary' of
-      WasEmpty -> WasEmpty -- That would be weird, but fine.
       NowEmpty l -> NowEmpty l
       UnConsed l a' -> UnConsed l (A.singleton (BitmapIndexed bm a'))
     Full ary' -> case unConsA ary' of
-        WasEmpty -> WasEmpty -- That would be weird, but fine.
         NowEmpty l -> NowEmpty l
-        UnConsed l a' -> UnConsed l (A.singleton (Full a')) -- TODO 'Full' seems wrong
+        UnConsed l a' ->
+          let bm = undefined
+          in UnConsed l (A.singleton (BitmapIndexed bm a')) -- TODO 'Full' seems wrong
     Collision h l1 l2 hm -> UnConsed l1 $ A.singleton $ case unConsHM hm of
       Nothing -> Leaf h l2
       Just (l3, hm') -> Collision h l2 l3 hm'
   _ -> goA 0
   where
     goA ix = case unConsHM $ A.index ary ix of
-      Nothing -> goA $ ix + 1 -- TODO this is probably problematic when the entire array only houses Empty hashmaps
+      Nothing -> goA $ ix + 1 -- this is fine because the array only houses nonempty hashmaps
       Just (l, hm') -> case hm' of
         Empty -> UnConsed l $ A.delete ary ix
         _ -> UnConsed l $ A.update ary ix hm'
 
 data UnCons k v
-  = WasEmpty
-  | NowEmpty (Leaf k v)
+  = NowEmpty (Leaf k v)
   | UnConsed (Leaf k v) (A.Array (HashMap k v))
   deriving (Show)
 
@@ -1839,11 +1838,9 @@ unConsHM hm = case hm of
   Empty -> Nothing
   Leaf _ l -> Just (l, Empty)
   BitmapIndexed bm ary' -> case unConsA ary' of
-    WasEmpty -> Nothing
     NowEmpty l -> Just (l, Empty)
     UnConsed l a' -> Just (l, BitmapIndexed bm a')
   Full ary' -> case unConsA ary' of
-    WasEmpty -> Nothing -- That would be weird, but fine.
     NowEmpty l -> Just (l, Empty)
     UnConsed l a' -> Just (l, Full a') -- TODO This 'Full' seems wrong
   Collision h l1 l2 hm' -> Just $ (,) l1 $ case unConsHM hm' of
