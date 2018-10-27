@@ -109,9 +109,10 @@ module Data.HashMap.Base
     , insertKeyExists
     , deleteKeyExists
     , insertModifying
-    , unConsA
-    , UnCons(..)
-    , unConsHM
+    , unconsA
+    , UnconsA(..)
+    , UnconsHM(..)
+    , unconsHM
     , ptrEq
     , adjust#
     ) where
@@ -1015,12 +1016,12 @@ delete' h0 s0 k0 m0 = go h0 s0 k0 0 m0
     go h s k _ t@(Collision hx l1@(L k1 _) l2@(L k2 _) hmx)
         | h == hx =
           let go'
-                | k == k1 = case unConsHM hmx of
-                    Nothing -> Leaf hx l2
-                    Just (l3, hmx') -> Collision hx l2 l3 hmx'
-                | k == k2 = case unConsHM hmx of
-                    Nothing -> Leaf hx l1
-                    Just (l3, hmx') -> Collision hx l1 l3 hmx'
+                | k == k1 = case unconsHM hmx of
+                    UnconsEmptyHM -> Leaf hx l2
+                    UnconsedHM l3 hmx' -> Collision hx l2 l3 hmx'
+                | k == k2 = case unconsHM hmx of
+                    UnconsEmptyHM -> Leaf hx l1
+                    UnconsedHM l3 hmx' -> Collision hx l1 l3 hmx'
                 | otherwise = Collision hx l1 l2 $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k 0 hmx
           in go'
         | otherwise = t
@@ -1067,12 +1068,12 @@ deleteKeyExists !h0 s0 !k0 !m0 = go h0 s0 k0 0 m0
     go h s k _ (Collision hx l1@(L k1 _) l2@(L k2 _) hmx)
         | h == hx =
           let go'
-                | k == k1 = case unConsHM hmx of
-                    Nothing -> Leaf hx l2
-                    Just (l3, hmx') -> Collision hx l2 l3 hmx'
-                | k == k2 = case unConsHM hmx of
-                    Nothing -> Leaf hx l1
-                    Just (l3, hmx') -> Collision hx l1 l3 hmx'
+                | k == k1 = case unconsHM hmx of
+                    UnconsEmptyHM -> Leaf hx l2
+                    UnconsedHM l3 hmx' -> Collision hx l2 l3 hmx'
+                | k == k2 = case unconsHM hmx of
+                    UnconsEmptyHM -> Leaf hx l1
+                    UnconsedHM l3 hmx' -> Collision hx l1 l3 hmx'
                 | otherwise = Collision hx l1 l2 $ go (hashWithSalt (nextSalt s) k) (nextSalt s) k 0 hmx
           in go'
         | otherwise = Empty -- error "Internal error: unexpected collision"
@@ -1651,28 +1652,18 @@ filterMapAux onLeaf = go
     go (Full ary) = filterA ary fullNodeMask
     go (Collision h l1 l2 hm) = case (onLeaf (Leaf h l1), onLeaf (Leaf h l2)) of
       (Just (Leaf _ l1'), Just (Leaf _ l2')) -> Collision h l1' l2' $ go hm
-      (Just (Leaf _ l1'), Nothing) -> case go' hm of
-        Nothing -> Leaf h l1'
-        Just (Leaf _ l3', hm') -> Collision h l1' l3' hm'
-        _ -> error "Should not happen, can be fixed with refactoring I think."
-      (Nothing, Just (Leaf _ l2')) -> case go' hm of
-        Nothing -> Leaf h l2'
-        Just (Leaf _ l3', hm') -> Collision h l2' l3' hm'
-        _ -> error "Should not happen, can be fixed with refactoring I think."
-      (Nothing, Nothing) -> rehash h $ go hm
+      (Just (Leaf _ l1'), Nothing) -> go1 l1'
+      (Nothing, Just (Leaf _ l2')) -> go1 l2'
+      (Nothing, Nothing) -> case unconsHM (go hm) of
+        UnconsEmptyHM -> Empty
+        UnconsedHM l1' hm' -> case unconsHM hm' of
+          UnconsEmptyHM -> Leaf h l1'
+          UnconsedHM l2' hm'' -> Collision h l1' l2' hm''
       _ -> error "Should not happen, can be fixed with refactoring I think."
       where
-        go' hm_ = case unConsHM hm_ of
-          Nothing -> Nothing
-          Just (l, hm_') -> case onLeaf (Leaf h l) of
-            Nothing -> go' hm_'
-            Just l' -> Just (l', go hm_')
-    rehash h hm = case hm of
-      Empty -> Empty
-      Leaf _ l -> Leaf h l
-      BitmapIndexed b ary -> undefined -- filterA ary b
-      Full ary -> undefined -- filterA ary fullNodeMask
-      Collision h' l1 l2 hm' -> Collision h l1 l2 $ rehash h' hm'
+        go1 l1' = case unconsHM (go hm) of
+          UnconsEmptyHM -> Leaf h l1'
+          UnconsedHM l2' hm' -> Collision h l1' l2' hm'
 
     filterA ary0 b0 =
         let !n = A.length ary0
@@ -1802,55 +1793,54 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
 
 -- Helper functions for very rare cases.
 
--- Remove (any) one element from an array of hashmaps
-unConsA :: A.Array (HashMap k v) -> UnCons k v
-unConsA ary = case A.length ary of
-  1 -> case A.index ary 0 of
-    Empty -> error "Invariant violated: Empty hashmap in array."
-    Leaf _ l -> NowEmpty l
-    BitmapIndexed bm ary' -> case unConsA ary' of
-      NowEmpty l -> NowEmpty l
-      UnConsed _ l a' -> UnConsed 0 l (A.singleton (BitmapIndexed bm a'))
-    Full ary' -> case unConsA ary' of
-        NowEmpty l -> NowEmpty l
-        UnConsed i l a' ->
-          let bm = fullNodeMask .&. complement (1 `unsafeShiftL` i)
-          in UnConsed 0 l (A.singleton (BitmapIndexed bm a'))
-    Collision h l1 l2 hm -> UnConsed 0 l1 $ A.singleton $ case unConsHM hm of
-      Nothing -> Leaf h l2
-      Just (l3, hm') -> Collision h l2 l3 hm'
-  _ -> goA 0
-  where
-    goA ix = case unConsHM $ A.index ary ix of
-      Nothing -> goA $ ix + 1 -- This is fine because the array only houses nonempty hashmaps.
-      Just (l, hm') -> case hm' of
-        Empty -> UnConsed ix l $ A.delete ary ix -- This is fine because the array cannot become empty.
-        _ -> UnConsed ix l $ A.update ary ix hm'
+-- Remove (any) one element from a non-empty array
+-- of non-empty hashmaps.
+unconsA :: A.Array (HashMap k v) -> UnconsA k v
+unconsA ary =
+  case unconsHM  (A.index ary 0) of
+    UnconsEmptyHM ->
+      error "Data.HashMap internal error: empty hashmap in array."
+    UnconsedHM lf Empty
+      | A.length ary == 1 -> NowEmptyA lf
+      | otherwise -> RemovedFirstA lf (A.delete ary 0)
+    UnconsedHM lf hm' -> UnconsedFromFirstA lf (A.update ary 0 hm')
 
-data UnCons k v
-  = NowEmpty (Leaf k v)
-  | UnConsed
-    Int -- The indexed of the array that was un-consed from
-    (Leaf k v) -- The leaf that was un-consed
-    (A.Array (HashMap k v)) -- The leftover array
-  deriving (Show)
+data UnconsA k v
+  = NowEmptyA !(Leaf k v)
+  | UnconsedFromFirstA
+    !(Leaf k v) -- The leaf that was un-consed
+    !(A.Array (HashMap k v)) -- The leftover array
+  | RemovedFirstA
+    !(Leaf k v) -- The leaf that was un-consed
+    !(A.Array (HashMap k v)) -- The leftover array
+  deriving Show
+
+data UnconsHM k v
+  = UnconsEmptyHM
+  | UnconsedHM !(Leaf k v) !(HashMap k v)
+  deriving Show
 
 -- Remove (any) one element from a hashmap
-unConsHM :: HashMap k v -> Maybe (Leaf k v, HashMap k v)
-unConsHM hm = case hm of
-  Empty -> Nothing
-  Leaf _ l -> Just (l, Empty)
-  BitmapIndexed bm ary' -> case unConsA ary' of
-    NowEmpty l -> Just (l, Empty)
-    UnConsed _ l a' -> Just (l, BitmapIndexed bm a') -- TODO ignore the index?
-  Full ary' -> case unConsA ary' of
-    NowEmpty l -> Just (l, Empty)
-    UnConsed i l a' ->
-      let bm = fullNodeMask .&. complement (1 `unsafeShiftL` i)
-      in Just (l, BitmapIndexed bm a')
-  Collision h l1 l2 hm' -> Just $ (,) l1 $ case unConsHM hm' of
-    Nothing -> Leaf h l2
-    Just (l3, hm'') -> Collision h l2 l3 hm''
+unconsHM :: HashMap k v -> UnconsHM k v
+unconsHM hm = case hm of
+  Empty -> UnconsEmptyHM
+  Leaf _ l -> UnconsedHM l Empty
+  BitmapIndexed bm ary' -> case unconsA ary' of
+    NowEmptyA l -> UnconsedHM l Empty
+    UnconsedFromFirstA l a' -> UnconsedHM l (BitmapIndexed bm a')
+    RemovedFirstA l a' -> shortened l bm a'
+  Full ary' -> case unconsA ary' of
+    NowEmptyA l -> UnconsedHM l Empty
+    UnconsedFromFirstA l a' -> UnconsedHM l (Full a')
+    RemovedFirstA l a' -> shortened l fullNodeMask a'
+  Collision h l1 l2 hm' -> UnconsedHM l1 $ case unconsHM hm' of
+    UnconsEmptyHM -> Leaf h l2
+    UnconsedHM l3 hm'' -> Collision h l2 l3 hm''
+  where
+    -- The array was shortened, so we need to remove the first
+    -- element from the bitmap.
+    shortened l bm ar =
+      UnconsedHM l $ BitmapIndexed (bm .&. (bm - 1)) ar
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops

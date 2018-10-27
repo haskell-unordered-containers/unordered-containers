@@ -22,10 +22,10 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Lazy as HM
 #endif
 import qualified Data.HashMap.Array as A
-import Data.HashMap.Base (HashMap(..), Leaf(..), UnCons(..))
+import Data.HashMap.Base (HashMap(..), Leaf(..), UnconsHM(..))
 import qualified Data.HashMap.Base as HM
        (bitsPerSubkey, defaultSalt, hashWithSalt, index, mask, nextSalt,
-        sparseIndex, unConsA, unConsHM)
+        sparseIndex, unconsHM)
 
 import Data.GenValidity
        (GenUnchecked(..), GenValid(..), genSplit, genSplit4)
@@ -47,14 +47,13 @@ instance Validity a => Validity (A.Array a) where
     validate a = annotate (A.toList a) "The array elements"
 
 instance (Eq k, Hashable k, Validity k, Validity v) =>
-         Validity (UnCons k v) where
-    validate (NowEmpty l) = decorate "NowEmpty" $ validate l
-    validate (UnConsed ix l a) =
-        decorate "UnConsed" $
+         Validity (UnconsHM k v) where
+    validate UnconsEmptyHM = decorate "UnconsEmptyHM" valid
+    validate (UnconsedHM l hm) =
+        decorate "UnconsedHM" $
         mconcat
-            [ decorate "Int" $ validate ix
-            , decorate "Leaf" $ validate l
-            , decorate "Array" $ validate a
+            [ decorate "Leaf" $ validate l
+            , decorate "Map" $ validate hm
             ]
 
 instance (Eq k, Hashable k, Validity k, Validity v) =>
@@ -437,15 +436,14 @@ pFromListWith f =
     producesValidsOnValids
         (HM.fromListWith (applyFun2 f) :: [(Key, Int)] -> HashMap Key Int)
 
-pUnConsHM :: Property
-pUnConsHM =
+pUnconsHM :: Property
+pUnconsHM =
     producesValidsOnValids
-        (HM.unConsHM :: HashMap Key Int -> Maybe (Leaf Key Int, HashMap Key Int))
+        (HM.unconsHM :: HashMap Key Int -> UnconsHM Key Int)
 
-pUnConsA :: Property
-pUnConsA =
-    producesValidsOnValids
-        (HM.unConsA :: A.Array (HashMap Key Int) -> UnCons Key Int)
+-- There isn't currently a pUnconsA because I (David Feuer) don't know
+-- the right way to tell genvalidity-hspec that we only want cases
+-- where the array is non-empty and all of its elements are non-empty.
 
 ------------------------------------------------------------------------
 -- * Test list
@@ -518,8 +516,7 @@ tests =
              , testProperty "toList produces valid lists" pToList
              , testProperty "fromList produces valid HashMaps" pFromList
              , testProperty "fromListWith produces valid HashMaps" pFromListWith
-             , testProperty "unConsHM produces valid HashMaps" pUnConsHM
-             , testProperty "unConsA produces valid results" pUnConsA
+             , testProperty "unconsHM produces valid HashMaps" pUnconsHM
              ]
        ]
 
