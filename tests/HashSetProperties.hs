@@ -14,6 +14,7 @@ import Data.Ord (comparing)
 import Test.QuickCheck (Arbitrary, Property, (==>), (===))
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
+import Data.Functor.Classes (eq1, compare1)
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
@@ -80,13 +81,29 @@ pFoldable :: [Int] -> Bool
 pFoldable = (L.sort . Foldable.foldr (:) []) `eq`
             (L.sort . Foldable.foldr (:) [])
 
-pPermutationEq :: [Key] -> [Int] -> Bool
-pPermutationEq xs is = S.fromList xs == S.fromList ys
+pPermutationEq :: [(Key, Int)] -> Bool
+pPermutationEq xs = S.fromList x == S.fromList y
   where
-    ys = shuffle is xs
-    shuffle idxs = L.map snd
-                 . L.sortBy (comparing fst)
-                 . L.zip (idxs ++ [L.maximum (0:is) + 1 ..])
+    x = L.map fst xs
+    y = L.map fst . L.sortBy (comparing snd) $ xs
+
+pPermutationEq1 :: [(Key, Int)] -> Bool
+pPermutationEq1 xs = S.fromList x `eq1` S.fromList y
+  where
+    x = L.map fst xs
+    y = L.map fst . L.sortBy (comparing snd) $ xs
+
+pPermutationOrd :: [(Key, Int)] -> Bool
+pPermutationOrd xs = (S.fromList x `compare` S.fromList y) == EQ
+  where
+    x = L.map fst xs
+    y = L.map fst . L.sortBy (comparing snd) $ xs
+
+pPermutationOrd1 :: [(Key, Int)] -> Bool
+pPermutationOrd1 xs = (S.fromList x `compare1` S.fromList y) == EQ
+  where
+    x = L.map fst xs
+    y = L.map fst . L.sortBy (comparing snd) $ xs
 
 pHashable :: [Key] -> [Int] -> Int -> Property
 pHashable xs is salt =
@@ -174,6 +191,9 @@ tests =
       testGroup "instances"
       [ testProperty "==" pEq
       , testProperty "Permutation ==" pPermutationEq
+      , testProperty "Permutation eq1" pPermutationEq1
+      , testProperty "Permutation compare" pPermutationOrd
+      , testProperty "Permutation compare1" pPermutationOrd1
       , testProperty "/=" pNeq
       , testProperty "compare reflexive" pOrd1
       , testProperty "compare transitive" pOrd2
