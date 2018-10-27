@@ -23,6 +23,10 @@ module Data.HashMap.Base
       -- * Basic interface
     , null
     , size
+    , equal1
+    , equal2
+    , cmp1
+    , cmp2
     , member
     , lookup
     , lookupDefault

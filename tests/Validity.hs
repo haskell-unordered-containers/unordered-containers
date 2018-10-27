@@ -24,8 +24,9 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashMap.Array as A
 import Data.HashMap.Base (HashMap(..), Leaf(..), UnconsHM(..))
 import qualified Data.HashMap.Base as HM
-       (bitsPerSubkey, defaultSalt, hashWithSalt, index, mask, nextSalt,
-        sparseIndex, unconsHM)
+       (bitsPerSubkey, cmp1, cmp2, defaultSalt, equal1, equal2,
+        hashWithSalt, index, mask, nextSalt, sparseIndex, unConsA,
+        unConsHM)
 
 import Data.GenValidity
        (GenUnchecked(..), GenValid(..), genSplit, genSplit4)
@@ -270,6 +271,26 @@ pNull = producesValidsOnValids (HM.null :: HM.HashMap Key Int -> Bool)
 pSize :: Property
 pSize = producesValidsOnValids (HM.size :: HM.HashMap Key Int -> Int)
 
+pEqual1 :: Fun (Int, Int) Bool -> Property
+pEqual1 f =
+    producesValidsOnValids2
+        (HM.equal1 (applyFun2 f) :: HM.HashMap Key Int -> HM.HashMap Key Int -> Bool)
+
+pEqual2 :: Fun (Key, Key) Bool -> Fun (Int, Int) Bool -> Property
+pEqual2 f g =
+    producesValidsOnValids2
+        (HM.equal2 (applyFun2 f) (applyFun2 g) :: HM.HashMap Key Int -> HM.HashMap Key Int -> Bool)
+
+pCmp1 :: Fun (Int, Int) Ordering -> Property
+pCmp1 f =
+    producesValidsOnValids2
+        (HM.cmp1 (applyFun2 f) :: HM.HashMap Key Int -> HM.HashMap Key Int -> Ordering)
+
+pCmp2 :: Fun (Key, Key) Ordering -> Fun (Int, Int) Ordering -> Property
+pCmp2 f g =
+    producesValidsOnValids2
+        (HM.cmp2 (applyFun2 f) (applyFun2 g) :: HM.HashMap Key Int -> HM.HashMap Key Int -> Ordering)
+
 pMember :: Property
 pMember =
     producesValidsOnValids2 (HM.member :: Key -> HM.HashMap Key Int -> Bool)
@@ -465,6 +486,10 @@ tests =
              [ testProperty "singleton produces valid HashMaps" pSingleton
              , testProperty "null produces valid Bools" pNull
              , testProperty "size produces valid HashMaps" pSize
+             , testProperty "equal1 produce valid Bools" pEqual1
+             , testProperty "equal2 produce valid Bools" pEqual2
+             , testProperty "cmp1 produce valid Orderings" pCmp1
+             , testProperty "cmp2 produce valid Orderings" pCmp2
              , testProperty "member produces valid HashMaps" pMember
              , testProperty "lookup produces valid HashMaps" pLookup
              , testProperty
