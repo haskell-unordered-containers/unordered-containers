@@ -71,7 +71,7 @@ instance Validity a => Validity (A.Array a) where
 
 instance (Eq k, Hashable k, Validity k, Validity v) =>
          Validity (UnconsHM k v) where
-    validate UnconsEmptyHM = decorate "UnconsEmptyHM" valid
+    validate UnconsEmptyHM = decorate "UnconsEmptyHM" mempty
     validate (UnconsedHM l hm) =
         decorate "UnconsedHM" $
         mconcat [decorate "Leaf" $ validate l, decorate "Map" $ validate hm]
@@ -216,7 +216,7 @@ instance GenUnchecked a => GenUnchecked (A.Array a) where
     genUnchecked = do
         l <- genUnchecked
         pure $ A.fromList (length l) l
-    shrinkUnchecked _ = [] -- TODO: write shrinking
+    shrinkUnchecked = fmap (\l -> A.fromList (length l) l) . shrinkUnchecked . A.toList
 
 instance GenValid a => GenValid (A.Array a) where
     genValid = do

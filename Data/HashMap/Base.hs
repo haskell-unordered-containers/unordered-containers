@@ -188,7 +188,6 @@ instance (NFData k, NFData v) => NFData (Leaf k v) where
 
 -- | A map from keys to values.  A map cannot contain duplicate keys;
 -- each key can map to at most one value.
--- TODO document all invariants
 data HashMap k v
     = Empty
     | BitmapIndexed !Bitmap !(A.Array (HashMap k v))
@@ -568,7 +567,7 @@ lookup# k m = lookupCont (\_ -> (# (# #) | #)) (\v -> (# | v #)) (hashWithSalt d
 
 #else
 
-lookup k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) (hashWithSalt s k) defaultSalt k m
+lookup k m = lookupCont (\_ -> Nothing) (\v -> Just v) (hashWithSalt defaultSalt k) defaultSalt k m
 {-# INLINABLE lookup #-}
 #endif
 
@@ -587,7 +586,7 @@ lookup' h s k m = case lookupWithRes# h s k m of
   (# | a #) -> Just a
 {-# INLINE lookup' #-}
 #else
-lookup' h s k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) h s k m
+lookup' h s k m = lookupCont (\_ -> Nothing) (\v -> Just v) h s k m
 {-# INLINABLE lookup' #-}
 #endif
 
@@ -1847,10 +1846,10 @@ unconsA ary =
 
 data UnconsA k v
   = NowEmptyA !(Leaf k v)
-  | UnconsedFromFirstA
+  | UnconsedFromFirstA -- Got an element out of the array, but leave the array.
     !(Leaf k v) -- The leaf that was un-consed
     !(A.Array (HashMap k v)) -- The leftover array
-  | RemovedFirstA
+  | RemovedFirstA -- Got an element out of the array, and removed the array because it became empty.
     !(Leaf k v) -- The leaf that was un-consed
     !(A.Array (HashMap k v)) -- The leftover array
   deriving Show
