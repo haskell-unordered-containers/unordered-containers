@@ -163,6 +163,7 @@ import Data.Functor.Identity (Identity (..))
 #endif
 import Control.Applicative (Const (..))
 import Data.Coerce (coerce)
+import Data.Function (on)
 
 -- | A set of values.  A set cannot contain duplicate values.
 ------------------------------------------------------------------------
@@ -335,10 +336,10 @@ equal2 eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
 
 #if MIN_VERSION_base(4,9,0)
 instance Ord2 HashMap where
-    liftCompare2 = cmp
+    liftCompare2 = cmp2
 
 instance (Ord k, Hashable k) => Ord1 (HashMap k) where
-    liftCompare = cmp compare
+    liftCompare = cmp1
 #endif
 
 -- | The order is total.
@@ -347,11 +348,46 @@ instance (Ord k, Hashable k) => Ord1 (HashMap k) where
 -- versions, OSes, or architectures, neither is an actual order of elements in
 -- 'HashMap' or an result of `compare`.is stable.
 instance (Ord k, Hashable k, Ord v) => Ord (HashMap k v) where
-    compare = cmp compare compare
+    compare = cmp1 compare
 
-cmp :: (k -> k' -> Ordering) -> (v -> v' -> Ordering)
+cmp1 :: (Ord k, Hashable k) => (v -> v' -> Ordering)
+    -> HashMap k v -> HashMap k v' -> Ordering
+cmp1 cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
+  where
+    go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
+      = compare k1 k2 `mappend`
+        leafCompare l1 l2 `mappend`
+        go tl1 tl2
+    go (Collision h1 (L k11 v11) (L k12 v12) hm1 : tl1) (Collision h2 (L k21 v21) (L k22 v22) hm2 : tl2)
+      = compare h1 h2 `mappend`
+        compare (length hm1) (length hm2) `mappend`
+        liftCompareList pairCompare
+          -- We don't use sortOn because fst is cheap.
+          (L.sortBy (compare `on` fst) $
+            (k11, v11) : (k12, v12) : toList hm1)
+          (L.sortBy (compare `on` fst) $
+            (k21, v21) : (k22, v22) : toList hm2) `mappend`
+        go tl1 tl2
+    go (Leaf _ _ : _) (Collision _ _ _ _ : _) = LT
+    go (Collision _ _ _ _ : _) (Leaf _ _ : _) = GT
+    go [] [] = EQ
+    go [] _  = LT
+    go _  [] = GT
+    go _ _ = error "cmp2: Should never happen, toList' includes non Leaf / Collision"
+
+    leafCompare (L k v) (L k' v') = compare k k' `mappend` cmpv v v'
+    pairCompare (k1, v1) (k2, v2) = (k1 `compare` k2) `mappend` (v1 `cmpv` v2)
+
+-- Our own copy of liftCompare for lists.
+liftCompareList :: (a -> b -> Ordering) -> [a] -> [b] -> Ordering
+liftCompareList _ [] [] = EQ
+liftCompareList _ [] _ = LT
+liftCompareList _ _ [] = GT
+liftCompareList cmp (x : xs) (y : ys) = cmp x y `mappend` liftCompareList cmp xs ys
+
+cmp2 :: (k -> k' -> Ordering) -> (v -> v' -> Ordering)
     -> HashMap k v -> HashMap k' v' -> Ordering
-cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
+cmp2 cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
   where
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
       = compare k1 k2 `mappend`
@@ -369,7 +405,7 @@ cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
     go [] [] = EQ
     go [] _  = LT
     go _  [] = GT
-    go _ _ = error "cmp: Should never happend, toList' includes non Leaf / Collision"
+    go _ _ = error "cmp2: Should never happen, toList' includes non Leaf / Collision"
 
     leafCompare (L k v) (L k' v') = cmpk k k' `mappend` cmpv v v'
 

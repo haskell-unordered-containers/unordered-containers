@@ -27,6 +27,9 @@ import Data.Functor.Identity (Identity (..))
 import Control.Applicative (Const (..))
 import Test.QuickCheck.Function (Fun, apply)
 import Test.QuickCheck.Poly (A, B)
+#if MIN_VERSION_base(4,9,0)
+import Data.Functor.Classes (eq2, compare2)
+#endif
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
@@ -43,6 +46,15 @@ instance Hashable Key where
 
 pEq :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pEq xs = (M.fromList xs ==) `eq` (HM.fromList xs ==)
+
+-- Caution: this is a rather weak test. Fortunately, the "Permutation"
+-- properties in the HashSet test suite should catch most of what this
+-- doesn't.
+pEq2 :: [(Key, Int)] -> [(Key, Int)] -> Property
+pEq2 xs ys = (x == y) === (x `eq2` y)
+  where
+    x = HM.fromList xs
+    y = HM.fromList ys
 
 pNeq :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pNeq xs = (M.fromList xs /=) `eq` (HM.fromList xs /=)
@@ -72,6 +84,12 @@ pOrd3 xs ys = case (compare x y, compare y x) of
     (LT, GT) -> True
     (GT, LT) -> True
     _        -> False
+  where
+    x = HM.fromList xs
+    y = HM.fromList ys
+
+pOrd4 :: [(Key, Int)] -> [(Key, Int)] -> Property
+pOrd4 xs ys = compare2 x y === compare x y
   where
     x = HM.fromList xs
     y = HM.fromList ys
@@ -379,9 +397,11 @@ tests =
       testGroup "instances"
       [ testProperty "==" pEq
       , testProperty "/=" pNeq
+      , testProperty "eq2 = (==)" pEq2
       , testProperty "compare reflexive" pOrd1
       , testProperty "compare transitive" pOrd2
       , testProperty "compare antisymmetric" pOrd3
+      , testProperty "compare2 = compare" pOrd4
       , testProperty "Ord => Eq" pOrdEq
       , testProperty "Read/Show" pReadShow
       , testProperty "Functor" pFunctor
