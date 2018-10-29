@@ -13,6 +13,7 @@ module Main
 import GHC.Generics (Generic)
 
 import Data.Bits (popCount)
+import Data.Functor
 import Data.Hashable (Hashable(hashWithSalt))
 import Data.List (nub)
 import Data.Validity
@@ -69,7 +70,7 @@ instance (Validity k, Validity v) => Validity (Leaf k v) where
 instance Validity a => Validity (A.Array a) where
     validate a = annotate (A.toList a) "The array elements"
 
-instance (Eq k, Hashable k, Validity k, Validity v) =>
+instance (Eq k, Hashable k, Validity k, Eq v, Validity v) =>
          Validity (UnconsHM k v) where
     validate UnconsEmptyHM = decorate "UnconsEmptyHM" mempty
     validate (UnconsedHM l hm) =
@@ -78,10 +79,16 @@ instance (Eq k, Hashable k, Validity k, Validity v) =>
 
 instance (Eq k, Hashable k, Validity k, Validity v) =>
          Validity (HashMap k v) where
-    validate = go HM.defaultSalt 0
+    validate hm =
+        mconcat
+            [ go HM.defaultSalt 0 hm
+            , check
+                  (HM.fromList (HM.toList (hm $> ())) == (hm $> ()))
+                  "fromList and toList are inverses for this hashmap."
+            ]
       where
-        go s bs hm =
-            case hm of
+        go s bs hm_ =
+            case hm_ of
                 Empty -> mempty
                 (Leaf h l@(L k _)) ->
                     decorate "Leaf" $
@@ -216,7 +223,8 @@ instance GenUnchecked a => GenUnchecked (A.Array a) where
     genUnchecked = do
         l <- genUnchecked
         pure $ A.fromList (length l) l
-    shrinkUnchecked = fmap (\l -> A.fromList (length l) l) . shrinkUnchecked . A.toList
+    shrinkUnchecked =
+        fmap (\l -> A.fromList (length l) l) . shrinkUnchecked . A.toList
 
 instance GenValid a => GenValid (A.Array a) where
     genValid = do
@@ -257,7 +265,7 @@ instance (GenUnchecked k, GenUnchecked v) => GenUnchecked (HashMap k v) where
 
 -- It turns out it's almost impossible to write this instance without using internals.
 -- This is good-enough for now.
-instance (Eq k, Hashable k, GenValid k, GenValid v) =>
+instance (Eq k, Hashable k, GenValid k, Eq v, GenValid v) =>
          GenValid (HashMap k v) where
     genValid = HM.fromList <$> genValid
     shrinkValid hm = HM.fromList <$> shrinkValid (HM.toList hm)
