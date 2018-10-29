@@ -104,13 +104,13 @@ instance (Eq k, Hashable k, Validity k, Validity v) =>
                     mconcat
                         [ annotate bm "Bitmap"
                         , decorate "Array" $
-                          decorateList (zip [0 ..] $ A.toList a) $ \(ix, hm_) ->
+                          decorateList (zip [0 ..] $ A.toList a) $ \(ix, hm__) ->
                               mconcat
-                                  [ go s (bs + HM.bitsPerSubkey) hm_
+                                  [ go s (bs + HM.bitsPerSubkey) hm__
                                   , check
-                                        (not $ HM.null hm_)
+                                        (not $ HM.null hm__)
                                         "The sub HashMap is not empty"
-                                  , decorateList (HM.keys hm_) $ \k ->
+                                  , decorateList (HM.keys hm__) $ \k ->
                                         flip
                                             check
                                             "The hash, when masked with the current bitmask, of the key, produces the index in the array where the hashmap is found" $
@@ -129,13 +129,13 @@ instance (Eq k, Hashable k, Validity k, Validity v) =>
                     decorate "Full" $
                     mconcat
                         [ decorate "Array" $
-                          decorateList (zip [0 ..] $ A.toList a) $ \(ix, hm_) ->
+                          decorateList (zip [0 ..] $ A.toList a) $ \(ix, hm__) ->
                               mconcat
-                                  [ go s (bs + HM.bitsPerSubkey) hm_
+                                  [ go s (bs + HM.bitsPerSubkey) hm__
                                   , check
-                                        (not $ HM.null hm_)
+                                        (not $ HM.null hm__)
                                         "The sub HashMap is not empty"
-                                  , decorateList (HM.keys hm_) $ \k ->
+                                  , decorateList (HM.keys hm__) $ \k ->
                                         flip
                                             check
                                             "The hash, when masked with the current bitmask, of the key, produces the index in the array where the hashmap is found" $
