@@ -47,6 +47,7 @@ instance Hashable Key where
 pEq :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pEq xs = (M.fromList xs ==) `eq` (HM.fromList xs ==)
 
+#if MIN_VERSION_base(4,9,0)
 -- Caution: this is a rather weak test. Fortunately, the "Permutation"
 -- properties in the HashSet test suite should catch most of what this
 -- doesn't.
@@ -55,6 +56,7 @@ pEq2 xs ys = (x == y) === (x `eq2` y)
   where
     x = HM.fromList xs
     y = HM.fromList ys
+#endif
 
 pNeq :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pNeq xs = (M.fromList xs /=) `eq` (HM.fromList xs /=)
@@ -88,11 +90,13 @@ pOrd3 xs ys = case (compare x y, compare y x) of
     x = HM.fromList xs
     y = HM.fromList ys
 
+#if MIN_VERSION_base(4,9,0)
 pOrd4 :: [(Key, Int)] -> [(Key, Int)] -> Property
 pOrd4 xs ys = compare2 x y === compare x y
   where
     x = HM.fromList xs
     y = HM.fromList ys
+#endif
 
 pOrdEq :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pOrdEq xs ys = case (compare x y, x == y) of
@@ -397,11 +401,15 @@ tests =
       testGroup "instances"
       [ testProperty "==" pEq
       , testProperty "/=" pNeq
+#if MIN_VERSION_base(4,9,0)
       , testProperty "eq2 = (==)" pEq2
+#endif
       , testProperty "compare reflexive" pOrd1
       , testProperty "compare transitive" pOrd2
       , testProperty "compare antisymmetric" pOrd3
+#if MIN_VERSION_base(4,9,0)
       , testProperty "compare2 = compare" pOrd4
+#endif
       , testProperty "Ord => Eq" pOrdEq
       , testProperty "Read/Show" pReadShow
       , testProperty "Functor" pFunctor

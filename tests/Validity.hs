@@ -335,6 +335,8 @@ pNull = producesValidsOnValids (HM.null :: HM.HashMap Key Int -> Bool)
 pSize :: Property
 pSize = producesValidsOnValids (HM.size :: HM.HashMap Key Int -> Int)
 
+-- These four tests will ensure that `equal1`, etc do not segfault and succesfully
+-- evaluate to a `Bool` (or `Ordering`, respectively)
 pEqual1 :: Fun (Int, Int) Bool -> Property
 pEqual1 f =
     producesValidsOnValids2

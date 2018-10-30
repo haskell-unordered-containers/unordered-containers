@@ -15,7 +15,7 @@ import Test.QuickCheck (Arbitrary, Property, (==>), (===))
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 #if MIN_VERSION_base(4,9,0)
-import Data.Functor.Classes (eq1, compare1, eq2, compare2)
+import Data.Functor.Classes (eq1, compare1)
 #endif
 
 -- Key type that generates more hash collisions.
@@ -89,11 +89,13 @@ pPermutationEq xs = S.fromList x == S.fromList y
     x = L.map fst xs
     y = L.map fst . L.sortBy (comparing snd) $ xs
 
+#if MIN_VERSION_base(4,9,0)
 pPermutationEq1 :: [(Key, Int)] -> Bool
 pPermutationEq1 xs = S.fromList x `eq1` S.fromList y
   where
     x = L.map fst xs
     y = L.map fst . L.sortBy (comparing snd) $ xs
+#endif
 
 pPermutationOrd :: [(Key, Int)] -> Bool
 pPermutationOrd xs = (S.fromList x `compare` S.fromList y) == EQ
@@ -101,11 +103,13 @@ pPermutationOrd xs = (S.fromList x `compare` S.fromList y) == EQ
     x = L.map fst xs
     y = L.map fst . L.sortBy (comparing snd) $ xs
 
+#if MIN_VERSION_base(4,9,0)
 pPermutationOrd1 :: [(Key, Int)] -> Bool
 pPermutationOrd1 xs = (S.fromList x `compare1` S.fromList y) == EQ
   where
     x = L.map fst xs
     y = L.map fst . L.sortBy (comparing snd) $ xs
+#endif
 
 pHashable :: [Key] -> [Int] -> Int -> Property
 pHashable xs is salt =
@@ -193,9 +197,13 @@ tests =
       testGroup "instances"
       [ testProperty "==" pEq
       , testProperty "Permutation ==" pPermutationEq
+#if MIN_VERSION_base(4,9,0)
       , testProperty "Permutation eq1" pPermutationEq1
+#endif
       , testProperty "Permutation compare" pPermutationOrd
+#if MIN_VERSION_base(4,9,0)
       , testProperty "Permutation compare1" pPermutationOrd1
+#endif
       , testProperty "/=" pNeq
       , testProperty "compare reflexive" pOrd1
       , testProperty "compare transitive" pOrd2
