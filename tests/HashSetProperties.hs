@@ -14,7 +14,9 @@ import Data.Ord (comparing)
 import Test.QuickCheck (Arbitrary, Property, (==>), (===))
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
-import Data.Functor.Classes (eq1, compare1)
+#if MIN_VERSION_base(4,9,0)
+import Data.Functor.Classes (eq1, compare1, eq2, compare2)
+#endif
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
