@@ -80,7 +80,7 @@ module Data.HashMap.Base
     , fromList
     , fromListWith
 
-      -- Internals used by the strict version
+      -- Internals used by the strict version or tests
     , Hash
     , Salt
     , Bitmap
@@ -119,6 +119,7 @@ module Data.HashMap.Base
     , unconsHM
     , ptrEq
     , adjust#
+    , isLeafOrCollision
     ) where
 
 #if __GLASGOW_HASKELL__ < 710
@@ -1846,10 +1847,12 @@ unconsA ary =
 
 data UnconsA k v
   = NowEmptyA !(Leaf k v)
-  | UnconsedFromFirstA -- Got an element out of the array, but leave the array.
+    -- Got an entry from the array without changing its length
+  | UnconsedFromFirstA
     !(Leaf k v) -- The leaf that was un-consed
     !(A.Array (HashMap k v)) -- The leftover array
-  | RemovedFirstA -- Got an element out of the array, and removed the array because it became empty.
+    -- Got an entry from the array, shortening it by one element.
+  | RemovedFirstA
     !(Leaf k v) -- The leaf that was un-consed
     !(A.Array (HashMap k v)) -- The leftover array
   deriving Show
@@ -1866,20 +1869,41 @@ unconsHM hm = case hm of
   Leaf _ l -> UnconsedHM l Empty
   BitmapIndexed bm ary' -> case unconsA ary' of
     NowEmptyA l -> UnconsedHM l Empty
-    UnconsedFromFirstA l a' -> UnconsedHM l (BitmapIndexed bm a')
-    RemovedFirstA l a' -> shortened l bm a'
+    UnconsedFromFirstA l a' -> UnconsedHM l (collapse_maybe bm a')
+    RemovedFirstA l a' -> UnconsedHM l (collapse_maybe (shorten_bm bm) a')
   Full ary' -> case unconsA ary' of
-    NowEmptyA l -> UnconsedHM l Empty
-    UnconsedFromFirstA l a' -> UnconsedHM l (Full a')
-    RemovedFirstA l a' -> shortened l fullNodeMask a'
+    NowEmptyA l ->
+       UnconsedHM l Empty
+    UnconsedFromFirstA l a' ->
+       UnconsedHM l (Full a')
+    RemovedFirstA l a' ->
+       UnconsedHM l $ BitmapIndexed (shorten_bm fullNodeMask) a'
   Collision h l1 l2 hm' -> UnconsedHM l1 $ case unconsHM hm' of
     UnconsEmptyHM -> Leaf h l2
     UnconsedHM l3 hm'' -> Collision h l2 l3 hm''
   where
-    -- The array was shortened, so we need to remove the first
-    -- element from the bitmap.
-    shortened l bm ar =
-      UnconsedHM l $ BitmapIndexed (bm .&. (bm - 1)) ar
+    -- When the array is shortened, we need to delete the
+    -- first element (the lowest set bit) from the bitmap.
+    shorten_bm bm = bm .&. (bm - 1)
+
+    -- We must never create a BitmapIndexed with exactly
+    -- one element whose sole element is a leaf or collision.
+    -- In such cases, we instead collapse a level, removing
+    -- the BitmapIndexed. This "smart constructor" takes care
+    -- of potential collapse.
+    --
+    -- Note: we *could* arrange to catch this condition earlier,
+    -- as delete' does, preventing the allocation of an unnecessary
+    -- one-element array. But to reach this code we must be dealing with a
+    -- collision bucket that has at least four elements. That puts us
+    -- well off the fast path already.
+    collapse_maybe bm ar
+      | popCount bm == 1  -- The array has exactly one element.
+      , let the_elem = A.index ar 0
+      , isLeafOrCollision the_elem
+      = the_elem
+      | otherwise
+      = BitmapIndexed bm ar
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops
