@@ -38,18 +38,17 @@ import Test.QuickCheck
     , Function
     , Gen
     , Property
-    , forAll
     , oneof
     , resize
     , sized
     )
 import Test.QuickCheck.Function (Fun, apply, applyFun2, applyFun3)
-import Test.Validity
+import Test.Validity.Functions
     ( producesValidsOnValids
     , producesValidsOnValids2
     , producesValidsOnValids3
-    , shouldBeValid
     )
+import Test.Validity.GenValidity.Property (genGeneratesValid)
 
 instance (Validity k, Validity v) => Validity (Leaf k v) where
     validate (L k v) = mconcat [annotate k "key", annotate v "value"]
@@ -101,7 +100,7 @@ instance (Eq k, Hashable k, Validity k, Validity v) =>
                                         flip
                                             check
                                             "The hash, when masked with the current bitmask, of the key, produces the index in the array where the hashmap is found" $
-                                         let h = HMB.hashWithSalt s k
+                                        let h = HMB.hashWithSalt s k
                                          in HMB.sparseIndex bm (HMB.mask h bs) ==
                                             ix
                                   ]
@@ -115,9 +114,10 @@ instance (Eq k, Hashable k, Validity k, Validity v) =>
                               (A.length a >= 1)
                               "The array has at least one element."
                         , check
-                              (A.length a > 1 || not (HMB.isLeafOrCollision (A.index a 0))) $
-                              "If the array has only one element, then that element is" ++
-                              "not a leaf or collision."
+                              (A.length a > 1 ||
+                               not (HMB.isLeafOrCollision (A.index a 0))) $
+                          "If the array has only one element, then that element is" ++
+                          "not a leaf or collision."
                         ]
                 (Full a) ->
                     decorate "Full" $
@@ -133,7 +133,7 @@ instance (Eq k, Hashable k, Validity k, Validity v) =>
                                         flip
                                             check
                                             "The hash, when masked with the current bitmask, of the key, produces the index in the array where the hashmap is found" $
-                                         let h = HMB.hashWithSalt s k
+                                        let h = HMB.hashWithSalt s k
                                          in HMB.index h bs == ix
                                   ]
                         , check
@@ -495,89 +495,89 @@ pUnconsHM =
 -- * Test list
 tests :: [Test]
 tests =
-    let genValidHelper gen = forAll gen shouldBeValid
+    let genValidHelper gen = genGeneratesValid gen (const [])
     -- Basic interface
-    in [ testGroup
-             "HashMap"
-             [ testProperty "genValid generates valid values for Leaf" $
-               genValidHelper (genValid :: Gen (Leaf Key Int))
-             , testProperty "genValid generates valid values for Array" $
-               genValidHelper (genValid :: Gen (A.Array Key))
-             , testProperty "genValid generates valid values for HashMap" $
-               genValidHelper (genValid :: Gen (HashMap Key Int))
-             ]
-       , testGroup
-             "HashMap"
-             [ testProperty "singleton produces valid HashMaps" pSingleton
-             , testProperty "null produces valid Bools" pNull
-             , testProperty "size produces valid HashMaps" pSize
-             , testProperty "equal1 produce valid Bools" pEqual1
-             , testProperty "equal2 produce valid Bools" pEqual2
-             , testProperty "cmp1 produce valid Orderings" pCmp1
-             , testProperty "cmp2 produce valid Orderings" pCmp2
-             , testProperty "member produces valid HashMaps" pMember
-             , testProperty "lookup produces valid HashMaps" pLookup
-             , testProperty
-                   "lookupDefault produces valid HashMaps"
-                   pLookupDefault
-             , testProperty "insert produces valid HashMaps" pInsert
-             , testProperty "insertWith produces valid HashMaps" pInsertWith
-             , testProperty "delete produces valid HashMaps" pDelete
-             , testProperty "adjust produces valid HashMaps" pAdjust
-             , testProperty "update produces valid HashMaps" pUpdate
-             , testProperty "alter produces valid HashMaps" pAlter
-             , testProperty "alterF produces valid HashMaps" pAlterF
-             , testProperty "union produces valid HashMaps" pUnion
-             , testProperty "unionWith produces valid HashMaps" pUnionWith
-             , testProperty
-                   "unionWithKey produces valid HashMaps"
-                   pUnionWithKey
-             , testProperty "unions produces valid HashMaps" pUnions
-             , testProperty "map produces valid HashMaps" pMap
-             , testProperty "mapWithKey produces valid HashMaps" pMapWithKey
-             , testProperty
-                   "traverseWithKey produces valid HashMaps"
-                   pTraverseWithKey
-             , testProperty "difference produces valid HashMaps" pDifference
-             , testProperty
-                   "differenceWith produces valid HashMaps"
-                   pDifferenceWith
-             , testProperty
-                   "intersection produces valid HashMaps"
-                   pIntersection
-             , testProperty
-                   "intersectionWith produces valid HashMaps"
-                   pIntersectionWith
-             , testProperty
-                   "intersectionWithKey produces valid HashMaps"
-                   pIntersectionWithKey
-             , testProperty "foldl' produces valid HashMaps" pFoldl'
-             , testProperty
-                   "foldlWithKey' produces valid HashMaps"
-                   pFoldlWithKey'
-             , testProperty "foldr produces valid HashMaps" pFoldr
-             , testProperty
-                   "foldrWithKey produces valid HashMaps"
-                   pFoldrWithKey
-             , testProperty "filter produces valid HashMaps" pFilter
-             , testProperty
-                   "filterWithKey produces valid HashMaps"
-                   pFilterWithKey
-             , testProperty "mapMaybe produces valid HashMaps" pMapMaybe
-             , testProperty
-                   "mapMaybeWithKey produces valid HashMaps"
-                   pMapMaybeWithKey
-             , testProperty "keys produces valid lists" pKeys
-             , testProperty "elems produces valid lists" pElems
-             , testProperty "toList produces valid lists" pToList
-             , testProperty "fromList produces valid HashMaps" pFromList
-             , testProperty
-                   "fromListWith produces valid HashMaps"
-                   pFromListWith
-             , testProperty "unconsHM produces valid HashMaps" pUnconsHM
-             , testProperty "keysSet produces valid HashSets" pKeysSet
-             ]
-       ]
+     in [ testGroup
+              "HashMap"
+              [ testProperty "genValid generates valid values for Leaf" $
+                genValidHelper (genValid :: Gen (Leaf Key Int))
+              , testProperty "genValid generates valid values for Array" $
+                genValidHelper (genValid :: Gen (A.Array Key))
+              , testProperty "genValid generates valid values for HashMap" $
+                genValidHelper (genValid :: Gen (HashMap Key Int))
+              ]
+        , testGroup
+              "HashMap"
+              [ testProperty "singleton produces valid HashMaps" pSingleton
+              , testProperty "null produces valid Bools" pNull
+              , testProperty "size produces valid HashMaps" pSize
+              , testProperty "equal1 produce valid Bools" pEqual1
+              , testProperty "equal2 produce valid Bools" pEqual2
+              , testProperty "cmp1 produce valid Orderings" pCmp1
+              , testProperty "cmp2 produce valid Orderings" pCmp2
+              , testProperty "member produces valid HashMaps" pMember
+              , testProperty "lookup produces valid HashMaps" pLookup
+              , testProperty
+                    "lookupDefault produces valid HashMaps"
+                    pLookupDefault
+              , testProperty "insert produces valid HashMaps" pInsert
+              , testProperty "insertWith produces valid HashMaps" pInsertWith
+              , testProperty "delete produces valid HashMaps" pDelete
+              , testProperty "adjust produces valid HashMaps" pAdjust
+              , testProperty "update produces valid HashMaps" pUpdate
+              , testProperty "alter produces valid HashMaps" pAlter
+              , testProperty "alterF produces valid HashMaps" pAlterF
+              , testProperty "union produces valid HashMaps" pUnion
+              , testProperty "unionWith produces valid HashMaps" pUnionWith
+              , testProperty
+                    "unionWithKey produces valid HashMaps"
+                    pUnionWithKey
+              , testProperty "unions produces valid HashMaps" pUnions
+              , testProperty "map produces valid HashMaps" pMap
+              , testProperty "mapWithKey produces valid HashMaps" pMapWithKey
+              , testProperty
+                    "traverseWithKey produces valid HashMaps"
+                    pTraverseWithKey
+              , testProperty "difference produces valid HashMaps" pDifference
+              , testProperty
+                    "differenceWith produces valid HashMaps"
+                    pDifferenceWith
+              , testProperty
+                    "intersection produces valid HashMaps"
+                    pIntersection
+              , testProperty
+                    "intersectionWith produces valid HashMaps"
+                    pIntersectionWith
+              , testProperty
+                    "intersectionWithKey produces valid HashMaps"
+                    pIntersectionWithKey
+              , testProperty "foldl' produces valid HashMaps" pFoldl'
+              , testProperty
+                    "foldlWithKey' produces valid HashMaps"
+                    pFoldlWithKey'
+              , testProperty "foldr produces valid HashMaps" pFoldr
+              , testProperty
+                    "foldrWithKey produces valid HashMaps"
+                    pFoldrWithKey
+              , testProperty "filter produces valid HashMaps" pFilter
+              , testProperty
+                    "filterWithKey produces valid HashMaps"
+                    pFilterWithKey
+              , testProperty "mapMaybe produces valid HashMaps" pMapMaybe
+              , testProperty
+                    "mapMaybeWithKey produces valid HashMaps"
+                    pMapMaybeWithKey
+              , testProperty "keys produces valid lists" pKeys
+              , testProperty "elems produces valid lists" pElems
+              , testProperty "toList produces valid lists" pToList
+              , testProperty "fromList produces valid HashMaps" pFromList
+              , testProperty
+                    "fromListWith produces valid HashMaps"
+                    pFromListWith
+              , testProperty "unconsHM produces valid HashMaps" pUnconsHM
+              , testProperty "keysSet produces valid HashSets" pKeysSet
+              ]
+        ]
 
 main :: IO ()
 main = defaultMain tests
