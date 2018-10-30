@@ -82,6 +82,8 @@ functionIntegral = functionMap fromIntegral fromInteger
 
 instance Function Word where
     function = functionIntegral
+#else
+import Test.QuickCheck.Function (applyFun2, applyFun3, functionIntegral)
 #endif
 instance (Validity k, Validity v) => Validity (Leaf k v) where
     validate (L k v) = mconcat [annotate k "key", annotate v "value"]
