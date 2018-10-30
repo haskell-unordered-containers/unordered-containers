@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -11,7 +12,12 @@ module Main
     ) where
 
 import GHC.Generics (Generic)
-
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative (Applicative(pure), (<$>), (<*>))
+import Data.Monoid (Monoid(mappend, mempty))
+import Data.Traversable (Traversable(..))
+import Data.Word (Word)
+#endif
 import Data.Bits (popCount)
 import Data.Functor
 import Data.Hashable (Hashable(hashWithSalt))
@@ -35,21 +41,48 @@ import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck
     ( Arbitrary
     , CoArbitrary
-    , Function
     , Gen
     , Property
     , oneof
     , resize
     , sized
     )
-import Test.QuickCheck.Function (Fun, apply, applyFun2, applyFun3)
+import Test.QuickCheck.Function
+    ( (:->)
+    , Fun(..)
+    , Function(..)
+    , apply
+    , functionMap
+    )
 import Test.Validity.Functions
     ( producesValidsOnValids
     , producesValidsOnValids2
     , producesValidsOnValids3
     )
 import Test.Validity.GenValidity.Property (genGeneratesValid)
+#if !MIN_VERSION_QuickCheck(2,10,0)
+-- | Extracts the value of a binary function.
+--
+-- 'Fn2' is the pattern equivalent of this function.
+--
+--  > prop_zipWith :: Fun (Int, Bool) Char -> [Int] -> [Bool] -> Bool
+--  > prop_zipWith f xs ys = zipWith (applyFun2 f) xs ys == [ applyFun2 f x y | (x, y) <- zip xs ys]
+--
+applyFun2 :: Fun (a, b) c -> (a -> b -> c)
+applyFun2 (Fun _ f) a b = f (a, b)
 
+-- | Extracts the value of a ternary function. 'Fn3' is the
+-- pattern equivalent of this function.
+applyFun3 :: Fun (a, b, c) d -> (a -> b -> c -> d)
+applyFun3 (Fun _ f) a b c = f (a, b, c)
+
+-- | Provides a 'Function' instance for types with 'Integral'.
+functionIntegral :: Integral a => (a -> b) -> (a :-> b)
+functionIntegral = functionMap fromIntegral fromInteger
+
+instance Function Word where
+    function = functionIntegral
+#endif
 instance (Validity k, Validity v) => Validity (Leaf k v) where
     validate (L k v) = mconcat [annotate k "key", annotate v "value"]
 
@@ -277,13 +310,18 @@ newtype Key = K
                , Ord
                , Read
                , Show
+               , Integral
+               , Real
+               , Num
+               , Enum
                , Generic
                )
 
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
 
-instance Function Key
+instance Function Key where
+    function = functionIntegral
 
 pSingleton :: Property
 pSingleton =

@@ -123,7 +123,7 @@ module Data.HashMap.Base
     ) where
 
 #if __GLASGOW_HASKELL__ < 710
-import Control.Applicative ((<$>), Applicative(pure))
+import Control.Applicative ((<$>), (<*>), Applicative(pure))
 import Data.Monoid (Monoid(mempty, mappend))
 import Data.Traversable (Traversable(..))
 import Data.Word (Word)
@@ -329,7 +329,7 @@ equal2 eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
       = go tl1 tl2
     go (Collision h1 (L k11 v11) (L k12 v12) hm1 : tl1) (Collision h2 (L k21 v21) (L k22 v22) hm2 : tl2)
       | h1 == h2 &&
-        (length hm1 == length hm2) &&
+        (size hm1 == size hm2) &&
         isPermutationBy (\(k1, v1) (k2, v2) -> eqk k1 k2 && eqv v1 v2)
           ((k11, v11) : (k12, v12) : toList hm1)
           ((k21, v21) : (k22, v22) : toList hm2)
@@ -365,7 +365,7 @@ cmp1 cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
         go tl1 tl2
     go (Collision h1 (L k11 v11) (L k12 v12) hm1 : tl1) (Collision h2 (L k21 v21) (L k22 v22) hm2 : tl2)
       = compare h1 h2 `mappend`
-        compare (length hm1) (length hm2) `mappend`
+        compare (size hm1) (size hm2) `mappend`
         liftCompareList pairCompare
           -- We don't use sortOn because fst is cheap.
           (L.sortBy (compare `on` fst) $
@@ -400,7 +400,7 @@ cmp2 cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
         go tl1 tl2
     go (Collision h1 (L k11 v11) (L k12 v12) hm1 : tl1) (Collision h2 (L k21 v21) (L k22 v22) hm2 : tl2)
       = compare h1 h2 `mappend`
-        compare (length hm1) (length hm2) `mappend`
+        compare (size hm1) (size hm2) `mappend`
         unorderedCompare (\(k1, v1) (k2, v2) -> (k1 `cmpk` k2) `mappend` (v1 `cmpv` v2))
           ((k11, v11) : (k12, v12) : toList hm1)
           ((k21, v21) : (k22, v22) : toList hm2) `mappend`
@@ -423,7 +423,7 @@ equalKeys1 eq t1 t2 = go (toList' t1 []) (toList' t2 [])
       = go tl1 tl2
     go (Collision h1 (L k11 _) (L k12 _) hm1 : tl1) (Collision h2 (L k21 _) (L k22 _) hm2 : tl2)
       | h1 == h2 &&
-        (length hm1 == length hm2) &&
+        (size hm1 == size hm2) &&
         isPermutationBy eq
           (k11 : k12 : keys hm1)
           (k21 : k22 : keys hm2)
