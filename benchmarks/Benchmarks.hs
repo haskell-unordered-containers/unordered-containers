@@ -6,6 +6,7 @@ import Control.DeepSeq
 import Control.DeepSeq.Generics (genericRnf)
 import Criterion.Main (bench, bgroup, defaultMain, env, nf, whnf)
 import Data.Bits ((.&.))
+import Data.Functor.Identity
 import Data.Hashable (Hashable)
 import qualified Data.ByteString as BS
 import qualified "hashmap" Data.HashMap as IHM
@@ -227,6 +228,46 @@ main = do
             , bench "ByteString" $ whnf (delete keysBS') hmbs
             , bench "Int" $ whnf (delete keysI') hmi
             ]
+          , bgroup "alterInsert"
+            [ bench "String" $ whnf (alterInsert elems) HM.empty
+            , bench "ByteString" $ whnf (alterInsert elemsBS) HM.empty
+            , bench "Int" $ whnf (alterInsert elemsI) HM.empty
+            ]
+          , bgroup "alterFInsert"
+            [ bench "String" $ whnf (alterFInsert elems) HM.empty
+            , bench "ByteString" $ whnf (alterFInsert elemsBS) HM.empty
+            , bench "Int" $ whnf (alterFInsert elemsI) HM.empty
+            ]
+          , bgroup "alterInsert-dup"
+            [ bench "String" $ whnf (alterInsert elems) hm
+            , bench "ByteString" $ whnf (alterInsert elemsBS) hmbs
+            , bench "Int" $ whnf (alterInsert elemsI) hmi
+            ]
+          , bgroup "alterFInsert-dup"
+            [ bench "String" $ whnf (alterFInsert elems) hm
+            , bench "ByteString" $ whnf (alterFInsert elemsBS) hmbs
+            , bench "Int" $ whnf (alterFInsert elemsI) hmi
+            ]
+          , bgroup "alterDelete"
+            [ bench "String" $ whnf (alterDelete keys) hm
+            , bench "ByteString" $ whnf (alterDelete keysBS) hmbs
+            , bench "Int" $ whnf (alterDelete keysI) hmi
+            ]
+          , bgroup "alterFDelete"
+            [ bench "String" $ whnf (alterFDelete keys) hm
+            , bench "ByteString" $ whnf (alterFDelete keysBS) hmbs
+            , bench "Int" $ whnf (alterFDelete keysI) hmi
+            ]
+          , bgroup "alterDelete-miss"
+            [ bench "String" $ whnf (alterDelete keys') hm
+            , bench "ByteString" $ whnf (alterDelete keysBS') hmbs
+            , bench "Int" $ whnf (alterDelete keysI') hmi
+            ]
+          , bgroup "alterFDelete-miss"
+            [ bench "String" $ whnf (alterFDelete keys') hm
+            , bench "ByteString" $ whnf (alterFDelete keysBS') hmbs
+            , bench "Int" $ whnf (alterFDelete keysI') hmi
+            ]
 
             -- Combine
           , bench "union" $ whnf (HM.union hmi) hmi2
@@ -309,6 +350,50 @@ delete xs m0 = foldl' (\m k -> HM.delete k m) m0 xs
                       -> HM.HashMap String Int #-}
 {-# SPECIALIZE delete :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
                       -> HM.HashMap BS.ByteString Int #-}
+
+alterInsert :: (Eq k, Hashable k) => [(k, Int)] -> HM.HashMap k Int
+             -> HM.HashMap k Int
+alterInsert xs m0 =
+  foldl' (\m (k, v) -> HM.alter (const . Just $ v) k m) m0 xs
+{-# SPECIALIZE alterInsert :: [(Int, Int)] -> HM.HashMap Int Int
+                           -> HM.HashMap Int Int #-}
+{-# SPECIALIZE alterInsert :: [(String, Int)] -> HM.HashMap String Int
+                           -> HM.HashMap String Int #-}
+{-# SPECIALIZE alterInsert :: [(BS.ByteString, Int)] -> HM.HashMap BS.ByteString Int
+                           -> HM.HashMap BS.ByteString Int #-}
+
+alterDelete :: (Eq k, Hashable k) => [k] -> HM.HashMap k Int
+             -> HM.HashMap k Int
+alterDelete xs m0 =
+  foldl' (\m k -> HM.alter (const Nothing) k m) m0 xs
+{-# SPECIALIZE alterDelete :: [Int] -> HM.HashMap Int Int
+                           -> HM.HashMap Int Int #-}
+{-# SPECIALIZE alterDelete :: [String] -> HM.HashMap String Int
+                           -> HM.HashMap String Int #-}
+{-# SPECIALIZE alterDelete :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
+                           -> HM.HashMap BS.ByteString Int #-}
+
+alterFInsert :: (Eq k, Hashable k) => [(k, Int)] -> HM.HashMap k Int
+             -> HM.HashMap k Int
+alterFInsert xs m0 =
+  foldl' (\m (k, v) -> runIdentity $ HM.alterF (const . Identity . Just $ v) k m) m0 xs
+{-# SPECIALIZE alterFInsert :: [(Int, Int)] -> HM.HashMap Int Int
+                            -> HM.HashMap Int Int #-}
+{-# SPECIALIZE alterFInsert :: [(String, Int)] -> HM.HashMap String Int
+                            -> HM.HashMap String Int #-}
+{-# SPECIALIZE alterFInsert :: [(BS.ByteString, Int)] -> HM.HashMap BS.ByteString Int
+                            -> HM.HashMap BS.ByteString Int #-}
+
+alterFDelete :: (Eq k, Hashable k) => [k] -> HM.HashMap k Int
+             -> HM.HashMap k Int
+alterFDelete xs m0 =
+  foldl' (\m k -> runIdentity $ HM.alterF (const . Identity $ Nothing) k m) m0 xs
+{-# SPECIALIZE alterFDelete :: [Int] -> HM.HashMap Int Int
+                            -> HM.HashMap Int Int #-}
+{-# SPECIALIZE alterFDelete :: [String] -> HM.HashMap String Int
+                            -> HM.HashMap String Int #-}
+{-# SPECIALIZE alterFDelete :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
+                            -> HM.HashMap BS.ByteString Int #-}
 
 ------------------------------------------------------------------------
 -- * Map
