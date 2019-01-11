@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, MagicHash, Rank2Types, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, CPP, MagicHash, Rank2Types, UnboxedTuples, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 
 -- | Zero based arrays.
@@ -22,15 +22,19 @@ module Data.HashMap.Array
     , write
     , index
     , indexM
+    , index#
     , update
     , updateWith'
     , unsafeUpdateM
     , insert
     , insertM
     , delete
+    , sameArray1
+    , trim
 
     , unsafeFreeze
     , unsafeThaw
+    , unsafeSameArray
     , run
     , run2
     , copy
@@ -44,17 +48,19 @@ module Data.HashMap.Array
     , map
     , map'
     , traverse
-    , filter
+    , traverse'
     , toList
+    , fromList
     ) where
 
-import qualified Data.Traversable as Traversable
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative (Applicative)
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative (Applicative (..), (<$>))
 #endif
+import Control.Applicative (liftA2)
 import Control.DeepSeq
-import GHC.Exts(Int(..))
+import GHC.Exts(Int(..), Int#, reallyUnsafePtrEquality#, tagToEnum#, unsafeCoerce#, State#)
 import GHC.ST (ST(..))
+import Control.Monad.ST (stToIO)
 
 #if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding (filter, foldr, length, map, read, traverse)
@@ -66,13 +72,13 @@ import Prelude hiding (filter, foldr, length, map, read)
 import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
                  indexSmallArray#, unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                  SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
-                 sizeofSmallMutableArray#, copySmallMutableArray#)
+                 sizeofSmallMutableArray#, copySmallMutableArray#, cloneSmallMutableArray#)
 
 #else
 import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
                  indexArray#, unsafeFreezeArray#, unsafeThawArray#,
                  MutableArray#, sizeofArray#, copyArray#, thawArray#,
-                 sizeofMutableArray#, copyMutableArray#)
+                 sizeofMutableArray#, copyMutableArray#, cloneMutableArray#)
 #endif
 
 #if defined(ASSERTS)
@@ -80,22 +86,71 @@ import qualified Prelude
 #endif
 
 import Data.HashMap.Unsafe (runST)
+import Control.Monad ((>=>))
 
 
 #if __GLASGOW_HASKELL__ >= 710
 type Array# a = SmallArray# a
 type MutableArray# a = SmallMutableArray# a
 
+newArray# :: Int# -> a -> State# d -> (# State# d, SmallMutableArray# d a #)
 newArray# = newSmallArray#
-readArray# = readSmallArray#
-writeArray# = writeSmallArray#
-indexArray# = indexSmallArray#
+
+unsafeFreezeArray# :: SmallMutableArray# d a
+                   -> State# d -> (# State# d, SmallArray# a #)
 unsafeFreezeArray# = unsafeFreezeSmallArray#
+
+readArray# :: SmallMutableArray# d a
+           -> Int# -> State# d -> (# State# d, a #)
+readArray# = readSmallArray#
+
+writeArray# :: SmallMutableArray# d a
+            -> Int# -> a -> State# d -> State# d
+writeArray# = writeSmallArray#
+
+indexArray# :: SmallArray# a -> Int# -> (# a #)
+indexArray# = indexSmallArray#
+
+unsafeThawArray# :: SmallArray# a
+                 -> State# d -> (# State# d, SmallMutableArray# d a #)
 unsafeThawArray# = unsafeThawSmallArray#
+
+sizeofArray# :: SmallArray# a -> Int#
 sizeofArray# = sizeofSmallArray#
+
+copyArray# :: SmallArray# a
+           -> Int#
+           -> SmallMutableArray# d a
+           -> Int#
+           -> Int#
+           -> State# d
+           -> State# d
 copyArray# = copySmallArray#
+
+cloneMutableArray# :: SmallMutableArray# s a
+                   -> Int#
+                   -> Int#
+                   -> State# s
+                   -> (# State# s, SmallMutableArray# s a #)
+cloneMutableArray# = cloneSmallMutableArray#
+
+thawArray# :: SmallArray# a
+           -> Int#
+           -> Int#
+           -> State# d
+           -> (# State# d, SmallMutableArray# d a #)
 thawArray# = thawSmallArray#
+
+sizeofMutableArray# :: SmallMutableArray# s a -> Int#
 sizeofMutableArray# = sizeofSmallMutableArray#
+
+copyMutableArray# :: SmallMutableArray# d a
+                  -> Int#
+                  -> SmallMutableArray# d a
+                  -> Int#
+                  -> Int#
+                  -> State# d
+                  -> State# d
 copyMutableArray# = copySmallMutableArray#
 #endif
 
@@ -125,6 +180,27 @@ data Array a = Array {
 
 instance Show a => Show (Array a) where
     show = show . toList
+
+-- Determines whether two arrays have the same memory address.
+-- This is more reliable than testing pointer equality on the
+-- Array wrappers, but it's still slightly bogus.
+unsafeSameArray :: Array a -> Array b -> Bool
+unsafeSameArray (Array xs) (Array ys) =
+  tagToEnum# (unsafeCoerce# reallyUnsafePtrEquality# xs ys)
+
+sameArray1 :: (a -> b -> Bool) -> Array a -> Array b -> Bool
+sameArray1 eq !xs0 !ys0
+  | lenxs /= lenys = False
+  | otherwise = go 0 xs0 ys0
+  where
+    go !k !xs !ys
+      | k == lenxs = True
+      | (# x #) <- index# xs k
+      , (# y #) <- index# ys k
+      = eq x y && go (k + 1) xs ys
+
+    !lenxs = length xs0
+    !lenys = length ys0
 
 length :: Array a -> Int
 length ary = I# (sizeofArray# (unArray ary))
@@ -159,7 +235,10 @@ rnfArray ary0 = go ary0 n0 0
     n0 = length ary0
     go !ary !n !i
         | i >= n = ()
-        | otherwise = rnf (index ary i) `seq` go ary n (i+1)
+        | (# x #) <- index# ary i
+        = rnf x `seq` go ary n (i+1)
+-- We use index# just in case GHC can't see that the
+-- relevant rnf is strict, or in case it actually isn't.
 {-# INLINE rnfArray #-}
 
 -- | Create a new mutable array of specified size, in the specified
@@ -210,6 +289,12 @@ index ary _i@(I# i#) =
         case indexArray# (unArray ary) i# of (# b #) -> b
 {-# INLINE index #-}
 
+index# :: Array a -> Int -> (# a #)
+index# ary _i@(I# i#) =
+    CHECK_BOUNDS("index#", length ary, _i)
+        indexArray# (unArray ary) i#
+{-# INLINE index# #-}
+
 indexM :: Array a -> Int -> ST s a
 indexM ary _i@(I# i#) =
     CHECK_BOUNDS("indexM", length ary, _i)
@@ -256,6 +341,19 @@ copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
     case copyMutableArray# (unMArray src) sidx# (unMArray dst) didx# n# s# of
         s2 -> (# s2, () #)
 
+cloneM :: MArray s a -> Int -> Int -> ST s (MArray s a)
+cloneM _mary@(MArray mary#) _off@(I# off#) _len@(I# len#) =
+    CHECK_BOUNDS("cloneM_off", lengthM _mary, _off - 1)
+    CHECK_BOUNDS("cloneM_end", lengthM _mary, _off + _len - 1)
+    ST $ \ s ->
+    case cloneMutableArray# mary# off# len# s of
+      (# s', mary'# #) -> (# s', MArray mary'# #)
+
+-- | Create a new array of the @n@ first elements of @mary@.
+trim :: MArray s a -> Int -> ST s (Array a)
+trim mary n = cloneM mary 0 n >>= unsafeFreeze
+{-# INLINE trim #-}
+
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
 insert :: Array e -> Int -> e -> Array e
@@ -294,7 +392,9 @@ updateM ary idx b =
 -- applying a function to it.  Evaluates the element to WHNF before
 -- inserting it into the array.
 updateWith' :: Array e -> Int -> (e -> e) -> Array e
-updateWith' ary idx f = update ary idx $! f (index ary idx)
+updateWith' ary idx f
+  | (# x #) <- index# ary idx
+  = update ary idx $! f x
 {-# INLINE updateWith' #-}
 
 -- | /O(1)/ Update the element at the given position in this array,
@@ -312,16 +412,20 @@ foldl' :: (b -> a -> b) -> b -> Array a -> b
 foldl' f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
   where
     go ary n i !z
-        | i >= n    = z
-        | otherwise = go ary n (i+1) (f z (index ary i))
+        | i >= n = z
+        | otherwise
+        = case index# ary i of
+            (# x #) -> go ary n (i+1) (f z x)
 {-# INLINE foldl' #-}
 
 foldr :: (a -> b -> b) -> b -> Array a -> b
 foldr f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
   where
     go ary n i z
-        | i >= n    = z
-        | otherwise = f (index ary i) (go ary n (i+1) z)
+        | i >= n = z
+        | otherwise
+        = case index# ary i of
+            (# x #) -> f x (go ary n (i+1) z)
 {-# INLINE foldr #-}
 
 undefinedElem :: a
@@ -363,7 +467,8 @@ map f = \ ary ->
     go ary mary i n
         | i >= n    = return mary
         | otherwise = do
-             write mary i $ f (index ary i)
+             x <- indexM ary i
+             write mary i $ f x
              go ary mary (i+1) n
 {-# INLINE map #-}
 
@@ -378,7 +483,8 @@ map' f = \ ary ->
     go ary mary i n
         | i >= n    = return mary
         | otherwise = do
-             write mary i $! f (index ary i)
+             x <- indexM ary i
+             write mary i $! f x
              go ary mary (i+1) n
 {-# INLINE map' #-}
 
@@ -396,25 +502,82 @@ fromList n xs0 =
 toList :: Array a -> [a]
 toList = foldr (:) []
 
-traverse :: Applicative f => (a -> f b) -> Array a -> f (Array b)
-traverse f = \ ary -> fromList (length ary) `fmap`
-                      Traversable.traverse f (toList ary)
-{-# INLINE traverse #-}
+newtype STA a = STA {_runSTA :: forall s. MutableArray# s a -> ST s (Array a)}
 
-filter :: (a -> Bool) -> Array a -> Array a
-filter p = \ ary ->
-    let !n = length ary
-    in run $ do
-        mary <- new_ n
-        go ary mary 0 0 n
-  where
-    go ary mary i j n
-        | i >= n    = if i == j
-                      then return mary
-                      else do mary2 <- new_ j
-                              copyM mary 0 mary2 0 j
-                              return mary2
-        | p el      = write mary j el >> go ary mary (i+1) (j+1) n
-        | otherwise = go ary mary (i+1) j n
-      where el = index ary i
-{-# INLINE filter #-}
+runSTA :: Int -> STA a -> Array a
+runSTA !n (STA m) = runST $ new_ n >>= \ (MArray ar) -> m ar
+
+traverse :: Applicative f => (a -> f b) -> Array a -> f (Array b)
+traverse f = \ !ary ->
+  let
+    !len = length ary
+    go !i
+      | i == len = pure $ STA $ \mary -> unsafeFreeze (MArray mary)
+      | (# x #) <- index# ary i
+      = liftA2 (\b (STA m) -> STA $ \mary ->
+                  write (MArray mary) i b >> m mary)
+               (f x) (go (i + 1))
+  in runSTA len <$> go 0
+{-# INLINE [1] traverse #-}
+
+-- TODO: Would it be better to just use a lazy traversal
+-- and then force the elements of the result? My guess is
+-- yes.
+traverse' :: Applicative f => (a -> f b) -> Array a -> f (Array b)
+traverse' f = \ !ary ->
+  let
+    !len = length ary
+    go !i
+      | i == len = pure $ STA $ \mary -> unsafeFreeze (MArray mary)
+      | (# x #) <- index# ary i
+      = liftA2 (\ !b (STA m) -> STA $ \mary ->
+                    write (MArray mary) i b >> m mary)
+               (f x) (go (i + 1))
+  in runSTA len <$> go 0
+{-# INLINE [1] traverse' #-}
+
+-- Traversing in ST, we don't need to get fancy; we
+-- can just do it directly.
+traverseST :: (a -> ST s b) -> Array a -> ST s (Array b)
+traverseST f = \ ary0 ->
+  let
+    !len = length ary0
+    go k !mary
+      | k == len = return mary
+      | otherwise = do
+          x <- indexM ary0 k
+          y <- f x
+          write mary k y
+          go (k + 1) mary
+  in new_ len >>= (go 0 >=> unsafeFreeze)
+{-# INLINE traverseST #-}
+
+traverseIO :: (a -> IO b) -> Array a -> IO (Array b)
+traverseIO f = \ ary0 ->
+  let
+    !len = length ary0
+    go k !mary
+      | k == len = return mary
+      | otherwise = do
+          x <- stToIO $ indexM ary0 k
+          y <- f x
+          stToIO $ write mary k y
+          go (k + 1) mary
+  in stToIO (new_ len) >>= (go 0 >=> stToIO . unsafeFreeze)
+{-# INLINE traverseIO #-}
+
+
+-- Why don't we have similar RULES for traverse'? The efficient
+-- way to traverse strictly in IO or ST is to force results as
+-- they come in, which leads to different semantics. In particular,
+-- we need to ensure that
+--
+--  traverse' (\x -> print x *> pure undefined) xs
+--
+-- will actually print all the values and then return undefined.
+-- We could add a strict mapMWithIndex, operating in an arbitrary
+-- Monad, that supported such rules, but we don't have that right now.
+{-# RULES
+"traverse/ST" forall f. traverse f = traverseST f
+"traverse/IO" forall f. traverse f = traverseIO f
+ #-}

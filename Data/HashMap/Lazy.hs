@@ -34,10 +34,10 @@ module Data.HashMap.Lazy
     , singleton
 
       -- * Basic interface
-    , HM.null
+    , null
     , size
     , member
-    , HM.lookup
+    , lookup
     , findWithDefault
     , lookupDefault
     , (!)
@@ -47,6 +47,7 @@ module Data.HashMap.Lazy
     , adjust
     , update
     , alter
+    , alterF
 
       -- * Combine
       -- ** Union
@@ -56,7 +57,7 @@ module Data.HashMap.Lazy
     , unions
 
       -- * Transformations
-    , HM.map
+    , map
     , mapWithKey
     , traverseWithKey
 
@@ -70,11 +71,11 @@ module Data.HashMap.Lazy
       -- * Folds
     , foldl'
     , foldlWithKey'
-    , HM.foldr
+    , foldr
     , foldrWithKey
 
       -- * Filter
-    , HM.filter
+    , filter
     , filterWithKey
     , mapMaybe
     , mapMaybeWithKey
@@ -87,9 +88,14 @@ module Data.HashMap.Lazy
     , toList
     , fromList
     , fromListWith
+
+      -- ** HashSets
+    , HS.keysSet
     ) where
 
 import Data.HashMap.Base as HM
+import qualified Data.HashSet.Base as HS
+import Prelude ()
 
 -- $strictness
 --
