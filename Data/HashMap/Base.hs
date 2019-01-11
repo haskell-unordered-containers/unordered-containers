@@ -617,7 +617,7 @@ lookupCont absent present !h0 !k0 !m0 = go h0 k0 0 m0
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
 --
--- @since 0.2.9
+-- @since 0.2.10
 findWithDefault :: (Eq k, Hashable k)
               => v          -- ^ Default value to return.
               -> k -> HashMap k v -> v
@@ -629,7 +629,9 @@ findWithDefault def k t = case lookup k t of
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
-{-# DEPRECATED lookupDefault "As of version 0.2.9, replaced by 'findWithDefault'." #-}
+--
+-- DEPRECATED: lookupDefault is deprecated as of version 0.2.10, replaced
+-- by 'findWithDefault'.
 lookupDefault :: (Eq k, Hashable k)
               => v          -- ^ Default value to return.
               -> k -> HashMap k v -> v
@@ -1543,7 +1545,7 @@ intersectionWithKey f a b = foldlWithKey' go empty a
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
--- is evaluated before using the result in the next application. 
+-- is evaluated before using the result in the next application.
 -- This function is strict in the starting value.
 foldl' :: (a -> v -> a) -> a -> HashMap k v -> a
 foldl' f = foldlWithKey' (\ z _ v -> f z v)
@@ -1552,7 +1554,7 @@ foldl' f = foldlWithKey' (\ z _ v -> f z v)
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
--- is evaluated before using the result in the next application.  
+-- is evaluated before using the result in the next application.
 -- This function is strict in the starting value.
 foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
 foldlWithKey' f = go
