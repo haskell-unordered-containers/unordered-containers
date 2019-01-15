@@ -423,7 +423,7 @@ foldlM' :: Monad m => (b -> a -> m b) -> b -> Array a -> m b
 foldlM' f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
   where
     go ary n i !z
-        | i >= n = pure z
+        | i >= n = return z
         | otherwise
         = case index# ary i of
             (# x #) -> do
