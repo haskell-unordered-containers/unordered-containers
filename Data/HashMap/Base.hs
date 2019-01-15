@@ -1556,7 +1556,7 @@ foldlWithKey' f = go
 foldlWithKeyM' :: Monad m => (a -> k -> v -> m a) -> a -> HashMap k v -> m a
 foldlWithKeyM' f = go
   where
-    go !z Empty                = pure z
+    go !z Empty                = return z
     go z (Leaf _ (L k v))      = f z k v
     go z (BitmapIndexed _ ary) = A.foldlM' go z ary
     go z (Full ary)            = A.foldlM' go z ary
