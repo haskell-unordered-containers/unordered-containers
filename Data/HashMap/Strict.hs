@@ -69,6 +69,7 @@ module Data.HashMap.Strict
       -- * Folds
     , foldl'
     , foldlWithKey'
+    , foldlWithKeyM'
     , foldr
     , foldrWithKey
 

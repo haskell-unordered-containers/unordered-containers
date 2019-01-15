@@ -70,6 +70,7 @@ module Data.HashMap.Lazy
       -- * Folds
     , foldl'
     , foldlWithKey'
+    , foldlWithKeyM'
     , foldr
     , foldrWithKey
 

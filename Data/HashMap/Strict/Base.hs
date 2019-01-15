@@ -71,6 +71,7 @@ module Data.HashMap.Strict.Base
       -- * Folds
     , foldl'
     , foldlWithKey'
+    , foldlWithKeyM' 
     , HM.foldr
     , foldrWithKey
 
