@@ -201,11 +201,12 @@ instance Foldable.Foldable (HashMap k) where
     {-# INLINE foldr #-}
     foldl' = Data.HashMap.Base.foldl'
     {-# INLINE foldl' #-}
+#if MIN_VERSION_base(4,8,0)
     null = Data.HashMap.Base.null
     {-# INLINE null #-}
     length = Data.HashMap.Base.size
     {-# INLINE length #-}
-
+#endif
 
 #if __GLASGOW_HASKELL__ >= 711
 instance (Eq k, Hashable k) => Semigroup (HashMap k v) where

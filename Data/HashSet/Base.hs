@@ -142,12 +142,14 @@ instance Foldable.Foldable HashSet where
     {-# INLINE foldr #-}
     foldl' = Data.HashSet.Base.foldl'
     {-# INLINE foldl' #-}
+#if MIN_VERSION_base(4,8,0)
     toList = Data.HashSet.Base.toList
     {-# INLINE toList #-}
     null = Data.HashSet.Base.null
     {-# INLINE null #-}
     length = Data.HashSet.Base.size
     {-# INLINE length #-}
+#endif
 
 #if __GLASGOW_HASKELL__ >= 711
 instance (Hashable a, Eq a) => Semigroup (HashSet a) where
