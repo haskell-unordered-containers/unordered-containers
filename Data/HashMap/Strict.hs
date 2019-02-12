@@ -69,10 +69,15 @@ module Data.HashMap.Strict
     , intersectionWithKey
 
       -- * Folds
-    , foldl'
-    , foldlWithKey'
+    , foldMapWithKey
     , foldr
+    , foldl
+    , foldr'
+    , foldl'
+    , foldrWithKey'
+    , foldlWithKey'
     , foldrWithKey
+    , foldlWithKey
 
       -- * Filter
     , filter

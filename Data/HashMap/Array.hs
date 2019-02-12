@@ -41,8 +41,11 @@ module Data.HashMap.Array
     , copyM
 
       -- * Folds
+    , foldl
     , foldl'
     , foldr
+    , foldr'
+    , foldMap
 
     , thaw
     , map
@@ -63,9 +66,9 @@ import GHC.ST (ST(..))
 import Control.Monad.ST (stToIO)
 
 #if __GLASGOW_HASKELL__ >= 709
-import Prelude hiding (filter, foldr, length, map, read, traverse)
+import Prelude hiding (filter, foldMap, foldr, foldl, length, map, read, traverse)
 #else
-import Prelude hiding (filter, foldr, length, map, read)
+import Prelude hiding (filter, foldr, foldl, length, map, read)
 #endif
 
 #if __GLASGOW_HASKELL__ >= 710
@@ -79,6 +82,7 @@ import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
                  indexArray#, unsafeFreezeArray#, unsafeThawArray#,
                  MutableArray#, sizeofArray#, copyArray#, thawArray#,
                  sizeofMutableArray#, copyMutableArray#, cloneMutableArray#)
+import Data.Monoid (Monoid (..))
 #endif
 
 #if defined(ASSERTS)
@@ -418,6 +422,15 @@ foldl' f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
             (# x #) -> go ary n (i+1) (f z x)
 {-# INLINE foldl' #-}
 
+foldr' :: (a -> b -> b) -> b -> Array a -> b
+foldr' f = \ z0 ary0 -> go ary0 (length ary0 - 1) z0
+  where
+    go !_ary (-1) z = z
+    go !ary i !z
+      | (# x #) <- index# ary i
+      = go ary (i - 1) (f x z)
+{-# INLINE foldr' #-}
+
 foldr :: (a -> b -> b) -> b -> Array a -> b
 foldr f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
   where
@@ -427,6 +440,41 @@ foldr f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
         = case index# ary i of
             (# x #) -> f x (go ary n (i+1) z)
 {-# INLINE foldr #-}
+
+foldl :: (b -> a -> b) -> b -> Array a -> b
+foldl f = \ z0 ary0 -> go ary0 (length ary0 - 1) z0
+  where
+    go _ary (-1) z = z
+    go ary i z
+      | (# x #) <- index# ary i
+      = f (go ary (i - 1) z) x
+{-# INLINE foldl #-}
+
+-- We go to a bit of trouble here to avoid appending an extra mempty.
+foldMap :: Monoid m => (a -> m) -> Array a -> m
+foldMap f = \ary0 ->
+  let len = length ary0
+  in if len == 0
+     then mempty
+     else go ary0 (len - 1) 0
+    where
+      go ary !lst i
+        | (# x #) <- index# ary i
+        , let fx = f x
+        = if i == lst
+          then fx
+          else fx `mappend` go ary lst (i + 1)
+
+{-
+     case index# ary0 lst of
+            (# xn #) -> go ary0 lst 0 (f xn)
+  where
+    go ary lst i z
+      | i == lst = z
+      | otherwise
+      = case index# ary i of
+          (# x #) -> f x `mappend` go ary lst (i + 1) z
+-}
 
 undefinedElem :: a
 undefinedElem = error "Data.HashMap.Array: Undefined element"

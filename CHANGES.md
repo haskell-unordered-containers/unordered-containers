@@ -1,6 +1,8 @@
 ## next
 
  * Add `HashMap.findWithDefault` (deprecates `HashMap.lookupDefault`)
+ 
+ * Add more folding functions and use them in `Foldable` instances.
 
  * Add `HashMap.!?`, a flipped version of `lookup`.
 
