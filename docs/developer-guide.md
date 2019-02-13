@@ -21,7 +21,7 @@ motivate its existance.
 
 ## A note on hash functions
 
-While the [hashable](http://hackage.haskell.org/package/containers) package is a
+While the [hashable](http://hackage.haskell.org/package/hashable) package is a
 separate package, it was co-designed with this package. Its main role is to
 support this package and not to provide good general purpose hash functions
 (e.g. to use when fingerprinting a text file).
