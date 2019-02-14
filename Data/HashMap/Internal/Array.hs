@@ -86,7 +86,7 @@ import GHC.Exts            (Int (..), SmallArray#, SmallMutableArray#,
                             cloneSmallMutableArray#, copySmallArray#,
                             copySmallMutableArray#, indexSmallArray#,
                             newSmallArray#, readSmallArray#,
-                            reallyUnsafePtrEquality#, sizeofSmallArray#,
+                            reallyUnsafePtrEquality#, runRW#, sizeofSmallArray#,
                             sizeofSmallMutableArray#, tagToEnum#,
                             thawSmallArray#, unsafeCoerce#,
                             unsafeFreezeSmallArray#, unsafeThawSmallArray#,
@@ -205,12 +205,16 @@ new_ :: Int -> ST s (MArray s a)
 new_ n = new n undefinedElem
 
 singleton :: a -> Array a
-singleton x = runST (singletonM x)
+singleton x = run (singletonMut x)
 {-# INLINE singleton #-}
 
 singletonM :: a -> ST s (Array a)
 singletonM x = new 1 x >>= unsafeFreeze
 {-# INLINE singletonM #-}
+
+singletonMut :: a -> ST s (MArray s a)
+singletonMut x = new 1 x
+{-# INLINE singletonMut #-}
 
 pair :: a -> a -> Array a
 pair x y = run $ do
@@ -263,7 +267,17 @@ unsafeThaw ary
 {-# INLINE unsafeThaw #-}
 
 run :: (forall s . ST s (MArray s e)) -> Array e
-run act = runST $ act >>= unsafeFreeze
+#if MIN_VERSION_base(4,9,0)
+-- GHC can't unbox across the runRW# boundary, so we apply the Array constructor
+-- on the outside.
+run (ST act) =
+  case runRW# $ \s ->
+    case act s of { (# s', MArray mary #) ->
+      unsafeFreezeSmallArray# mary s' } of
+    (# _, ary #) -> Array ary
+#else
+run act = runST (act >>= unsafeFreeze)
+#endif
 {-# INLINE run #-}
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
@@ -300,33 +314,37 @@ trim mary n = cloneM mary 0 n >>= unsafeFreeze
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
 insert :: Array e -> Int -> e -> Array e
-insert ary idx b = runST (insertM ary idx b)
+insert ary idx b = run (insertMut ary idx b)
 {-# INLINE insert #-}
 
 -- | /O(n)/ Insert an element at the given position in this array,
 -- increasing its size by one.
 insertM :: Array e -> Int -> e -> ST s (Array e)
-insertM ary idx b =
+insertM ary idx b = insertMut ary idx b >>= unsafeFreeze
+{-# INLINE insertM #-}
+
+insertMut :: Array e -> Int -> e -> ST s (MArray s e)
+insertMut ary idx b =
     CHECK_BOUNDS("insertM", count + 1, idx)
         do mary <- new (count+1) b
            copy ary 0 mary 0 idx
            copy ary idx mary (idx+1) (count-idx)
-           unsafeFreeze mary
+           return mary
   where !count = length ary
-{-# INLINE insertM #-}
+{-# INLINE insertMut #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
 update :: Array e -> Int -> e -> Array e
-update ary idx b = runST (updateM ary idx b)
+update ary idx b = run (updateM ary idx b)
 {-# INLINE update #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
-updateM :: Array e -> Int -> e -> ST s (Array e)
+updateM :: Array e -> Int -> e -> ST s (MArray s e)
 updateM ary idx b =
     CHECK_BOUNDS("updateM", count, idx)
         do mary <- thaw ary 0 count
            write mary idx b
-           unsafeFreeze mary
+           return mary
   where !count = length ary
 {-# INLINE updateM #-}
 
@@ -421,18 +439,18 @@ thaw !ary !_o@(I# o#) _n@(I# n#) =
 -- | /O(n)/ Delete an element at the given position in this array,
 -- decreasing its size by one.
 delete :: Array e -> Int -> Array e
-delete ary idx = runST (deleteM ary idx)
+delete ary idx = run (deleteM ary idx)
 {-# INLINE delete #-}
 
 -- | /O(n)/ Delete an element at the given position in this array,
 -- decreasing its size by one.
-deleteM :: Array e -> Int -> ST s (Array e)
+deleteM :: Array e -> Int -> ST s (MArray s e)
 deleteM ary idx = do
     CHECK_BOUNDS("deleteM", count, idx)
         do mary <- new_ (count-1)
            copy ary 0 mary 0 idx
            copy ary (idx+1) mary idx (count-(idx+1))
-           unsafeFreeze mary
+           return mary
   where !count = length ary
 {-# INLINE deleteM #-}
 

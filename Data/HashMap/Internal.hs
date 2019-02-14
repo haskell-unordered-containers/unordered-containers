@@ -120,7 +120,7 @@ module Data.HashMap.Internal
     , two
     , unionArrayBy
     , update32
-    , update32M
+    , update32Mut
     , update32With'
     , updateOrConcatWith
     , updateOrConcatWithKey
@@ -2224,16 +2224,16 @@ subsetArray cmpV ary1 ary2 = A.length ary1 <= A.length ary2 && A.all inAry2 ary1
 
 -- | /O(n)/ Update the element at the given position in this array.
 update32 :: A.Array e -> Int -> e -> A.Array e
-update32 ary idx b = runST (update32M ary idx b)
+update32 ary idx b = A.run (update32Mut ary idx b)
 {-# INLINE update32 #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
-update32M :: A.Array e -> Int -> e -> ST s (A.Array e)
-update32M ary idx b = do
+update32Mut :: A.Array e -> Int -> e -> ST s (A.MArray s e)
+update32Mut ary idx b = do
     mary <- clone ary
     A.write mary idx b
-    A.unsafeFreeze mary
-{-# INLINE update32M #-}
+    return mary
+{-# INLINE update32Mut #-}
 
 -- | /O(n)/ Update the element at the given position in this array, by applying a function to it.
 update32With' :: A.Array e -> Int -> (e -> e) -> A.Array e
