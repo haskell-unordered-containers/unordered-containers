@@ -286,6 +286,21 @@ instance Eq k => Eq1 (HashMap k) where
     liftEq = equal1
 #endif
 
+-- | Note that, in the presence of hash collisions, equal @HashMap@s may
+-- behave differently, i.e. substitutivity may be violated:
+--
+-- >>> data D = A | B deriving (Eq, Show)
+-- >>> instance Hashable D where hashWithSalt salt d = salt
+--
+-- >>> x = fromList [(A,1), (B,2)]
+-- >>> y = fromList [(B,2), (A,1)]
+--
+-- >>> x == y
+-- True
+-- >>> toList x
+-- [(A,1),(B,2)]
+-- >>> toList y
+-- [(B,2),(A,1)]
 instance (Eq k, Eq v) => Eq (HashMap k v) where
     (==) = equal1 (==)
 
