@@ -831,10 +831,10 @@ two = go
         | bp1 == bp2 = do
             st <- go (s+bitsPerSubkey) h1 k1 v1 h2 k2 v2
             ary <- A.singletonM st
-            return $! BitmapIndexed bp1 ary
+            return $ BitmapIndexed bp1 ary
         | otherwise  = do
-            mary <- A.new 2 $ Leaf h1 (L k1 v1)
-            A.write mary idx2 $ Leaf h2 (L k2 v2)
+            mary <- A.new 2 $! Leaf h1 (L k1 v1)
+            A.write mary idx2 $! Leaf h2 (L k2 v2)
             ary <- A.unsafeFreeze mary
             return $! BitmapIndexed (bp1 .|. bp2) ary
       where
