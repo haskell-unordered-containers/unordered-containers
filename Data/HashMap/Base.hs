@@ -826,6 +826,11 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 -- | Create a map from two key-value pairs which hashes don't collide. To
 -- enhance sharing, the second key-value pair is represented by the hash of its
 -- key and a singleton HashMap pairing its key with its value.
+--
+-- Note: to avoid silly thunks, this function must be strict in the
+-- key. See issue #232. We don't need to force the HashMap argument
+-- because it's already in WHNF (having just been matched) and we
+-- just put it directly in an array.
 two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
 two = go
   where
@@ -836,9 +841,9 @@ two = go
             return $ BitmapIndexed bp1 ary
         | otherwise  = do
             mary <- A.new 2 $! Leaf h1 (L k1 v1)
-            A.write mary idx2 $! t2
+            A.write mary idx2 t2
             ary <- A.unsafeFreeze mary
-            return $! BitmapIndexed (bp1 .|. bp2) ary
+            return $ BitmapIndexed (bp1 .|. bp2) ary
       where
         bp1  = mask h1 s
         bp2  = mask h2 s
