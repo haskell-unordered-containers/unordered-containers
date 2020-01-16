@@ -364,7 +364,7 @@ cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
     go [] [] = EQ
     go [] _  = LT
     go _  [] = GT
-    go _ _ = error "cmp: Should never happend, toList' includes non Leaf / Collision"
+    go _ _ = error "cmp: Should never happen, toList' includes non Leaf / Collision"
 
     leafCompare (L k v) (L k' v') = cmpk k k' `mappend` cmpv v v'
 
