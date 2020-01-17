@@ -23,7 +23,7 @@ executable unordered-containers-benchmarks
     base,
     bytestring,
     containers,
-    criterion,
+    gauge,
     deepseq,
     deepseq-generics,
     hashmap,
