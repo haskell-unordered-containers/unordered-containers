@@ -93,6 +93,7 @@ module Data.HashMap.Strict
     , toList
     , fromList
     , fromListWith
+    , fromListWithKey
 
       -- ** HashSets
     , HS.keysSet

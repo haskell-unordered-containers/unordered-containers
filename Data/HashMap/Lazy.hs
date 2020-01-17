@@ -94,6 +94,7 @@ module Data.HashMap.Lazy
     , toList
     , fromList
     , fromListWith
+    , fromListWithKey
 
       -- ** HashSets
     , HS.keysSet

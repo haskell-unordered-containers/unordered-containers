@@ -95,6 +95,7 @@ module Data.HashMap.Strict.Base
     , toList
     , fromList
     , fromListWith
+    , fromListWithKey
     ) where
 
 import Data.Bits ((.&.), (.|.))
@@ -109,7 +110,8 @@ import Prelude hiding (map, lookup)
 import qualified Data.HashMap.Array as A
 import qualified Data.HashMap.Base as HM
 import Data.HashMap.Base hiding (
-    alter, alterF, adjust, fromList, fromListWith, insert, insertWith,
+    alter, alterF, adjust, fromList, fromListWith, fromListWithKey,
+    insert, insertWith,
     differenceWith, intersectionWith, intersectionWithKey, map, mapWithKey,
     mapMaybe, mapMaybeWithKey, singleton, update, unionWith, unionWithKey,
     traverseWithKey)
@@ -221,6 +223,42 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsertWith #-}
+
+-- | In-place update version of insertWith
+unsafeInsertWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> k -> v -> HashMap k v
+                    -> HashMap k v
+unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+  where
+    h0 = hash k0
+    go !h !k x !_ Empty = return $! leaf h k x
+    go h k x s t@(Leaf hy l@(L ky y))
+        | hy == h = if ky == k
+                    then return $! leaf h k (f k x y)
+                    else do
+                        let l' = x `seq` (L k x)
+                        return $! collision h l l'
+        | otherwise = x `seq` two s h k x hy t
+    go h k x s t@(BitmapIndexed b ary)
+        | b .&. m == 0 = do
+            ary' <- A.insertM ary i $! leaf h k x
+            return $! bitmapIndexedOrFull (b .|. m) ary'
+        | otherwise = do
+            st <- A.indexM ary i
+            st' <- go h k x (s+bitsPerSubkey) st
+            A.unsafeUpdateM ary i st'
+            return t
+      where m = mask h s
+            i = sparseIndex b m
+    go h k x s t@(Full ary) = do
+        st <- A.indexM ary i
+        st' <- go h k x (s+bitsPerSubkey) st
+        A.unsafeUpdateM ary i st'
+        return t
+      where i = index h s
+    go h k x s t@(Collision hy v)
+        | h == hy   = return $! Collision h (updateOrSnocWithKey f k x v)
+        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+{-# INLINABLE unsafeInsertWithKey #-}
 
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
@@ -638,6 +676,12 @@ fromList = L.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) empty
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 {-# INLINE fromListWith #-}
+
+-- | /O(n*log n)/ Construct a map from a list of elements.  Uses
+-- the provided function f to merge duplicate entries (f key newVal oldVal).
+fromListWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
+fromListWithKey f = L.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) empty
+{-# INLINE fromListWithKey #-}
 
 ------------------------------------------------------------------------
 -- Array operations
