@@ -999,39 +999,9 @@ insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
 unsafeInsertWith :: forall k v. (Eq k, Hashable k)
                  => (v -> v -> v) -> k -> v -> HashMap k v
                  -> HashMap k v
-unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
-  where
-    h0 = hash k0
-    go :: Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
-    go !h !k x !_ Empty = return $! Leaf h (L k x)
-    go h k x s t@(Leaf hy l@(L ky y))
-        | hy == h = if ky == k
-                    then return $! Leaf h (L k (f x y))
-                    else return $! collision h l (L k x)
-        | otherwise = two s h k x hy t
-    go h k x s t@(BitmapIndexed b ary)
-        | b .&. m == 0 = do
-            ary' <- A.insertM ary i $! Leaf h (L k x)
-            return $! bitmapIndexedOrFull (b .|. m) ary'
-        | otherwise = do
-            st <- A.indexM ary i
-            st' <- go h k x (s+bitsPerSubkey) st
-            A.unsafeUpdateM ary i st'
-            return t
-      where m = mask h s
-            i = sparseIndex b m
-    go h k x s t@(Full ary) = do
-        st <- A.indexM ary i
-        st' <- go h k x (s+bitsPerSubkey) st
-        A.unsafeUpdateM ary i st'
-        return t
-      where i = index h s
-    go h k x s t@(Collision hy v)
-        | h == hy   = return $! Collision h (updateOrSnocWith (\a b -> (# f a b #)) k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (const f) k0 v0 m0
 {-# INLINABLE unsafeInsertWith #-}
 
--- | In-place update version of insertWith
 unsafeInsertWithKey :: forall k v. (Eq k, Hashable k)
                  => (k -> v -> v -> v) -> k -> v -> HashMap k v
                  -> HashMap k v
