@@ -626,7 +626,7 @@ lookupCont absent present !h0 !k0 !m0 = go h0 k0 0 m0
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
 --
--- @since 0.2.10
+-- @since 0.2.11
 findWithDefault :: (Eq k, Hashable k)
               => v          -- ^ Default value to return.
               -> k -> HashMap k v -> v
