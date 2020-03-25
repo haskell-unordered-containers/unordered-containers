@@ -39,6 +39,7 @@ module Data.HashMap.Lazy
     , member
     , lookup
     , (!?)
+    , findWithDefault
     , lookupDefault
     , (!)
     , insert

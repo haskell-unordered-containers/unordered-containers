@@ -38,6 +38,7 @@ module Data.HashMap.Strict
     , member
     , lookup
     , (!?)
+    , findWithDefault
     , lookupDefault
     , (!)
     , insert

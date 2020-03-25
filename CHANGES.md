@@ -1,5 +1,9 @@
 ## next
 
+ * Add `HashMap.findWithDefault` (deprecates `HashMap.lookupDefault`)
+
+## 0.2.10.0
+
  * Add `HashMap.alterF`.
 
  * Add `HashMap.keysSet`.
