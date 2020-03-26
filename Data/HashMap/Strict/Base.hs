@@ -40,6 +40,7 @@ module Data.HashMap.Strict.Base
     , HM.member
     , HM.lookup
     , (HM.!?)
+    , HM.findWithDefault
     , lookupDefault
     , (!)
     , insert
