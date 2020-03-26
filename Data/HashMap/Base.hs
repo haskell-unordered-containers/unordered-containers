@@ -629,7 +629,7 @@ lookupCont absent present !h0 !k0 !m0 = go h0 k0 0 m0
 --
 -- This is a flipped version of 'lookup'.
 --
--- @since 0.2.9
+-- @since 0.2.11
 (!?) :: (Eq k, Hashable k) => HashMap k v -> k -> Maybe v
 (!?) m k = lookup k m
 {-# INLINE (!?) #-}

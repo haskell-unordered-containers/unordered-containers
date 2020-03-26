@@ -2,6 +2,8 @@
 
  * Add `HashMap.findWithDefault` (deprecates `HashMap.lookupDefault`)
 
+ * Add `HashMap.!?`, a flipped version of `lookup`.
+
 ## 0.2.10.0
 
  * Add `HashMap.alterF`.
@@ -10,8 +12,6 @@
 
  * Make `HashMap.Strict.traverseWithKey` force the results before
    installing them in the map.
-
- * Add `HashMap.!?`, a flipped version of `lookup`.
 
 ## 0.2.9.0
 
