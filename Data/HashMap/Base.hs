@@ -143,6 +143,7 @@ import qualified GHC.Exts as Exts
 
 #if MIN_VERSION_base(4,9,0)
 import Data.Functor.Classes
+import GHC.Stack
 #endif
 
 #if MIN_VERSION_hashable(1,2,5)
@@ -649,7 +650,11 @@ lookupDefault def k t = findWithDefault def k t
 
 -- | /O(log n)/ Return the value to which the specified key is mapped.
 -- Calls 'error' if this map contains no mapping for the key.
+#if MIN_VERSION_base(4,9,0)
+(!) :: (Eq k, Hashable k, HasCallStack) => HashMap k v -> k -> v
+#else
 (!) :: (Eq k, Hashable k) => HashMap k v -> k -> v
+#endif
 (!) m k = case lookup k m of
     Just v  -> v
     Nothing -> error "Data.HashMap.Base.(!): key not found"
