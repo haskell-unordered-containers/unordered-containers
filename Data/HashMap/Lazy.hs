@@ -101,4 +101,4 @@ import Prelude ()
 --
 -- This module satisfies the following strictness property:
 --
--- * Key arguments are evaluated to WHNF
+-- * Key arguments are evaluated to WHNF.

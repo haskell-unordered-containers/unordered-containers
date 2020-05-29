@@ -95,3 +95,12 @@ module Data.HashMap.Strict
 import Data.HashMap.Strict.Base as HM
 import qualified Data.HashSet.Base as HS
 import Prelude ()
+
+-- $strictness
+--
+-- This module satisfies the following strictness properties:
+--
+-- 1. Key arguments are evaluated to WHNF;
+--
+-- 2. Keys and values are evaluated to WHNF before they are stored in
+--    the map.
