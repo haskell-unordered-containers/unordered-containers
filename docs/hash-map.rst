@@ -241,15 +241,10 @@ If you want to provide a default value if the key doesn't exist you can use:
 
 For example::
 
-    import Data.HashMap.Strict ((!?))
-
     HashMap.lookup 1 HashMap.empty
     > Nothing
 
     HashMap.lookup 1 (HashMap.fromList [(1,"one"),(2,"two"),(3,"three")])
-    > Just "one"
-
-    > (HashMap.fromList [(1,"one"),(2,"two"),(3,"three")]) !? 1
     > Just "one"
 
     HashMap.lookupDefault "?" k HashMap.empty
