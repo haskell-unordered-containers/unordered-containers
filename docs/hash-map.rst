@@ -259,7 +259,7 @@ For example::
     > "one"
 
 .. WARNING::
-   ``HashMap.!?`` is a partial function and throws a runtime error if
+   ``HashMap.!`` is a partial function and throws a runtime error if
    the key doesn't exist. **DO NOT** use it if you are expecting a total
    function or cannot tolerate a runtime failure; prefer to use ``lookup``.
 
