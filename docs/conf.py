@@ -29,8 +29,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'unordered-containers'
-copyright = u'2020, Matt Renaud'
-author = u'Matt Renaud'
+copyright = u'2020, unordered-containers maintainers'
+author = u'unordered-containers maintainers'
 
 # The short X.Y version.
 version = u'0.2.10'

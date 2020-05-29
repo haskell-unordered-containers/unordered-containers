@@ -259,8 +259,9 @@ For example::
     > "one"
 
 .. WARNING::
-   **DO NOT** Use ``HashMap.!``. It is partial and throws a runtime error if
-   the key doesn't exist.
+   ``HashMap.!`` is a partial function and throws a runtime error if
+   the key doesn't exist. **DO NOT** use it if you are expecting a total
+   function or cannot tolerate a runtime failure; prefer to use ``lookup``.
 
 Check if a map is empty
 """""""""""""""""""""""
@@ -556,11 +557,6 @@ difference/relative complement
     HashMap.difference (HashMap.fromList[(1,"one"), (2,"two")]) (HashMap.fromList [(1,"uno")])
     > fromList [(2,"two")]
 
-
-Serialization
--------------
-
-TODO(m-renaud): Serialization docs.
 
 Performance
 -----------

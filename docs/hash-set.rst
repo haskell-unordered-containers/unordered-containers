@@ -365,11 +365,6 @@ difference/relative compliment
     > fromList [2,4,6]
 
 
-Serialization
--------------
-
-TODO(m-renaud): Write serialization section.
-
 Performance
 -----------
 
