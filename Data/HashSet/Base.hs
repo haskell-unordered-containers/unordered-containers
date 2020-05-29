@@ -134,6 +134,9 @@ instance (NFData a) => NFData (HashSet a) where
 -- [A,B]
 -- >>> toList y
 -- [B,A]
+--
+-- In general, the lack of substitutivity can be observed with any function
+-- that depends on the key ordering, such as folds and traversals.
 instance (Eq a) => Eq (HashSet a) where
     HashSet a == HashSet b = equalKeys a b
     {-# INLINE (==) #-}
