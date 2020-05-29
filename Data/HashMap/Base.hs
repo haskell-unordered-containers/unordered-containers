@@ -290,7 +290,7 @@ instance Eq k => Eq1 (HashMap k) where
 -- behave differently, i.e. substitutivity may be violated:
 --
 -- >>> data D = A | B deriving (Eq, Show)
--- >>> instance Hashable D where hashWithSalt salt d = salt
+-- >>> instance Hashable D where hashWithSalt salt _d = salt
 --
 -- >>> x = fromList [(A,1), (B,2)]
 -- >>> y = fromList [(B,2), (A,1)]

@@ -123,7 +123,7 @@ instance (NFData a) => NFData (HashSet a) where
 -- behave differently, i.e. substitutivity may be violated:
 --
 -- >>> data D = A | B deriving (Eq, Show)
--- >>> instance Hashable D where hashWithSalt salt d = salt
+-- >>> instance Hashable D where hashWithSalt salt _d = salt
 --
 -- >>> x = fromList [A, B]
 -- >>> y = fromList [B, A]
