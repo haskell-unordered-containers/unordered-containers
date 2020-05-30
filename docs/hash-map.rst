@@ -229,8 +229,13 @@ Lookup an entry in the map (lookup)
     HashMap.lookup :: k -> HashMap k v -> Maybe v
     HashMap.lookup key m = ...
 
+    HashMap.!? :: HashMap k v -> k -> Maybe v
+    HashMap.!? m key = ...
+
 :haddock_short:`/Data.HashMap.Strict#lookup` the value corresponding to the given
-``key``, returns ``Nothing`` if the key is not present.
+``key``, returns ``Nothing`` if the key is not present. The ``!?`` operator
+(*since 0.2.11*) is a flipped version of ``lookup`` and can often be imported
+unqualified.
 
 If you want to provide a default value if the key doesn't exist you can use:
 
@@ -245,6 +250,9 @@ For example::
     > Nothing
 
     HashMap.lookup 1 (HashMap.fromList [(1,"one"),(2,"two"),(3,"three")])
+    > Just "one"
+
+    (HashMap.fromList [(1,"one"),(2,"two"),(3,"three")]) !? 1
     > Just "one"
 
     HashMap.lookupDefault "?" k HashMap.empty
