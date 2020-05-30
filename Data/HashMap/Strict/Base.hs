@@ -39,6 +39,7 @@ module Data.HashMap.Strict.Base
     , size
     , HM.member
     , HM.lookup
+    , (HM.!?)
     , HM.findWithDefault
     , lookupDefault
     , (!)

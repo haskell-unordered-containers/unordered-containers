@@ -38,6 +38,7 @@ module Data.HashMap.Lazy
     , size
     , member
     , lookup
+    , (!?)
     , findWithDefault
     , lookupDefault
     , (!)

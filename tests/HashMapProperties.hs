@@ -122,6 +122,9 @@ pMember k = M.member k `eq` HM.member k
 pLookup :: Key -> [(Key, Int)] -> Bool
 pLookup k = M.lookup k `eq` HM.lookup k
 
+pLookupOperator :: Key -> [(Key, Int)] -> Bool
+pLookupOperator k = M.lookup k `eq` (HM.!? k)
+
 pInsert :: Key -> Int -> [(Key, Int)] -> Bool
 pInsert k v = M.insert k v `eq_` HM.insert k v
 
@@ -363,6 +366,7 @@ tests =
       [ testProperty "size" pSize
       , testProperty "member" pMember
       , testProperty "lookup" pLookup
+      , testProperty "!?" pLookupOperator
       , testProperty "insert" pInsert
       , testProperty "delete" pDelete
       , testProperty "deleteCollision" pDeleteCollision

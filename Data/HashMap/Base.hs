@@ -25,6 +25,7 @@ module Data.HashMap.Base
     , size
     , member
     , lookup
+    , (!?)
     , findWithDefault
     , lookupDefault
     , (!)
@@ -623,6 +624,17 @@ lookupCont absent present !h0 !k0 !m0 = go h0 k0 0 m0
         | h == hx   = lookupInArrayCont absent present k v
         | otherwise = absent (# #)
 {-# INLINE lookupCont #-}
+
+-- | /O(log n)/ Return the value to which the specified key is mapped,
+-- or 'Nothing' if this map contains no mapping for the key.
+--
+-- This is a flipped version of 'lookup'.
+--
+-- @since 0.2.11
+(!?) :: (Eq k, Hashable k) => HashMap k v -> k -> Maybe v
+(!?) m k = lookup k m
+{-# INLINE (!?) #-}
+
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
