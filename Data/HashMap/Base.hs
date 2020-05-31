@@ -1827,7 +1827,35 @@ fromList = L.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 {-# INLINABLE fromList #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
--- the provided function to merge duplicate entries.
+-- the provided function @f@ to merge duplicate entries with
+-- @(f newVal oldVal)@.
+--
+-- === Examples
+--
+-- Given a list @xs@, create a map with the number of occurrences of each
+-- element in @xs@:
+--
+-- > let xs = ['a', 'b', 'a']
+-- > in fromListWith (+) [ (x, 1) | x <- xs ]
+-- >
+-- > = fromList [('a', 2), ('b', 1)]
+--
+-- Given a list of key-value pairs @xs :: [(k, v)]@, group all values by their
+-- keys and return a @HashMap k [v]@.
+--
+-- > let xs = [('a', 1), ('b', 2), ('a', 3)]
+-- > in fromListWith (++) [ (k, [v]) | (k, v) <- xs ]
+-- >
+-- > = fromList [('a', [3, 1]), ('b', [2])]
+--
+-- Note that the lists in the resulting map contain elements in reverse order
+-- from their occurences in the original list.
+--
+-- More generally, duplicate entries are accumulated as follows;
+-- this matters when @f@ is not commutative or not associative.
+--
+-- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
+-- > = fromList [(k, f d (f c (f b a)))]
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 {-# INLINE fromListWith #-}
