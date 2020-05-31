@@ -354,9 +354,9 @@ instance Ord k => Ord1 (HashMap k) where
 
 -- | The order is total.
 --
--- /Note:/ Because the hash is not guaranteed to be stable across library
--- versions, OSes, or architectures, neither is an actual order of elements in
--- 'HashMap' or an result of `compare`.is stable.
+-- /Note:/ Note: The actual order of elements in 'HashMap' and the result of
+-- `compare` may not b consistent because the hash is not guaranteed to be
+-- consistent across library versions, OSes and architectures
 instance (Ord k, Ord v) => Ord (HashMap k v) where
     compare = cmp compare compare
 
