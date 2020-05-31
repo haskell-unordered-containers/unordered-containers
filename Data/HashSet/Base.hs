@@ -161,11 +161,35 @@ instance Foldable.Foldable HashSet where
 #endif
 
 #if __GLASGOW_HASKELL__ >= 711
+-- | '<>' = 'union'
+--
+-- /O(n+m)/
+--
+-- To obtain good performance, the smaller set must be presented as
+-- the first argument.
+--
+-- ==== __Examples__
+--
+-- >>> fromList [1,2] <> fromList [2,3]
+-- fromList [1,2,3]
 instance (Hashable a, Eq a) => Semigroup (HashSet a) where
     (<>) = union
     {-# INLINE (<>) #-}
 #endif
 
+-- | 'mempty' = 'empty'
+--
+-- 'mappend' = 'union'
+--
+-- /O(n+m)/
+--
+-- To obtain good performance, the smaller set must be presented as
+-- the first argument.
+--
+-- ==== __Examples__
+--
+-- >>> mappend (fromList [1,2]) (fromList [2,3])
+-- fromList [1,2,3]
 instance (Hashable a, Eq a) => Monoid (HashSet a) where
     mempty = empty
     {-# INLINE mempty #-}
@@ -244,6 +268,11 @@ keysSet m = fromMap (() <$ m)
 --
 -- To obtain good performance, the smaller set must be presented as
 -- the first argument.
+--
+-- ==== __Examples__
+--
+-- >>> union (fromList [1,2]) (fromList [2,3])
+-- fromList [1,2,3]
 union :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 union s1 s2 = HashSet $ H.union (asMap s1) (asMap s2)
 {-# INLINE union #-}
