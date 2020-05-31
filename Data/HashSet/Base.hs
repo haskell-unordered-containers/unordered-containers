@@ -55,8 +55,10 @@ module Data.HashSet.Base
     , intersection
 
     -- * Folds
-    , foldl'
     , foldr
+    , foldr'
+    , foldl
+    , foldl'
 
     -- * Filter
     , filter
@@ -77,7 +79,9 @@ module Data.HashSet.Base
 
 import Control.DeepSeq (NFData(..))
 import Data.Data hiding (Typeable)
-import Data.HashMap.Base (HashMap, foldrWithKey, equalKeys, equalKeys1)
+import Data.HashMap.Base
+  ( HashMap, foldMapWithKey, foldlWithKey, foldrWithKey
+  , equalKeys, equalKeys1)
 import Data.Hashable (Hashable(hashWithSalt))
 #if __GLASGOW_HASKELL__ >= 711
 import Data.Semigroup (Semigroup(..))
@@ -85,7 +89,7 @@ import Data.Semigroup (Semigroup(..))
 import Data.Monoid (Monoid(..))
 #endif
 import GHC.Exts (build)
-import Prelude hiding (filter, foldr, map, null)
+import Prelude hiding (filter, foldr, foldl, map, null)
 import qualified Data.Foldable as Foldable
 import qualified Data.HashMap.Base as H
 import qualified Data.List as List
@@ -138,16 +142,21 @@ instance Ord1 HashSet where
 #endif
 
 instance Foldable.Foldable HashSet where
-    foldr = Data.HashSet.Base.foldr
+    foldMap f = foldMapWithKey (\a _ -> f a) . asMap
+    foldr = foldr
     {-# INLINE foldr #-}
-    foldl' = Data.HashSet.Base.foldl'
+    foldl = foldl
+    {-# INLINE foldl #-}
+    foldl' = foldl'
     {-# INLINE foldl' #-}
+    foldr' = foldr'
+    {-# INLINE foldr' #-}
 #if MIN_VERSION_base(4,8,0)
-    toList = Data.HashSet.Base.toList
+    toList = toList
     {-# INLINE toList #-}
-    null = Data.HashSet.Base.null
+    null = null
     {-# INLINE null #-}
-    length = Data.HashSet.Base.size
+    length = size
     {-# INLINE length #-}
 #endif
 
@@ -305,11 +314,29 @@ foldl' f z0 = H.foldlWithKey' g z0 . asMap
 
 -- | /O(n)/ Reduce this set by applying a binary operator to all
 -- elements, using the given starting value (typically the
+-- right-identity of the operator). Each application of the operator
+-- is evaluated before before using the result in the next
+-- application. This function is strict in the starting value.
+foldr' :: (b -> a -> a) -> a -> HashSet b -> a
+foldr' f z0 = H.foldrWithKey' g z0 . asMap
+  where g k _ z = f k z
+{-# INLINE foldr' #-}
+
+-- | /O(n)/ Reduce this set by applying a binary operator to all
+-- elements, using the given starting value (typically the
 -- right-identity of the operator).
 foldr :: (b -> a -> a) -> a -> HashSet b -> a
 foldr f z0 = foldrWithKey g z0 . asMap
   where g k _ z = f k z
 {-# INLINE foldr #-}
+
+-- | /O(n)/ Reduce this set by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- left-identity of the operator).
+foldl :: (a -> b -> a) -> a -> HashSet b -> a
+foldl f z0 = foldlWithKey g z0 . asMap
+  where g z k _ = f z k
+{-# INLINE foldl #-}
 
 -- | /O(n)/ Filter this set by retaining only elements satisfying a
 -- predicate.

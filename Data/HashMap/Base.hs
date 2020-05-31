@@ -58,10 +58,15 @@ module Data.HashMap.Base
     , intersectionWithKey
 
       -- * Folds
+    , foldr'
     , foldl'
+    , foldrWithKey'
     , foldlWithKey'
     , foldr
+    , foldl
     , foldrWithKey
+    , foldlWithKey
+    , foldMapWithKey
 
       -- * Filter
     , mapMaybe
@@ -128,7 +133,7 @@ import Data.Data hiding (Typeable)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as L
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
-import Prelude hiding (filter, foldr, lookup, map, null, pred)
+import Prelude hiding (filter, foldl, foldr, lookup, map, null, pred)
 import Text.Read hiding (step)
 
 import qualified Data.HashMap.Array as A
@@ -200,14 +205,20 @@ instance Functor (HashMap k) where
     fmap = map
 
 instance Foldable.Foldable (HashMap k) where
-    foldr = Data.HashMap.Base.foldr
+    foldMap f = foldMapWithKey (\ _k v -> f v)
+    {-# INLINE foldMap #-}
+    foldr = foldr
     {-# INLINE foldr #-}
-    foldl' = Data.HashMap.Base.foldl'
+    foldl = foldl
+    {-# INLINE foldl #-}
+    foldr' = foldr'
+    {-# INLINE foldr' #-}
+    foldl' = foldl'
     {-# INLINE foldl' #-}
 #if MIN_VERSION_base(4,8,0)
-    null = Data.HashMap.Base.null
+    null = null
     {-# INLINE null #-}
-    length = Data.HashMap.Base.size
+    length = size
     {-# INLINE length #-}
 #endif
 
@@ -1586,6 +1597,15 @@ foldl' f = foldlWithKey' (\ z _ v -> f z v)
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
+-- right-identity of the operator).  Each application of the operator
+-- is evaluated before using the result in the next application.
+-- This function is strict in the starting value.
+foldr' :: (v -> a -> a) -> a -> HashMap k v -> a
+foldr' f = foldrWithKey' (\ _ v z -> f v z)
+{-# INLINE foldr' #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
 -- is evaluated before using the result in the next application.
 -- This function is strict in the starting value.
@@ -1601,6 +1621,21 @@ foldlWithKey' f = go
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
+-- right-identity of the operator).  Each application of the operator
+-- is evaluated before using the result in the next application.
+-- This function is strict in the starting value.
+foldrWithKey' :: (k -> v -> a -> a) -> a -> HashMap k v -> a
+foldrWithKey' f = flip go
+  where
+    go Empty z                 = z
+    go (Leaf _ (L k v)) !z     = f k v z
+    go (BitmapIndexed _ ary) !z = A.foldr' go z ary
+    go (Full ary) !z           = A.foldr' go z ary
+    go (Collision _ ary) !z    = A.foldr' (\ (L k v) z' -> f k v z') z ary
+{-# INLINE foldrWithKey' #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
 -- right-identity of the operator).
 foldr :: (v -> a -> a) -> a -> HashMap k v -> a
 foldr f = foldrWithKey (const f)
@@ -1608,16 +1643,48 @@ foldr f = foldrWithKey (const f)
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
+-- left-identity of the operator).
+foldl :: (a -> v -> a) -> a -> HashMap k v -> a
+foldl f = foldlWithKey (\a _k v -> f a v)
+{-# INLINE foldl #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
 -- right-identity of the operator).
 foldrWithKey :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-foldrWithKey f = go
+foldrWithKey f = flip go
+  where
+    go Empty z                 = z
+    go (Leaf _ (L k v)) z      = f k v z
+    go (BitmapIndexed _ ary) z = A.foldr go z ary
+    go (Full ary) z            = A.foldr go z ary
+    go (Collision _ ary) z     = A.foldr (\ (L k v) z' -> f k v z') z ary
+{-# INLINE foldrWithKey #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- left-identity of the operator).
+foldlWithKey :: (a -> k -> v -> a) -> a -> HashMap k v -> a
+foldlWithKey f = go
   where
     go z Empty                 = z
-    go z (Leaf _ (L k v))      = f k v z
-    go z (BitmapIndexed _ ary) = A.foldr (flip go) z ary
-    go z (Full ary)            = A.foldr (flip go) z ary
-    go z (Collision _ ary)     = A.foldr (\ (L k v) z' -> f k v z') z ary
-{-# INLINE foldrWithKey #-}
+    go z (Leaf _ (L k v))      = f z k v
+    go z (BitmapIndexed _ ary) = A.foldl go z ary
+    go z (Full ary)            = A.foldl go z ary
+    go z (Collision _ ary)     = A.foldl (\ z' (L k v) -> f z' k v) z ary
+{-# INLINE foldlWithKey #-}
+
+-- | /O(n)/ Reduce the map by applying a function to each element
+-- and combining the results with a monoid operation.
+foldMapWithKey :: Monoid m => (k -> v -> m) -> HashMap k v -> m
+foldMapWithKey f = go
+  where
+    go Empty = mempty
+    go (Leaf _ (L k v)) = f k v
+    go (BitmapIndexed _ ary) = A.foldMap go ary
+    go (Full ary) = A.foldMap go ary
+    go (Collision _ ary) = A.foldMap (\ (L k v) -> f k v) ary
+{-# INLINE foldMapWithKey #-}
 
 ------------------------------------------------------------------------
 -- * Filter

@@ -71,10 +71,15 @@ module Data.HashMap.Strict.Base
     , intersectionWithKey
 
       -- * Folds
+    , foldMapWithKey
+    , foldr'
     , foldl'
+    , foldrWithKey'
     , foldlWithKey'
     , HM.foldr
+    , HM.foldl
     , foldrWithKey
+    , foldlWithKey
 
       -- * Filter
     , HM.filter
