@@ -451,30 +451,18 @@ foldl f = \ z0 ary0 -> go ary0 (length ary0 - 1) z0
 {-# INLINE foldl #-}
 
 -- We go to a bit of trouble here to avoid appending an extra mempty.
+-- The below implementation is by Mateusz Kowalczyk, who indicates that
+-- benchmarks show it to be faster than one that avoids lifting out
+-- lst.
 foldMap :: Monoid m => (a -> m) -> Array a -> m
-foldMap f = \ary0 ->
-  let len = length ary0
-  in if len == 0
-     then mempty
-     else go ary0 (len - 1) 0
-    where
-      go ary !lst i
-        | (# x #) <- index# ary i
-        , let fx = f x
-        = if i == lst
-          then fx
-          else fx `mappend` go ary lst (i + 1)
-
-{-
-     case index# ary0 lst of
-            (# xn #) -> go ary0 lst 0 (f xn)
-  where
-    go ary lst i z
-      | i == lst = z
-      | otherwise
-      = case index# ary i of
-          (# x #) -> f x `mappend` go ary lst (i + 1) z
--}
+foldMap f = \ary0 -> case length ary0 of
+  0 -> mempty
+  len ->
+    let !lst = len - 1
+        go i | (# x #) <- index# ary0 i, let fx = f x =
+          if i == lst then fx else fx `mappend` go (i + 1)
+    in go 0
+{-# INLINE foldMap #-}
 
 undefinedElem :: a
 undefinedElem = error "Data.HashMap.Array: Undefined element"
