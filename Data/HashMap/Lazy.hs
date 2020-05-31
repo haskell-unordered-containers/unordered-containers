@@ -38,6 +38,8 @@ module Data.HashMap.Lazy
     , size
     , member
     , lookup
+    , (!?)
+    , findWithDefault
     , lookupDefault
     , (!)
     , insert
@@ -68,10 +70,15 @@ module Data.HashMap.Lazy
     , intersectionWithKey
 
       -- * Folds
-    , foldl'
-    , foldlWithKey'
+    , foldMapWithKey
     , foldr
+    , foldl
+    , foldr'
+    , foldl'
+    , foldrWithKey'
+    , foldlWithKey'
     , foldrWithKey
+    , foldlWithKey
 
       -- * Filter
     , filter
@@ -100,4 +107,4 @@ import Prelude ()
 --
 -- This module satisfies the following strictness property:
 --
--- * Key arguments are evaluated to WHNF
+-- * Key arguments are evaluated to WHNF.

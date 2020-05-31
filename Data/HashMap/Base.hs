@@ -25,6 +25,8 @@ module Data.HashMap.Base
     , size
     , member
     , lookup
+    , (!?)
+    , findWithDefault
     , lookupDefault
     , (!)
     , insert
@@ -56,10 +58,15 @@ module Data.HashMap.Base
     , intersectionWithKey
 
       -- * Folds
+    , foldr'
     , foldl'
+    , foldrWithKey'
     , foldlWithKey'
     , foldr
+    , foldl
     , foldrWithKey
+    , foldlWithKey
+    , foldMapWithKey
 
       -- * Filter
     , mapMaybe
@@ -126,7 +133,7 @@ import Data.Data hiding (Typeable)
 import qualified Data.Foldable as Foldable
 import qualified Data.List as L
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
-import Prelude hiding (filter, foldr, lookup, map, null, pred)
+import Prelude hiding (filter, foldl, foldr, lookup, map, null, pred)
 import Text.Read hiding (step)
 
 import qualified Data.HashMap.Array as A
@@ -142,6 +149,7 @@ import qualified GHC.Exts as Exts
 
 #if MIN_VERSION_base(4,9,0)
 import Data.Functor.Classes
+import GHC.Stack
 #endif
 
 #if MIN_VERSION_hashable(1,2,5)
@@ -197,7 +205,22 @@ instance Functor (HashMap k) where
     fmap = map
 
 instance Foldable.Foldable (HashMap k) where
-    foldr f = foldrWithKey (const f)
+    foldMap f = foldMapWithKey (\ _k v -> f v)
+    {-# INLINE foldMap #-}
+    foldr = foldr
+    {-# INLINE foldr #-}
+    foldl = foldl
+    {-# INLINE foldl #-}
+    foldr' = foldr'
+    {-# INLINE foldr' #-}
+    foldl' = foldl'
+    {-# INLINE foldl' #-}
+#if MIN_VERSION_base(4,8,0)
+    null = null
+    {-# INLINE null #-}
+    length = size
+    {-# INLINE length #-}
+#endif
 
 #if __GLASGOW_HASKELL__ >= 711
 instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
@@ -355,7 +378,7 @@ cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
     go [] [] = EQ
     go [] _  = LT
     go _  [] = GT
-    go _ _ = error "cmp: Should never happend, toList' includes non Leaf / Collision"
+    go _ _ = error "cmp: Should never happen, toList' includes non Leaf / Collision"
 
     leafCompare (L k v) (L k' v') = cmpk k k' `mappend` cmpv v v'
 
@@ -615,18 +638,47 @@ lookupCont absent present !h0 !k0 !m0 = go h0 k0 0 m0
 {-# INLINE lookupCont #-}
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
+-- or 'Nothing' if this map contains no mapping for the key.
+--
+-- This is a flipped version of 'lookup'.
+--
+-- @since 0.2.11
+(!?) :: (Eq k, Hashable k) => HashMap k v -> k -> Maybe v
+(!?) m k = lookup k m
+{-# INLINE (!?) #-}
+
+
+-- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
+--
+-- @since 0.2.11
+findWithDefault :: (Eq k, Hashable k)
+              => v          -- ^ Default value to return.
+              -> k -> HashMap k v -> v
+findWithDefault def k t = case lookup k t of
+    Just v -> v
+    _      -> def
+{-# INLINABLE findWithDefault #-}
+
+
+-- | /O(log n)/ Return the value to which the specified key is mapped,
+-- or the default value if this map contains no mapping for the key.
+--
+-- DEPRECATED: lookupDefault is deprecated as of version 0.2.10, replaced
+-- by 'findWithDefault'.
 lookupDefault :: (Eq k, Hashable k)
               => v          -- ^ Default value to return.
               -> k -> HashMap k v -> v
-lookupDefault def k t = case lookup k t of
-    Just v -> v
-    _      -> def
-{-# INLINABLE lookupDefault #-}
+lookupDefault def k t = findWithDefault def k t
+{-# INLINE lookupDefault #-}
 
 -- | /O(log n)/ Return the value to which the specified key is mapped.
 -- Calls 'error' if this map contains no mapping for the key.
+#if MIN_VERSION_base(4,9,0)
+(!) :: (Eq k, Hashable k, HasCallStack) => HashMap k v -> k -> v
+#else
 (!) :: (Eq k, Hashable k) => HashMap k v -> k -> v
+#endif
 (!) m k = case lookup k m of
     Just v  -> v
     Nothing -> error "Data.HashMap.Base.(!): key not found"
@@ -667,7 +719,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
                          then t
                          else Leaf h (L k x)
                     else collision h l (L k x)
-        | otherwise = runST (two s h k x hy ky y)
+        | otherwise = runST (two s h k x hy t)
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 =
             let !ary' = A.insert ary i $! Leaf h (L k x)
@@ -703,9 +755,9 @@ insertNewKey :: Hash -> k -> v -> HashMap k v -> HashMap k v
 insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
   where
     go !h !k x !_ Empty = Leaf h (L k x)
-    go h k x s (Leaf hy l@(L ky y))
+    go h k x s t@(Leaf hy l)
       | hy == h = collision h l (L k x)
-      | otherwise = runST (two s h k x hy ky y)
+      | otherwise = runST (two s h k x hy t)
     go h k x s (BitmapIndexed b ary)
         | b .&. m == 0 =
             let !ary' = A.insert ary i $! Leaf h (L k x)
@@ -792,7 +844,7 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
                          then return t
                          else return $! Leaf h (L k x)
                     else return $! collision h l (L k x)
-        | otherwise = two s h k x hy ky y
+        | otherwise = two s h k x hy t
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
             ary' <- A.insertM ary i $! Leaf h (L k x)
@@ -815,20 +867,27 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsert #-}
 
--- | Create a map from two key-value pairs which hashes don't collide.
-two :: Shift -> Hash -> k -> v -> Hash -> k -> v -> ST s (HashMap k v)
+-- | Create a map from two key-value pairs which hashes don't collide. To
+-- enhance sharing, the second key-value pair is represented by the hash of its
+-- key and a singleton HashMap pairing its key with its value.
+--
+-- Note: to avoid silly thunks, this function must be strict in the
+-- key. See issue #232. We don't need to force the HashMap argument
+-- because it's already in WHNF (having just been matched) and we
+-- just put it directly in an array.
+two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
 two = go
   where
-    go s h1 k1 v1 h2 k2 v2
+    go s h1 k1 v1 h2 t2
         | bp1 == bp2 = do
-            st <- go (s+bitsPerSubkey) h1 k1 v1 h2 k2 v2
+            st <- go (s+bitsPerSubkey) h1 k1 v1 h2 t2
             ary <- A.singletonM st
-            return $! BitmapIndexed bp1 ary
+            return $ BitmapIndexed bp1 ary
         | otherwise  = do
-            mary <- A.new 2 $ Leaf h1 (L k1 v1)
-            A.write mary idx2 $ Leaf h2 (L k2 v2)
+            mary <- A.new 2 $! Leaf h1 (L k1 v1)
+            A.write mary idx2 t2
             ary <- A.unsafeFreeze mary
-            return $! BitmapIndexed (bp1 .|. bp2) ary
+            return $ BitmapIndexed (bp1 .|. bp2) ary
       where
         bp1  = mask h1 s
         bp2  = mask h2 s
@@ -867,7 +926,7 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
                       (# v' #) | ptrEq y v' -> t
                                | otherwise -> Leaf h (L k (v'))
                     else collision h l (L k x)
-        | otherwise = runST (two s h k x hy ky y)
+        | otherwise = runST (two s h k x hy t)
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 =
             let ary' = A.insert ary i $! Leaf h (L k x)
@@ -927,11 +986,11 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
     h0 = hash k0
     go :: Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
     go !h !k x !_ Empty = return $! Leaf h (L k x)
-    go h k x s (Leaf hy l@(L ky y))
+    go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then return $! Leaf h (L k (f x y))
                     else return $! collision h l (L k x)
-        | otherwise = two s h k x hy ky y
+        | otherwise = two s h k x hy t
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
             ary' <- A.insertM ary i $! Leaf h (L k x)
@@ -1531,7 +1590,7 @@ intersectionWithKey f a b = foldlWithKey' go empty a
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
--- is evaluated before using the result in the next application. 
+-- is evaluated before using the result in the next application.
 -- This function is strict in the starting value.
 foldl' :: (a -> v -> a) -> a -> HashMap k v -> a
 foldl' f = foldlWithKey' (\ z _ v -> f z v)
@@ -1539,8 +1598,17 @@ foldl' f = foldlWithKey' (\ z _ v -> f z v)
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
+-- right-identity of the operator).  Each application of the operator
+-- is evaluated before using the result in the next application.
+-- This function is strict in the starting value.
+foldr' :: (v -> a -> a) -> a -> HashMap k v -> a
+foldr' f = foldrWithKey' (\ _ v z -> f v z)
+{-# INLINE foldr' #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
--- is evaluated before using the result in the next application.  
+-- is evaluated before using the result in the next application.
 -- This function is strict in the starting value.
 foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
 foldlWithKey' f = go
@@ -1554,6 +1622,21 @@ foldlWithKey' f = go
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
+-- right-identity of the operator).  Each application of the operator
+-- is evaluated before using the result in the next application.
+-- This function is strict in the starting value.
+foldrWithKey' :: (k -> v -> a -> a) -> a -> HashMap k v -> a
+foldrWithKey' f = flip go
+  where
+    go Empty z                 = z
+    go (Leaf _ (L k v)) !z     = f k v z
+    go (BitmapIndexed _ ary) !z = A.foldr' go z ary
+    go (Full ary) !z           = A.foldr' go z ary
+    go (Collision _ ary) !z    = A.foldr' (\ (L k v) z' -> f k v z') z ary
+{-# INLINE foldrWithKey' #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
 -- right-identity of the operator).
 foldr :: (v -> a -> a) -> a -> HashMap k v -> a
 foldr f = foldrWithKey (const f)
@@ -1561,16 +1644,48 @@ foldr f = foldrWithKey (const f)
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
+-- left-identity of the operator).
+foldl :: (a -> v -> a) -> a -> HashMap k v -> a
+foldl f = foldlWithKey (\a _k v -> f a v)
+{-# INLINE foldl #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
 -- right-identity of the operator).
 foldrWithKey :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-foldrWithKey f = go
+foldrWithKey f = flip go
+  where
+    go Empty z                 = z
+    go (Leaf _ (L k v)) z      = f k v z
+    go (BitmapIndexed _ ary) z = A.foldr go z ary
+    go (Full ary) z            = A.foldr go z ary
+    go (Collision _ ary) z     = A.foldr (\ (L k v) z' -> f k v z') z ary
+{-# INLINE foldrWithKey #-}
+
+-- | /O(n)/ Reduce this map by applying a binary operator to all
+-- elements, using the given starting value (typically the
+-- left-identity of the operator).
+foldlWithKey :: (a -> k -> v -> a) -> a -> HashMap k v -> a
+foldlWithKey f = go
   where
     go z Empty                 = z
-    go z (Leaf _ (L k v))      = f k v z
-    go z (BitmapIndexed _ ary) = A.foldr (flip go) z ary
-    go z (Full ary)            = A.foldr (flip go) z ary
-    go z (Collision _ ary)     = A.foldr (\ (L k v) z' -> f k v z') z ary
-{-# INLINE foldrWithKey #-}
+    go z (Leaf _ (L k v))      = f z k v
+    go z (BitmapIndexed _ ary) = A.foldl go z ary
+    go z (Full ary)            = A.foldl go z ary
+    go z (Collision _ ary)     = A.foldl (\ z' (L k v) -> f z' k v) z ary
+{-# INLINE foldlWithKey #-}
+
+-- | /O(n)/ Reduce the map by applying a function to each element
+-- and combining the results with a monoid operation.
+foldMapWithKey :: Monoid m => (k -> v -> m) -> HashMap k v -> m
+foldMapWithKey f = go
+  where
+    go Empty = mempty
+    go (Leaf _ (L k v)) = f k v
+    go (BitmapIndexed _ ary) = A.foldMap go ary
+    go (Full ary) = A.foldMap go ary
+    go (Collision _ ary) = A.foldMap (\ (L k v) -> f k v) ary
+{-# INLINE foldMapWithKey #-}
 
 ------------------------------------------------------------------------
 -- * Filter

@@ -37,6 +37,8 @@ module Data.HashMap.Strict
     , size
     , member
     , lookup
+    , (!?)
+    , findWithDefault
     , lookupDefault
     , (!)
     , insert
@@ -67,10 +69,15 @@ module Data.HashMap.Strict
     , intersectionWithKey
 
       -- * Folds
-    , foldl'
-    , foldlWithKey'
+    , foldMapWithKey
     , foldr
+    , foldl
+    , foldr'
+    , foldl'
+    , foldrWithKey'
+    , foldlWithKey'
     , foldrWithKey
+    , foldlWithKey
 
       -- * Filter
     , filter
@@ -94,3 +101,12 @@ module Data.HashMap.Strict
 import Data.HashMap.Strict.Base as HM
 import qualified Data.HashSet.Base as HS
 import Prelude ()
+
+-- $strictness
+--
+-- This module satisfies the following strictness properties:
+--
+-- 1. Key arguments are evaluated to WHNF;
+--
+-- 2. Keys and values are evaluated to WHNF before they are stored in
+--    the map.

@@ -4,7 +4,7 @@ module Main where
 
 import Control.DeepSeq
 import Control.DeepSeq.Generics (genericRnf)
-import Criterion.Main (bench, bgroup, defaultMain, env, nf, whnf)
+import Gauge (bench, bgroup, defaultMain, env, nf, whnf)
 import Data.Bits ((.&.))
 import Data.Functor.Identity
 import Data.Hashable (Hashable, hash)

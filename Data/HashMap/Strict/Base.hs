@@ -39,6 +39,8 @@ module Data.HashMap.Strict.Base
     , size
     , HM.member
     , HM.lookup
+    , (HM.!?)
+    , HM.findWithDefault
     , lookupDefault
     , (!)
     , insert
@@ -69,10 +71,15 @@ module Data.HashMap.Strict.Base
     , intersectionWithKey
 
       -- * Folds
+    , foldMapWithKey
+    , foldr'
     , foldl'
+    , foldrWithKey'
     , foldlWithKey'
     , HM.foldr
+    , HM.foldl
     , foldrWithKey
+    , foldlWithKey
 
       -- * Filter
     , HM.filter
@@ -152,11 +159,11 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
   where
     h0 = hash k0
     go !h !k x !_ Empty = leaf h k x
-    go h k x s (Leaf hy l@(L ky y))
+    go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then leaf h k (f x y)
                     else x `seq` (collision h l (L k x))
-        | otherwise = x `seq` runST (two s h k x hy ky y)
+        | otherwise = x `seq` runST (two s h k x hy t)
     go h k x s (BitmapIndexed b ary)
         | b .&. m == 0 =
             let ary' = A.insert ary i $! leaf h k x
@@ -186,13 +193,13 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
     go !h !k x !_ Empty = return $! leaf h k x
-    go h k x s (Leaf hy l@(L ky y))
+    go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then return $! leaf h k (f x y)
                     else do
                         let l' = x `seq` (L k x)
                         return $! collision h l l'
-        | otherwise = x `seq` two s h k x hy ky y
+        | otherwise = x `seq` two s h k x hy t
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
             ary' <- A.insertM ary i $! leaf h k x

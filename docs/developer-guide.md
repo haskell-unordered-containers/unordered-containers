@@ -21,7 +21,7 @@ motivate its existance.
 
 ## A note on hash functions
 
-While the [hashable](http://hackage.haskell.org/package/containers) package is a
+While the [hashable](http://hackage.haskell.org/package/hashable) package is a
 separate package, it was co-designed with this package. Its main role is to
 support this package and not to provide good general purpose hash functions
 (e.g. to use when fingerprinting a text file).
@@ -64,7 +64,7 @@ hash function for integers). Those changes eventually had to be rolled back
 after failing to make a fast enough implementation (using SSE instructions where
 possible) that also wasn't crashing on some platforms.
 
-The current, someone frustrating, state is that you have to know which data
+The current, somewhat frustrating, state is that you have to know which data
 structures can be tampered with by users and either use SipHash just for those
 or switch to ordered containers that don't have collision problems. This package
 uses fast hash functions by default.

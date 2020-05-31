@@ -122,6 +122,9 @@ pMember k = M.member k `eq` HM.member k
 pLookup :: Key -> [(Key, Int)] -> Bool
 pLookup k = M.lookup k `eq` HM.lookup k
 
+pLookupOperator :: Key -> [(Key, Int)] -> Bool
+pLookupOperator k = M.lookup k `eq` (HM.!? k)
+
 pInsert :: Key -> Int -> [(Key, Int)] -> Bool
 pInsert k v = M.insert k v `eq_` HM.insert k v
 
@@ -285,21 +288,39 @@ pIntersectionWithKey xs ys = M.intersectionWithKey go (M.fromList xs) `eq_`
 pFoldr :: [(Int, Int)] -> Bool
 pFoldr = (L.sort . M.foldr (:) []) `eq` (L.sort . HM.foldr (:) [])
 
+pFoldl :: [(Int, Int)] -> Bool
+pFoldl = (L.sort . M.foldl (flip (:)) []) `eq` (L.sort . HM.foldl (flip (:)) [])
+
 pFoldrWithKey :: [(Int, Int)] -> Bool
 pFoldrWithKey = (sortByKey . M.foldrWithKey f []) `eq`
                 (sortByKey . HM.foldrWithKey f [])
   where f k v z = (k, v) : z
 
-pFoldl' :: Int -> [(Int, Int)] -> Bool
-pFoldl' z0 = foldlWithKey'Map (\ z _ v -> v + z) z0 `eq` HM.foldl' (+) z0
+pFoldMapWithKey :: [(Int, Int)] -> Bool
+pFoldMapWithKey = (sortByKey . M.foldMapWithKey f) `eq`
+                  (sortByKey . HM.foldMapWithKey f)
+  where f k v = [(k, v)]
 
-foldlWithKey'Map :: (b -> k -> a -> b) -> b -> M.Map k a -> b
-#if MIN_VERSION_containers(4,2,0)
-foldlWithKey'Map = M.foldlWithKey'
-#else
--- Equivalent except for bottoms, which we don't test.
-foldlWithKey'Map = M.foldlWithKey
-#endif
+pFoldrWithKey' :: [(Int, Int)] -> Bool
+pFoldrWithKey' = (sortByKey . M.foldrWithKey' f []) `eq`
+                 (sortByKey . HM.foldrWithKey' f [])
+  where f k v z = (k, v) : z
+
+pFoldlWithKey :: [(Int, Int)] -> Bool
+pFoldlWithKey = (sortByKey . M.foldlWithKey f []) `eq`
+                (sortByKey . HM.foldlWithKey f [])
+  where f z k v = (k, v) : z
+
+pFoldlWithKey' :: [(Int, Int)] -> Bool
+pFoldlWithKey' = (sortByKey . M.foldlWithKey' f []) `eq`
+                 (sortByKey . HM.foldlWithKey' f [])
+  where f z k v = (k, v) : z
+
+pFoldl' :: [(Int, Int)] -> Bool
+pFoldl' = (L.sort . M.foldl' (flip (:)) []) `eq` (L.sort . HM.foldl' (flip (:)) [])
+
+pFoldr' :: [(Int, Int)] -> Bool
+pFoldr' = (L.sort . M.foldr' (:) []) `eq` (L.sort . HM.foldr' (:) [])
 
 ------------------------------------------------------------------------
 -- ** Filter
@@ -363,6 +384,7 @@ tests =
       [ testProperty "size" pSize
       , testProperty "member" pMember
       , testProperty "lookup" pLookup
+      , testProperty "!?" pLookupOperator
       , testProperty "insert" pInsert
       , testProperty "delete" pDelete
       , testProperty "deleteCollision" pDeleteCollision
@@ -391,8 +413,14 @@ tests =
     -- Folds
     , testGroup "folds"
       [ testProperty "foldr" pFoldr
+      , testProperty "foldl" pFoldl
       , testProperty "foldrWithKey" pFoldrWithKey
+      , testProperty "foldlWithKey" pFoldlWithKey
+      , testProperty "foldrWithKey'" pFoldrWithKey'
+      , testProperty "foldlWithKey'" pFoldlWithKey'
       , testProperty "foldl'" pFoldl'
+      , testProperty "foldr'" pFoldr'
+      , testProperty "foldMapWithKey" pFoldMapWithKey
       ]
     , testGroup "difference and intersection"
       [ testProperty "difference" pDifference
