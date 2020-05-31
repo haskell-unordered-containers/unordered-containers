@@ -64,7 +64,7 @@ hash function for integers). Those changes eventually had to be rolled back
 after failing to make a fast enough implementation (using SSE instructions where
 possible) that also wasn't crashing on some platforms.
 
-The current, someone frustrating, state is that you have to know which data
+The current, somewhat frustrating, state is that you have to know which data
 structures can be tampered with by users and either use SipHash just for those
 or switch to ordered containers that don't have collision problems. This package
 uses fast hash functions by default.
