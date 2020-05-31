@@ -60,6 +60,7 @@ module Data.HashMap.Base
       -- * Folds
     , foldl'
     , foldlWithKey'
+    , foldlWithKeyM'
     , foldr
     , foldrWithKey
 
@@ -1598,6 +1599,17 @@ foldlWithKey' f = go
     go z (Full ary)            = A.foldl' go z ary
     go z (Collision _ ary)     = A.foldl' (\ z' (L k v) -> f z' k v) z ary
 {-# INLINE foldlWithKey' #-}
+
+-- | /O(n)/ Monadic version of 'foldlWithKey''.
+foldlWithKeyM' :: Monad m => (a -> k -> v -> m a) -> a -> HashMap k v -> m a
+foldlWithKeyM' f = go
+  where
+    go !z Empty                = return z
+    go z (Leaf _ (L k v))      = f z k v
+    go z (BitmapIndexed _ ary) = A.foldlM' go z ary
+    go z (Full ary)            = A.foldlM' go z ary
+    go z (Collision _ ary)     = A.foldlM' (\ z' (L k v) -> f z' k v) z ary
+{-# INLINE foldlWithKeyM' #-}    
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
