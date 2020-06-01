@@ -50,21 +50,21 @@ more examples or tutorials you should check out:
 -}
 
 {- $installing
-__Version Requirements__
+==Version Requirements
 
 All of the examples here should work for all recent versions of the package.
 
-__Importing modules__
+==Importing modules
 
 All of the modules in @unordered-containers@@ should be imported @qualified@
 since they use names that conflict with the standard Prelude.
 
 @
-import qualified Data.HashSet as HashSet
-import qualified Data.HashMap.Strict as HashMap
+import qualified 'Data.HashSet' as HashSet
+import qualified 'Data.HashMap.Strict' as HashMap
 @
 
-__In GHCi__
+==In GHCi
 
 Start the GHCi
 <https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop REPL> with

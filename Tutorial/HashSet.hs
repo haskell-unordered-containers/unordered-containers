@@ -8,7 +8,7 @@ introductory documentation for @containers@ at
 <https://haskell-containers.readthedocs.io>.
 
 @
-data HashSet element = ...
+data 'HashSet' element = ...
 @
 
 
@@ -17,8 +17,8 @@ functions do not modify the set that you passed in, they creates a new set. In
 order to keep the changes you need to assign it to a new variable. For example:
 
 @
-let s1 = HashSet.fromList ["a", "b"]
-let s2 = HashSet.delete "a" s1
+let s1 = 'HashSet.fromList' ["a", "b"]
+let s2 = 'HashSet.delete' "a" s1
 print s1
 > fromList ["a","b"]
 print s2
@@ -41,42 +41,43 @@ module Tutorial.HashSet (
 
                         ) where
 
+import qualified Data.HashSet as HashSet
 
 {- $shortexample
 
 The following GHCi session shows some of the basic set functionality:
 
 @
-import qualified Data.HashSet as HashSet
+import qualified 'Data.HashSet' as HashSet
 
-let dataStructures = HashSet.fromList ["HashSet", "HashMap", "Graph"]
+let dataStructures = 'HashSet.fromList' ["HashSet", "HashMap", "Graph"]
 
 -- Check if "HashMap" and "Trie" are in the set of data structures.
-HashSet.member "HashMap" dataStructures
+'HashSet.member' "HashMap" dataStructures
 > True
 
-HashSet.member "Trie" dataStructures
+'HashSet.member' "Trie" dataStructures
 > False
 
 
 -- Add "Trie" to our original set of data structures.
 let moreDataStructures = HashSet.insert "Trie" dataStructures
 
-HashSet.member "Trie" moreDataStructures
+'HashSet.member' "Trie" moreDataStructures
 > True
 
 
 -- Remove "Graph" from our original set of data structures.
 let fewerDataStructures = HashSet.delete "Graph" dataStructures
 
-HashSet.toList fewerDataStructures
+'HashSet.toList' fewerDataStructures
 > ["HashSet", "HashMap"]
 
 
 -- Create a new set and combine it with our original set.
 let orderedDataStructures = HashSet.fromList ["Set", "Map"]
 
-HashSet.union dataStructures orderedDataStructures
+'HashSet.union' dataStructures orderedDataStructures
 > fromList ["Map", "HashSet", "Graph", "HashMap", "Set"]
 @
 
