@@ -99,14 +99,14 @@ issue254Lazy = issue254LazyLambda 2
 {-# NOINLINE issue254LazyLambda #-}
 issue254LazyLambda :: Int -> Assertion
 issue254LazyLambda i = do
-  _ <- return ()
+  _ <- return () -- put oldV under a lambda
   let oldV = error $ "Should not be evaluated: " ++ show i
-  weakV <- mkWeakPtr oldV Nothing
+  weakV <- mkWeakPtr oldV Nothing -- test whether oldV is alive
   let mp = HML.insert (KC 1) (error "Should not be evaluated") $ HML.fromList [(KC 0, "1"), (KC 1, oldV)]
-  _ <- evaluate mp
+  _ <- evaluate mp -- force the insert to happen
   performGC
-  res <- deRefWeak weakV
-  _ <- evaluate mp
+  res <- deRefWeak weakV -- gives Just if oldV is still alive
+  _ <- evaluate mp -- makes sure that we didn't GC away the whole HashMap, just oldV
   assert $ isNothing res
 
 -- Like issue254Lazy, but using strict HashMap
