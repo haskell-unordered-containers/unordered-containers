@@ -40,6 +40,8 @@ library
     Data.HashMap.Lazy
     Data.HashMap.Strict
     Data.HashSet
+    Tutorial
+    Tutorial.HashSet
   other-modules:
     Data.HashMap.Array
     Data.HashMap.Base
