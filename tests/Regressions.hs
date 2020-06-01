@@ -1,3 +1,6 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnboxedTuples #-}
 module Main where
 
 import Control.Applicative ((<$>))
@@ -8,8 +11,11 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Lazy as HML
 import Data.List (delete)
 import Data.Maybe
+import GHC.Exts (touch#)
+import GHC.IO (IO (..))
 import System.Mem (performGC)
 import System.Mem.Weak (mkWeakPtr, deRefWeak)
+import System.Random (randomIO)
 import Test.HUnit (Assertion, assert)
 import Test.Framework (Test, defaultMain)
 import Test.Framework.Providers.HUnit (testCase)
@@ -85,46 +91,37 @@ newtype KC = KC Int
 instance Hashable KC where
   hashWithSalt salt _ = salt
 
-issue254Lazy :: Assertion
-issue254Lazy = issue254LazyLambda 2
+touch :: a -> IO ()
+touch a = IO (\s -> (# touch# a s, () #))
 
 -- We want to make sure that old values in the HashMap are evicted when new values are inserted,
 -- even if they aren't evaluated. To do that, we use the WeakPtr trick described at
 -- http://simonmar.github.io/posts/2018-06-20-Finding-fixing-space-leaks.html.
 -- We insert a value named oldV into the HashMap, then insert over it, checking oldV is no longer reachable.
 --
--- To make the test robust, it's important that oldV isn't hoisted up to the top or shared. To do that,
--- we use NOINLINE, make oldV dependent on an unseen argument, and insert _ <- return () to ensure oldV
--- is under a lambda.
-{-# NOINLINE issue254LazyLambda #-}
-issue254LazyLambda :: Int -> Assertion
-issue254LazyLambda i = do
-  _ <- return () -- put oldV under a lambda
+-- To make the test robust, it's important that oldV isn't hoisted up to the top or shared.
+-- To do that, we generate it randomly.
+issue254Lazy :: Assertion
+issue254Lazy = do
+  i :: Int <- randomIO
   let oldV = error $ "Should not be evaluated: " ++ show i
-  weakV <- mkWeakPtr oldV Nothing -- test whether oldV is alive
-  let mp = HML.insert (KC 1) (error "Should not be evaluated") $ HML.fromList [(KC 0, "1"), (KC 1, oldV)]
-  _ <- evaluate mp -- force the insert to happen
+  weakV <- mkWeakPtr oldV Nothing -- add the ability to test whether oldV is alive
+  mp <- evaluate $ HML.insert (KC 1) (error "Should not be evaluated") $ HML.fromList [(KC 0, "1"), (KC 1, oldV)]
   performGC
   res <- deRefWeak weakV -- gives Just if oldV is still alive
-  _ <- evaluate mp -- makes sure that we didn't GC away the whole HashMap, just oldV
+  touch mp -- makes sure that we didn't GC away the whole HashMap, just oldV
   assert $ isNothing res
 
 -- Like issue254Lazy, but using strict HashMap
 issue254Strict :: Assertion
-issue254Strict = issue254StrictLambda 2
-
--- Important that oldV is not hoisted out by optimisation, so use NOINLINE
-{-# NOINLINE issue254StrictLambda #-}
-issue254StrictLambda :: Int -> Assertion
-issue254StrictLambda i = do
-  _ <- return ()
+issue254Strict = do
+  i :: Int <- randomIO
   let oldV = show i
   weakV <- mkWeakPtr oldV Nothing
-  let mp = HM.insert (KC 1) "3" $ HM.fromList [(KC 0, "1"), (KC 1, oldV)]
-  _ <- evaluate mp
+  mp <- evaluate $ HM.insert (KC 1) "3" $ HM.fromList [(KC 0, "1"), (KC 1, oldV)]
   performGC
   res <- deRefWeak weakV
-  _ <- evaluate mp
+  touch mp
   assert $ isNothing res
 
 ------------------------------------------------------------------------
