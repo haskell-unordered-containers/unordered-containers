@@ -1948,9 +1948,12 @@ updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
             A.copy ary 0 mary 0 n
             A.write mary n (L k v)
             return mary
-        | otherwise = case A.index ary i of
-            (L kx y) | k == kx, (# v2 #) <- f k v y -> A.update ary i (L k v2)
-                     | otherwise -> go k v ary (i+1) n
+        | L kx y <- A.index ary i
+        , k == kx
+        , (# v2 #) <- f k v y
+            = A.update ary i (L k v2)
+        | otherwise
+            = go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWithKey #-}
 
 updateOrConcatWith :: Eq k => (v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
