@@ -351,6 +351,12 @@ pFromListWith :: [(Key, Int)] -> Bool
 pFromListWith kvs = (M.toAscList $ M.fromListWith (+) kvs) ==
                     (toAscList $ HM.fromListWith (+) kvs)
 
+pFromListWithKey :: [(Key, Int)] -> Bool
+pFromListWithKey kvs = (M.toAscList $ M.fromListWithKey combine kvs) ==
+                       (toAscList $ HM.fromListWithKey combine kvs)
+  -- Ensure that the way values are combined depend on the key
+  where combine (K k) v1 v2 = (v1 + v2) `mod` (abs k + 1)
+
 pToList :: [(Key, Int)] -> Bool
 pToList = M.toAscList `eq` toAscList
 
@@ -442,6 +448,7 @@ tests =
       , testProperty "keys" pKeys
       , testProperty "fromList" pFromList
       , testProperty "fromListWith" pFromListWith
+      , testProperty "fromListWithKey" pFromListWithKey
       , testProperty "toList" pToList
       ]
     ]
