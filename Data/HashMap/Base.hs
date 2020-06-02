@@ -1899,7 +1899,8 @@ fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 --
 -- > data Key = Mul | Add
 --
--- and the values need to be combined differently on a collision, depending on the key:
+-- and the values need to be combined differently when there are duplicates,
+-- depending on the key:
 --
 -- > combine Mul = (*)
 -- > combine Add = (+)
