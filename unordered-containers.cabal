@@ -41,6 +41,7 @@ library
     Data.HashMap.Strict
     Data.HashSet
     Tutorial
+    Tutorial.HashMap
     Tutorial.HashSet
   other-modules:
     Data.HashMap.Array

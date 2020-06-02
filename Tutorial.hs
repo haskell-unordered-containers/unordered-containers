@@ -22,8 +22,16 @@ module Tutorial (
     -- * Looking for more resources?
     -- $moreresources
 
-    -- * Installing and using the @unordered-containers@ packages
-    -- $installing
+    -- * Installing and using the @unordered-containers@ packages #installing#
+
+    -- ** Version Requirements
+    -- $versionreqs
+
+    -- ** Importing modules
+    -- $importingmodules
+
+    -- ** In GHCi
+    -- $ghci
 
     -- * HashSet and HashMap tutorial
     -- $tutorials
@@ -31,8 +39,8 @@ module Tutorial (
                 ) where
 
 {- $provideddatastructures
-* 'Data.HashSet' - unordered, non-duplicated elements
-* 'Data.HashMap' - unordered map from keys to values (aka. dictionaries)
+* "Data.HashSet" - unordered, non-duplicated elements
+* '"Data.HashMap" - unordered map from keys to values (aka. dictionaries)
 -}
 
 {- $relatedpackages
@@ -49,23 +57,24 @@ more examples or tutorials you should check out:
 * <http://learnyouahaskell.com/modules Learn You a Haskell "Modules" chapter>
 -}
 
-{- $installing
-==Version Requirements
-
+{- $versionreqs
 All of the examples here should work for all recent versions of the package.
+-}
 
-==Importing modules
+{- $importingmodules
 
 All of the modules in @unordered-containers@@ should be imported @qualified@
 since they use names that conflict with the standard Prelude.
 
 @
-import qualified 'Data.HashSet' as HashSet
-import qualified 'Data.HashMap.Strict' as HashMap
+import qualified "Data.HashSet" as HashSet
+import qualified "Data.HashMap.Strict" as HashMap
 @
 
-==In GHCi
+-}
 
+
+{- $ghci
 Start the GHCi
 <https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop REPL> with
 @ghci@, @cabal repl@, or @stack ghci@. Once the REPL is loaded, import the
