@@ -757,7 +757,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
             else Full (update16 ary i st')
       where i = index h s
     go h k x s t@(Collision hy v)
-        | h == hy   = Collision h (updateOrSnocWith const k x v)
+        | h == hy   = Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE insert' #-}
 
@@ -880,7 +880,7 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         return t
       where i = index h s
     go h k x s t@(Collision hy v)
-        | h == hy   = return $! Collision h (updateOrSnocWith const k x v)
+        | h == hy   = return $! Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsert #-}
 
@@ -1026,7 +1026,7 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         return t
       where i = index h s
     go h k x s t@(Collision hy v)
-        | h == hy   = return $! Collision h (updateOrSnocWith f k x v)
+        | h == hy   = return $! Collision h (updateOrSnocWith (\a b -> (# f a b #)) k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsertWith #-}
 
@@ -1394,10 +1394,10 @@ unionWithKey f = go 0
                       else collision h1 l1 l2
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
-        | h1 == h2  = Collision h1 (updateOrSnocWithKey f k1 v1 ls2)
+        | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k a b #)) k1 v1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
-        | h1 == h2  = Collision h1 (updateOrSnocWithKey (flip . f) k2 v2 ls1)
+        | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k b a #)) k2 v2 ls1)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
         | h1 == h2  = Collision h1 (updateOrConcatWithKey f ls1 ls2)
@@ -1932,12 +1932,12 @@ updateWith# f k0 ary0 = go k0 ary0 0 (A.length ary0)
                      | otherwise -> go k ary (i+1) n
 {-# INLINABLE updateWith# #-}
 
-updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
+updateOrSnocWith :: Eq k => (v -> v -> (# v #)) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
 updateOrSnocWith f = updateOrSnocWithKey (const f)
 {-# INLINABLE updateOrSnocWith #-}
 
-updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.Array (Leaf k v)
+updateOrSnocWithKey :: Eq k => (k -> v -> v -> (# v #)) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
 updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
   where
@@ -1948,9 +1948,12 @@ updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
             A.copy ary 0 mary 0 n
             A.write mary n (L k v)
             return mary
-        | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> A.update ary i (L k (f k v y))
-                     | otherwise -> go k v ary (i+1) n
+        | L kx y <- A.index ary i
+        , k == kx
+        , (# v2 #) <- f k v y
+            = A.update ary i (L k v2)
+        | otherwise
+            = go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWithKey #-}
 
 updateOrConcatWith :: Eq k => (v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
