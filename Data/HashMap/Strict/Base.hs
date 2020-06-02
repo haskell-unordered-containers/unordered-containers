@@ -647,7 +647,28 @@ fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 {-# INLINE fromListWith #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
--- the provided function f to merge duplicate entries (f key newVal oldVal).
+-- the provided function @f@ to merge duplicate entries @(f key newVal oldVal)@.
+--
+-- === Examples
+--
+-- Given a list of key-value pairs where the keys are of different flavours, e.g:
+--
+-- > data Key = Mul | Add
+--
+-- and the values need to be combined differently on a collision, depending on the key:
+--
+-- > combine Mul = (*)
+-- > combine Add = (+)
+--
+-- then @fromListWithKey@ can be used as follows:
+--
+-- > fromListWithKey combine [(Mul, 2), (Mul, 3), (Add, 2), (Add, 3)]
+-- > = fromList [(Mul, 6), (Add, 5)]
+--
+-- More generally, duplicate entries are accumulated as follows;
+--
+-- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
+-- > = fromList [(k, f k d (f k c (f k b a)))]
 fromListWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWithKey f = L.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) empty
 {-# INLINE fromListWithKey #-}
