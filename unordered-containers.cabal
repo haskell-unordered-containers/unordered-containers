@@ -12,8 +12,8 @@ license:        BSD3
 license-file:   LICENSE
 author:         Johan Tibell
 maintainer:     johan.tibell@gmail.com, David.Feuer@gmail.com
-Homepage:       https://github.com/tibbe/unordered-containers
-bug-reports:    https://github.com/tibbe/unordered-containers/issues
+Homepage:       https://github.com/haskell-unordered-containers/unordered-containers
+bug-reports:    https://github.com/haskell-unordered-containers/unordered-containers/issues
 copyright:      2010-2014 Johan Tibell
                 2010 Edward Z. Yang
 category:       Data
@@ -225,4 +225,4 @@ benchmark benchmarks
 
 source-repository head
   type:     git
-  location: https://github.com/tibbe/unordered-containers.git
+  location: https://github.com/haskell-unordered-containers/unordered-containers.git
