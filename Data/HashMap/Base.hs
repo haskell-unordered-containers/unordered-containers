@@ -1582,7 +1582,7 @@ intersection a b = foldlWithKey' go empty a
                  _      -> m
 {-# INLINABLE intersection #-}
 
--- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
+-- | /O(n*log m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
 intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
@@ -1594,7 +1594,7 @@ intersectionWith f a b = foldlWithKey' go empty a
                  _      -> m
 {-# INLINABLE intersectionWith #-}
 
--- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
+-- | /O(n*log m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
 intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3)
