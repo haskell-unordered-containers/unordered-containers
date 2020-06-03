@@ -461,17 +461,18 @@ instance (Hashable k) => H.Hashable1 (HashMap k) where
 #endif
 
 instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
-    hashWithSalt salt hm = go salt (toList' hm [])
+    hashWithSalt salt hm = go salt hm
       where
-        go :: Int -> [HashMap k v] -> Int
-        go s [] = s
-        go s (Leaf _ l : tl)
-          = s `hashLeafWithSalt` l `go` tl
+        go :: Int -> HashMap k v -> Int
+        go s Empty = s
+        go s (BitmapIndexed _ a) = A.foldl' go s a
+        go s (Leaf h (L _ v))
+          = s `H.hashWithSalt` h `H.hashWithSalt` v
         -- For collisions we hashmix hash value
         -- and then array of values' hashes sorted
-        go s (Collision h a : tl)
-          = (s `H.hashWithSalt` h) `hashCollisionWithSalt` a `go` tl
-        go s (_ : tl) = s `go` tl
+        go s (Full a) = A.foldl' go s a
+        go s (Collision h a)
+          = (s `H.hashWithSalt` h) `hashCollisionWithSalt` a
 
         hashLeafWithSalt :: Int -> Leaf k v -> Int
         hashLeafWithSalt s (L k v) = s `H.hashWithSalt` k `H.hashWithSalt` v

@@ -7,7 +7,7 @@ import Control.DeepSeq.Generics (genericRnf)
 import Gauge (bench, bgroup, defaultMain, env, nf, whnf)
 import Data.Bits ((.&.))
 import Data.Functor.Identity
-import Data.Hashable (Hashable)
+import Data.Hashable (Hashable, hash)
 import qualified Data.ByteString as BS
 import qualified "hashmap" Data.HashMap as IHM
 import qualified Data.HashMap.Strict as HM
@@ -179,6 +179,10 @@ main = do
           , bgroup "fromList"
             [ bench "String" $ whnf IHM.fromList elems
             , bench "ByteString" $ whnf IHM.fromList elemsBS
+            ]
+          , bgroup "hash"
+            [ bench "String" $ whnf hash hm
+            , bench "ByteString" $ whnf hash hmbs
             ]
           ]
 
