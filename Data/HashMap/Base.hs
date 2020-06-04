@@ -131,6 +131,9 @@ import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement, popCount)
 import Data.Data hiding (Typeable)
 import qualified Data.Foldable as Foldable
+#if MIN_VERSION_base(4,10,0)
+import Data.Bifoldable
+#endif
 import qualified Data.List as L
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
 import Prelude hiding (filter, foldl, foldr, lookup, map, null, pred)
@@ -220,6 +223,17 @@ instance Foldable.Foldable (HashMap k) where
     {-# INLINE null #-}
     length = size
     {-# INLINE length #-}
+#endif
+
+#if MIN_VERSION_base(4,10,0)
+-- | @since UNRELEASED
+instance Bifoldable HashMap where
+    bifoldMap f g = foldMapWithKey (\ k v -> f k `mappend` g v)
+    {-# INLINE bifoldMap #-}
+    bifoldr f g = foldrWithKey (\ k v acc -> k `f` (v `g` acc))
+    {-# INLINE bifoldr #-}
+    bifoldl f g = foldlWithKey (\ acc k v -> (acc `f` k) `g` v)
+    {-# INLINE bifoldl #-}
 #endif
 
 #if __GLASGOW_HASKELL__ >= 711
