@@ -1897,18 +1897,18 @@ fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 --
 -- Given a list of key-value pairs where the keys are of different flavours, e.g:
 --
--- > data Key = Mul | Add
+-- > data Key = Div | Sub
 --
 -- and the values need to be combined differently when there are duplicates,
 -- depending on the key:
 --
--- > combine Mul = (*)
--- > combine Add = (+)
+-- > combine Div = div
+-- > combine Sub = (-)
 --
 -- then @fromListWithKey@ can be used as follows:
 --
--- > fromListWithKey combine [(Mul, 2), (Mul, 3), (Add, 2), (Add, 3)]
--- > = fromList [(Mul, 6), (Add, 5)]
+-- > fromListWithKey combine [(Div, 2), (Div, 6), (Sub, 2), (Sub, 3)]
+-- > = fromList [(Div, 3), (Sub, 1)]
 --
 -- More generally, duplicate entries are accumulated as follows;
 --
