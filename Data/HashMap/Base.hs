@@ -227,7 +227,7 @@ instance Foldable.Foldable (HashMap k) where
 #endif
 
 #if MIN_VERSION_base(4,10,0)
--- | @since UNRELEASED
+-- | @since 0.2.11
 instance Bifoldable HashMap where
     bifoldMap f g = foldMapWithKey (\ k v -> f k `mappend` g v)
     {-# INLINE bifoldMap #-}
@@ -1251,7 +1251,7 @@ alter f k m =
 -- Note: 'alterF' is a flipped version of the 'at' combinator from
 -- <https://hackage.haskell.org/package/lens-4.15.4/docs/Control-Lens-At.html#v:at Control.Lens.At>.
 --
--- @since 0.2.9
+-- @since 0.2.10
 alterF :: (Functor f, Eq k, Hashable k)
        => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
 -- We only calculate the hash once, but unless this is rewritten
@@ -1945,6 +1945,8 @@ fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 --
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f k d (f k c (f k b a)))]
+--
+-- @since 0.2.11
 fromListWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWithKey f = L.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) empty
 {-# INLINE fromListWithKey #-}

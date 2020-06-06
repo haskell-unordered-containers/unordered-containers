@@ -1,10 +1,29 @@
-## next
+## 0.2.11.0
 
- * Add `HashMap.findWithDefault` (deprecates `HashMap.lookupDefault`)
- 
+ * Add `HashMap.findWithDefault` (soft-deprecates `HashMap.lookupDefault`).
+
+ * Add `HashMap.fromListWithKey`
+
  * Add more folding functions and use them in `Foldable` instances.
 
  * Add `HashMap.!?`, a flipped version of `lookup`.
+
+ * Add `instance Bifoldable HashMap`.
+
+### Bug fixes
+
+ * Fix a space leak affecting updates on keys with hash collisions.
+
+ * Improvements for `two`: strictness in key arguments, better sharing,
+   clean up.
+
+### Other changes
+
+ * Add call stack to `HashMap.!`.
+
+ * Speed up the `Hashable` instances for `HashMap` and `HashSet`.
+
+ * Various documentation improvements and fixes.
 
 ## 0.2.10.0
 
