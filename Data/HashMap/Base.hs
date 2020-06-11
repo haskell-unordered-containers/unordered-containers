@@ -82,6 +82,7 @@ module Data.HashMap.Base
     , toList
     , fromList
     , fromListWith
+    , fromListWithKey
 
       -- Internals used by the strict version
     , Hash
@@ -1031,14 +1032,20 @@ insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
 unsafeInsertWith :: forall k v. (Eq k, Hashable k)
                  => (v -> v -> v) -> k -> v -> HashMap k v
                  -> HashMap k v
-unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (const f) k0 v0 m0
+{-# INLINABLE unsafeInsertWith #-}
+
+unsafeInsertWithKey :: forall k v. (Eq k, Hashable k)
+                 => (k -> v -> v -> v) -> k -> v -> HashMap k v
+                 -> HashMap k v
+unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
     go :: Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
     go !h !k x !_ Empty = return $! Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
-                    then return $! Leaf h (L k (f x y))
+                    then return $! Leaf h (L k (f k x y))
                     else return $! collision h l (L k x)
         | otherwise = two s h k x hy t
     go h k x s t@(BitmapIndexed b ary)
@@ -1059,9 +1066,9 @@ unsafeInsertWith f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         return t
       where i = index h s
     go h k x s t@(Collision hy v)
-        | h == hy   = return $! Collision h (updateOrSnocWith (\a b -> (# f a b #)) k x v)
+        | h == hy   = return $! Collision h (updateOrSnocWithKey (\key a b -> (# f key a b #) ) k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-{-# INLINABLE unsafeInsertWith #-}
+{-# INLINABLE unsafeInsertWithKey #-}
 
 -- | /O(log n)/ Remove the mapping for the specified key from this map
 -- if present.
@@ -1915,6 +1922,34 @@ fromList = L.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 {-# INLINE fromListWith #-}
+
+-- | /O(n*log n)/ Construct a map from a list of elements.  Uses
+-- the provided function to merge duplicate entries.
+--
+-- === Examples
+--
+-- Given a list of key-value pairs where the keys are of different flavours, e.g:
+--
+-- > data Key = Div | Sub
+--
+-- and the values need to be combined differently when there are duplicates,
+-- depending on the key:
+--
+-- > combine Div = div
+-- > combine Sub = (-)
+--
+-- then @fromListWithKey@ can be used as follows:
+--
+-- > fromListWithKey combine [(Div, 2), (Div, 6), (Sub, 2), (Sub, 3)]
+-- > = fromList [(Div, 3), (Sub, 1)]
+--
+-- More generally, duplicate entries are accumulated as follows;
+--
+-- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
+-- > = fromList [(k, f k d (f k c (f k b a)))]
+fromListWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
+fromListWithKey f = L.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) empty
+{-# INLINE fromListWithKey #-}
 
 ------------------------------------------------------------------------
 -- Array operations

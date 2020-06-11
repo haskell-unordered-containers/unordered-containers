@@ -363,13 +363,31 @@ pFilterWithKey = M.filterWithKey p `eq_` HM.filterWithKey p
 ------------------------------------------------------------------------
 -- ** Conversions
 
+-- The free magma is used to test that operations are applied in the
+-- same order.
+data Magma a
+  = Leaf a
+  | Op (Magma a) (Magma a)
+  deriving (Show, Eq, Ord)
+
+instance Hashable a => Hashable (Magma a) where
+  hashWithSalt s (Leaf a) = hashWithSalt s (hashWithSalt (1::Int) a)
+  hashWithSalt s (Op m n) = hashWithSalt s (hashWithSalt (hashWithSalt (2::Int) m) n)
+
 -- 'eq_' already calls fromList.
 pFromList :: [(Key, Int)] -> Bool
 pFromList = id `eq_` id
 
 pFromListWith :: [(Key, Int)] -> Bool
-pFromListWith kvs = (M.toAscList $ M.fromListWith (+) kvs) ==
-                    (toAscList $ HM.fromListWith (+) kvs)
+pFromListWith kvs = (M.toAscList $ M.fromListWith Op kvsM) ==
+                    (toAscList $ HM.fromListWith Op kvsM)
+  where kvsM = fmap (fmap Leaf) kvs
+
+pFromListWithKey :: [(Key, Int)] -> Bool
+pFromListWithKey kvs = (M.toAscList $ M.fromListWithKey combine kvsM) ==
+                       (toAscList $ HM.fromListWithKey combine kvsM)
+  where kvsM = fmap (\(K k,v) -> (Leaf k, Leaf v)) kvs
+        combine k v1 v2 = Op k (Op v1 v2)
 
 pToList :: [(Key, Int)] -> Bool
 pToList = M.toAscList `eq` toAscList
@@ -467,6 +485,7 @@ tests =
       , testProperty "keys" pKeys
       , testProperty "fromList" pFromList
       , testProperty "fromListWith" pFromListWith
+      , testProperty "fromListWithKey" pFromListWithKey
       , testProperty "toList" pToList
       ]
     ]
