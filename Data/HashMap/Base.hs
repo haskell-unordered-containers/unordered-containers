@@ -403,11 +403,9 @@ instance Ord k => Ord1 (HashMap k) where
     liftCompare = cmp compare
 #endif
 
--- | The order is total.
---
--- /Note:/ Because the hash is not guaranteed to be stable across library
--- versions, OSes, or architectures, neither is an actual order of elements in
--- 'HashMap' or an result of `compare`.is stable.
+-- | The ordering is total and consistent with the `Eq` instance. However,
+-- nothing else about the ordering is specified, and it may change from 
+-- version to version of either this package or of hashable.
 instance (Ord k, Ord v) => Ord (HashMap k v) where
     compare = cmp compare compare
 
