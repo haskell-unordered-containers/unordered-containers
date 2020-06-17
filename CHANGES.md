@@ -10,8 +10,6 @@
 
  * Add `HashMap.!?`, a flipped version of `lookup`. Thanks, Matt Renaud.
 
- * Add `fromListWithKey` for `HashMap`. Thanks, Josef Svenningsson.
-
  * Add a `Bifoldable` instance for `HashMap`. Thanks, Joseph Sible.
 
  * Add a `HasCallStack` constraint to `(!)`. Thanks, Roman Cheplyaka.
