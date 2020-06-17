@@ -1,26 +1,31 @@
 ## 0.2.11.0
 
  * Add `HashMap.findWithDefault` (soft-deprecates `HashMap.lookupDefault`).
+   Thanks, Matt Renaud.
 
- * Add `HashMap.fromListWithKey`
+ * Add `HashMap.fromListWithKey`. Thanks, Josef Svenningsson.
 
- * Add more folding functions and use them in `Foldable` instances.
+ * Add more folding functions and use them in `Foldable` instances. Thanks,
+   David Feuer.
 
- * Add `HashMap.!?`, a flipped version of `lookup`.
-
- * Add `fromListWithKey` for `HashMap`. Thanks, Josef Svenningsson.
-
-### Bug fixes
-
- * Fix a space leak affecting updates on keys with hash collisions. Thanks, Neil Mitchell. (#254)
-
- * Add a `HasCallStack` constraint to `(!)`. Thanks, Roman Cheplyaka.
+ * Add `HashMap.!?`, a flipped version of `lookup`. Thanks, Matt Renaud.
 
  * Add a `Bifoldable` instance for `HashMap`. Thanks, Joseph Sible.
 
- * Get rid of some silly thunks that could be left lying around. (#232)
+ * Add a `HasCallStack` constraint to `(!)`. Thanks, Roman Cheplyaka.
+
+### Bug fixes
+
+ * Fix a space leak affecting updates on keys with hash collisions. Thanks,
+   Neil Mitchell. ([#254])
+
+ * Get rid of some silly thunks that could be left lying around. ([#232]).
+   Thanks, David Feuer.
 
 ### Other changes
+
+ * Speed up the `Hashable` instances for `HashMap` and `HashSet`. Thanks,
+   Edward Amsden.
 
  * Remove a dependency cycle hack from the benchmark suite. Thanks,
    Andrew Martin.
@@ -28,7 +33,8 @@
  * Improve documentation. Thanks, Tristan McLeay, Li-yao Xia, Gareth Smith,
    Simon Jakobi, Sergey Vinokurov, and likely others.
 
- * Speed up the `Hashable` instances for `HashMap` and `HashSet`.
+[#232]: https://github.com/haskell-unordered-containers/unordered-containers/issues/232
+[#254]: https://github.com/haskell-unordered-containers/unordered-containers/issues/254
 
 ## 0.2.10.0
 
