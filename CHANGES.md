@@ -8,22 +8,27 @@
 
  * Add `HashMap.!?`, a flipped version of `lookup`.
 
- * Add `instance Bifoldable HashMap`.
+ * Add `fromListWithKey` for `HashMap`. Thanks, Josef Svenningsson.
 
 ### Bug fixes
 
- * Fix a space leak affecting updates on keys with hash collisions.
+ * Fix a space leak affecting updates on keys with hash collisions. Thanks, Neil Mitchell. (#254)
 
- * Improvements for `two`: strictness in key arguments, better sharing,
-   clean up.
+ * Add a `HasCallStack` constraint to `(!)`. Thanks, Roman Cheplyaka.
+
+ * Add a `Bifoldable` instance for `HashMap`. Thanks, Joseph Sible.
+
+ * Get rid of some silly thunks that could be left lying around. (#232)
 
 ### Other changes
 
- * Add call stack to `HashMap.!`.
+ * Remove a dependency cycle hack from the benchmark suite. Thanks,
+   Andrew Martin.
+
+ * Improve documentation. Thanks, Tristan McLeay, Li-yao Xia, Gareth Smith,
+   Simon Jakobi, Sergey Vinokurov, and likely others.
 
  * Speed up the `Hashable` instances for `HashMap` and `HashSet`.
-
- * Various documentation improvements and fixes.
 
 ## 0.2.10.0
 
