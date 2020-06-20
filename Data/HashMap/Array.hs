@@ -209,8 +209,8 @@ length ary = I# (sizeofArray# (unArray ary))
 {-# INLINE length #-}
 
 -- | Smart constructor
-array :: Array# a -> Int -> Array a
-array ary _n = Array ary
+array :: Array# a -> Array a
+array ary = Array ary
 {-# INLINE array #-}
 
 data MArray s a = MArray {
@@ -306,7 +306,7 @@ indexM ary _i@(I# i#) =
 unsafeFreeze :: MArray s a -> ST s (Array a)
 unsafeFreeze mary
     = ST $ \s -> case unsafeFreezeArray# (unMArray mary) s of
-                   (# s', ary #) -> (# s', array ary (lengthM mary) #)
+                   (# s', ary #) -> (# s', array ary #)
 {-# INLINE unsafeFreeze #-}
 
 unsafeThaw :: Array a -> ST s (MArray s a)
