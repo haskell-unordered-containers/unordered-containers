@@ -211,8 +211,8 @@ lengthM mary = I# (sizeofMutableArray# (unMArray mary))
 {-# INLINE lengthM #-}
 
 -- | Smart constructor
-marray :: MutableArray# s a -> Int -> MArray s a
-marray mary _n = MArray mary
+marray :: MutableArray# s a -> MArray s a
+marray mary = MArray mary
 {-# INLINE marray #-}
 
 ------------------------------------------------------------------------
@@ -236,11 +236,11 @@ rnfArray ary0 = go ary0 n0 0
 -- state thread, with each element containing the specified initial
 -- value.
 new :: Int -> a -> ST s (MArray s a)
-new n@(I# n#) b =
+new (I# n#) b =
     CHECK_GT("new",n,(0 :: Int))
     ST $ \s ->
         case newArray# n# b s of
-            (# s', ary #) -> (# s', marray ary n #)
+            (# s', ary #) -> (# s', marray ary #)
 {-# INLINE new #-}
 
 new_ :: Int -> ST s (MArray s a)
@@ -301,7 +301,7 @@ unsafeFreeze mary
 unsafeThaw :: Array a -> ST s (MArray s a)
 unsafeThaw ary
     = ST $ \s -> case unsafeThawArray# (unArray ary) s of
-                   (# s', mary #) -> (# s', marray mary (length ary) #)
+                   (# s', mary #) -> (# s', marray mary #)
 {-# INLINE unsafeThaw #-}
 
 run :: (forall s . ST s (MArray s e)) -> Array e
@@ -441,10 +441,10 @@ undefinedElem = error "Data.HashMap.Array: Undefined element"
 {-# NOINLINE undefinedElem #-}
 
 thaw :: Array e -> Int -> Int -> ST s (MArray s e)
-thaw !ary !_o@(I# o#) !n@(I# n#) =
+thaw !ary !_o@(I# o#) (I# n#) =
     CHECK_LE("thaw", _o + n, length ary)
         ST $ \ s -> case thawArray# (unArray ary) o# n# s of
-            (# s2, mary# #) -> (# s2, marray mary# n #)
+            (# s2, mary# #) -> (# s2, marray mary# #)
 {-# INLINE thaw #-}
 
 -- | /O(n)/ Delete an element at the given position in this array,
