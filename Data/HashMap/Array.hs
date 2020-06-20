@@ -38,7 +38,6 @@ module Data.HashMap.Array
     , run
     , run2
     , copy
-    , copyM
 
       -- * Folds
     , foldl
@@ -335,15 +334,6 @@ copy !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
         ST $ \ s# ->
         case copyArray# (unArray src) sidx# (unMArray dst) didx# n# s# of
             s2 -> (# s2, () #)
-
--- | Unsafely copy the elements of an array. Array bounds are not checked.
-copyM :: MArray s e -> Int -> MArray s e -> Int -> Int -> ST s ()
-copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
-    CHECK_BOUNDS("copyM: src", lengthM src, _sidx + _n - 1)
-    CHECK_BOUNDS("copyM: dst", lengthM dst, _didx + _n - 1)
-    ST $ \ s# ->
-    case copyMutableArray# (unMArray src) sidx# (unMArray dst) didx# n# s# of
-        s2 -> (# s2, () #)
 
 cloneM :: MArray s a -> Int -> Int -> ST s (MArray s a)
 cloneM _mary@(MArray mary#) _off@(I# off#) _len@(I# len#) =
