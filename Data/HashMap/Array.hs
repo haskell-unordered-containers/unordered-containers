@@ -61,7 +61,6 @@ import Control.Applicative (liftA2)
 import Control.DeepSeq
 import GHC.Exts(Int(..), Int#, reallyUnsafePtrEquality#, tagToEnum#, unsafeCoerce#, State#)
 import GHC.ST (ST(..))
-import Control.Monad.ST (stToIO)
 
 #if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding (filter, foldMap, foldr, foldl, length, map, read, traverse)
@@ -73,7 +72,7 @@ import Prelude hiding (filter, foldr, foldl, length, map, read)
 import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
                  indexSmallArray#, unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                  SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
-                 sizeofSmallMutableArray#, copySmallMutableArray#, cloneSmallMutableArray#)
+                 sizeofSmallMutableArray#, cloneSmallMutableArray#)
 
 #else
 import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
@@ -88,7 +87,6 @@ import qualified Prelude
 #endif
 
 import Data.HashMap.Unsafe (runST)
-import Control.Monad ((>=>))
 
 
 #if __GLASGOW_HASKELL__ >= 710
@@ -145,15 +143,6 @@ thawArray# = thawSmallArray#
 
 sizeofMutableArray# :: SmallMutableArray# s a -> Int#
 sizeofMutableArray# = sizeofSmallMutableArray#
-
-copyMutableArray# :: SmallMutableArray# d a
-                  -> Int#
-                  -> SmallMutableArray# d a
-                  -> Int#
-                  -> Int#
-                  -> State# d
-                  -> State# d
-copyMutableArray# = copySmallMutableArray#
 #endif
 
 ------------------------------------------------------------------------
