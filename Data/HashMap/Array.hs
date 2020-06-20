@@ -73,7 +73,7 @@ import Prelude hiding (filter, foldr, foldl, length, map, read)
 import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
                  indexSmallArray#, unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                  SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
-                 sizeofSmallMutableArray#, copySmallMutableArray#, cloneSmallMutableArray#)
+                 sizeofSmallMutableArray#, cloneSmallMutableArray#)
 
 #else
 import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
@@ -146,6 +146,7 @@ thawArray# = thawSmallArray#
 sizeofMutableArray# :: SmallMutableArray# s a -> Int#
 sizeofMutableArray# = sizeofSmallMutableArray#
 
+{-
 copyMutableArray# :: SmallMutableArray# d a
                   -> Int#
                   -> SmallMutableArray# d a
@@ -154,6 +155,7 @@ copyMutableArray# :: SmallMutableArray# d a
                   -> State# d
                   -> State# d
 copyMutableArray# = copySmallMutableArray#
+-}
 #endif
 
 ------------------------------------------------------------------------
