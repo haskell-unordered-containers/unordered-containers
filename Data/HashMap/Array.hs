@@ -17,6 +17,7 @@ module Data.HashMap.Array
 
       -- * Basic interface
     , length
+    , lengthM
     , read
     , write
     , index
@@ -71,7 +72,7 @@ import Prelude hiding (filter, foldr, foldl, length, map, read)
 import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
                  indexSmallArray#, unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                  SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
-                 cloneSmallMutableArray#)
+                 sizeofSmallMutableArray#, cloneSmallMutableArray#)
 
 #else
 import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
@@ -139,6 +140,9 @@ thawArray# :: SmallArray# a
            -> State# d
            -> (# State# d, SmallMutableArray# d a #)
 thawArray# = thawSmallArray#
+
+sizeofMutableArray# :: SmallMutableArray# s a -> Int#
+sizeofMutableArray# = sizeofSmallMutableArray#
 #endif
 
 ------------------------------------------------------------------------
@@ -201,6 +205,10 @@ array ary = Array ary
 data MArray s a = MArray {
       unMArray :: !(MutableArray# s a)
     }
+
+lengthM :: MArray s a -> Int
+lengthM mary = I# (sizeofMutableArray# (unMArray mary))
+{-# INLINE lengthM #-}
 
 -- | Smart constructor
 marray :: MutableArray# s a -> MArray s a
