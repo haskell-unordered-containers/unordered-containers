@@ -36,7 +36,6 @@ module Data.HashMap.Array
     , unsafeThaw
     , unsafeSameArray
     , run
-    , run2
     , copy
 
       -- * Folds
@@ -319,12 +318,6 @@ unsafeThaw ary
 run :: (forall s . ST s (MArray s e)) -> Array e
 run act = runST $ act >>= unsafeFreeze
 {-# INLINE run #-}
-
-run2 :: (forall s. ST s (MArray s e, a)) -> (Array e, a)
-run2 k = runST (do
-                 (marr,b) <- k
-                 arr <- unsafeFreeze marr
-                 return (arr,b))
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
 copy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
