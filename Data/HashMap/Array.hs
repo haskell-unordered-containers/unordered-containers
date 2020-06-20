@@ -37,6 +37,7 @@ module Data.HashMap.Array
     , unsafeSameArray
     , run
     , copy
+    , copyM
 
       -- * Folds
     , foldl
@@ -73,7 +74,7 @@ import Prelude hiding (filter, foldr, foldl, length, map, read)
 import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
                  indexSmallArray#, unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                  SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
-                 sizeofSmallMutableArray#, cloneSmallMutableArray#)
+                 sizeofSmallMutableArray#, copySmallMutableArray#, cloneSmallMutableArray#)
 
 #else
 import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
@@ -146,7 +147,6 @@ thawArray# = thawSmallArray#
 sizeofMutableArray# :: SmallMutableArray# s a -> Int#
 sizeofMutableArray# = sizeofSmallMutableArray#
 
-{-
 copyMutableArray# :: SmallMutableArray# d a
                   -> Int#
                   -> SmallMutableArray# d a
@@ -155,7 +155,6 @@ copyMutableArray# :: SmallMutableArray# d a
                   -> State# d
                   -> State# d
 copyMutableArray# = copySmallMutableArray#
--}
 #endif
 
 ------------------------------------------------------------------------
@@ -319,6 +318,15 @@ copy !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
         ST $ \ s# ->
         case copyArray# (unArray src) sidx# (unMArray dst) didx# n# s# of
             s2 -> (# s2, () #)
+
+-- | Unsafely copy the elements of an array. Array bounds are not checked.
+copyM :: MArray s e -> Int -> MArray s e -> Int -> Int -> ST s ()
+copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
+    CHECK_BOUNDS("copyM: src", lengthM src, _sidx + _n - 1)
+    CHECK_BOUNDS("copyM: dst", lengthM dst, _didx + _n - 1)
+    ST $ \ s# ->
+    case copyMutableArray# (unMArray src) sidx# (unMArray dst) didx# n# s# of
+        s2 -> (# s2, () #)
 
 cloneM :: MArray s a -> Int -> Int -> ST s (MArray s a)
 cloneM _mary@(MArray mary#) _off@(I# off#) _len@(I# len#) =
