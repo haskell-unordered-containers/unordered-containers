@@ -36,7 +36,6 @@ module Data.HashMap.Array
     , unsafeThaw
     , unsafeSameArray
     , run
-    , run2
     , copy
     , copyM
 
@@ -210,11 +209,6 @@ length :: Array a -> Int
 length ary = I# (sizeofArray# (unArray ary))
 {-# INLINE length #-}
 
--- | Smart constructor
-array :: Array# a -> Int -> Array a
-array ary _n = Array ary
-{-# INLINE array #-}
-
 data MArray s a = MArray {
       unMArray :: !(MutableArray# s a)
     }
@@ -222,11 +216,6 @@ data MArray s a = MArray {
 lengthM :: MArray s a -> Int
 lengthM mary = I# (sizeofMutableArray# (unMArray mary))
 {-# INLINE lengthM #-}
-
--- | Smart constructor
-marray :: MutableArray# s a -> Int -> MArray s a
-marray mary _n = MArray mary
-{-# INLINE marray #-}
 
 ------------------------------------------------------------------------
 
@@ -249,11 +238,11 @@ rnfArray ary0 = go ary0 n0 0
 -- state thread, with each element containing the specified initial
 -- value.
 new :: Int -> a -> ST s (MArray s a)
-new n@(I# n#) b =
+new (I# n#) b =
     CHECK_GT("new",n,(0 :: Int))
     ST $ \s ->
         case newArray# n# b s of
-            (# s', ary #) -> (# s', marray ary n #)
+            (# s', ary #) -> (# s', MArray ary #)
 {-# INLINE new #-}
 
 new_ :: Int -> ST s (MArray s a)
@@ -308,24 +297,18 @@ indexM ary _i@(I# i#) =
 unsafeFreeze :: MArray s a -> ST s (Array a)
 unsafeFreeze mary
     = ST $ \s -> case unsafeFreezeArray# (unMArray mary) s of
-                   (# s', ary #) -> (# s', array ary (lengthM mary) #)
+                   (# s', ary #) -> (# s', Array ary #)
 {-# INLINE unsafeFreeze #-}
 
 unsafeThaw :: Array a -> ST s (MArray s a)
 unsafeThaw ary
     = ST $ \s -> case unsafeThawArray# (unArray ary) s of
-                   (# s', mary #) -> (# s', marray mary (length ary) #)
+                   (# s', mary #) -> (# s', MArray mary #)
 {-# INLINE unsafeThaw #-}
 
 run :: (forall s . ST s (MArray s e)) -> Array e
 run act = runST $ act >>= unsafeFreeze
 {-# INLINE run #-}
-
-run2 :: (forall s. ST s (MArray s e, a)) -> (Array e, a)
-run2 k = runST (do
-                 (marr,b) <- k
-                 arr <- unsafeFreeze marr
-                 return (arr,b))
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
 copy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
@@ -469,10 +452,10 @@ undefinedElem = error "Data.HashMap.Array: Undefined element"
 {-# NOINLINE undefinedElem #-}
 
 thaw :: Array e -> Int -> Int -> ST s (MArray s e)
-thaw !ary !_o@(I# o#) !n@(I# n#) =
+thaw !ary !_o@(I# o#) (I# n#) =
     CHECK_LE("thaw", _o + n, length ary)
         ST $ \ s -> case thawArray# (unArray ary) o# n# s of
-            (# s2, mary# #) -> (# s2, marray mary# n #)
+            (# s2, mary# #) -> (# s2, MArray mary# #)
 {-# INLINE thaw #-}
 
 -- | /O(n)/ Delete an element at the given position in this array,
