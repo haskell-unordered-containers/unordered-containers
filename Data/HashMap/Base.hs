@@ -1869,13 +1869,13 @@ filter p = filterWithKey (\_ v -> p v)
 -- | /O(n)/ Return a list of this map's keys.  The list is produced
 -- lazily.
 keys :: HashMap k v -> [k]
-keys = L.map fst . toList
+keys t = build (\ c z -> foldrWithKey (\ k _v ks -> c k ks) z t)
 {-# INLINE keys #-}
 
 -- | /O(n)/ Return a list of this map's values.  The list is produced
 -- lazily.
 elems :: HashMap k v -> [v]
-elems = L.map snd . toList
+elems t = build (\ c z -> foldrWithKey (\ _k v vs -> c v vs) z t)
 {-# INLINE elems #-}
 
 ------------------------------------------------------------------------
