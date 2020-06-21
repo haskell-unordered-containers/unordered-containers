@@ -265,9 +265,14 @@ update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k 
 update f = alter (>>= f)
 {-# INLINABLE update #-}
 
--- | /O(log n)/  The expression (@'alter' f k map@) alters the value @x@ at @k@, or
--- absence thereof. @alter@ can be used to insert, delete, or update a value in a
--- map. In short : @'lookup' k ('alter' f k m) = f ('lookup' k m)@.
+-- | /O(log n)/  The expression @('alter' f k map)@ alters the value @x@ at @k@, or
+-- absence thereof.
+--
+-- 'alter' can be used to insert, delete, or update a value in a map. In short:
+--
+-- @
+-- 'lookup' k ('alter' f k m) = f ('lookup' k m)
+-- @
 alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
 alter f k m =
   case f (HM.lookup k m) of
@@ -276,11 +281,12 @@ alter f k m =
 {-# INLINABLE alter #-}
 
 -- | /O(log n)/  The expression (@'alterF' f k map@) alters the value @x@ at
--- @k@, or absence thereof. @alterF@ can be used to insert, delete, or update
--- a value in a map.
+-- @k@, or absence thereof.
+--
+-- 'alterF' can be used to insert, delete, or update a value in a map.
 --
 -- Note: 'alterF' is a flipped version of the 'at' combinator from
--- <https://hackage.haskell.org/package/lens-4.15.4/docs/Control-Lens-At.html#v:at Control.Lens.At>.
+-- <https://hackage.haskell.org/package/lens/docs/Control-Lens-At.html#v:at Control.Lens.At>.
 --
 -- @since 0.2.10
 alterF :: (Functor f, Eq k, Hashable k)
