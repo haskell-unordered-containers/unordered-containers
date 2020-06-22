@@ -1564,13 +1564,22 @@ merge missA missB (WhenMatched match) as bs = go 0 as bs
     go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
                       then matchLeaf h1 k1 v1 v2
-                      else case (missL missA k1 v1, missL missB k2 v2) of
+                      else case (mL1', mL2') of
                           (Nothing, Nothing) -> Empty
                           (Just l1', Nothing) -> Leaf h1 l1'
                           (Nothing, Just l2') -> Leaf h1 l2'
                           (Just l1', Just l2') -> collision h1 l1' l2'
+        | otherwise = case (mL1', mL2') of
+              (Nothing, Nothing) -> Empty
+              (Just l1', Nothing) -> Leaf h1 l1'
+              (Nothing, Just l2') -> Leaf h1 l2'
+              (Just l1', Just l2') -> goDifferentHash s h1 h2 (Leaf h1 l1') (Leaf h2 l2')
+      where
+        mL1' = missL missA k1 v1
+        mL2' = missL missB k2 v2
+        m1 = mask h1 s
+        m2 = mask h2 s
 {-
-        | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
         | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k a b #)) k1 v1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
@@ -1591,6 +1600,14 @@ merge missA missB (WhenMatched match) as bs = go 0 as bs
 
     missL whenMissing k v =
         L k <$> runIdentity (missingKey whenMissing k v)
+
+    goDifferentHash s h1 h2 t1 t2
+        | m1 == m2  = BitmapIndexed m1 (A.singleton $! undefined (s+bitsPerSubkey) t1 t2) -- TODO
+        | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
+        | otherwise = BitmapIndexed (m1 .|. m2) (A.pair t2 t1)
+      where
+        m1 = mask h1 s
+        m2 = mask h2 s
 
 data WhenMissing f k x y = WhenMissing
   { missingSubtree :: HashMap k x -> f (HashMap k y)
