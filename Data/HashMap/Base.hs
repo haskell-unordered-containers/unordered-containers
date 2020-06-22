@@ -45,6 +45,9 @@ module Data.HashMap.Base
     , unionWithKey
     , unions
 
+      -- ** Merge
+    , merge
+
       -- * Transformations
     , map
     , mapWithKey
@@ -1544,6 +1547,28 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
 unions :: (Eq k, Hashable k) => [HashMap k v] -> HashMap k v
 unions = L.foldl' union empty
 {-# INLINE unions #-}
+
+merge :: (Hashable k, Eq k)
+      => SimpleWhenMissing k a c -- ^ What to do with keys in @m1@ but not @m2@
+      -> SimpleWhenMissing k b c -- ^ What to do with keys in @m2@ but not @m1@
+      -> SimpleWhenMatched k a b c -- ^ What to do with keys in both @m1@ and @m2@
+      -> HashMap k a
+      -> HashMap k b
+      -> HashMap k c
+merge missA missB match as bs = go 0 as bs
+  where
+    go !_ ta Empty = runIdentity $ missingSubtree missA ta
+
+data WhenMissing f k x y = WhenMissing
+  { missingSubtree :: HashMap k x -> f (HashMap k y)
+  , missingKey :: k -> x -> f (Maybe y)}
+
+type SimpleWhenMissing = WhenMissing Identity
+
+newtype WhenMatched f k x y z = WhenMatched
+  { matchedKey :: k -> x -> y -> f (Maybe z) }
+
+type SimpleWhenMatched = WhenMatched Identity
 
 ------------------------------------------------------------------------
 -- * Transformations
