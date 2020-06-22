@@ -1564,9 +1564,12 @@ merge missA missB (WhenMatched match) as bs = go 0 as bs
     go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
                       then matchLeaf h1 k1 v1 v2
-                      else undefined
+                      else case (missL missA k1 v1, missL missB k2 v2) of
+                          (Nothing, Nothing) -> Empty
+                          (Just l1', Nothing) -> Leaf h1 l1'
+                          (Nothing, Just l2') -> Leaf h1 l2'
+                          (Just l1', Just l2') -> collision h1 l1' l2'
 {-
-                      else collision h1 l1 l2
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
         | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k a b #)) k1 v1 ls2)
@@ -1585,6 +1588,9 @@ merge missA missB (WhenMatched match) as bs = go 0 as bs
         case runIdentity (match k va vb) of
             Nothing -> Empty
             Just v  -> Leaf h (L k v)
+
+    missL whenMissing k v =
+        L k <$> runIdentity (missingKey whenMissing k v)
 
 data WhenMissing f k x y = WhenMissing
   { missingSubtree :: HashMap k x -> f (HashMap k y)
