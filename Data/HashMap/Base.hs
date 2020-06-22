@@ -1555,9 +1555,36 @@ merge :: (Hashable k, Eq k)
       -> HashMap k a
       -> HashMap k b
       -> HashMap k c
-merge missA missB match as bs = go 0 as bs
+merge missA missB (WhenMatched match) as bs = go 0 as bs
   where
+    -- empty vs. anything
     go !_ ta Empty = runIdentity $ missingSubtree missA ta
+    go  _ Empty tb = runIdentity $ missingSubtree missB tb
+    -- leaf vs. leaf
+    go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
+        | h1 == h2  = if k1 == k2
+                      then matchLeaf h1 k1 v1 v2
+                      else undefined
+{-
+                      else collision h1 l1 l2
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
+        | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k a b #)) k1 v1 ls2)
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    go s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
+        | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k b a #)) k2 v2 ls1)
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
+        | h1 == h2  = Collision h1 (updateOrConcatWithKey f ls1 ls2)
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+-}
+    -- branch vs. branch
+    -- leaf vs. branch
+
+    matchLeaf h k va vb =
+        case runIdentity (match k va vb) of
+            Nothing -> Empty
+            Just v  -> Leaf h (L k v)
 
 data WhenMissing f k x y = WhenMissing
   { missingSubtree :: HashMap k x -> f (HashMap k y)
