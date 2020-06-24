@@ -1,9 +1,8 @@
-{-# LANGUAGE CPP, DeriveGeneric, GADTs, PackageImports, RecordWildCards #-}
+{-# LANGUAGE CPP, DeriveAnyClass, DeriveGeneric, GADTs, PackageImports, RecordWildCards #-}
 
 module Main where
 
 import Control.DeepSeq
-import Control.DeepSeq.Generics (genericRnf)
 import Gauge (bench, bgroup, defaultMain, env, nf, whnf)
 import Data.Bits ((.&.))
 import Data.Functor.Identity
@@ -65,9 +64,7 @@ data Env = Env {
     im    :: !(IM.IntMap Int),
     ihm   :: !(IHM.Map String Int),
     ihmbs :: !(IHM.Map BS.ByteString Int)
-    } deriving Generic
-
-instance NFData Env where rnf = genericRnf
+    } deriving (Generic, NFData)
 
 setupEnv :: IO Env
 setupEnv = do
