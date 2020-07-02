@@ -46,7 +46,6 @@ library
     Data.HashMap.Strict.Base
     Data.HashMap.List
     Data.HashMap.Unsafe
-    Data.HashMap.UnsafeShift
     Data.HashSet.Base
 
   build-depends:

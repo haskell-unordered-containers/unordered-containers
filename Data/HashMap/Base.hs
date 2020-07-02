@@ -129,7 +129,7 @@ import Data.Semigroup (Semigroup((<>)))
 #endif
 import Control.DeepSeq (NFData(rnf))
 import Control.Monad.ST (ST)
-import Data.Bits ((.&.), (.|.), complement, popCount)
+import Data.Bits ((.&.), (.|.), complement, popCount, unsafeShiftL, unsafeShiftR)
 import Data.Data hiding (Typeable)
 import qualified Data.Foldable as Foldable
 #if MIN_VERSION_base(4,10,0)
@@ -144,7 +144,6 @@ import qualified Data.HashMap.Array as A
 import qualified Data.Hashable as H
 import Data.Hashable (Hashable)
 import Data.HashMap.Unsafe (runST)
-import Data.HashMap.UnsafeShift (unsafeShiftL, unsafeShiftR)
 import Data.HashMap.List (isPermutationBy, unorderedCompare)
 import Data.Typeable (Typeable)
 
@@ -2101,7 +2100,7 @@ bitsPerSubkey :: Int
 bitsPerSubkey = 4
 
 maxChildren :: Int
-maxChildren = fromIntegral $ 1 `unsafeShiftL` bitsPerSubkey
+maxChildren = 1 `unsafeShiftL` bitsPerSubkey
 
 subkeyMask :: Bitmap
 subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
