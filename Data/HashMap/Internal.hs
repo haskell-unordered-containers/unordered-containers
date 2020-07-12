@@ -669,6 +669,10 @@ lookupRecordCollision h k m = lookupCont (\_ -> Absent) Present h k 0 m
 -- so we can be representation-polymorphic in the result type. Since
 -- this whole thing is always inlined, we don't have to worry about
 -- any extra CPS overhead.
+--
+-- The @Int@ argument is the offset of the subkey in the hash. When looking up
+-- keys at the top-level of a hashmap, the offset should be 0. When looking up
+-- keys at level @n@ of a hashmap, the offset should be @n * bitsPerSubkey@.
 lookupCont ::
 #if __GLASGOW_HASKELL__ >= 802
   forall rep (r :: TYPE rep) k v.
@@ -680,7 +684,7 @@ lookupCont ::
   -> (v -> Int -> r) -- Present continuation
   -> Hash -- The hash of the key
   -> k
-  -> Int -- The subkey
+  -> Int -- The offset of the subkey in the hash.
   -> HashMap k v -> r
 lookupCont absent present !h0 !k0 !s0 !m0 = go h0 k0 s0 m0
   where
