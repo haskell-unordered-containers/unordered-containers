@@ -48,6 +48,8 @@ module Data.HashMap.Strict
     , update
     , alter
     , alterF
+    , subset
+    , subsetWith
 
       -- * Combine
       -- ** Union

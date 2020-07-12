@@ -225,6 +225,45 @@ pAlterFLookup k f =
   `eq`
   getConst . HM.alterF (Const . apply f) k
 
+pSubsetReflexive :: [(Key, Int)] -> Bool
+pSubsetReflexive xs =
+  let m = HM.fromList xs
+  in HM.subset m m
+
+pSubsetUnion :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pSubsetUnion xs ys =
+  let m1 = HM.fromList xs
+      m2 = HM.fromList ys
+  in HM.subset m1 (HM.union m1 m2)
+
+pNotSubsetUnion :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pNotSubsetUnion xs ys =
+  let m1 = HM.fromList xs
+      m2 = HM.fromList ys
+  in not (HM.subset m1 m2) ⇒ HM.subset m1 (HM.union m1 m2)
+
+pSubsetDelete :: [(Key,Int)] -> Bool
+pSubsetDelete xs@((k,_):_) =
+  let m = HM.fromList xs
+  in HM.subset (HM.delete k m) m
+pSubsetDelete [] = True
+
+pNotSubsetDelete :: [(Key,Int)] -> Bool
+pNotSubsetDelete xs@((k,_):_) =
+  let m = HM.fromList xs
+  in not (HM.subset m (HM.delete k m))
+pNotSubsetDelete [] = True
+
+pSubsetInsert :: Key -> Int -> [(Key,Int)] -> Bool
+pSubsetInsert k v xs =
+  let m = HM.fromList xs
+  in not (HM.member k m) ⇒ HM.subset m (HM.insert k v m)
+
+pNotSubsetInsert :: Key -> Int -> [(Key,Int)] -> Bool
+pNotSubsetInsert k v xs =
+  let m = HM.fromList xs
+  in not (HM.member k m) ⇒ not (HM.subset (HM.insert k v m) m)
+
 ------------------------------------------------------------------------
 -- ** Combine
 
@@ -439,6 +478,15 @@ tests =
       , testProperty "alterFInsertWith" pAlterFInsertWith
       , testProperty "alterFDelete" pAlterFDelete
       , testProperty "alterFLookup" pAlterFLookup
+      , testGroup "subset"
+        [ testProperty "m ⊆ m" pSubsetReflexive
+        , testProperty "m1 ⊆ m1 ∪ m2" pSubsetUnion
+        , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" pNotSubsetUnion
+        , testProperty "delete k m ⊆ m" pSubsetDelete
+        , testProperty "m ⊈ delete k m " pNotSubsetDelete
+        , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" pSubsetInsert
+        , testProperty "k ∉ m  ⇒  insert k v m ⊈ m" pNotSubsetInsert
+        ]
       ]
     -- Combine
     , testProperty "union" pUnion
@@ -533,3 +581,6 @@ sortByKey = L.sortBy (compare `on` fst)
 
 toAscList :: Ord k => HM.HashMap k v -> [(k, v)]
 toAscList = L.sortBy (compare `on` fst) . HM.toList
+
+(⇒) :: Bool -> Bool -> Bool
+p ⇒ q = not p || q

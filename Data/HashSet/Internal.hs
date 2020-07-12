@@ -55,6 +55,7 @@ module Data.HashSet.Internal
     , member
     , insert
     , delete
+    , subset
 
     -- * Transformations
     , map
@@ -309,6 +310,10 @@ fromMap = HashSet
 -- @since 0.2.10.0
 keysSet :: HashMap k a -> HashSet k
 keysSet m = fromMap (() <$ m)
+
+-- | /O(n*m)/ Subset of sets.
+subset :: (Eq a, Hashable a) => HashSet a -> HashSet a -> Bool
+subset s1 s2 = H.subsetWith (\_ _ _ -> True) (asMap s1) (asMap s2)
 
 -- | /O(n+m)/ Construct a set containing all elements from both sets.
 --

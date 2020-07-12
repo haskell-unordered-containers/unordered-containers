@@ -63,6 +63,8 @@ module Data.HashMap.Internal.Strict
     , update
     , alter
     , alterF
+    , subset
+    , subsetWith
 
       -- * Combine
       -- ** Union
