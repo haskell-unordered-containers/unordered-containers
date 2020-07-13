@@ -1458,8 +1458,8 @@ isSubmapOfBy :: (Eq k, Hashable k) => (v1 -> v2 -> Bool) -> HashMap k v1 -> Hash
 -- For maps without collisions the complexity is O(n), where n is the size of
 -- m1: the inclusion operation traverses both maps in synchrony. When it
 -- traverses down an edge in m1, it selects the appropriate edge in m2 with the
--- same hash prefix. Furthermore, it only needs to visit each node in m1 once.
--- Therefore, the complexity is O(n).
+-- same hash prefix. Furthermore, it only needs to visit each node in m1 and m2
+-- once. Therefore, the complexity is O(n).
 isSubmapOfBy comp = go 0
   where
     -- An empty map is always a submap of any other map.
@@ -1471,12 +1471,12 @@ isSubmapOfBy comp = go 0
     -- If the first map contains only one entry, lookup the key in the second map.
     go s (Leaf h1 (L k1 v1)) t2 = lookupCont (\_ -> False) (\v2 _ -> comp v1 v2) h1 k1 s t2
 
-    -- In this case we need to check that for each x in ls1, there is a y in ls2
+    -- In this case, we need to check that for each x in ls1, there is a y in ls2
     -- such that x ⊑ y. This is the worst case complexity-wise since it requires a O(m*n) check.
     go _ (Collision h1 ls1) (Collision h2 ls2) =
       h1 == h2 && subsetArray comp ls1 ls2
 
-    -- To check t1 ⊆ t2, we only need to check the entries in ls2 with the hash h1.
+    -- In this case, we only need to check the entries in ls2 with the hash h1.
     go s t1@(Collision h1 _) (BitmapIndexed b ls2)
         | b .&. m == 0 = False
         | otherwise    =
