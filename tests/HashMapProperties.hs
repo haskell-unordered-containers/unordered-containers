@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP, GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
 
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
 -- comparing them to a simpler model, an association list.
@@ -15,13 +16,15 @@ import Data.Hashable (Hashable(hashWithSalt))
 import qualified Data.List as L
 import Data.Ord (comparing)
 #if defined(STRICT)
+import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as M
 #else
+import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map.Lazy as M
 #endif
-import Test.QuickCheck (Arbitrary, Property, (==>), (===))
+import Test.QuickCheck (Arbitrary(..), Property, (==>), (===))
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 #if MIN_VERSION_base(4,8,0)
@@ -37,6 +40,9 @@ newtype Key = K { unK :: Int }
 
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
+
+instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
+  arbitrary = fmap (HM.fromList) arbitrary
 
 ------------------------------------------------------------------------
 -- * Properties
@@ -225,48 +231,34 @@ pAlterFLookup k f =
   `eq`
   getConst . HM.alterF (Const . apply f) k
 
-pSubmapReflexive :: [(Key, Int)] -> Bool
-pSubmapReflexive xs =
-  let m = HM.fromList xs
-  in HM.isSubmapOf m m
-
-pSubmapUnion :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pSubmapUnion xs ys =
-  let m1 = HM.fromList xs
-      m2 = HM.fromList ys
-  in HM.isSubmapOf m1 (HM.union m1 m2)
-
-pNotSubmapUnion :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pNotSubmapUnion xs ys =
-  let m1 = HM.fromList xs
-      m2 = HM.fromList ys
-  in not (HM.isSubmapOf m1 m2) ⇒ HM.isSubmapOf m1 (HM.union m1 m2)
-
-pSubmapDelete :: [(Key,Int)] -> Bool
-pSubmapDelete xs@((k,_):_) =
-  let m = HM.fromList xs
 pSubmap :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pSubmap xs ys = M.isSubmapOf (M.fromList xs) (M.fromList ys) ==
                 HM.isSubmapOf (HM.fromList xs) (HM.fromList ys)
 
+pSubmapReflexive :: HashMap Key Int -> Bool
+pSubmapReflexive m = HM.isSubmapOf m m
+
+pSubmapUnion :: HashMap Key Int -> HashMap Key Int -> Bool
+pSubmapUnion m1 m2 = HM.isSubmapOf m1 (HM.union m1 m2)
+
+pNotSubmapUnion :: HashMap Key Int -> HashMap Key Int -> Property
+pNotSubmapUnion m1 m2 = not (HM.isSubmapOf m1 m2) ==> HM.isSubmapOf m1 (HM.union m1 m2)
+
+pSubmapDelete :: Key -> Int -> HashMap Key Int -> Bool
+pSubmapDelete k v m0 =
+  let m = HM.insert k v m0
   in HM.isSubmapOf (HM.delete k m) m
-pSubmapDelete [] = True
 
-pNotSubmapDelete :: [(Key,Int)] -> Bool
-pNotSubmapDelete xs@((k,_):_) =
-  let m = HM.fromList xs
+pNotSubmapDelete :: Key -> Int -> HashMap Key Int -> Bool
+pNotSubmapDelete k v m0 =
+  let m = HM.insert k v m0
   in not (HM.isSubmapOf m (HM.delete k m))
-pNotSubmapDelete [] = True
 
-pSubmapInsert :: Key -> Int -> [(Key,Int)] -> Bool
-pSubmapInsert k v xs =
-  let m = HM.fromList xs
-  in not (HM.member k m) ⇒ HM.isSubmapOf m (HM.insert k v m)
+pSubmapInsert :: Key -> Int -> HashMap Key Int -> Property
+pSubmapInsert k v m = not (HM.member k m) ==> HM.isSubmapOf m (HM.insert k v m)
 
-pNotSubmapInsert :: Key -> Int -> [(Key,Int)] -> Bool
-pNotSubmapInsert k v xs =
-  let m = HM.fromList xs
-  in not (HM.member k m) ⇒ not (HM.isSubmapOf (HM.insert k v m) m)
+pNotSubmapInsert :: Key -> Int -> HashMap Key Int -> Property
+pNotSubmapInsert k v m = not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
 
 ------------------------------------------------------------------------
 -- ** Combine
@@ -586,6 +578,3 @@ sortByKey = L.sortBy (compare `on` fst)
 
 toAscList :: Ord k => HM.HashMap k v -> [(k, v)]
 toAscList = L.sortBy (compare `on` fst) . HM.toList
-
-(⇒) :: Bool -> Bool -> Bool
-p ⇒ q = not p || q
