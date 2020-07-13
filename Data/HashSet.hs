@@ -111,7 +111,7 @@ module Data.HashSet
     , member
     , insert
     , delete
-    , subset
+    , isSubsetOf
 
     -- * Transformations
     , map

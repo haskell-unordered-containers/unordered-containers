@@ -49,8 +49,8 @@ module Data.HashMap.Internal
     , update
     , alter
     , alterF
-    , subset
-    , subsetWith
+    , isSubmapOf
+    , isSubmapOfBy
 
       -- * Combine
       -- ** Union
@@ -1417,40 +1417,40 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
 {-# INLINABLE alterFEager #-}
 #endif
 
--- | /O(n*m)/ Subset of maps. A map is a subset of another map if the keys are
--- subsets and the corresponding values are equal:
+-- | /O(n*m)/ Inclusion of maps. A map is included in another map if the keys
+-- are subsets and the corresponding values are equal:
 --
--- >>> subset m1 m2 = keys m1 ⊆ keys m2 && and [ v1 == v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
+-- >>> isSubmapOf m1 m2 = keys m1 ⊆ keys m2 && and [ v1 == v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
 --
 -- This defines a partial order on maps, for which 'union' is the least upper bound.
--- More specifically, @subset m1 (union m1 m2)@ and @subset m2 (union m1 m2)@.
+-- More specifically, @isSubmapOf m1 (union m1 m2)@ and @isSubmapOf m2 (union m1 m2)@.
 --
 -- ==== __Examples__
 --
--- >>> subset (fromList [(1,'a')]) (fromList [(1,'a'),(2,'b')])
+-- >>> isSubmapOf (fromList [(1,'a')]) (fromList [(1,'a'),(2,'b')])
 -- True
 --
--- >>> subset (fromList [(1,'a'),(2,'b')]) (fromList [(1,'a')])
+-- >>> isSubmapOf (fromList [(1,'a'),(2,'b')]) (fromList [(1,'a')])
 -- False
-subset :: (Eq k, Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
-subset = subsetWith (const (==))
-{-# INLINE subset #-}
+isSubmapOf :: (Eq k, Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
+isSubmapOf = isSubmapOfBy (==)
+{-# INLINE isSubmapOf #-}
 
--- | /O(n*m)/ Subset of maps with value comparison. A map is a subset of another
--- map if the keys are subsets and the corresponding values are smaller:
+-- | /O(n*m)/ Inclusion of maps with value comparison. A map is included in
+-- another map if the keys are subsets and the corresponding values are smaller:
 --
--- >>> subsetWith (⊑) m1 m2 = keys m1 ⊆ keys m2 && and [ v1 ⊑ v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
+-- >>> isSubmapOfBy (⊑) m1 m2 = keys m1 ⊆ keys m2 && and [ v1 ⊑ v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
 --
 -- This defines a partial order on maps, for which 'unionWith' is the least upper bound.
--- More specifically, @subsetWith (⊑) m1 (unionWith (⊔) m1 m2)@ and @subset (⊑) m2 (unionWith (⊔) m1 m2)@.
-subsetWith :: (Eq k, Hashable k) => (k -> v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2 -> Bool
-subsetWith comp = go 0
+-- More specifically, @isSubmapOfBy (⊑) m1 (unionWith (⊔) m1 m2)@ and @isSubmapOfBy (⊑) m2 (unionWith (⊔) m1 m2)@.
+isSubmapOfBy :: (Eq k, Hashable k) => (v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2 -> Bool
+isSubmapOfBy comp = go 0
   where
-    -- An empty map is always a subset of any other map.
+    -- An empty map is always a submap of any other map.
     go !_ Empty _ = True
 
     -- If the first map contains only one entry, lookup the key in the second map.
-    go s (Leaf h1 (L k1 v1)) t2 = lookupCont (\_ -> False) (\v2 _ -> comp k1 v1 v2) h1 k1 s t2
+    go s (Leaf h1 (L k1 v1)) t2 = lookupCont (\_ -> False) (\v2 _ -> comp v1 v2) h1 k1 s t2
 
     -- In this case we need to check that for each x in ls1, there is a y in ls2
     -- such that x ⊑ y. This is the worst case complexity-wise since it requires a O(m*n) check.
@@ -1477,33 +1477,30 @@ subsetWith comp = go 0
     -- In cases where the first and second map are bitmap indexed or full,
     -- traverse down the tree at the appropriate indices.
     go s (BitmapIndexed b1 ls1) (BitmapIndexed b2 ls2) =
-      subsetBitmapIndexed (go (s+bitsPerSubkey)) b1 ls1 b2 ls2
+      submapBitmapIndexed (go (s+bitsPerSubkey)) b1 ls1 b2 ls2
     go s (BitmapIndexed b1 ls1) (Full ls2) =
-      subsetBitmapIndexed (go (s+bitsPerSubkey)) b1 ls1 fullNodeMask ls2
+      submapBitmapIndexed (go (s+bitsPerSubkey)) b1 ls1 fullNodeMask ls2
     go s (Full ls1) (Full ls2) =
-      subsetBitmapIndexed (go (s+bitsPerSubkey)) fullNodeMask ls1 fullNodeMask ls2
+      submapBitmapIndexed (go (s+bitsPerSubkey)) fullNodeMask ls1 fullNodeMask ls2
     go s (Full ls1) (BitmapIndexed b2 ls2) =
-      subsetBitmapIndexed (go (s+bitsPerSubkey)) fullNodeMask ls1 b2 ls2
+      submapBitmapIndexed (go (s+bitsPerSubkey)) fullNodeMask ls1 b2 ls2
 
     -- TODO: I'm not sure about these cases and need help. If we cleared up all
     -- these cases, we can replace them with a catch-all case go _ _ _ = False
 
-    -- If the second map is empty, but the first is not, it cannot be a subset.
+    -- If the second map is empty and the first is not, it cannot be a submap.
     go _ _ Empty = False
 
-    -- A collision always contains at least two entries. Hence it cannot be a
-    -- subset of a leaf.
+    -- A collision, bitmap indexed an full node always contain at least two
+    -- entries. Hence it cannot be a map of a leaf.
     go _ (Collision {}) (Leaf {}) = False
-
-    -- A bitmap indexed node and a full node always contain at least two
-    -- entries. Hence they cannot be a subset of a leaf.
     go _ (BitmapIndexed {}) (Leaf {}) = False
     go _ (Full {}) (Leaf {}) = False
 
 
--- | /O(min n m))/ hecks if a bitmap indexed node is a subset of another.
-subsetBitmapIndexed :: (HashMap k v1 -> HashMap k v2 -> Bool) -> Bitmap -> A.Array (HashMap k v1) -> Bitmap -> A.Array (HashMap k v2) -> Bool
-subsetBitmapIndexed comp b1 ary1 b2 ary2 = subsetBitmaps && go 0 0 (b1Orb2 .&. negate b1Orb2)
+-- | /O(min n m))/ Checks if a bitmap indexed node is a submap of another.
+submapBitmapIndexed :: (HashMap k v1 -> HashMap k v2 -> Bool) -> Bitmap -> A.Array (HashMap k v1) -> Bitmap -> A.Array (HashMap k v2) -> Bool
+submapBitmapIndexed comp b1 ary1 b2 ary2 = subsetBitmaps && go 0 0 (b1Orb2 .&. negate b1Orb2)
   where
     go :: Int -> Int -> Bitmap -> Bool
     go i j m
@@ -2191,13 +2188,13 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
 {-# INLINABLE updateOrConcatWithKey #-}
 
 -- | /O(n*m)/ Check if the first array is a subset of the second array.
-subsetArray :: Eq k => (k -> v1 -> v2 -> Bool) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> Bool
+subsetArray :: Eq k => (v1 -> v2 -> Bool) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> Bool
 subsetArray cmpV ary1 ary2 = A.length ary1 <= A.length ary2 && go 0 (A.length ary1)
   where
     go !i n
       | i >= n = True
       | otherwise = let (L k1 v1) = A.index ary1 i
-                    in lookupInArrayCont (\_ -> False) (\v2 _ -> cmpV k1 v1 v2 && go (i+1) n) k1 ary2
+                    in lookupInArrayCont (\_ -> False) (\v2 _ -> cmpV v1 v2 && go (i+1) n) k1 ary2
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops

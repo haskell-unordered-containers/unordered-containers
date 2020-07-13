@@ -225,44 +225,44 @@ pAlterFLookup k f =
   `eq`
   getConst . HM.alterF (Const . apply f) k
 
-pSubsetReflexive :: [(Key, Int)] -> Bool
-pSubsetReflexive xs =
+pSubmapReflexive :: [(Key, Int)] -> Bool
+pSubmapReflexive xs =
   let m = HM.fromList xs
-  in HM.subset m m
+  in HM.isSubmapOf m m
 
-pSubsetUnion :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pSubsetUnion xs ys =
+pSubmapUnion :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pSubmapUnion xs ys =
   let m1 = HM.fromList xs
       m2 = HM.fromList ys
-  in HM.subset m1 (HM.union m1 m2)
+  in HM.isSubmapOf m1 (HM.union m1 m2)
 
-pNotSubsetUnion :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pNotSubsetUnion xs ys =
+pNotSubmapUnion :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pNotSubmapUnion xs ys =
   let m1 = HM.fromList xs
       m2 = HM.fromList ys
-  in not (HM.subset m1 m2) ⇒ HM.subset m1 (HM.union m1 m2)
+  in not (HM.isSubmapOf m1 m2) ⇒ HM.isSubmapOf m1 (HM.union m1 m2)
 
-pSubsetDelete :: [(Key,Int)] -> Bool
-pSubsetDelete xs@((k,_):_) =
+pSubmapDelete :: [(Key,Int)] -> Bool
+pSubmapDelete xs@((k,_):_) =
   let m = HM.fromList xs
-  in HM.subset (HM.delete k m) m
-pSubsetDelete [] = True
+  in HM.isSubmapOf (HM.delete k m) m
+pSubmapDelete [] = True
 
-pNotSubsetDelete :: [(Key,Int)] -> Bool
-pNotSubsetDelete xs@((k,_):_) =
+pNotSubmapDelete :: [(Key,Int)] -> Bool
+pNotSubmapDelete xs@((k,_):_) =
   let m = HM.fromList xs
-  in not (HM.subset m (HM.delete k m))
-pNotSubsetDelete [] = True
+  in not (HM.isSubmapOf m (HM.delete k m))
+pNotSubmapDelete [] = True
 
-pSubsetInsert :: Key -> Int -> [(Key,Int)] -> Bool
-pSubsetInsert k v xs =
+pSubmapInsert :: Key -> Int -> [(Key,Int)] -> Bool
+pSubmapInsert k v xs =
   let m = HM.fromList xs
-  in not (HM.member k m) ⇒ HM.subset m (HM.insert k v m)
+  in not (HM.member k m) ⇒ HM.isSubmapOf m (HM.insert k v m)
 
-pNotSubsetInsert :: Key -> Int -> [(Key,Int)] -> Bool
-pNotSubsetInsert k v xs =
+pNotSubmapInsert :: Key -> Int -> [(Key,Int)] -> Bool
+pNotSubmapInsert k v xs =
   let m = HM.fromList xs
-  in not (HM.member k m) ⇒ not (HM.subset (HM.insert k v m) m)
+  in not (HM.member k m) ⇒ not (HM.isSubmapOf (HM.insert k v m) m)
 
 ------------------------------------------------------------------------
 -- ** Combine
@@ -478,14 +478,14 @@ tests =
       , testProperty "alterFInsertWith" pAlterFInsertWith
       , testProperty "alterFDelete" pAlterFDelete
       , testProperty "alterFLookup" pAlterFLookup
-      , testGroup "subset"
-        [ testProperty "m ⊆ m" pSubsetReflexive
-        , testProperty "m1 ⊆ m1 ∪ m2" pSubsetUnion
-        , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" pNotSubsetUnion
-        , testProperty "delete k m ⊆ m" pSubsetDelete
-        , testProperty "m ⊈ delete k m " pNotSubsetDelete
-        , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" pSubsetInsert
-        , testProperty "k ∉ m  ⇒  insert k v m ⊈ m" pNotSubsetInsert
+      , testGroup "isSubmapOf"
+        [ testProperty "m ⊆ m" pSubmapReflexive
+        , testProperty "m1 ⊆ m1 ∪ m2" pSubmapUnion
+        , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" pNotSubmapUnion
+        , testProperty "delete k m ⊆ m" pSubmapDelete
+        , testProperty "m ⊈ delete k m " pNotSubmapDelete
+        , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" pSubmapInsert
+        , testProperty "k ∉ m  ⇒  insert k v m ⊈ m" pNotSubmapInsert
         ]
       ]
     -- Combine
