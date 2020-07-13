@@ -1465,6 +1465,9 @@ isSubmapOfBy comp = go 0
     -- An empty map is always a submap of any other map.
     go !_ Empty _ = True
 
+    -- If the second map is empty and the first is not, it cannot be a submap.
+    go _ _ Empty = False
+
     -- If the first map contains only one entry, lookup the key in the second map.
     go s (Leaf h1 (L k1 v1)) t2 = lookupCont (\_ -> False) (\v2 _ -> comp v1 v2) h1 k1 s t2
 
@@ -1500,12 +1503,6 @@ isSubmapOfBy comp = go 0
       submapBitmapIndexed (go (s+bitsPerSubkey)) fullNodeMask ls1 fullNodeMask ls2
     go s (Full ls1) (BitmapIndexed b2 ls2) =
       submapBitmapIndexed (go (s+bitsPerSubkey)) fullNodeMask ls1 b2 ls2
-
-    -- TODO: I'm not sure about these cases and need help. If we cleared up all
-    -- these cases, we can replace them with a catch-all case go _ _ _ = False
-
-    -- If the second map is empty and the first is not, it cannot be a submap.
-    go _ _ Empty = False
 
     -- A collision, bitmap indexed an full node always contain at least two
     -- entries. Hence it cannot be a map of a leaf.
