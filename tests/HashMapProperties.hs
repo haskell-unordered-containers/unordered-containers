@@ -245,6 +245,10 @@ pNotSubmapUnion xs ys =
 pSubmapDelete :: [(Key,Int)] -> Bool
 pSubmapDelete xs@((k,_):_) =
   let m = HM.fromList xs
+pSubmap :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pSubmap xs ys = M.isSubmapOf (M.fromList xs) (M.fromList ys) ==
+                HM.isSubmapOf (HM.fromList xs) (HM.fromList ys)
+
   in HM.isSubmapOf (HM.delete k m) m
 pSubmapDelete [] = True
 
@@ -479,7 +483,8 @@ tests =
       , testProperty "alterFDelete" pAlterFDelete
       , testProperty "alterFLookup" pAlterFLookup
       , testGroup "isSubmapOf"
-        [ testProperty "m ⊆ m" pSubmapReflexive
+        [ testProperty "container compatibility" pSubmap
+        , testProperty "m ⊆ m" pSubmapReflexive
         , testProperty "m1 ⊆ m1 ∪ m2" pSubmapUnion
         , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" pNotSubmapUnion
         , testProperty "delete k m ⊆ m" pSubmapDelete
