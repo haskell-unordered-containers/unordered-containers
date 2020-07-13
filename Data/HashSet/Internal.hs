@@ -312,6 +312,14 @@ keysSet :: HashMap k a -> HashSet k
 keysSet m = fromMap (() <$ m)
 
 -- | /O(n*m)/ Inclusion of sets.
+--
+-- ==== __Examples__
+--
+-- >>> fromList [1,3] `isSubsetOf` fromList [1,2,3]
+-- True
+--
+-- >>> fromList [1,2] `isSubsetOf` fromList [1,3]
+-- False
 isSubsetOf :: (Eq a, Hashable a) => HashSet a -> HashSet a -> Bool
 isSubsetOf s1 s2 = H.isSubmapOfBy (\_ _ -> True) (asMap s1) (asMap s2)
 
