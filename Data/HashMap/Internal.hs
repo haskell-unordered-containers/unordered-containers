@@ -1420,13 +1420,8 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
 -- | /O(n*log m)/ Inclusion of maps. A map is included in another map if the keys
 -- are subsets and the corresponding values are equal:
 --
--- >>> isSubmapOf m1 m2 = keys m1 ⊆ keys m2 && and [ v1 == v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
---
--- This defines a partial order on maps. However, 'union' is /not/ its least
--- upper bound, because it is not cummutative. In particular, for all maps @m1@
--- and @m2@ it holds @m1 `isSubmapOf` union m1 m2@, however, the other direction
--- @m2 `isSubmapOf` union m1 m2@ may not hold because 'union' may discard values
--- of m2.
+-- > isSubmapOf m1 m2 = keys m1 `isSubsetOf` keys m2 &&
+-- >                    and [ v1 == v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
 --
 -- ==== __Examples__
 --
@@ -1442,13 +1437,16 @@ isSubmapOf = isSubmapOfBy (==)
 -- | /O(n*log m)/ Inclusion of maps with value comparison. A map is included in
 -- another map if the keys are subsets and the corresponding values are smaller:
 --
--- >>> isSubmapOfBy (⊑) m1 m2 = keys m1 ⊆ keys m2 && and [ v1 ⊑ v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
+-- > isSubmapOfBy cmpV m1 m2 = keys m1 `isSubsetOf` keys m2 &&
+-- >                           and [ v1 `cmpV` v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
 --
--- This defines a partial order on maps, for which 'unionWith' is the least
--- upper bound. More specifically, let @(⊑)@ be a partial order on values for
--- which @(⊔)@ is the least upper bound. Then for all maps @m1@ and @m2@ it
--- holds @isSubmapOfBy (⊑) m1 (unionWith (⊔) m1 m2)@ and
--- @isSubmapOfBy (⊑) m2 (unionWith (⊔) m1 m2)@.
+-- ==== __Examples__
+--
+-- >>> isSubmapOfBy (<=) (fromList [(1,'a')]) (fromList [(1,'b'),(2,'c')])
+-- True
+--
+-- >>> isSubmapOfBy (<=) (fromList [(1,'b')]) (fromList [(1,'a'),(2,'c')])
+-- False
 isSubmapOfBy :: (Eq k, Hashable k) => (v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2 -> Bool
 -- For maps without collisions the complexity is O(n*log m), where n is the size
 -- of m1 and m the size of m2: the inclusion operation visits every leaf in m1 at least once.
@@ -1469,8 +1467,9 @@ isSubmapOfBy comp = go 0
     -- If the first map contains only one entry, lookup the key in the second map.
     go s (Leaf h1 (L k1 v1)) t2 = lookupCont (\_ -> False) (\v2 _ -> comp v1 v2) h1 k1 s t2
 
-    -- In this case, we need to check that for each x in ls1, there is a y in ls2
-    -- such that x ⊑ y. This is the worst case complexity-wise since it requires a O(m*n) check.
+    -- In this case, we need to check that for each x in ls1, there is a y in
+    -- ls2 such that x `comp` y. This is the worst case complexity-wise since it
+    -- requires a O(m*n) check.
     go _ (Collision h1 ls1) (Collision h2 ls2) =
       h1 == h2 && subsetArray comp ls1 ls2
 
