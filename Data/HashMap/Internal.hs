@@ -1417,7 +1417,7 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
 {-# INLINABLE alterFEager #-}
 #endif
 
--- | /O(n*m)/ Inclusion of maps. A map is included in another map if the keys
+-- | /O(n*log m)/ Inclusion of maps. A map is included in another map if the keys
 -- are subsets and the corresponding values are equal:
 --
 -- >>> isSubmapOf m1 m2 = keys m1 ⊆ keys m2 && and [ v1 == v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
@@ -1439,7 +1439,7 @@ isSubmapOf :: (Eq k, Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
 isSubmapOf = isSubmapOfBy (==)
 {-# INLINE isSubmapOf #-}
 
--- | /O(n*m)/ Inclusion of maps with value comparison. A map is included in
+-- | /O(n*log m)/ Inclusion of maps with value comparison. A map is included in
 -- another map if the keys are subsets and the corresponding values are smaller:
 --
 -- >>> isSubmapOfBy (⊑) m1 m2 = keys m1 ⊆ keys m2 && and [ v1 ⊑ v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
@@ -1450,16 +1450,14 @@ isSubmapOf = isSubmapOfBy (==)
 -- holds @isSubmapOfBy (⊑) m1 (unionWith (⊔) m1 m2)@ and
 -- @isSubmapOfBy (⊑) m2 (unionWith (⊔) m1 m2)@.
 isSubmapOfBy :: (Eq k, Hashable k) => (v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2 -> Bool
--- O(n*m) is the worst case runtime complexity. The worst case is when both
--- hashmaps m1 and m2 are collision nodes. Since collision nodes are unsorted
--- arrays, it requires for every key in m1 a linear search to to find a matching
--- key in m2, hence O(n*m).
+-- For maps without collisions the complexity is O(n*log m), where n is the size
+-- of m1 and m the size of m2: the inclusion operation visits every leaf in m1 at least once.
+-- For each leaf in m1, it looks up the key in m2.
 --
--- For maps without collisions the complexity is O(n), where n is the size of
--- m1: the inclusion operation traverses both maps in synchrony. When it
--- traverses down an edge in m1, it selects the appropriate edge in m2 with the
--- same hash prefix. Furthermore, it only needs to visit each node in m1 and m2
--- once. Therefore, the complexity is O(n).
+-- The worst case complexity is O(n*m). The worst case is when both hashmaps m1
+-- and m2 are collision nodes. Since collision nodes are unsorted arrays, it
+-- requires for every key in m1 a linear search to to find a matching key in m2,
+-- hence O(n*m).
 isSubmapOfBy comp = go 0
   where
     -- An empty map is always a submap of any other map.
