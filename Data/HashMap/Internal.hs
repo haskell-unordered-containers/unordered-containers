@@ -1476,7 +1476,7 @@ isSubmapOfBy comp = go 0
     go _ (Collision h1 ls1) (Collision h2 ls2) =
       h1 == h2 && subsetArray comp ls1 ls2
 
-    -- To check ls1 ⊆ ls2, we only need to check the entries in ls2 with the hash h1.
+    -- To check t1 ⊆ t2, we only need to check the entries in ls2 with the hash h1.
     go s t1@(Collision h1 _) (BitmapIndexed b ls2)
         | b .&. m == 0 = False
         | otherwise    =
@@ -1493,7 +1493,7 @@ isSubmapOfBy comp = go 0
     go s t1@(Full {}) t2@(Collision h2 _) =
       go s t1 (BitmapIndexed (mask h2 s) (A.singleton t2))
 
-    -- In cases where the first and second map are bitmap indexed or full,
+    -- In cases where the first and second map are BitmapIndexed or Full,
     -- traverse down the tree at the appropriate indices.
     go s (BitmapIndexed b1 ls1) (BitmapIndexed b2 ls2) =
       submapBitmapIndexed (go (s+bitsPerSubkey)) b1 ls1 b2 ls2
