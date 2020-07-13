@@ -1450,6 +1450,16 @@ isSubmapOf = isSubmapOfBy (==)
 -- holds @isSubmapOfBy (⊑) m1 (unionWith (⊔) m1 m2)@ and
 -- @isSubmapOfBy (⊑) m2 (unionWith (⊔) m1 m2)@.
 isSubmapOfBy :: (Eq k, Hashable k) => (v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2 -> Bool
+-- O(n*m) is the worst case runtime complexity. The worst case is when both
+-- hashmaps m1 and m2 are collision nodes. Since collision nodes are unsorted
+-- arrays, it requires for every key in m1 a linear search to to find a matching
+-- key in m2, hence O(n*m).
+--
+-- For maps without collisions the complexity is O(n), where n is the size of
+-- m1: the inclusion operation traverses both maps in synchrony. When it
+-- traverses down an edge in m1, it selects the appropriate edge in m2 with the
+-- same hash prefix. Furthermore, it only needs to visit each node in m1 once.
+-- Therefore, the complexity is O(n).
 isSubmapOfBy comp = go 0
   where
     -- An empty map is always a submap of any other map.
