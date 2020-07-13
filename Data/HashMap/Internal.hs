@@ -1422,15 +1422,18 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
 --
 -- >>> isSubmapOf m1 m2 = keys m1 ⊆ keys m2 && and [ v1 == v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
 --
--- This defines a partial order on maps, for which 'union' is the least upper bound.
--- More specifically, @isSubmapOf m1 (union m1 m2)@ and @isSubmapOf m2 (union m1 m2)@.
+-- This defines a partial order on maps. However, 'union' is /not/ its least
+-- upper bound, because it is not cummutative. In particular, for all maps @m1@
+-- and @m2@ it holds @m1 `isSubmapOf` union m1 m2@, however, the other direction
+-- @m2 `isSubmapOf` union m1 m2@ may not hold because 'union' may discard values
+-- of m2.
 --
 -- ==== __Examples__
 --
--- >>> isSubmapOf (fromList [(1,'a')]) (fromList [(1,'a'),(2,'b')])
+-- >>> fromList [(1,'a')] `isSubmapOf` fromList [(1,'a'),(2,'b')]
 -- True
 --
--- >>> isSubmapOf (fromList [(1,'a'),(2,'b')]) (fromList [(1,'a')])
+-- >>> fromList [(1,'a'),(2,'b')] `isSubmapOf` fromList [(1,'a')]
 -- False
 isSubmapOf :: (Eq k, Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
 isSubmapOf = isSubmapOfBy (==)
@@ -1441,8 +1444,11 @@ isSubmapOf = isSubmapOfBy (==)
 --
 -- >>> isSubmapOfBy (⊑) m1 m2 = keys m1 ⊆ keys m2 && and [ v1 ⊑ v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
 --
--- This defines a partial order on maps, for which 'unionWith' is the least upper bound.
--- More specifically, @isSubmapOfBy (⊑) m1 (unionWith (⊔) m1 m2)@ and @isSubmapOfBy (⊑) m2 (unionWith (⊔) m1 m2)@.
+-- This defines a partial order on maps, for which 'unionWith' is the least
+-- upper bound. More specifically, let @(⊑)@ be a partial order on values for
+-- which @(⊔)@ is the least upper bound. Then for all maps @m1@ and @m2@ it
+-- holds @isSubmapOfBy (⊑) m1 (unionWith (⊔) m1 m2)@ and
+-- @isSubmapOfBy (⊑) m2 (unionWith (⊔) m1 m2)@.
 isSubmapOfBy :: (Eq k, Hashable k) => (v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2 -> Bool
 isSubmapOfBy comp = go 0
   where
