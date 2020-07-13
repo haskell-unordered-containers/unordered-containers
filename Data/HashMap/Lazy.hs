@@ -100,8 +100,8 @@ module Data.HashMap.Lazy
     , HS.keysSet
     ) where
 
-import Data.HashMap.Base as HM
-import qualified Data.HashSet.Base as HS
+import Data.HashMap.Internal as HM
+import qualified Data.HashSet.Internal as HS
 import Prelude ()
 
 -- $strictness

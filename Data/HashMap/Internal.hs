@@ -11,7 +11,19 @@
 #endif
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 
-module Data.HashMap.Base
+-- | = WARNING
+--
+-- This module is considered __internal__.
+--
+-- The Package Versioning Policy __does not apply__.
+--
+-- The contents of this module may change __in any way whatsoever__
+-- and __without any warning__ between minor versions of this package.
+--
+-- Authors importing this module are expected to track development
+-- closely.
+
+module Data.HashMap.Internal
     (
       HashMap(..)
     , Leaf(..)
@@ -140,11 +152,11 @@ import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
 import Prelude hiding (filter, foldl, foldr, lookup, map, null, pred)
 import Text.Read hiding (step)
 
-import qualified Data.HashMap.Array as A
+import qualified Data.HashMap.Internal.Array as A
 import qualified Data.Hashable as H
 import Data.Hashable (Hashable)
-import Data.HashMap.Unsafe (runST)
-import Data.HashMap.List (isPermutationBy, unorderedCompare)
+import Data.HashMap.Internal.Unsafe (runST)
+import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
 import Data.Typeable (Typeable)
 
 import GHC.Exts (isTrue#)
@@ -283,7 +295,7 @@ fromListConstr :: Constr
 fromListConstr = mkConstr hashMapDataType "fromList" [] Prefix
 
 hashMapDataType :: DataType
-hashMapDataType = mkDataType "Data.HashMap.Base.HashMap" [fromListConstr]
+hashMapDataType = mkDataType "Data.HashMap.Internal.HashMap" [fromListConstr]
 
 type Hash   = Word
 type Bitmap = Word
@@ -729,7 +741,7 @@ lookupDefault def k t = findWithDefault def k t
 #endif
 (!) m k = case lookup k m of
     Just v  -> v
-    Nothing -> error "Data.HashMap.Base.(!): key not found"
+    Nothing -> error "Data.HashMap.Internal.(!): key not found"
 {-# INLINABLE (!) #-}
 
 infixl 9 !

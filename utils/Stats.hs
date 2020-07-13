@@ -3,9 +3,9 @@
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 module Stats where
 
-import qualified Data.HashMap.Array as A
-import Data.HashMap.Base (HashMap(..))
-import qualified Data.HashMap.Base as HM
+import qualified Data.HashMap.Internal.Array as A
+import Data.HashMap.Internal (HashMap(..))
+import qualified Data.HashMap.Internal as HM
 import Data.Semigroup
 
 data Histogram = H {

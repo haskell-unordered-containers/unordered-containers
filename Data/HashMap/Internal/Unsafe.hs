@@ -4,7 +4,21 @@
 {-# LANGUAGE MagicHash, Rank2Types, UnboxedTuples #-}
 #endif
 
--- | This module exports a workaround for this bug:
+-- | = WARNING
+--
+-- This module is considered __internal__.
+--
+-- The Package Versioning Policy __does not apply__.
+--
+-- The contents of this module may change __in any way whatsoever__
+-- and __without any warning__ between minor versions of this package.
+--
+-- Authors importing this module are expected to track development
+-- closely.
+--
+-- = Description
+--
+-- This module exports a workaround for this bug:
 --
 --    http://hackage.haskell.org/trac/ghc/ticket/5916
 --
@@ -12,7 +26,7 @@
 -- understand what's going on here.
 --
 -- Code that uses this module should be compiled with -fno-full-laziness
-module Data.HashMap.Unsafe
+module Data.HashMap.Internal.Unsafe
     ( runST
     ) where
 

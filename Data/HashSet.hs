@@ -137,5 +137,5 @@ module Data.HashSet
     , fromMap
     ) where
 
-import Data.HashSet.Base
+import Data.HashSet.Internal
 import Prelude ()
