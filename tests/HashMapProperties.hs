@@ -24,7 +24,7 @@ import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map.Lazy as M
 #endif
-import Test.QuickCheck (Arbitrary(..), Property, (==>), (===))
+import Test.QuickCheck (Arbitrary(..), Property, (==>), (===), forAll, elements)
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 #if MIN_VERSION_base(4,8,0)
@@ -244,21 +244,34 @@ pSubmapUnion m1 m2 = HM.isSubmapOf m1 (HM.union m1 m2)
 pNotSubmapUnion :: HashMap Key Int -> HashMap Key Int -> Property
 pNotSubmapUnion m1 m2 = not (HM.isSubmapOf m1 m2) ==> HM.isSubmapOf m1 (HM.union m1 m2)
 
-pSubmapDelete :: Key -> Int -> HashMap Key Int -> Bool
-pSubmapDelete k v m0 =
-  let m = HM.insert k v m0
-  in HM.isSubmapOf (HM.delete k m) m
+pSubmapDifference :: HashMap Key Int -> HashMap Key Int -> Bool
+pSubmapDifference m1 m2 = HM.isSubmapOf (HM.difference m1 m2) m1
 
-pNotSubmapDelete :: Key -> Int -> HashMap Key Int -> Bool
-pNotSubmapDelete k v m0 =
-  let m = HM.insert k v m0
-  in not (HM.isSubmapOf m (HM.delete k m))
+pNotSubmapDifference :: HashMap Key Int -> HashMap Key Int -> Property
+pNotSubmapDifference m1 m2 =
+  not (HM.null (HM.intersection m1 m2)) ==>
+  not (HM.isSubmapOf m1 (HM.difference m1 m2))
+
+pSubmapDelete :: HashMap Key Int -> Property
+pSubmapDelete m = not (HM.null m) ==>
+  forAll (elements (HM.keys m)) $ \k ->
+  HM.isSubmapOf (HM.delete k m) m
+
+pNotSubmapDelete :: HashMap Key Int -> Property
+pNotSubmapDelete m =
+  not (HM.null m) ==>
+  forAll (elements (HM.keys m)) $ \k ->
+  not (HM.isSubmapOf m (HM.delete k m))
 
 pSubmapInsert :: Key -> Int -> HashMap Key Int -> Property
 pSubmapInsert k v m = not (HM.member k m) ==> HM.isSubmapOf m (HM.insert k v m)
 
 pNotSubmapInsert :: Key -> Int -> HashMap Key Int -> Property
 pNotSubmapInsert k v m = not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
+
+pSubmapInsertDelete :: Key -> Int -> HashMap Key Int -> Property
+pSubmapInsertDelete k v m =
+  not (HM.member k m) ==> HM.isSubmapOf (HM.delete k (HM.insert k v m)) m
 
 ------------------------------------------------------------------------
 -- ** Combine
@@ -479,6 +492,8 @@ tests =
         , testProperty "m ⊆ m" pSubmapReflexive
         , testProperty "m1 ⊆ m1 ∪ m2" pSubmapUnion
         , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" pNotSubmapUnion
+        , testProperty "m1\\m2 ⊆ m1" pSubmapDifference
+        , testProperty "m1 ∩ m2 ≠ ∅  ⇒  m1 ⊈ m1\\m2 " pNotSubmapDifference
         , testProperty "delete k m ⊆ m" pSubmapDelete
         , testProperty "m ⊈ delete k m " pNotSubmapDelete
         , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" pSubmapInsert
