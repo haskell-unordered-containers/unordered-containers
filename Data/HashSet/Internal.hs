@@ -311,7 +311,7 @@ fromMap = HashSet
 keysSet :: HashMap k a -> HashSet k
 keysSet m = fromMap (() <$ m)
 
--- | /O(n*m)/ Inclusion of sets.
+-- | /O(n*log m)/ Inclusion of sets.
 --
 -- ==== __Examples__
 --
