@@ -1435,7 +1435,8 @@ isSubmapOf = isSubmapOfBy (==)
 {-# INLINE isSubmapOf #-}
 
 -- | /O(n*log m)/ Inclusion of maps with value comparison. A map is included in
--- another map if the keys are subsets and the corresponding values are smaller:
+-- another map if the keys are subsets and if the comparison function is true
+-- for the corresponding values:
 --
 -- > isSubmapOfBy cmpV m1 m2 = keys m1 `isSubsetOf` keys m2 &&
 -- >                           and [ v1 `cmpV` v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
@@ -1453,9 +1454,9 @@ isSubmapOfBy :: (Eq k, Hashable k) => (v1 -> v2 -> Bool) -> HashMap k v1 -> Hash
 -- For each leaf in m1, it looks up the key in m2.
 --
 -- The worst case complexity is O(n*m). The worst case is when both hashmaps m1
--- and m2 are collision nodes. Since collision nodes are unsorted arrays, it
--- requires for every key in m1 a linear search to to find a matching key in m2,
--- hence O(n*m).
+-- and m2 are collision nodes for the same hash. Since collision nodes are
+-- unsorted arrays, it requires for every key in m1 a linear search to to find a
+-- matching key in m2, hence O(n*m).
 isSubmapOfBy comp = go 0
   where
     -- An empty map is always a submap of any other map.
