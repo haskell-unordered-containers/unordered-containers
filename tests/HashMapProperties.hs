@@ -269,10 +269,6 @@ pSubmapInsert k v m = not (HM.member k m) ==> HM.isSubmapOf m (HM.insert k v m)
 pNotSubmapInsert :: Key -> Int -> HashMap Key Int -> Property
 pNotSubmapInsert k v m = not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
 
-pSubmapInsertDelete :: Key -> Int -> HashMap Key Int -> Property
-pSubmapInsertDelete k v m =
-  not (HM.member k m) ==> HM.isSubmapOf (HM.delete k (HM.insert k v m)) m
-
 ------------------------------------------------------------------------
 -- ** Combine
 
