@@ -1488,6 +1488,8 @@ isSubmapOfBy comp = go 0
     -- Insert the collision into a bitmap indexed node and recurse.
     go s t1@(BitmapIndexed {}) t2@(Collision h2 _) =
       go s t1 (BitmapIndexed (mask h2 s) (A.singleton t2))
+    go s t1@(BitmapIndexed {}) t2@(Leaf h2 _) =
+      go s t1 (BitmapIndexed (mask h2 s) (A.singleton t2))
     go s t1@(Full {}) t2@(Collision h2 _) =
       go s t1 (BitmapIndexed (mask h2 s) (A.singleton t2))
 
@@ -1502,10 +1504,9 @@ isSubmapOfBy comp = go 0
     go s (Full ls1) (BitmapIndexed b2 ls2) =
       submapBitmapIndexed (go (s+bitsPerSubkey)) fullNodeMask ls1 b2 ls2
 
-    -- A collision, bitmap indexed an full node always contain at least two
-    -- entries. Hence it cannot be a map of a leaf.
+    -- Collision and Full nodes always contain at least two entries. Hence it
+    -- cannot be a map of a leaf.
     go _ (Collision {}) (Leaf {}) = False
-    go _ (BitmapIndexed {}) (Leaf {}) = False
     go _ (Full {}) (Leaf {}) = False
 
 
@@ -2200,12 +2201,10 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
 
 -- | /O(n*m)/ Check if the first array is a subset of the second array.
 subsetArray :: Eq k => (v1 -> v2 -> Bool) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> Bool
-subsetArray cmpV ary1 ary2 = A.length ary1 <= A.length ary2 && go 0 (A.length ary1)
+subsetArray cmpV ary1 ary2 = A.length ary1 <= A.length ary2 && A.all inAry2 ary1
   where
-    go !i n
-      | i >= n = True
-      | otherwise = let (L k1 v1) = A.index ary1 i
-                    in lookupInArrayCont (\_ -> False) (\v2 _ -> cmpV v1 v2 && go (i+1) n) k1 ary2
+    inAry2 (L k1 v1) = lookupInArrayCont (\_ -> False) (\v2 _ -> cmpV v1 v2) k1 ary2
+    {-# INLINE inAry2 #-}
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops
