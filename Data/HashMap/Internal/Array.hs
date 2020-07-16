@@ -59,6 +59,7 @@ module Data.HashMap.Internal.Array
     , foldr
     , foldr'
     , foldMap
+    , all
 
     , thaw
     , map
@@ -79,9 +80,9 @@ import GHC.ST (ST(..))
 import Control.Monad.ST (stToIO)
 
 #if __GLASGOW_HASKELL__ >= 709
-import Prelude hiding (filter, foldMap, foldr, foldl, length, map, read, traverse)
+import Prelude hiding (filter, foldMap, foldr, foldl, length, map, read, traverse, all)
 #else
-import Prelude hiding (filter, foldr, foldl, length, map, read)
+import Prelude hiding (filter, foldr, foldl, length, map, read, all)
 #endif
 
 #if __GLASGOW_HASKELL__ >= 710
@@ -460,6 +461,11 @@ foldMap f = \ary0 -> case length ary0 of
           if i == lst then fx else fx `mappend` go (i + 1)
     in go 0
 {-# INLINE foldMap #-}
+
+-- | Verifies that a predicate holds for all elements of an array.
+all :: (a -> Bool) -> Array a -> Bool
+all p = foldr (\a acc -> p a && acc) True
+{-# INLINE all #-}
 
 undefinedElem :: a
 undefinedElem = error "Data.HashMap.Internal.Array: Undefined element"
