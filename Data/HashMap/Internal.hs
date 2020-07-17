@@ -1485,14 +1485,6 @@ isSubmapOfBy comp = go 0
     go s t1@(Collision h1 _) (Full ls2) =
       go (s+bitsPerSubkey) t1 (A.index ls2 (index h1 s))
 
-    -- Insert the collision into a bitmap indexed node and recurse.
-    go s t1@(BitmapIndexed {}) t2@(Collision h2 _) =
-      go s t1 (BitmapIndexed (mask h2 s) (A.singleton t2))
-    go s t1@(BitmapIndexed {}) t2@(Leaf h2 _) =
-      go s t1 (BitmapIndexed (mask h2 s) (A.singleton t2))
-    go s t1@(Full {}) t2@(Collision h2 _) =
-      go s t1 (BitmapIndexed (mask h2 s) (A.singleton t2))
-
     -- In cases where the first and second map are BitmapIndexed or Full,
     -- traverse down the tree at the appropriate indices.
     go s (BitmapIndexed b1 ls1) (BitmapIndexed b2 ls2) =
@@ -1501,14 +1493,15 @@ isSubmapOfBy comp = go 0
       submapBitmapIndexed (go (s+bitsPerSubkey)) b1 ls1 fullNodeMask ls2
     go s (Full ls1) (Full ls2) =
       submapBitmapIndexed (go (s+bitsPerSubkey)) fullNodeMask ls1 fullNodeMask ls2
-    go s (Full ls1) (BitmapIndexed b2 ls2) =
-      submapBitmapIndexed (go (s+bitsPerSubkey)) fullNodeMask ls1 b2 ls2
 
     -- Collision and Full nodes always contain at least two entries. Hence it
     -- cannot be a map of a leaf.
     go _ (Collision {}) (Leaf {}) = False
+    go _ (BitmapIndexed {}) (Leaf {}) = False
     go _ (Full {}) (Leaf {}) = False
-
+    go _ (BitmapIndexed {}) (Collision {}) = False
+    go _ (Full {}) (Collision {}) = False
+    go _ (Full {}) (BitmapIndexed {}) = False
 
 -- | /O(min n m))/ Checks if a bitmap indexed node is a submap of another.
 submapBitmapIndexed :: (HashMap k v1 -> HashMap k v2 -> Bool) -> Bitmap -> A.Array (HashMap k v1) -> Bitmap -> A.Array (HashMap k v2) -> Bool
