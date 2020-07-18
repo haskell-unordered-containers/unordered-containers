@@ -305,9 +305,9 @@ main = do
             , bench "Int" $ whnf (HM.isSubmapOf hmiSubset) hmi
             ]
           , bgroup "isSubmapOfNaive"
-            [ bench "String" $ whnf (HM.isSubmapOf hmSubset) hm
-            , bench "ByteString" $ whnf (HM.isSubmapOf hmbsSubset) hmbs
-            , bench "Int" $ whnf (HM.isSubmapOf hmiSubset) hmi
+            [ bench "String" $ whnf (isSubmapOfNaive hmSubset) hm
+            , bench "ByteString" $ whnf (isSubmapOfNaive hmbsSubset) hmbs
+            , bench "Int" $ whnf (isSubmapOfNaive hmiSubset) hmi
             ]
 
             -- Combine

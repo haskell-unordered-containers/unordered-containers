@@ -1457,10 +1457,10 @@ isSubmapOfBy :: (Eq k, Hashable k) => (v1 -> v2 -> Bool) -> HashMap k v1 -> Hash
 -- and m2 are collision nodes for the same hash. Since collision nodes are
 -- unsorted arrays, it requires for every key in m1 a linear search to to find a
 -- matching key in m2, hence O(n*m).
-isSubmapOfBy comp = go 0
+isSubmapOfBy comp !m1 !m2 = go 0 m1 m2
   where
     -- An empty map is always a submap of any other map.
-    go !_ Empty _ = True
+    go _ Empty _ = True
 
     -- If the second map is empty and the first is not, it cannot be a submap.
     go _ _ Empty = False
@@ -1505,10 +1505,10 @@ isSubmapOfBy comp = go 0
 
 -- | /O(min n m))/ Checks if a bitmap indexed node is a submap of another.
 submapBitmapIndexed :: (HashMap k v1 -> HashMap k v2 -> Bool) -> Bitmap -> A.Array (HashMap k v1) -> Bitmap -> A.Array (HashMap k v2) -> Bool
-submapBitmapIndexed comp b1 ary1 b2 ary2 = subsetBitmaps && go 0 0 (b1Orb2 .&. negate b1Orb2)
+submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .&. negate b1Orb2)
   where
     go :: Int -> Int -> Bitmap -> Bool
-    go i j m
+    go !i !j !m
       | m > b1Orb2 = True
 
       -- In case a key is both in ary1 and ary2, check ary1[i] <= ary2[j] and
