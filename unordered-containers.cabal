@@ -37,16 +37,15 @@ flag debug
 
 library
   exposed-modules:
+    Data.HashMap.Internal
+    Data.HashMap.Internal.Array
+    Data.HashMap.Internal.List
+    Data.HashMap.Internal.Strict
+    Data.HashMap.Internal.Unsafe
     Data.HashMap.Lazy
     Data.HashMap.Strict
     Data.HashSet
-  other-modules:
-    Data.HashMap.Array
-    Data.HashMap.Base
-    Data.HashMap.Strict.Base
-    Data.HashMap.List
-    Data.HashMap.Unsafe
-    Data.HashSet.Base
+    Data.HashSet.Internal
 
   build-depends:
     base >= 4.7 && < 5,
@@ -130,7 +129,7 @@ test-suite list-tests
   hs-source-dirs: tests .
   main-is: List.hs
   other-modules:
-    Data.HashMap.List
+    Data.HashMap.Internal.List
   type: exitcode-stdio-1.0
 
   build-depends:

@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Data.HashMap.List
+import Data.HashMap.Internal.List
 import Data.List (nub, sort, sortBy)
 import Data.Ord (comparing)
 
@@ -9,7 +9,7 @@ import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck ((==>), (===), property, Property)
 
 tests :: Test
-tests = testGroup "Data.HashMap.List"
+tests = testGroup "Data.HashMap.Internal.List"
     [ testProperty "isPermutationBy" pIsPermutation
     , testProperty "isPermutationBy of different length" pIsPermutationDiffLength
     , testProperty "pUnorderedCompare" pUnorderedCompare

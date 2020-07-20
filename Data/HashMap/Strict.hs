@@ -99,8 +99,8 @@ module Data.HashMap.Strict
     , HS.keysSet
     ) where
 
-import Data.HashMap.Strict.Base as HM
-import qualified Data.HashSet.Base as HS
+import Data.HashMap.Internal.Strict as HM
+import qualified Data.HashSet.Internal as HS
 import Prelude ()
 
 -- $strictness

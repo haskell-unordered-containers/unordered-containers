@@ -9,12 +9,25 @@
 
 ------------------------------------------------------------------------
 -- |
--- Module      :  Data.HashSet.Base
+-- Module      :  Data.HashSet.Internal
 -- Copyright   :  2011 Bryan O'Sullivan
 -- License     :  BSD-style
 -- Maintainer  :  johan.tibell@gmail.com
--- Stability   :  provisional
 -- Portability :  portable
+--
+-- = WARNING
+--
+-- This module is considered __internal__.
+--
+-- The Package Versioning Policy __does not apply__.
+--
+-- The contents of this module may change __in any way whatsoever__
+-- and __without any warning__ between minor versions of this package.
+--
+-- Authors importing this module are expected to track development
+-- closely.
+--
+-- = Description
 --
 -- A set of /hashable/ values.  A set cannot contain duplicate items.
 -- A 'HashSet' makes no guarantees as to the order of its elements.
@@ -28,7 +41,7 @@
 -- implementation uses a large base (i.e. 16) so in practice these
 -- operations are constant time.
 
-module Data.HashSet.Base
+module Data.HashSet.Internal
     (
       HashSet
 
@@ -79,7 +92,7 @@ module Data.HashSet.Base
 
 import Control.DeepSeq (NFData(..))
 import Data.Data hiding (Typeable)
-import Data.HashMap.Base
+import Data.HashMap.Internal
   ( HashMap, foldMapWithKey, foldlWithKey, foldrWithKey
   , equalKeys, equalKeys1)
 import Data.Hashable (Hashable(hashWithSalt))
@@ -91,7 +104,7 @@ import Data.Monoid (Monoid(..))
 import GHC.Exts (build)
 import Prelude hiding (filter, foldr, foldl, map, null)
 import qualified Data.Foldable as Foldable
-import qualified Data.HashMap.Base as H
+import qualified Data.HashMap.Internal as H
 import qualified Data.List as List
 import Data.Typeable (Typeable)
 import Text.Read
@@ -257,7 +270,7 @@ fromListConstr :: Constr
 fromListConstr = mkConstr hashSetDataType "fromList" [] Prefix
 
 hashSetDataType :: DataType
-hashSetDataType = mkDataType "Data.HashSet.Base.HashSet" [fromListConstr]
+hashSetDataType = mkDataType "Data.HashSet.Internal.HashSet" [fromListConstr]
 
 -- | /O(1)/ Construct an empty set.
 --

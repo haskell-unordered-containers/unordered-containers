@@ -1,10 +1,24 @@
 {-# LANGUAGE BangPatterns, CPP, MagicHash, Rank2Types, UnboxedTuples, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 
--- | Zero based arrays.
+-- | = WARNING
+--
+-- This module is considered __internal__.
+--
+-- The Package Versioning Policy __does not apply__.
+--
+-- The contents of this module may change __in any way whatsoever__
+-- and __without any warning__ between minor versions of this package.
+--
+-- Authors importing this module are expected to track development
+-- closely.
+--
+-- = Description
+--
+-- Zero based arrays.
 --
 -- Note that no bounds checking are performed.
-module Data.HashMap.Array
+module Data.HashMap.Internal.Array
     ( Array
     , MArray
 
@@ -88,7 +102,7 @@ import Data.Monoid (Monoid (..))
 import qualified Prelude
 #endif
 
-import Data.HashMap.Unsafe (runST)
+import Data.HashMap.Internal.Unsafe (runST)
 import Control.Monad ((>=>))
 
 
@@ -163,9 +177,9 @@ copyMutableArray# = copySmallMutableArray#
 -- This fugly hack is brought by GHC's apparent reluctance to deal
 -- with MagicHash and UnboxedTuples when inferring types. Eek!
 # define CHECK_BOUNDS(_func_,_len_,_k_) \
-if (_k_) < 0 || (_k_) >= (_len_) then error ("Data.HashMap.Array." ++ (_func_) ++ ": bounds error, offset " ++ show (_k_) ++ ", length " ++ show (_len_)) else
+if (_k_) < 0 || (_k_) >= (_len_) then error ("Data.HashMap.Internal.Array." ++ (_func_) ++ ": bounds error, offset " ++ show (_k_) ++ ", length " ++ show (_len_)) else
 # define CHECK_OP(_func_,_op_,_lhs_,_rhs_) \
-if not ((_lhs_) _op_ (_rhs_)) then error ("Data.HashMap.Array." ++ (_func_) ++ ": Check failed: _lhs_ _op_ _rhs_ (" ++ show (_lhs_) ++ " vs. " ++ show (_rhs_) ++ ")") else
+if not ((_lhs_) _op_ (_rhs_)) then error ("Data.HashMap.Internal.Array." ++ (_func_) ++ ": Check failed: _lhs_ _op_ _rhs_ (" ++ show (_lhs_) ++ " vs. " ++ show (_rhs_) ++ ")") else
 # define CHECK_GT(_func_,_lhs_,_rhs_) CHECK_OP(_func_,>,_lhs_,_rhs_)
 # define CHECK_LE(_func_,_lhs_,_rhs_) CHECK_OP(_func_,<=,_lhs_,_rhs_)
 # define CHECK_EQ(_func_,_lhs_,_rhs_) CHECK_OP(_func_,==,_lhs_,_rhs_)
@@ -448,7 +462,7 @@ foldMap f = \ary0 -> case length ary0 of
 {-# INLINE foldMap #-}
 
 undefinedElem :: a
-undefinedElem = error "Data.HashMap.Array: Undefined element"
+undefinedElem = error "Data.HashMap.Internal.Array: Undefined element"
 {-# NOINLINE undefinedElem #-}
 
 thaw :: Array e -> Int -> Int -> ST s (MArray s e)

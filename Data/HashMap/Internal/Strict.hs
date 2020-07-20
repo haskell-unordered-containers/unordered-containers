@@ -8,8 +8,21 @@
 -- Copyright   :  2010-2012 Johan Tibell
 -- License     :  BSD-style
 -- Maintainer  :  johan.tibell@gmail.com
--- Stability   :  provisional
 -- Portability :  portable
+--
+-- = WARNING
+--
+-- This module is considered __internal__.
+--
+-- The Package Versioning Policy __does not apply__.
+--
+-- The contents of this module may change __in any way whatsoever__
+-- and __without any warning__ between minor versions of this package.
+--
+-- Authors importing this module are expected to track development
+-- closely.
+--
+-- = Description
 --
 -- A map from /hashable/ keys to values.  A map cannot contain
 -- duplicate keys; each key can map to at most one value.  A 'HashMap'
@@ -23,7 +36,7 @@
 -- Many operations have a average-case complexity of /O(log n)/.  The
 -- implementation uses a large base (i.e. 16) so in practice these
 -- operations are constant time.
-module Data.HashMap.Strict.Base
+module Data.HashMap.Internal.Strict
     (
       -- * Strictness properties
       -- $strictness
@@ -107,15 +120,15 @@ import qualified Data.List as L
 import Data.Hashable (Hashable)
 import Prelude hiding (map, lookup)
 
-import qualified Data.HashMap.Array as A
-import qualified Data.HashMap.Base as HM
-import Data.HashMap.Base hiding (
+import qualified Data.HashMap.Internal.Array as A
+import qualified Data.HashMap.Internal as HM
+import Data.HashMap.Internal hiding (
     alter, alterF, adjust, fromList, fromListWith, fromListWithKey,
     insert, insertWith,
     differenceWith, intersectionWith, intersectionWithKey, map, mapWithKey,
     mapMaybe, mapMaybeWithKey, singleton, update, unionWith, unionWithKey,
     traverseWithKey)
-import Data.HashMap.Unsafe (runST)
+import Data.HashMap.Internal.Unsafe (runST)
 #if MIN_VERSION_base(4,8,0)
 import Data.Functor.Identity
 #endif
@@ -310,7 +323,7 @@ alterF f = \ !k !m ->
 {-# INLINABLE [0] alterF #-}
 
 #if MIN_VERSION_base(4,8,0)
--- See notes in Data.HashMap.Base
+-- See notes in Data.HashMap.Internal
 test_bottom :: a
 test_bottom = error "Data.HashMap.alterF internal error: hit test_bottom"
 
@@ -322,7 +335,7 @@ impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
 
 {-# RULES
 
--- See detailed notes on alterF rules in Data.HashMap.Base.
+-- See detailed notes on alterF rules in Data.HashMap.Internal.
 
 "alterFWeird" forall f. alterF f =
     alterFWeird (f Nothing) (f (Just test_bottom)) f
