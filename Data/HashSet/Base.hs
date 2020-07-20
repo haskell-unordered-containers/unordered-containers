@@ -19,7 +19,7 @@
 -- A set of /hashable/ values.  A set cannot contain duplicate items.
 -- A 'HashSet' makes no guarantees as to the order of its elements.
 --
--- The implementation is based on /hash array mapped trie/.  A
+-- The implementation is based on /hash array mapped tries/.  A
 -- 'HashSet' is often faster than other tree-based set types,
 -- especially when value comparison is expensive, as in the case of
 -- strings.
@@ -36,10 +36,6 @@ module Data.HashSet.Base
     , empty
     , singleton
 
-    -- * Combine
-    , union
-    , unions
-
     -- * Basic interface
     , null
     , size
@@ -49,6 +45,10 @@ module Data.HashSet.Base
 
     -- * Transformations
     , map
+
+    -- * Combine
+    , union
+    , unions
 
       -- * Difference and intersection
     , difference
@@ -260,23 +260,38 @@ hashSetDataType :: DataType
 hashSetDataType = mkDataType "Data.HashSet.Base.HashSet" [fromListConstr]
 
 -- | /O(1)/ Construct an empty set.
+--
+-- >>> HashSet.empty
+-- fromList []
 empty :: HashSet a
 empty = HashSet H.empty
 
 -- | /O(1)/ Construct a set with a single element.
+--
+-- >>> HashSet.singleton 1
+-- fromList [1]
 singleton :: Hashable a => a -> HashSet a
 singleton a = HashSet (H.singleton a ())
 {-# INLINABLE singleton #-}
 
--- | /O(1)/ Convert to the equivalent 'HashMap'.
+-- | /O(1)/ Convert to set to the equivalent 'HashMap' with @()@ values.
+--
+-- >>> HashSet.toMap (HashSet.singleton 1)
+-- fromList [(1,())]
 toMap :: HashSet a -> HashMap a ()
 toMap = asMap
 
--- | /O(1)/ Convert from the equivalent 'HashMap'.
+-- | /O(1)/ Convert from the equivalent 'HashMap' with @()@ values.
+--
+-- >>> HashSet.fromMap (HashMap.singleton 1 ())
+-- fromList [1]
 fromMap :: HashMap a () -> HashSet a
 fromMap = HashSet
 
 -- | /O(n)/ Produce a 'HashSet' of all the keys in the given 'HashMap'.
+--
+-- >>> HashSet.keysSet (HashMap.fromList [(1, "a"), (2, "b")]
+-- fromList [1,2]
 --
 -- @since 0.2.10.0
 keysSet :: HashMap k a -> HashSet k
@@ -286,8 +301,6 @@ keysSet m = fromMap (() <$ m)
 --
 -- To obtain good performance, the smaller set must be presented as
 -- the first argument.
---
--- ==== __Examples__
 --
 -- >>> union (fromList [1,2]) (fromList [2,3])
 -- fromList [1,2,3]
@@ -303,17 +316,32 @@ unions = List.foldl' union empty
 {-# INLINE unions #-}
 
 -- | /O(1)/ Return 'True' if this set is empty, 'False' otherwise.
+--
+-- >>> HashSet.null HashSet.empty
+-- True
+-- >>> HashSet.null (HashSet.singleton 1)
+-- False
 null :: HashSet a -> Bool
 null = H.null . asMap
 {-# INLINE null #-}
 
 -- | /O(n)/ Return the number of elements in this set.
+--
+-- >>> HashSet.size HashSet.empty
+-- 0
+-- >>> HashSet.size (HashSet.fromList [1,2,3])
+-- 3
 size :: HashSet a -> Int
 size = H.size . asMap
 {-# INLINE size #-}
 
 -- | /O(log n)/ Return 'True' if the given value is present in this
 -- set, 'False' otherwise.
+--
+-- >>> HashSet.member 1 (Hashset.fromList [1,2,3])
+-- True
+-- >>> HashSet.member 1 (Hashset.fromList [4,5,6])
+-- False
 member :: (Eq a, Hashable a) => a -> HashSet a -> Bool
 member a s = case H.lookup a (asMap s) of
                Just _ -> True
@@ -321,30 +349,46 @@ member a s = case H.lookup a (asMap s) of
 {-# INLINABLE member #-}
 
 -- | /O(log n)/ Add the specified value to this set.
+--
+-- >>> HashSet.insert 1 HashSet.empty
+-- fromList [1]
 insert :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 insert a = HashSet . H.insert a () . asMap
 {-# INLINABLE insert #-}
 
--- | /O(log n)/ Remove the specified value from this set if
--- present.
+-- | /O(log n)/ Remove the specified value from this set if present.
+--
+-- >>> HashSet.delete 1 (HashSet.fromList [1,2,3])
+-- fromList [2,3]
+-- >>> HashSet.delete 1 (HashSet.fromList [4,5,6])
+-- fromList [4,5,6]
 delete :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 delete a = HashSet . H.delete a . asMap
 {-# INLINABLE delete #-}
 
 -- | /O(n)/ Transform this set by applying a function to every value.
 -- The resulting set may be smaller than the source.
+--
+-- >>> HashSet.map show (HashSet.fromList [1,2,3])
+-- HashSet.fromList ["1","2","3"]
 map :: (Hashable b, Eq b) => (a -> b) -> HashSet a -> HashSet b
 map f = fromList . List.map f . toList
 {-# INLINE map #-}
 
 -- | /O(n)/ Difference of two sets. Return elements of the first set
 -- not existing in the second.
+--
+-- >>> HashSet.difference (HashSet.fromList [1,2,3]) (HashSet.fromList [2,3,4])
+-- fromList [1]
 difference :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
 {-# INLINABLE difference #-}
 
 -- | /O(n)/ Intersection of two sets. Return elements present in both
 -- the first set and the second.
+--
+-- >>> HashSet.intersection (HashSet.fromList [1,2,3]) (HashSet.fromList [2,3,4])
+-- fromList [2,3]
 intersection :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 intersection (HashSet a) (HashSet b) = HashSet (H.intersection a b)
 {-# INLINABLE intersection #-}
