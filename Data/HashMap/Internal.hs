@@ -1282,7 +1282,7 @@ alterF f = \ !k !m ->
     mv = lookup' h k m
   in (<$> f mv) $ \fres ->
     case fres of
-      Nothing -> delete' h k m
+      Nothing -> maybe m (const (delete' h k m)) mv
       Just v' -> insert' h k v' m
 
 -- We unconditionally rewrite alterF in RULES, but we expose an
