@@ -150,7 +150,7 @@ import qualified Data.Foldable as Foldable
 import Data.Bifoldable
 #endif
 import qualified Data.List as L
-import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
+import GHC.Exts ((==#), build, reallyUnsafePtrEquality#, inline)
 import Prelude hiding (filter, foldl, foldr, lookup, map, null, pred)
 import Text.Read hiding (step)
 
@@ -1431,8 +1431,8 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
 -- >>> fromList [(1,'a'),(2,'b')] `isSubmapOf` fromList [(1,'a')]
 -- False
 isSubmapOf :: (Eq k, Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
-isSubmapOf = isSubmapOfBy (==)
-{-# INLINE isSubmapOf #-}
+isSubmapOf = (inline isSubmapOfBy) (==)
+{-# INLINABLE isSubmapOf #-}
 
 -- | /O(n*log m)/ Inclusion of maps with value comparison. A map is included in
 -- another map if the keys are subsets and if the comparison function is true
@@ -1502,6 +1502,7 @@ isSubmapOfBy comp !m1 !m2 = go 0 m1 m2
     go _ (BitmapIndexed {}) (Collision {}) = False
     go _ (Full {}) (Collision {}) = False
     go _ (Full {}) (BitmapIndexed {}) = False
+{-# INLINABLE isSubmapOfBy #-}
 
 -- | /O(min n m))/ Checks if a bitmap indexed node is a submap of another.
 submapBitmapIndexed :: (HashMap k v1 -> HashMap k v2 -> Bool) -> Bitmap -> A.Array (HashMap k v1) -> Bitmap -> A.Array (HashMap k v2) -> Bool
@@ -1525,6 +1526,7 @@ submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .
     b1Andb2 = b1 .&. b2
     b1Orb2  = b1 .|. b2
     subsetBitmaps = b1Orb2 == b2
+{-# INLINABLE submapBitmapIndexed #-}
 
 ------------------------------------------------------------------------
 -- * Combine
