@@ -55,6 +55,7 @@ module Data.HashSet.Internal
     , member
     , insert
     , delete
+    , isSubsetOf
 
     -- * Transformations
     , map
@@ -309,6 +310,18 @@ fromMap = HashSet
 -- @since 0.2.10.0
 keysSet :: HashMap k a -> HashSet k
 keysSet m = fromMap (() <$ m)
+
+-- | /O(n*log m)/ Inclusion of sets.
+--
+-- ==== __Examples__
+--
+-- >>> fromList [1,3] `isSubsetOf` fromList [1,2,3]
+-- True
+--
+-- >>> fromList [1,2] `isSubsetOf` fromList [1,3]
+-- False
+isSubsetOf :: (Eq a, Hashable a) => HashSet a -> HashSet a -> Bool
+isSubsetOf s1 s2 = H.isSubmapOfBy (\_ _ -> True) (asMap s1) (asMap s2)
 
 -- | /O(n+m)/ Construct a set containing all elements from both sets.
 --

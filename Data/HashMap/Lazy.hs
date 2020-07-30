@@ -49,6 +49,8 @@ module Data.HashMap.Lazy
     , update
     , alter
     , alterF
+    , isSubmapOf
+    , isSubmapOfBy
 
       -- * Combine
       -- ** Union

@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP, GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
 
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
 -- comparing them to a simpler model, an association list.
@@ -15,13 +16,15 @@ import Data.Hashable (Hashable(hashWithSalt))
 import qualified Data.List as L
 import Data.Ord (comparing)
 #if defined(STRICT)
+import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as M
 #else
+import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map.Lazy as M
 #endif
-import Test.QuickCheck (Arbitrary, Property, (==>), (===))
+import Test.QuickCheck (Arbitrary(..), Property, (==>), (===), forAll, elements)
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 #if MIN_VERSION_base(4,8,0)
@@ -37,6 +40,9 @@ newtype Key = K { unK :: Int }
 
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
+
+instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
+  arbitrary = fmap (HM.fromList) arbitrary
 
 ------------------------------------------------------------------------
 -- * Properties
@@ -224,6 +230,44 @@ pAlterFLookup k f =
   getConst . M.alterF (Const . apply f :: Maybe A -> Const B (Maybe A)) k
   `eq`
   getConst . HM.alterF (Const . apply f) k
+
+pSubmap :: [(Key, Int)] -> [(Key, Int)] -> Bool
+pSubmap xs ys = M.isSubmapOf (M.fromList xs) (M.fromList ys) ==
+                HM.isSubmapOf (HM.fromList xs) (HM.fromList ys)
+
+pSubmapReflexive :: HashMap Key Int -> Bool
+pSubmapReflexive m = HM.isSubmapOf m m
+
+pSubmapUnion :: HashMap Key Int -> HashMap Key Int -> Bool
+pSubmapUnion m1 m2 = HM.isSubmapOf m1 (HM.union m1 m2)
+
+pNotSubmapUnion :: HashMap Key Int -> HashMap Key Int -> Property
+pNotSubmapUnion m1 m2 = not (HM.isSubmapOf m1 m2) ==> HM.isSubmapOf m1 (HM.union m1 m2)
+
+pSubmapDifference :: HashMap Key Int -> HashMap Key Int -> Bool
+pSubmapDifference m1 m2 = HM.isSubmapOf (HM.difference m1 m2) m1
+
+pNotSubmapDifference :: HashMap Key Int -> HashMap Key Int -> Property
+pNotSubmapDifference m1 m2 =
+  not (HM.null (HM.intersection m1 m2)) ==>
+  not (HM.isSubmapOf m1 (HM.difference m1 m2))
+
+pSubmapDelete :: HashMap Key Int -> Property
+pSubmapDelete m = not (HM.null m) ==>
+  forAll (elements (HM.keys m)) $ \k ->
+  HM.isSubmapOf (HM.delete k m) m
+
+pNotSubmapDelete :: HashMap Key Int -> Property
+pNotSubmapDelete m =
+  not (HM.null m) ==>
+  forAll (elements (HM.keys m)) $ \k ->
+  not (HM.isSubmapOf m (HM.delete k m))
+
+pSubmapInsert :: Key -> Int -> HashMap Key Int -> Property
+pSubmapInsert k v m = not (HM.member k m) ==> HM.isSubmapOf m (HM.insert k v m)
+
+pNotSubmapInsert :: Key -> Int -> HashMap Key Int -> Property
+pNotSubmapInsert k v m = not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
 
 ------------------------------------------------------------------------
 -- ** Combine
@@ -439,6 +483,18 @@ tests =
       , testProperty "alterFInsertWith" pAlterFInsertWith
       , testProperty "alterFDelete" pAlterFDelete
       , testProperty "alterFLookup" pAlterFLookup
+      , testGroup "isSubmapOf"
+        [ testProperty "container compatibility" pSubmap
+        , testProperty "m ⊆ m" pSubmapReflexive
+        , testProperty "m1 ⊆ m1 ∪ m2" pSubmapUnion
+        , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" pNotSubmapUnion
+        , testProperty "m1\\m2 ⊆ m1" pSubmapDifference
+        , testProperty "m1 ∩ m2 ≠ ∅  ⇒  m1 ⊈ m1\\m2 " pNotSubmapDifference
+        , testProperty "delete k m ⊆ m" pSubmapDelete
+        , testProperty "m ⊈ delete k m " pNotSubmapDelete
+        , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" pSubmapInsert
+        , testProperty "k ∉ m  ⇒  insert k v m ⊈ m" pNotSubmapInsert
+        ]
       ]
     -- Combine
     , testProperty "union" pUnion

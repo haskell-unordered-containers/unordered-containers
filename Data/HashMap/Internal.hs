@@ -49,6 +49,8 @@ module Data.HashMap.Internal
     , update
     , alter
     , alterF
+    , isSubmapOf
+    , isSubmapOfBy
 
       -- * Combine
       -- ** Union
@@ -148,7 +150,7 @@ import qualified Data.Foldable as Foldable
 import Data.Bifoldable
 #endif
 import qualified Data.List as L
-import GHC.Exts ((==#), build, reallyUnsafePtrEquality#)
+import GHC.Exts ((==#), build, reallyUnsafePtrEquality#, inline)
 import Prelude hiding (filter, foldl, foldr, lookup, map, null, pred)
 import Text.Read hiding (step)
 
@@ -590,12 +592,12 @@ lookup k m = case lookup# k m of
 {-# INLINE lookup #-}
 
 lookup# :: (Eq k, Hashable k) => k -> HashMap k v -> (# (# #) | v #)
-lookup# k m = lookupCont (\_ -> (# (# #) | #)) (\v _i -> (# | v #)) (hash k) k m
+lookup# k m = lookupCont (\_ -> (# (# #) | #)) (\v _i -> (# | v #)) (hash k) k 0 m
 {-# INLINABLE lookup# #-}
 
 #else
 
-lookup k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) (hash k) k m
+lookup k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) (hash k) k 0 m
 {-# INLINABLE lookup #-}
 #endif
 
@@ -614,7 +616,7 @@ lookup' h k m = case lookupRecordCollision# h k m of
   (# | (# a, _i #) #) -> Just a
 {-# INLINE lookup' #-}
 #else
-lookup' h k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) h k m
+lookup' h k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) h k 0 m
 {-# INLINABLE lookup' #-}
 #endif
 
@@ -649,13 +651,13 @@ lookupRecordCollision h k m = case lookupRecordCollision# h k m of
 -- into lookupCont because inlining takes care of that.
 lookupRecordCollision# :: Eq k => Hash -> k -> HashMap k v -> (# (# #) | (# v, Int# #) #)
 lookupRecordCollision# h k m =
-    lookupCont (\_ -> (# (# #) | #)) (\v (I# i) -> (# | (# v, i #) #)) h k m
+    lookupCont (\_ -> (# (# #) | #)) (\v (I# i) -> (# | (# v, i #) #)) h k 0 m
 -- INLINABLE to specialize to the Eq instance.
 {-# INLINABLE lookupRecordCollision# #-}
 
 #else /* GHC < 8.2 so there are no unboxed sums */
 
-lookupRecordCollision h k m = lookupCont (\_ -> Absent) Present h k m
+lookupRecordCollision h k m = lookupCont (\_ -> Absent) Present h k 0 m
 {-# INLINABLE lookupRecordCollision #-}
 #endif
 
@@ -667,6 +669,10 @@ lookupRecordCollision h k m = lookupCont (\_ -> Absent) Present h k m
 -- so we can be representation-polymorphic in the result type. Since
 -- this whole thing is always inlined, we don't have to worry about
 -- any extra CPS overhead.
+--
+-- The @Int@ argument is the offset of the subkey in the hash. When looking up
+-- keys at the top-level of a hashmap, the offset should be 0. When looking up
+-- keys at level @n@ of a hashmap, the offset should be @n * bitsPerSubkey@.
 lookupCont ::
 #if __GLASGOW_HASKELL__ >= 802
   forall rep (r :: TYPE rep) k v.
@@ -677,8 +683,10 @@ lookupCont ::
   => ((# #) -> r)    -- Absent continuation
   -> (v -> Int -> r) -- Present continuation
   -> Hash -- The hash of the key
-  -> k -> HashMap k v -> r
-lookupCont absent present !h0 !k0 !m0 = go h0 k0 0 m0
+  -> k
+  -> Int -- The offset of the subkey in the hash.
+  -> HashMap k v -> r
+lookupCont absent present !h0 !k0 !s0 !m0 = go h0 k0 s0 m0
   where
     go :: Eq k => Hash -> k -> Int -> HashMap k v -> r
     go !_ !_ !_ Empty = absent (# #)
@@ -1409,6 +1417,116 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
 {-# INLINABLE alterFEager #-}
 #endif
 
+-- | /O(n*log m)/ Inclusion of maps. A map is included in another map if the keys
+-- are subsets and the corresponding values are equal:
+--
+-- > isSubmapOf m1 m2 = keys m1 `isSubsetOf` keys m2 &&
+-- >                    and [ v1 == v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
+--
+-- ==== __Examples__
+--
+-- >>> fromList [(1,'a')] `isSubmapOf` fromList [(1,'a'),(2,'b')]
+-- True
+--
+-- >>> fromList [(1,'a'),(2,'b')] `isSubmapOf` fromList [(1,'a')]
+-- False
+isSubmapOf :: (Eq k, Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
+isSubmapOf = (inline isSubmapOfBy) (==)
+{-# INLINABLE isSubmapOf #-}
+
+-- | /O(n*log m)/ Inclusion of maps with value comparison. A map is included in
+-- another map if the keys are subsets and if the comparison function is true
+-- for the corresponding values:
+--
+-- > isSubmapOfBy cmpV m1 m2 = keys m1 `isSubsetOf` keys m2 &&
+-- >                           and [ v1 `cmpV` v2 | (k1,v1) <- toList m1; let v2 = m2 ! k1 ]
+--
+-- ==== __Examples__
+--
+-- >>> isSubmapOfBy (<=) (fromList [(1,'a')]) (fromList [(1,'b'),(2,'c')])
+-- True
+--
+-- >>> isSubmapOfBy (<=) (fromList [(1,'b')]) (fromList [(1,'a'),(2,'c')])
+-- False
+isSubmapOfBy :: (Eq k, Hashable k) => (v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2 -> Bool
+-- For maps without collisions the complexity is O(n*log m), where n is the size
+-- of m1 and m the size of m2: the inclusion operation visits every leaf in m1 at least once.
+-- For each leaf in m1, it looks up the key in m2.
+--
+-- The worst case complexity is O(n*m). The worst case is when both hashmaps m1
+-- and m2 are collision nodes for the same hash. Since collision nodes are
+-- unsorted arrays, it requires for every key in m1 a linear search to to find a
+-- matching key in m2, hence O(n*m).
+isSubmapOfBy comp !m1 !m2 = go 0 m1 m2
+  where
+    -- An empty map is always a submap of any other map.
+    go _ Empty _ = True
+
+    -- If the second map is empty and the first is not, it cannot be a submap.
+    go _ _ Empty = False
+
+    -- If the first map contains only one entry, lookup the key in the second map.
+    go s (Leaf h1 (L k1 v1)) t2 = lookupCont (\_ -> False) (\v2 _ -> comp v1 v2) h1 k1 s t2
+
+    -- In this case, we need to check that for each x in ls1, there is a y in
+    -- ls2 such that x `comp` y. This is the worst case complexity-wise since it
+    -- requires a O(m*n) check.
+    go _ (Collision h1 ls1) (Collision h2 ls2) =
+      h1 == h2 && subsetArray comp ls1 ls2
+
+    -- In this case, we only need to check the entries in ls2 with the hash h1.
+    go s t1@(Collision h1 _) (BitmapIndexed b ls2)
+        | b .&. m == 0 = False
+        | otherwise    =
+            go (s+bitsPerSubkey) t1 (A.index ls2 (sparseIndex b m))
+      where m = mask h1 s
+
+    -- Similar to the previous case we need to traverse l2 at the index for the hash h1.
+    go s t1@(Collision h1 _) (Full ls2) =
+      go (s+bitsPerSubkey) t1 (A.index ls2 (index h1 s))
+
+    -- In cases where the first and second map are BitmapIndexed or Full,
+    -- traverse down the tree at the appropriate indices.
+    go s (BitmapIndexed b1 ls1) (BitmapIndexed b2 ls2) =
+      submapBitmapIndexed (go (s+bitsPerSubkey)) b1 ls1 b2 ls2
+    go s (BitmapIndexed b1 ls1) (Full ls2) =
+      submapBitmapIndexed (go (s+bitsPerSubkey)) b1 ls1 fullNodeMask ls2
+    go s (Full ls1) (Full ls2) =
+      submapBitmapIndexed (go (s+bitsPerSubkey)) fullNodeMask ls1 fullNodeMask ls2
+
+    -- Collision and Full nodes always contain at least two entries. Hence it
+    -- cannot be a map of a leaf.
+    go _ (Collision {}) (Leaf {}) = False
+    go _ (BitmapIndexed {}) (Leaf {}) = False
+    go _ (Full {}) (Leaf {}) = False
+    go _ (BitmapIndexed {}) (Collision {}) = False
+    go _ (Full {}) (Collision {}) = False
+    go _ (Full {}) (BitmapIndexed {}) = False
+{-# INLINABLE isSubmapOfBy #-}
+
+-- | /O(min n m))/ Checks if a bitmap indexed node is a submap of another.
+submapBitmapIndexed :: (HashMap k v1 -> HashMap k v2 -> Bool) -> Bitmap -> A.Array (HashMap k v1) -> Bitmap -> A.Array (HashMap k v2) -> Bool
+submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .&. negate b1Orb2)
+  where
+    go :: Int -> Int -> Bitmap -> Bool
+    go !i !j !m
+      | m > b1Orb2 = True
+
+      -- In case a key is both in ary1 and ary2, check ary1[i] <= ary2[j] and
+      -- increment the indices i and j.
+      | b1Andb2 .&. m /= 0 = comp (A.index ary1 i) (A.index ary2 j) &&
+                             go (i+1) (j+1) (m `unsafeShiftL` 1)
+
+      -- In case a key occurs in ary1, but not ary2, only increment index j.
+      | b2 .&. m /= 0 = go i (j+1) (m `unsafeShiftL` 1)
+
+      -- In case a key neither occurs in ary1 nor ary2, continue.
+      | otherwise = go i j (m `unsafeShiftL` 1)
+
+    b1Andb2 = b1 .&. b2
+    b1Orb2  = b1 .|. b2
+    subsetBitmaps = b1Orb2 == b2
+{-# INLINABLE submapBitmapIndexed #-}
 
 ------------------------------------------------------------------------
 -- * Combine
@@ -2075,6 +2193,13 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
     go n1 0
     return mary
 {-# INLINABLE updateOrConcatWithKey #-}
+
+-- | /O(n*m)/ Check if the first array is a subset of the second array.
+subsetArray :: Eq k => (v1 -> v2 -> Bool) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> Bool
+subsetArray cmpV ary1 ary2 = A.length ary1 <= A.length ary2 && A.all inAry2 ary1
+  where
+    inAry2 (L k1 v1) = lookupInArrayCont (\_ -> False) (\v2 _ -> cmpV v1 v2) k1 ary2
+    {-# INLINE inAry2 #-}
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops
