@@ -321,6 +321,8 @@ keysSet m = fromMap (() <$ m)
 --
 -- >>> fromList [1,2] `isSubsetOf` fromList [1,3]
 -- False
+--
+-- @since 0.2.12
 isSubsetOf :: (Eq a, Hashable a) => HashSet a -> HashSet a -> Bool
 isSubsetOf s1 s2 = H.isSubmapOfBy (\_ _ -> True) (asMap s1) (asMap s2)
 
