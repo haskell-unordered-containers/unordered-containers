@@ -7,7 +7,7 @@
 * Documentation improvements in `Data.HashSet`, including a beginner-friendly
   introduction. Thanks Matt Renaud. ([#267])
 
-* `HashMap[.Strict].alterF`: Skip key deletion for absent keys. ([#288])
+* `HashMap.alterF`: Skip key deletion for absent keys. ([#288])
 
 * Remove custom `unsafeShift{L,R}` definitions. ([#281])
 
