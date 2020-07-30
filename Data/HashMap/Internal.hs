@@ -10,6 +10,7 @@
 {-# LANGUAGE UnboxedSums #-}
 #endif
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
+{-# OPTIONS_HADDOCK not-home #-}
 
 -- | = WARNING
 --

@@ -6,6 +6,7 @@
 #if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Trustworthy #-}
 #endif
+{-# OPTIONS_HADDOCK not-home #-}
 
 ------------------------------------------------------------------------
 -- |
