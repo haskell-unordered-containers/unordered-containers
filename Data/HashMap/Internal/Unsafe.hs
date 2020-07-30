@@ -4,6 +4,8 @@
 {-# LANGUAGE MagicHash, Rank2Types, UnboxedTuples #-}
 #endif
 
+{-# OPTIONS_HADDOCK not-home #-}
+
 -- | = WARNING
 --
 -- This module is considered __internal__.

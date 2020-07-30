@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns, CPP, MagicHash, Rank2Types, UnboxedTuples, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
+{-# OPTIONS_HADDOCK not-home #-}
 
 -- | = WARNING
 --
