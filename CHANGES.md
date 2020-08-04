@@ -1,3 +1,25 @@
+## [0.2.12.0]
+
+* Add `HashMap.isSubmapOf[By]` and `HashSet.isSubsetOf`. Thanks Sven Keidel. ([#282])
+
+* Expose internal modules. ([#283])
+
+* Documentation improvements in `Data.HashSet`, including a beginner-friendly
+  introduction. Thanks Matt Renaud. ([#267])
+
+* `HashMap.alterF`: Skip key deletion for absent keys. ([#288])
+
+* Remove custom `unsafeShift{L,R}` definitions. ([#281])
+
+* Various other documentation improvements.
+
+[0.2.12.0]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.11.0...v0.2.12.0
+[#267]: https://github.com/haskell-unordered-containers/unordered-containers/pull/267
+[#281]: https://github.com/haskell-unordered-containers/unordered-containers/pull/281
+[#282]: https://github.com/haskell-unordered-containers/unordered-containers/pull/282
+[#283]: https://github.com/haskell-unordered-containers/unordered-containers/pull/283
+[#288]: https://github.com/haskell-unordered-containers/unordered-containers/pull/288
+
 ## 0.2.11.0
 
  * Add `HashMap.findWithDefault` (soft-deprecates `HashMap.lookupDefault`).

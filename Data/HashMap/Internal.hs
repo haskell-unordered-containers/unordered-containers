@@ -1431,6 +1431,8 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
 --
 -- >>> fromList [(1,'a'),(2,'b')] `isSubmapOf` fromList [(1,'a')]
 -- False
+--
+-- @since 0.2.12
 isSubmapOf :: (Eq k, Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
 isSubmapOf = (inline isSubmapOfBy) (==)
 {-# INLINABLE isSubmapOf #-}
@@ -1449,6 +1451,8 @@ isSubmapOf = (inline isSubmapOfBy) (==)
 --
 -- >>> isSubmapOfBy (<=) (fromList [(1,'b')]) (fromList [(1,'a'),(2,'c')])
 -- False
+--
+-- @since 0.2.12
 isSubmapOfBy :: (Eq k, Hashable k) => (v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2 -> Bool
 -- For maps without collisions the complexity is O(n*log m), where n is the size
 -- of m1 and m the size of m2: the inclusion operation visits every leaf in m1 at least once.
