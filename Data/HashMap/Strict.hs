@@ -58,6 +58,9 @@ module Data.HashMap.Strict
     , unionWithKey
     , unions
 
+    -- ** Compose
+    , compose
+
       -- * Transformations
     , map
     , mapWithKey

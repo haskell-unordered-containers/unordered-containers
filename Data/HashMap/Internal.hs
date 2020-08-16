@@ -60,6 +60,9 @@ module Data.HashMap.Internal
     , unionWithKey
     , unions
 
+    -- ** Compose
+    , compose
+
       -- * Transformations
     , map
     , mapWithKey
@@ -418,7 +421,7 @@ instance Ord k => Ord1 (HashMap k) where
 #endif
 
 -- | The ordering is total and consistent with the `Eq` instance. However,
--- nothing else about the ordering is specified, and it may change from 
+-- nothing else about the ordering is specified, and it may change from
 -- version to version of either this package or of hashable.
 instance (Ord k, Ord v) => Ord (HashMap k v) where
     compare = cmp compare compare
@@ -1678,6 +1681,28 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
 unions :: (Eq k, Hashable k) => [HashMap k v] -> HashMap k v
 unions = L.foldl' union empty
 {-# INLINE unions #-}
+
+
+------------------------------------------------------------------------
+-- * Compose
+
+-- | Relate the keys of one map to the values of
+-- the other, by using the values of the former as keys for lookups
+-- in the latter.
+--
+-- Complexity: \( O (n * \log(m)) \), where \(m\) is the size of the first argument
+--
+-- > compose (fromList [('a', "A"), ('b', "B")]) (fromList [(1,'a'),(2,'b'),(3,'z')]) = fromList [(1,"A"),(2,"B")]
+--
+-- @
+-- ('compose' bc ab '!?') = (bc '!?') <=< (ab '!?')
+-- @
+--
+-- @since UNRELEASED
+compose :: (Eq b, Hashable b) => HashMap b c -> HashMap a b -> HashMap a c
+compose bc !ab
+  | null bc = empty
+  | otherwise = mapMaybe (bc !?) ab
 
 ------------------------------------------------------------------------
 -- * Transformations
