@@ -1,7 +1,7 @@
 # Developer Guide
 
 This guide is meant as an entry point for developer. It both gives the
-philisophy behind the design of this package and some concrete details, such as
+philosophy behind the design of this package and some concrete details, such as
 invariants.
 
 ## Why does this package exist?
@@ -10,7 +10,7 @@ This package exists to offer a different performance/functionality
 trade-off vis-a-vis ordered container packages
 (e.g. [containers](http://hackage.haskell.org/package/containers)). Hashing-based
 data structures tend to be faster than comparison-based ones, at the cost of not
-providing operations the rely on the data being ordered.
+providing operations that rely on the data being ordered.
 
 This means that this package must be faster than ordered containers, or there
 would be no reason for it to exist, given that its functionality is a strict
@@ -27,7 +27,7 @@ support this package and not to provide good general purpose hash functions
 (e.g. to use when fingerprinting a text file).
 
 The hash functions used (by default) were picked to make data structures
-fast. The actual functions used oftens surprise developers who have learned
+fast. The actual functions used often surprise developers who have learned
 about hashing during their studies but haven't looked at which functions are
 actually used in practice.
 
@@ -41,7 +41,7 @@ improved locality can be helpful given common input patterns.
 
 Another interesting example of hashing is string hashing, where
 [FNV](https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function)
-is used. FNV is a decent hash function, but hash worse properties than say
+is used. FNV is a decent hash function, but has worse properties than say
 [MurmurHash](https://en.wikipedia.org/wiki/MurmurHash). However, it's much
 faster. The fact that it's faster is not obvious given the way hash function
 performance is often quoted, namely by giving the average throughput on large
