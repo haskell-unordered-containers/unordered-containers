@@ -1692,7 +1692,8 @@ unions = L.foldl' union empty
 --
 -- Complexity: \( O (n * \log(m)) \), where \(m\) is the size of the first argument
 --
--- > compose (fromList [('a', "A"), ('b', "B")]) (fromList [(1,'a'),(2,'b'),(3,'z')]) = fromList [(1,"A"),(2,"B")]
+-- >>> compose (fromList [('a', "A"), ('b', "B")]) (fromList [(1,'a'),(2,'b'),(3,'z')])
+-- fromList [(1,"A"),(2,"B")]
 --
 -- @
 -- ('compose' bc ab '!?') = (bc '!?') <=< (ab '!?')
