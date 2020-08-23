@@ -132,7 +132,7 @@ import Data.HashMap.Internal hiding (
     alter, alterF, adjust, fromList, fromListWith, fromListWithKey,
     insert, insertWith,
     differenceWith, intersectionWith, intersectionWithKey, map, mapWithKey,
-    mapMaybe, mapMaybeWithKey, singleton, update, unionWith, unionWithKey,
+    compose, mapMaybe, mapMaybeWithKey, singleton, update, unionWith, unionWithKey,
     traverseWithKey)
 import Data.HashMap.Internal.Unsafe (runST)
 #if MIN_VERSION_base(4,8,0)
@@ -520,6 +520,28 @@ unionWithKey f = go 0
         m1 = mask h1 s
         m2 = mask h2 s
 {-# INLINE unionWithKey #-}
+
+------------------------------------------------------------------------
+-- * Compose
+
+-- | Relate the keys of one map to the values of
+-- the other, by using the values of the former as keys for lookups
+-- in the latter.
+--
+-- Complexity: \( O (n * \log(m)) \), where \(m\) is the size of the first argument
+--
+-- >>> compose (fromList [('a', "A"), ('b', "B")]) (fromList [(1,'a'),(2,'b'),(3,'z')])
+-- fromList [(1,"A"),(2,"B")]
+--
+-- @
+-- ('compose' bc ab '!?') = (bc '!?') <=< (ab '!?')
+-- @
+--
+-- @since UNRELEASED
+compose :: (Eq b, Hashable b) => HashMap b c -> HashMap a b -> HashMap a c
+compose bc !ab
+  | HM.null bc = empty
+  | otherwise = mapMaybe (bc !?) ab
 
 ------------------------------------------------------------------------
 -- * Transformations
