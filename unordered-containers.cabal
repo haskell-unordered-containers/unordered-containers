@@ -131,6 +131,7 @@ benchmark benchmarks
     containers,
     deepseq,
     hashable,
+    vector,
     hashmap,
     mtl,
     random,
