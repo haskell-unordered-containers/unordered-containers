@@ -59,6 +59,9 @@ module Data.HashMap.Lazy
     , unionWithKey
     , unions
 
+    -- ** Compose
+    , compose
+
       -- * Transformations
     , map
     , mapWithKey
