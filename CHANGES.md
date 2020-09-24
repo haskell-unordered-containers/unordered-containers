@@ -1,3 +1,9 @@
+## [0.2.13.0]
+
+* [Add `HashMap.compose`.](https://github.com/haskell-unordered-containers/unordered-containers/pull/299) Thanks Alexandre Esteves.
+
+[0.2.13.0]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.12.0...v0.2.13.0
+
 ## [0.2.12.0]
 
 * Add `HashMap.isSubmapOf[By]` and `HashSet.isSubsetOf`. Thanks Sven Keidel. ([#282])
