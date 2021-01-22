@@ -1699,7 +1699,7 @@ unions = L.foldl' union empty
 -- ('compose' bc ab '!?') = (bc '!?') <=< (ab '!?')
 -- @
 --
--- @since UNRELEASED
+-- @since 0.2.13.0
 compose :: (Eq b, Hashable b) => HashMap b c -> HashMap a b -> HashMap a c
 compose bc !ab
   | null bc = empty
