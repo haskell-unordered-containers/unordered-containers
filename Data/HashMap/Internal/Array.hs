@@ -250,6 +250,19 @@ rnfArray ary0 = go ary0 n0 0
 -- relevant rnf is strict, or in case it actually isn't.
 {-# INLINE rnfArray #-}
 
+instance NFData1 Array where
+    liftRnf = liftRnfArray
+
+liftRnfArray :: (a -> ()) -> Array a -> ()
+liftRnfArray rnf0 ary0 = go ary0 n0 0
+  where
+    n0 = length ary0
+    go !ary !n !i
+        | i >= n = ()
+        | (# x #) <- index# ary i
+        = rnf0 x `seq` go ary n (i+1)
+{-# INLINE liftRnfArray #-}
+
 -- | Create a new mutable array of specified size, in the specified
 -- state thread, with each element containing the specified initial
 -- value.
