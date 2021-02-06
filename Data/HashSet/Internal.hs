@@ -92,7 +92,7 @@ module Data.HashSet.Internal
     , keysSet
     ) where
 
-import Control.DeepSeq (NFData(..))
+import Control.DeepSeq (NFData(..), NFData1(..), NFData2 (liftRnf2))
 import Data.Data hiding (Typeable)
 import Data.HashMap.Internal
   ( HashMap, foldMapWithKey, foldlWithKey, foldrWithKey
@@ -137,6 +137,9 @@ type role HashSet nominal
 instance (NFData a) => NFData (HashSet a) where
     rnf = rnf . asMap
     {-# INLINE rnf #-}
+
+instance NFData1 HashSet where
+    liftRnf rnf1 = liftRnf2 rnf1 rnf . asMap
 
 -- | Note that, in the presence of hash collisions, equal @HashSet@s may
 -- behave differently, i.e. substitutivity may be violated:
