@@ -146,7 +146,7 @@ import Data.Word (Word)
 #if __GLASGOW_HASKELL__ >= 711
 import Data.Semigroup (Semigroup((<>)))
 #endif
-import Control.DeepSeq (NFData(rnf))
+import Control.DeepSeq (NFData(rnf), NFData2(liftRnf2), NFData1(liftRnf))
 import Control.Monad.ST (ST)
 import Data.Bits ((.&.), (.|.), complement, popCount, unsafeShiftL, unsafeShiftR)
 import Data.Data hiding (Typeable)
@@ -201,6 +201,12 @@ data Leaf k v = L !k v
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L k v) = rnf k `seq` rnf v
 
+instance NFData k => NFData1 (Leaf k) where
+    liftRnf rnf2 = liftRnf2 rnf rnf2
+
+instance NFData2 Leaf where
+    liftRnf2 rnf1 rnf2 (L k v) = rnf1 k `seq` rnf2 v
+
 -- Invariant: The length of the 1st argument to 'Full' is
 -- 2^bitsPerSubkey
 
@@ -222,6 +228,16 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf (Leaf _ l)            = rnf l
     rnf (Full ary)            = rnf ary
     rnf (Collision _ ary)     = rnf ary
+
+instance NFData k => NFData1 (HashMap k) where
+    liftRnf rnf2 = liftRnf2 rnf rnf2
+
+instance NFData2 HashMap where
+    liftRnf2 _ _ Empty                       = ()
+    liftRnf2 rnf1 rnf2 (BitmapIndexed _ ary) = liftRnf (liftRnf2 rnf1 rnf2) ary
+    liftRnf2 rnf1 rnf2 (Leaf _ l)            = liftRnf2 rnf1 rnf2 l
+    liftRnf2 rnf1 rnf2 (Full ary)            = liftRnf (liftRnf2 rnf1 rnf2) ary
+    liftRnf2 rnf1 rnf2 (Collision _ ary)     = liftRnf (liftRnf2 rnf1 rnf2) ary
 
 instance Functor (HashMap k) where
     fmap = map
