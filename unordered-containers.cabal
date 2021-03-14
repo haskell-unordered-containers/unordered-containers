@@ -49,7 +49,7 @@ library
 
   build-depends:
     base >= 4.7 && < 5,
-    deepseq >= 1.1,
+    deepseq >= 1.4.3,
     hashable >= 1.0.1.1 && < 1.4
 
   default-language: Haskell2010
@@ -197,7 +197,7 @@ benchmark benchmarks
     bytestring,
     containers,
     gauge >= 0.2.5 && < 0.3,
-    deepseq >= 1.4,
+    deepseq,
     hashable >= 1.0.1.1,
     hashmap,
     mtl,
