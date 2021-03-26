@@ -67,6 +67,7 @@ module Data.HashMap.Internal
     , map
     , mapWithKey
     , traverseWithKey
+    , mapKeys
 
       -- * Difference and intersection
     , difference
@@ -1750,6 +1751,18 @@ traverseWithKey f = go
     go (Collision h ary)     =
         Collision h <$> A.traverse' (\ (L k v) -> L k <$> f k v) ary
 {-# INLINE traverseWithKey #-}
+
+-- | /O(n)/.
+-- @'mapKeys' f s@ is the map obtained by applying @f@ to each key of @s@.
+--
+-- The size of the result may be smaller if @f@ maps two or more distinct
+-- keys to the same new key.  In this case the later mappings take precedence.
+--
+-- > mapKeys (+ 1) (fromList [(5,"a"), (3,"b")])                        == fromList [(4, "b"), (6, "a")]
+-- > mapKeys (\ _ -> 1) (fromList [(1,"b"), (2,"a"), (3,"d"), (4,"c")]) == singleton 1 "c"
+-- > mapKeys (\ _ -> 3) (fromList [(1,"b"), (2,"a"), (3,"d"), (4,"c")]) == singleton 3 "c"
+mapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
+mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 
 ------------------------------------------------------------------------
 -- * Difference and intersection

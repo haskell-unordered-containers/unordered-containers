@@ -301,6 +301,9 @@ pTraverse xs =
   L.sort (fmap (L.sort . M.toList) (M.traverseWithKey (\_ v -> [v + 1, v + 2]) (M.fromList (take 10 xs))))
      == L.sort (fmap (L.sort . HM.toList) (HM.traverseWithKey (\_ v -> [v + 1, v + 2]) (HM.fromList (take 10 xs))))
 
+pMapKeys :: [(Int, Int)] -> Bool
+pMapKeys = M.mapKeys (+1) `eq_` HM.mapKeys (+1)
+
 ------------------------------------------------------------------------
 -- ** Difference and intersection
 
@@ -504,6 +507,7 @@ tests =
     -- Transformations
     , testProperty "map" pMap
     , testProperty "traverse" pTraverse
+    , testProperty "mapKeys" pMapKeys
     -- Folds
     , testGroup "folds"
       [ testProperty "foldr" pFoldr
