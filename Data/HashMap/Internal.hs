@@ -1756,7 +1756,8 @@ traverseWithKey f = go
 -- @'mapKeys' f s@ is the map obtained by applying @f@ to each key of @s@.
 --
 -- The size of the result may be smaller if @f@ maps two or more distinct
--- keys to the same new key.  In this case the later mappings take precedence.
+-- keys to the same new key. In this case the value chosen for the conflicting
+-- key could be unexpected as it depends on the library internals.
 --
 -- >>> mapKeys (+ 1) (fromList [(5,"a"), (3,"b")])
 -- fromList [(4,"b"),(6,"a")]
