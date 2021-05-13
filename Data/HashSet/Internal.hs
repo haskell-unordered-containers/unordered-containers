@@ -143,6 +143,7 @@ instance (NFData a) => NFData (HashSet a) where
     {-# INLINE rnf #-}
 
 #if MIN_VERSION_deepseq(1,4,3)
+-- | @since 0.2.14.0
 instance NF.NFData1 HashSet where
     liftRnf rnf1 = NF.liftRnf2 rnf1 rnf . asMap
 #endif
