@@ -75,7 +75,7 @@ module Data.HashMap.Internal.Array
 import Control.Applicative (Applicative (..), (<$>))
 #endif
 import Control.Applicative (liftA2)
-import Control.DeepSeq
+import Control.DeepSeq (NFData (..))
 import GHC.Exts(Int(..), Int#, reallyUnsafePtrEquality#, tagToEnum#, unsafeCoerce#, State#)
 import GHC.ST (ST(..))
 import Control.Monad.ST (stToIO)
@@ -102,6 +102,10 @@ import Data.Monoid (Monoid (..))
 
 #if defined(ASSERTS)
 import qualified Prelude
+#endif
+
+#if MIN_VERSION_deepseq(1,4,3)
+import qualified Control.DeepSeq as NF
 #endif
 
 import Data.HashMap.Internal.Unsafe (runST)
@@ -250,7 +254,8 @@ rnfArray ary0 = go ary0 n0 0
 -- relevant rnf is strict, or in case it actually isn't.
 {-# INLINE rnfArray #-}
 
-instance NFData1 Array where
+#if MIN_VERSION_deepseq(1,4,3)
+instance NF.NFData1 Array where
     liftRnf = liftRnfArray
 
 liftRnfArray :: (a -> ()) -> Array a -> ()
@@ -262,6 +267,7 @@ liftRnfArray rnf0 ary0 = go ary0 n0 0
         | (# x #) <- index# ary i
         = rnf0 x `seq` go ary n (i+1)
 {-# INLINE liftRnfArray #-}
+#endif
 
 -- | Create a new mutable array of specified size, in the specified
 -- state thread, with each element containing the specified initial
