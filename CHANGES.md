@@ -1,3 +1,13 @@
+## [0.2.14.0]
+
+* [Add `HashMap.mapKeys`.](https://github.com/haskell-unordered-containers/unordered-containers/pull/308) Thanks, Marco Perone!
+
+* [Add instances for `NFData1` and `NFData2`.](https://github.com/haskell-unordered-containers/unordered-containers/pull/314) Thanks, Isaac Elliott and Oleg Grenrus!
+
+* [Fix `@since`-annotation for `compose`.](https://github.com/haskell-unordered-containers/unordered-containers/pull/303) Thanks, @Mathnerd314!
+
+[0.2.14.0]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.13.0...v0.2.14.0
+
 ## [0.2.13.0]
 
 * [Add `HashMap.compose`.](https://github.com/haskell-unordered-containers/unordered-containers/pull/299) Thanks Alexandre Esteves.

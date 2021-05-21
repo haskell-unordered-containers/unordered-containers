@@ -255,6 +255,7 @@ rnfArray ary0 = go ary0 n0 0
 {-# INLINE rnfArray #-}
 
 #if MIN_VERSION_deepseq(1,4,3)
+-- | @since 0.2.14.0
 instance NF.NFData1 Array where
     liftRnf = liftRnfArray
 

@@ -206,9 +206,11 @@ instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L k v) = rnf k `seq` rnf v
 
 #if MIN_VERSION_deepseq(1,4,3)
+-- | @since 0.2.14.0
 instance NFData k => NF.NFData1 (Leaf k) where
     liftRnf rnf2 = NF.liftRnf2 rnf rnf2
 
+-- | @since 0.2.14.0
 instance NF.NFData2 Leaf where
     liftRnf2 rnf1 rnf2 (L k v) = rnf1 k `seq` rnf2 v
 #endif
@@ -236,9 +238,11 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf (Collision _ ary)     = rnf ary
 
 #if MIN_VERSION_deepseq(1,4,3)
+-- | @since 0.2.14.0
 instance NFData k => NF.NFData1 (HashMap k) where
     liftRnf rnf2 = NF.liftRnf2 rnf rnf2
 
+-- | @since 0.2.14.0
 instance NF.NFData2 HashMap where
     liftRnf2 _ _ Empty                       = ()
     liftRnf2 rnf1 rnf2 (BitmapIndexed _ ary) = NF.liftRnf (NF.liftRnf2 rnf1 rnf2) ary
@@ -1789,6 +1793,8 @@ traverseWithKey f = go
 -- fromList [(1,"c")]
 -- >>> mapKeys (\ _ -> 3) (fromList [(1,"b"), (2,"a"), (3,"d"), (4,"c")])
 -- fromList [(3,"c")]
+--
+-- @since 0.2.14.0
 mapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
 mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 
