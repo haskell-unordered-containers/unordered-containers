@@ -72,7 +72,7 @@ data Env = Env {
 
 setupEnv :: IO Env
 setupEnv = do
-    let n = 2^(12 :: Int)
+    let n = 4 * 2^(16 :: Int)
 
         elems   = zip keys [1..n]
         keys    = US.rnd 8 n
