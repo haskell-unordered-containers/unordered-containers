@@ -116,9 +116,9 @@ module Data.HashMap.Internal
     , sparseIndex
     , two
     , unionArrayBy
-    , update16
-    , update16M
-    , update16With'
+    , update32
+    , update32M
+    , update32With'
     , updateOrConcatWith
     , updateOrConcatWithKey
     , filterMapAux
@@ -809,7 +809,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
             !st' = go h k x (s+bitsPerSubkey) st
         in if st' `ptrEq` st
             then t
-            else Full (update16 ary i st')
+            else Full (update32 ary i st')
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
@@ -843,7 +843,7 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
     go h k x s (Full ary) =
         let !st  = A.index ary i
             !st' = go h k x (s+bitsPerSubkey) st
-        in Full (update16 ary i st')
+        in Full (update32 ary i st')
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (snocNewLeaf (L k x) v)
@@ -887,7 +887,7 @@ insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 0 m0
     go collPos h k x s (Full ary) =
         let !st  = A.index ary i
             !st' = go collPos h k x (s+bitsPerSubkey) st
-        in Full (update16 ary i st')
+        in Full (update32 ary i st')
       where i = index h s
     go collPos h k x _s (Collision _hy v)
         | collPos >= 0 = Collision h (setAtPosition collPos k x v)
@@ -1015,7 +1015,7 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
     go h k s t@(Full ary) =
         let !st   = A.index ary i
             !st'  = go h k (s+bitsPerSubkey) st
-            ary' = update16 ary i $! st'
+            ary' = update32 ary i $! st'
         in if ptrEq st st'
            then t
            else Full ary'
@@ -1236,7 +1236,7 @@ adjust# f k0 m0 = go h0 k0 0 m0
         let i    = index h s
             !st   = A.index ary i
             !st'  = go h k (s+bitsPerSubkey) st
-            ary' = update16 ary i $! st'
+            ary' = update32 ary i $! st'
         in if ptrEq st st'
            then t
            else Full ary'
@@ -1622,12 +1622,12 @@ unionWithKey f = go 0
     go s (Full ary1) t2 =
         let h2   = leafHashCode t2
             i    = index h2 s
-            ary' = update16With' ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
+            ary' = update32With' ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
         in Full ary'
     go s t1 (Full ary2) =
         let h1   = leafHashCode t1
             i    = index h1 s
-            ary' = update16With' ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
+            ary' = update32With' ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
         in Full ary'
 
     leafHashCode (Leaf h _) = h
@@ -2252,36 +2252,36 @@ subsetArray cmpV ary1 ary2 = A.length ary1 <= A.length ary2 && A.all inAry2 ary1
 -- Manually unrolled loops
 
 -- | /O(n)/ Update the element at the given position in this array.
-update16 :: A.Array e -> Int -> e -> A.Array e
-update16 ary idx b = runST (update16M ary idx b)
-{-# INLINE update16 #-}
+update32 :: A.Array e -> Int -> e -> A.Array e
+update32 ary idx b = runST (update32M ary idx b)
+{-# INLINE update32 #-}
 
 -- | /O(n)/ Update the element at the given position in this array.
-update16M :: A.Array e -> Int -> e -> ST s (A.Array e)
-update16M ary idx b = do
-    mary <- clone16 ary
+update32M :: A.Array e -> Int -> e -> ST s (A.Array e)
+update32M ary idx b = do
+    mary <- clone ary
     A.write mary idx b
     A.unsafeFreeze mary
-{-# INLINE update16M #-}
+{-# INLINE update32M #-}
 
 -- | /O(n)/ Update the element at the given position in this array, by applying a function to it.
-update16With' :: A.Array e -> Int -> (e -> e) -> A.Array e
-update16With' ary idx f
+update32With' :: A.Array e -> Int -> (e -> e) -> A.Array e
+update32With' ary idx f
   | (# x #) <- A.index# ary idx
-  = update16 ary idx $! f x
-{-# INLINE update16With' #-}
+  = update32 ary idx $! f x
+{-# INLINE update32With' #-}
 
--- | Unsafely clone an array of 16 elements.  The length of the input
+-- | Unsafely clone an array of (2^bitsPerSubkey) elements.  The length of the input
 -- array is not checked.
-clone16 :: A.Array e -> ST s (A.MArray s e)
-clone16 ary =
-    A.thaw ary 0 16
+clone :: A.Array e -> ST s (A.MArray s e)
+clone ary =
+    A.thaw ary 0 (2^bitsPerSubkey)
 
 ------------------------------------------------------------------------
 -- Bit twiddling
 
 bitsPerSubkey :: Int
-bitsPerSubkey = 4
+bitsPerSubkey = 5
 
 maxChildren :: Int
 maxChildren = 1 `unsafeShiftL` bitsPerSubkey
@@ -2291,6 +2291,7 @@ subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
 
 sparseIndex :: Bitmap -> Bitmap -> Int
 sparseIndex b m = popCount (b .&. (m - 1))
+{-# INLINE sparseIndex #-}
 
 mask :: Word -> Shift -> Bitmap
 mask w s = 1 `unsafeShiftL` index w s
