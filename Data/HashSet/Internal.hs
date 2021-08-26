@@ -35,7 +35,7 @@
 -- strings.
 --
 -- Many operations have a average-case complexity of /O(log n)/.  The
--- implementation uses a large base (i.e. 16) so in practice these
+-- implementation uses a large base (i.e. 32) so in practice these
 -- operations are constant time.
 
 module Data.HashSet.Internal
