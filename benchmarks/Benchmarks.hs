@@ -1,4 +1,8 @@
-{-# LANGUAGE CPP, DeriveAnyClass, DeriveGeneric, GADTs, PackageImports, RecordWildCards #-}
+{-# LANGUAGE CPP, DeriveAnyClass, DataKinds, DeriveGeneric, GADTs, PackageImports, RecordWildCards #-}
+
+#if __GLASGOW_HASKELL__ >= 802
+{-# LANGUAGE TypeApplications #-}
+#endif
 
 module Main where
 
@@ -342,11 +346,30 @@ main = do
               , bench "ByteString" $ whnf HM.fromList elemsBS
               , bench "Int" $ whnf HM.fromList elemsI
               ]
+#if __GLASGOW_HASKELL__ >= 802
+            , bgroup "long custom salt" -- 18446744073710551615 = fromInteger ((toInteger (maxBound :: Word64)) + 1000000)
+              [ bench "String" $ whnf (HM.fromList' @_ @_ @18446744073710551615) elems
+              , bench "ByteString" $ whnf (HM.fromList' @_ @_ @18446744073710551615) elemsBS
+              , bench "Int" $ whnf (HM.fromList' @_ @_ @18446744073710551615) elemsI
+              ]
+#endif
             , bgroup "short"
               [ bench "String" $ whnf HM.fromList elemsDup
               , bench "ByteString" $ whnf HM.fromList elemsDupBS
               , bench "Int" $ whnf HM.fromList elemsDupI
               ]
+#if __GLASGOW_HASKELL__ >= 802
+            , bgroup "short custom salt" -- 18446744073710551615 * 10
+              [ bench "String" $ whnf (HM.fromList' @_ @_ @184467440737105516150) elemsDup
+              , bench "ByteString" $ whnf (HM.fromList' @_ @_ @184467440737105516150) elemsDupBS
+              , bench "Int" $ whnf (HM.fromList' @_ @_ @184467440737105516150) elemsDupI
+              ]
+            , bgroup "short custom salt 42" -- 18446744073710551615 * 10
+              [ bench "String" $ whnf (HM.fromList' @_ @_ @42) elemsDup
+              , bench "ByteString" $ whnf (HM.fromList' @_ @_ @42) elemsDupBS
+              , bench "Int" $ whnf (HM.fromList' @_ @_ @42) elemsDupI
+              ]
+#endif
             ]
             -- fromListWith
           , bgroup "fromListWith"
@@ -360,6 +383,13 @@ main = do
               , bench "ByteString" $ whnf (HM.fromListWith (+)) elemsDupBS
               , bench "Int" $ whnf (HM.fromListWith (+)) elemsDupI
               ]
+#if __GLASGOW_HASKELL__ >= 802
+            , bgroup "short custom salt"
+              [ bench "String" $ whnf ((HM.fromListWith' @_ @_ @10) (+)) elemsDup
+              , bench "ByteString" $ whnf ((HM.fromListWith' @_ @_ @10) (+)) elemsDupBS
+              , bench "Int" $ whnf ((HM.fromListWith' @_ @_ @10) (+)) elemsDupI
+              ]
+#endif
             ]
           ]
         ]

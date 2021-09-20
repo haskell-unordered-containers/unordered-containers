@@ -5,6 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DataKinds #-}
 #if __GLASGOW_HASKELL__ >= 802
 {-# LANGUAGE TypeInType #-}
 {-# LANGUAGE UnboxedSums #-}
@@ -26,12 +27,16 @@
 
 module Data.HashMap.Internal
     (
-      HashMap(..)
+      HashMapT(..)
+    , HashMap
     , Leaf(..)
+    , DefaultSalt
 
       -- * Construction
     , empty
+    , empty'
     , singleton
+    , singleton'
 
       -- * Basic interface
     , null
@@ -100,8 +105,11 @@ module Data.HashMap.Internal
       -- ** Lists
     , toList
     , fromList
+    , fromList'
     , fromListWith
     , fromListWithKey
+    , fromListWith'
+    , fromListWithKey'
 
       -- Internals used by the strict version
     , Hash
@@ -158,6 +166,7 @@ import qualified Data.List as L
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#, inline)
 import Prelude hiding (filter, foldl, foldr, lookup, map, null, pred)
 import Text.Read hiding (step)
+import GHC.TypeLits(Nat, natVal, KnownNat)
 
 import qualified Data.HashMap.Internal.Array as A
 import qualified Data.Hashable as H
@@ -196,8 +205,10 @@ import Data.Coerce (coerce)
 ------------------------------------------------------------------------
 
 -- | Convenience function.  Compute a hash value for the given value.
-hash :: H.Hashable a => a -> Hash
-hash = fromIntegral . H.hash
+hash ::forall a (salt :: Nat) . H.Hashable a => KnownNat salt => Proxy salt -> a -> Hash
+hash proxy = fromIntegral . H.hashWithSalt (fromIntegral salt)
+   where
+     salt = natVal proxy -- TODO ensure is unboxed, ensure is a Word
 
 data Leaf k v = L !k v
   deriving (Eq)
@@ -218,19 +229,44 @@ instance NF.NFData2 Leaf where
 -- Invariant: The length of the 1st argument to 'Full' is
 -- 2^bitsPerSubkey
 
+
+-- these come from
+-- https://github.com/haskell-unordered-containers/hashable/blob/master/src/Data/Hashable/Class.hs#L221
+-- Can't have negatives in a natural.
+--
+-- to convert negatives use in ghci:
+-- >>> fromInteger (-3750763034362895579) :: Word64
+
+#if MIN_VERSION_hashable(1,3,1)
+-- fnv constant: https://github.com/haskell-unordered-containers/hashable/blame/c0cd4aa5238a2424d602719da9db69cc01bd17bb/src/Data/Hashable/Class.hs#L207
+type DefaultSalt = 14695981039346656037 -- fromInteger (-3750763034362895579) :: Word64
+#else
+type DefaultSalt = 15868100553162883236 -- old values https://github.com/haskell-unordered-containers/hashable/blame/ade7f97d1c59e9cfbad49b6ed130b90805311758/Data/Hashable/Class.hs#L202
+#endif
+
 -- | A map from keys to values.  A map cannot contain duplicate keys;
 -- each key can map to at most one value.
-data HashMap k v
+data HashMapT (salt :: Nat) k v
     = Empty
-    | BitmapIndexed !Bitmap !(A.Array (HashMap k v))
+    | BitmapIndexed !Bitmap !(A.Array (HashMapT salt k v))
     | Leaf !Hash !(Leaf k v)
-    | Full !(A.Array (HashMap k v))
+    | Full !(A.Array (HashMapT salt k v))
     | Collision !Hash !(A.Array (Leaf k v))
       deriving (Typeable)
 
-type role HashMap nominal representational
+-- backwards compatibility
+type HashMap = HashMapT DefaultSalt
 
-instance (NFData k, NFData v) => NFData (HashMap k v) where
+-- Allows coercion of a hashmap for example:
+--
+-- >>> newtype X = MkX Text
+-- >>> coerce (HashMap Text X) = HashMap Text Text
+--
+-- nominal role indicates that this isn't allowed.
+-- we don't want to coerce key's or salt, because it'd cause issues.
+type role HashMapT nominal nominal representational
+
+instance (NFData k, NFData v) => NFData (HashMapT salt k v) where
     rnf Empty                 = ()
     rnf (BitmapIndexed _ ary) = rnf ary
     rnf (Leaf _ l)            = rnf l
@@ -239,11 +275,11 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
 
 #if MIN_VERSION_deepseq(1,4,3)
 -- | @since 0.2.14.0
-instance NFData k => NF.NFData1 (HashMap k) where
+instance (NFData k) => NF.NFData1 (HashMapT salt k) where
     liftRnf rnf2 = NF.liftRnf2 rnf rnf2
 
 -- | @since 0.2.14.0
-instance NF.NFData2 HashMap where
+instance NF.NFData2 (HashMapT salt) where
     liftRnf2 _ _ Empty                       = ()
     liftRnf2 rnf1 rnf2 (BitmapIndexed _ ary) = NF.liftRnf (NF.liftRnf2 rnf1 rnf2) ary
     liftRnf2 rnf1 rnf2 (Leaf _ l)            = NF.liftRnf2 rnf1 rnf2 l
@@ -251,10 +287,10 @@ instance NF.NFData2 HashMap where
     liftRnf2 rnf1 rnf2 (Collision _ ary)     = NF.liftRnf (NF.liftRnf2 rnf1 rnf2) ary
 #endif
 
-instance Functor (HashMap k) where
+instance Functor (HashMapT salt k) where
     fmap = map
 
-instance Foldable.Foldable (HashMap k) where
+instance Foldable.Foldable (HashMapT salt k) where
     foldMap f = foldMapWithKey (\ _k v -> f v)
     {-# INLINE foldMap #-}
     foldr = foldr
@@ -274,7 +310,7 @@ instance Foldable.Foldable (HashMap k) where
 
 #if MIN_VERSION_base(4,10,0)
 -- | @since 0.2.11
-instance Bifoldable HashMap where
+instance Bifoldable (HashMapT salt) where
     bifoldMap f g = foldMapWithKey (\ k v -> f k `mappend` g v)
     {-# INLINE bifoldMap #-}
     bifoldr f g = foldrWithKey (\ k v acc -> k `f` (v `g` acc))
@@ -292,7 +328,7 @@ instance Bifoldable HashMap where
 --
 -- >>> fromList [(1,'a'),(2,'b')] <> fromList [(2,'c'),(3,'d')]
 -- fromList [(1,'a'),(2,'b'),(3,'d')]
-instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
+instance (Eq k, Hashable k, KnownNat salt) => Semigroup (HashMapT salt k v) where
   (<>) = union
   {-# INLINE (<>) #-}
 #endif
@@ -307,8 +343,8 @@ instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
 --
 -- >>> mappend (fromList [(1,'a'),(2,'b')]) (fromList [(2,'c'),(3,'d')])
 -- fromList [(1,'a'),(2,'b'),(3,'d')]
-instance (Eq k, Hashable k) => Monoid (HashMap k v) where
-  mempty = empty
+instance (Eq k, Hashable k, KnownNat salt) => Monoid (HashMapT salt k v) where
+  mempty = empty'
   {-# INLINE mempty #-}
 #if __GLASGOW_HASKELL__ >= 711
   mappend = (<>)
@@ -317,11 +353,15 @@ instance (Eq k, Hashable k) => Monoid (HashMap k v) where
 #endif
   {-# INLINE mappend #-}
 
-instance (Data k, Data v, Eq k, Hashable k) => Data (HashMap k v) where
-    gfoldl f z m   = z fromList `f` toList m
+#if __GLASGOW_HASKELL__ >= 711
+instance (Data k, Data v, Eq k, Hashable k, KnownNat salt) => Data (HashMapT salt k v) where
+#else
+instance (Typeable salt, Data k, Data v, Eq k, Hashable k, KnownNat salt) => Data (HashMapT salt k v) where
+#endif
+    gfoldl f z m   = z fromList' `f` toList m
     toConstr _     = fromListConstr
     gunfold k z c  = case constrIndex c of
-        1 -> k (z fromList)
+        1 -> k (z fromList')
         _ -> error "gunfold"
     dataTypeOf _   = hashMapDataType
     dataCast2 f    = gcast2 f
@@ -337,45 +377,45 @@ type Bitmap = Word
 type Shift  = Int
 
 #if MIN_VERSION_base(4,9,0)
-instance Show2 HashMap where
+instance Show2 (HashMapT salt) where
     liftShowsPrec2 spk slk spv slv d m =
         showsUnaryWith (liftShowsPrec sp sl) "fromList" d (toList m)
       where
         sp = liftShowsPrec2 spk slk spv slv
         sl = liftShowList2 spk slk spv slv
 
-instance Show k => Show1 (HashMap k) where
+instance Show k => Show1 (HashMapT salt k) where
     liftShowsPrec = liftShowsPrec2 showsPrec showList
 
-instance (Eq k, Hashable k, Read k) => Read1 (HashMap k) where
+instance (Eq k, Hashable k, Read k, KnownNat salt) => Read1 (HashMapT salt k) where
     liftReadsPrec rp rl = readsData $
-        readsUnaryWith (liftReadsPrec rp' rl') "fromList" fromList
+        readsUnaryWith (liftReadsPrec rp' rl') "fromList" fromList'
       where
         rp' = liftReadsPrec rp rl
         rl' = liftReadList rp rl
 #endif
 
-instance (Eq k, Hashable k, Read k, Read e) => Read (HashMap k e) where
+instance (Eq k, Hashable k, Read k, Read e, KnownNat salt) => Read (HashMapT salt k e) where
     readPrec = parens $ prec 10 $ do
       Ident "fromList" <- lexP
       xs <- readPrec
-      return (fromList xs)
+      return (fromList' xs)
 
     readListPrec = readListPrecDefault
 
-instance (Show k, Show v) => Show (HashMap k v) where
+instance (Show k, Show v) => Show (HashMapT salt k v) where
     showsPrec d m = showParen (d > 10) $
       showString "fromList " . shows (toList m)
 
-instance Traversable (HashMap k) where
+instance Traversable (HashMapT salt k) where
     traverse f = traverseWithKey (const f)
     {-# INLINABLE traverse #-}
 
 #if MIN_VERSION_base(4,9,0)
-instance Eq2 HashMap where
+instance Eq2 (HashMapT salt) where
     liftEq2 = equal2
 
-instance Eq k => Eq1 (HashMap k) where
+instance Eq k => Eq1 (HashMapT salt k) where
     liftEq = equal1
 #endif
 
@@ -397,17 +437,18 @@ instance Eq k => Eq1 (HashMap k) where
 --
 -- In general, the lack of substitutivity can be observed with any function
 -- that depends on the key ordering, such as folds and traversals.
-instance (Eq k, Eq v) => Eq (HashMap k v) where
+instance (Eq k, Eq v) => Eq (HashMapT salt k v) where
     (==) = equal1 (==)
 
 -- We rely on there being no Empty constructors in the tree!
 -- This ensures that two equal HashMaps will have the same
 -- shape, modulo the order of entries in Collisions.
-equal1 :: Eq k
+equal1 :: forall k v v' salt . Eq k
        => (v -> v' -> Bool)
-       -> HashMap k v -> HashMap k v' -> Bool
+       -> HashMapT salt k v -> HashMapT salt k v' -> Bool
 equal1 eq = go
   where
+    go :: HashMapT salt k v -> HashMapT salt k v' -> Bool
     go Empty Empty = True
     go (BitmapIndexed bm1 ary1) (BitmapIndexed bm2 ary2)
       = bm1 == bm2 && A.sameArray1 go ary1 ary2
@@ -420,7 +461,7 @@ equal1 eq = go
     leafEq (L k1 v1) (L k2 v2) = k1 == k2 && eq v1 v2
 
 equal2 :: (k -> k' -> Bool) -> (v -> v' -> Bool)
-      -> HashMap k v -> HashMap k' v' -> Bool
+      -> HashMapT salt k v -> HashMapT salt k' v' -> Bool
 equal2 eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
   where
     -- If the two trees are the same, then their lists of 'Leaf's and
@@ -442,21 +483,21 @@ equal2 eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
     leafEq (L k v) (L k' v') = eqk k k' && eqv v v'
 
 #if MIN_VERSION_base(4,9,0)
-instance Ord2 HashMap where
+instance Ord2 (HashMapT salt) where
     liftCompare2 = cmp
 
-instance Ord k => Ord1 (HashMap k) where
+instance Ord k => Ord1 (HashMapT salt k) where
     liftCompare = cmp compare
 #endif
 
 -- | The ordering is total and consistent with the `Eq` instance. However,
 -- nothing else about the ordering is specified, and it may change from
 -- version to version of either this package or of hashable.
-instance (Ord k, Ord v) => Ord (HashMap k v) where
+instance (Ord k, Ord v) => Ord (HashMapT salt k v) where
     compare = cmp compare compare
 
 cmp :: (k -> k' -> Ordering) -> (v -> v' -> Ordering)
-    -> HashMap k v -> HashMap k' v' -> Ordering
+    -> HashMapT salt k v -> HashMapT salt k' v' -> Ordering
 cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
   where
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
@@ -478,7 +519,7 @@ cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
     leafCompare (L k v) (L k' v') = cmpk k k' `mappend` cmpv v v'
 
 -- Same as 'equal' but doesn't compare the values.
-equalKeys1 :: (k -> k' -> Bool) -> HashMap k v -> HashMap k' v' -> Bool
+equalKeys1 :: (k -> k' -> Bool) -> HashMapT salt k v -> HashMapT salt k' v' -> Bool
 equalKeys1 eq t1 t2 = go (toList' t1 []) (toList' t2 [])
   where
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
@@ -494,10 +535,10 @@ equalKeys1 eq t1 t2 = go (toList' t1 []) (toList' t2 [])
     leafEq (L k _) (L k' _) = eq k k'
 
 -- Same as 'equal1' but doesn't compare the values.
-equalKeys :: Eq k => HashMap k v -> HashMap k v' -> Bool
+equalKeys :: Eq k => HashMapT salt k v -> HashMapT salt k v' -> Bool
 equalKeys = go
   where
-    go :: Eq k => HashMap k v -> HashMap k v' -> Bool
+    go :: Eq k => HashMapT salt k v -> HashMapT salt k v' -> Bool
     go Empty Empty = True
     go (BitmapIndexed bm1 ary1) (BitmapIndexed bm2 ary2)
       = bm1 == bm2 && A.sameArray1 go ary1 ary2
@@ -510,10 +551,10 @@ equalKeys = go
     leafEq (L k1 _) (L k2 _) = k1 == k2
 
 #if MIN_VERSION_hashable(1,2,5)
-instance H.Hashable2 HashMap where
+instance H.Hashable2 (HashMapT salt) where
     liftHashWithSalt2 hk hv salt hm = go salt (toList' hm [])
       where
-        -- go :: Int -> [HashMap k v] -> Int
+        -- go :: Int -> [HashMapT salt k v] -> Int
         go s [] = s
         go s (Leaf _ l : tl)
           = s `hashLeafWithSalt` l `go` tl
@@ -533,14 +574,14 @@ instance H.Hashable2 HashMap where
         -- arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
         arrayHashesSorted s = L.sort . L.map (hashLeafWithSalt s) . A.toList
 
-instance (Hashable k) => H.Hashable1 (HashMap k) where
+instance (Hashable k, KnownNat salt) => H.Hashable1 (HashMapT salt k) where
     liftHashWithSalt = H.liftHashWithSalt2 H.hashWithSalt
 #endif
 
-instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
+instance (Hashable k, Hashable v) => Hashable (HashMapT salt k v) where
     hashWithSalt salt hm = go salt hm
       where
-        go :: Int -> HashMap k v -> Int
+        go :: Int -> HashMapT salt k v -> Int
         go s Empty = s
         go s (BitmapIndexed _ a) = A.foldl' go s a
         go s (Leaf h (L _ v))
@@ -562,7 +603,7 @@ instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
         arrayHashesSorted s = L.sort . L.map (hashLeafWithSalt s) . A.toList
 
   -- Helper to get 'Leaf's and 'Collision's as a list.
-toList' :: HashMap k v -> [HashMap k v] -> [HashMap k v]
+toList' :: HashMapT salt k v -> [HashMapT salt k v] -> [HashMapT salt k v]
 toList' (BitmapIndexed _ ary) a = A.foldr toList' a ary
 toList' (Full ary)            a = A.foldr toList' a ary
 toList' l@(Leaf _ _)          a = l : a
@@ -570,7 +611,7 @@ toList' c@(Collision _ _)     a = c : a
 toList' Empty                 a = a
 
 -- Helper function to detect 'Leaf's and 'Collision's.
-isLeafOrCollision :: HashMap k v -> Bool
+isLeafOrCollision :: HashMapT salt k v -> Bool
 isLeafOrCollision (Leaf _ _)      = True
 isLeafOrCollision (Collision _ _) = True
 isLeafOrCollision _               = False
@@ -579,23 +620,31 @@ isLeafOrCollision _               = False
 -- * Construction
 
 -- | /O(1)/ Construct an empty map.
-empty :: HashMap k v
-empty = Empty
+empty :: forall k v . HashMap k v
+empty = empty'
+
+-- | like 'empty' but allows a custom salt to be set
+empty' :: forall k v (salt :: Nat) . HashMapT salt k v
+empty' = Empty
 
 -- | /O(1)/ Construct a map with a single element.
-singleton :: (Hashable k) => k -> v -> HashMap k v
-singleton k v = Leaf (hash k) (L k v)
+singleton :: forall k v . (Hashable k) => k -> v -> HashMap k v
+singleton = singleton'
+
+-- | like 'singleton' but allows a custom salt to be set
+singleton' :: forall k v (salt :: Nat) . (Hashable k, KnownNat salt) => k -> v -> HashMapT salt k v
+singleton' k v = Leaf (hash (Proxy :: Proxy salt) k) (L k v)
 
 ------------------------------------------------------------------------
 -- * Basic interface
 
 -- | /O(1)/ Return 'True' if this map is empty, 'False' otherwise.
-null :: HashMap k v -> Bool
+null :: HashMapT salt k v -> Bool
 null Empty = True
 null _   = False
 
 -- | /O(n)/ Return the number of key-value mappings in this map.
-size :: HashMap k v -> Int
+size :: HashMapT salt k v -> Int
 size t = go t 0
   where
     go Empty                !n = n
@@ -606,7 +655,7 @@ size t = go t 0
 
 -- | /O(log n)/ Return 'True' if the specified key is present in the
 -- map, 'False' otherwise.
-member :: (Eq k, Hashable k) => k -> HashMap k a -> Bool
+member :: (Eq k, Hashable k, KnownNat salt) => k -> HashMapT salt k a -> Bool
 member k m = case lookup k m of
     Nothing -> False
     Just _  -> True
@@ -614,7 +663,7 @@ member k m = case lookup k m of
 
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.
-lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
+lookup ::  forall k v (salt :: Nat) . (Eq k, Hashable k, KnownNat salt) => k -> HashMapT salt k v -> Maybe v
 #if __GLASGOW_HASKELL__ >= 802
 -- GHC does not yet perform a worker-wrapper transformation on
 -- unboxed sums automatically. That seems likely to happen at some
@@ -624,19 +673,21 @@ lookup k m = case lookup# k m of
   (# | a #) -> Just a
 {-# INLINE lookup #-}
 
-lookup# :: (Eq k, Hashable k) => k -> HashMap k v -> (# (# #) | v #)
-lookup# k m = lookupCont (\_ -> (# (# #) | #)) (\v _i -> (# | v #)) (hash k) k 0 m
+lookup# :: forall k v (salt :: Nat) . (Eq k, Hashable k, KnownNat salt) => k -> HashMapT salt k v -> (# (# #) | v #)
+lookup# k m = lookupCont (\_ -> (# (# #) | #)) (\v _i -> (# | v #))
+                  (hash (Proxy :: Proxy salt) k) k 0 m
 {-# INLINABLE lookup# #-}
 
 #else
 
-lookup k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) (hash k) k 0 m
+lookup k m = lookupCont (\_ -> Nothing) (\v _i -> Just v)
+                  (hash (Proxy :: Proxy salt) k) k 0 m
 {-# INLINABLE lookup #-}
 #endif
 
 -- | lookup' is a version of lookup that takes the hash separately.
 -- It is used to implement alterF.
-lookup' :: Eq k => Hash -> k -> HashMap k v -> Maybe v
+lookup' :: Eq k => Hash -> k -> HashMapT salt k v -> Maybe v
 #if __GLASGOW_HASKELL__ >= 802
 -- GHC does not yet perform a worker-wrapper transformation on
 -- unboxed sums automatically. That seems likely to happen at some
@@ -670,7 +721,7 @@ data LookupRes a = Absent | Present a !Int
 --   Key not in map           => Absent
 --   Key in map, no collision => Present v (-1)
 --   Key in map, collision    => Present v position
-lookupRecordCollision :: Eq k => Hash -> k -> HashMap k v -> LookupRes v
+lookupRecordCollision :: Eq k => Hash -> k -> HashMapT salt k v -> LookupRes v
 #if __GLASGOW_HASKELL__ >= 802
 lookupRecordCollision h k m = case lookupRecordCollision# h k m of
   (# (# #) | #) -> Absent
@@ -682,7 +733,7 @@ lookupRecordCollision h k m = case lookupRecordCollision# h k m of
 -- may be changing in GHC 8.6 or so (there is some work in progress), but
 -- for now we use Int# explicitly here. We don't need to push the Int#
 -- into lookupCont because inlining takes care of that.
-lookupRecordCollision# :: Eq k => Hash -> k -> HashMap k v -> (# (# #) | (# v, Int# #) #)
+lookupRecordCollision# :: Eq k => Hash -> k -> HashMapT salt k v -> (# (# #) | (# v, Int# #) #)
 lookupRecordCollision# h k m =
     lookupCont (\_ -> (# (# #) | #)) (\v (I# i) -> (# | (# v, i #) #)) h k 0 m
 -- INLINABLE to specialize to the Eq instance.
@@ -708,9 +759,9 @@ lookupRecordCollision h k m = lookupCont (\_ -> Absent) Present h k 0 m
 -- keys at level @n@ of a hashmap, the offset should be @n * bitsPerSubkey@.
 lookupCont ::
 #if __GLASGOW_HASKELL__ >= 802
-  forall rep (r :: TYPE rep) k v.
+  forall rep (r :: TYPE rep) k v salt.
 #else
-  forall r k v.
+  forall r k v salt.
 #endif
      Eq k
   => ((# #) -> r)    -- Absent continuation
@@ -718,10 +769,10 @@ lookupCont ::
   -> Hash -- The hash of the key
   -> k
   -> Int -- The offset of the subkey in the hash.
-  -> HashMap k v -> r
+  -> HashMapT salt k v -> r
 lookupCont absent present !h0 !k0 !s0 !m0 = go h0 k0 s0 m0
   where
-    go :: Eq k => Hash -> k -> Int -> HashMap k v -> r
+    go :: Eq k => Hash -> k -> Int -> HashMapT salt k v -> r
     go !_ !_ !_ Empty = absent (# #)
     go h k _ (Leaf hx (L kx x))
         | h == hx && k == kx = present x (-1)
@@ -744,7 +795,7 @@ lookupCont absent present !h0 !k0 !s0 !m0 = go h0 k0 s0 m0
 -- This is a flipped version of 'lookup'.
 --
 -- @since 0.2.11
-(!?) :: (Eq k, Hashable k) => HashMap k v -> k -> Maybe v
+(!?) :: (Eq k, Hashable k, KnownNat salt) => HashMapT salt k v -> k -> Maybe v
 (!?) m k = lookup k m
 {-# INLINE (!?) #-}
 
@@ -753,9 +804,9 @@ lookupCont absent present !h0 !k0 !s0 !m0 = go h0 k0 s0 m0
 -- or the default value if this map contains no mapping for the key.
 --
 -- @since 0.2.11
-findWithDefault :: (Eq k, Hashable k)
+findWithDefault :: (Eq k, Hashable k, KnownNat salt)
               => v          -- ^ Default value to return.
-              -> k -> HashMap k v -> v
+              -> k -> HashMapT salt k v -> v
 findWithDefault def k t = case lookup k t of
     Just v -> v
     _      -> def
@@ -767,18 +818,18 @@ findWithDefault def k t = case lookup k t of
 --
 -- DEPRECATED: lookupDefault is deprecated as of version 0.2.11, replaced
 -- by 'findWithDefault'.
-lookupDefault :: (Eq k, Hashable k)
+lookupDefault :: (Eq k, Hashable k, KnownNat salt)
               => v          -- ^ Default value to return.
-              -> k -> HashMap k v -> v
+              -> k -> HashMapT salt k v -> v
 lookupDefault def k t = findWithDefault def k t
 {-# INLINE lookupDefault #-}
 
 -- | /O(log n)/ Return the value to which the specified key is mapped.
 -- Calls 'error' if this map contains no mapping for the key.
 #if MIN_VERSION_base(4,9,0)
-(!) :: (Eq k, Hashable k, HasCallStack) => HashMap k v -> k -> v
+(!) :: forall k v salt . (Eq k, Hashable k, HasCallStack, KnownNat salt) => HashMapT salt k v -> k -> v
 #else
-(!) :: (Eq k, Hashable k) => HashMap k v -> k -> v
+(!) :: forall k v salt . (Eq k, Hashable k, KnownNat salt) => HashMapT salt k v -> k -> v
 #endif
 (!) m k = case lookup k m of
     Just v  -> v
@@ -788,7 +839,7 @@ lookupDefault def k t = findWithDefault def k t
 infixl 9 !
 
 -- | Create a 'Collision' value with two 'Leaf' values.
-collision :: Hash -> Leaf k v -> Leaf k v -> HashMap k v
+collision :: Hash -> Leaf k v -> Leaf k v -> HashMapT salt k v
 collision h !e1 !e2 =
     let v = A.run $ do mary <- A.new 2 e1
                        A.write mary 1 e2
@@ -797,7 +848,7 @@ collision h !e1 !e2 =
 {-# INLINE collision #-}
 
 -- | Create a 'BitmapIndexed' or 'Full' node.
-bitmapIndexedOrFull :: Bitmap -> A.Array (HashMap k v) -> HashMap k v
+bitmapIndexedOrFull :: Bitmap -> A.Array (HashMapT salt k v) -> HashMapT salt k v
 bitmapIndexedOrFull b ary
     | b == fullNodeMask = Full ary
     | otherwise         = BitmapIndexed b ary
@@ -806,13 +857,14 @@ bitmapIndexedOrFull b ary
 -- | /O(log n)/ Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
-insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
-insert k v m = insert' (hash k) k v m
+insert :: forall k v salt . (Eq k, Hashable k, KnownNat salt) => k -> v -> HashMapT salt k v -> HashMapT salt k v
+insert k v m = insert' (hash (Proxy :: Proxy salt) k) k v m
 {-# INLINABLE insert #-}
 
-insert' :: Eq k => Hash -> k -> v -> HashMap k v -> HashMap k v
+insert' :: forall k v salt . Eq k => Hash -> k -> v -> HashMapT salt k v -> HashMapT salt k v
 insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
   where
+    go :: Eq k => Hash -> k -> v -> Int -> HashMapT salt k v -> HashMapT salt k v
     go !h !k x !_ Empty = Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
@@ -852,7 +904,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
 -- We can skip:
 --  - the key equality check on a Leaf
 --  - check for its existence in the array for a hash collision
-insertNewKey :: Hash -> k -> v -> HashMap k v -> HashMap k v
+insertNewKey :: Hash -> k -> v -> HashMapT salt k v -> HashMapT salt k v
 insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
   where
     go !h !k x !_ Empty = Leaf h (L k x)
@@ -898,7 +950,7 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
 --
 -- We can skip the key equality check on a Leaf because we know the leaf must be
 -- for this key.
-insertKeyExists :: Int -> Hash -> k -> v -> HashMap k v -> HashMap k v
+insertKeyExists :: Int -> Hash -> k -> v -> HashMapT salt k v -> HashMapT salt k v
 insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 0 m0
   where
     go !_collPos !h !k x !_s (Leaf _hy _kx)
@@ -934,10 +986,10 @@ setAtPosition i k x ary = A.update ary i (L k x)
 
 
 -- | In-place update version of insert
-unsafeInsert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
+unsafeInsert :: forall k v salt . (Eq k, Hashable k, KnownNat salt) => k -> v -> HashMapT salt k v -> HashMapT salt k v
 unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
-    h0 = hash k0
+    h0 = hash (Proxy :: Proxy salt) k0
     go !h !k x !_ Empty = return $! Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
@@ -976,7 +1028,7 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 -- key. See issue #232. We don't need to force the HashMap argument
 -- because it's already in WHNF (having just been matched) and we
 -- just put it directly in an array.
-two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
+two :: Shift -> Hash -> k -> v -> Hash -> HashMapT salt k v -> ST s (HashMapT salt k v)
 two = go
   where
     go s h1 k1 v1 h2 t2
@@ -1003,8 +1055,8 @@ two = go
 --
 -- > insertWith f k v map
 -- >   where f new old = new + old
-insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
-            -> HashMap k v
+insertWith :: (Eq k, Hashable k, KnownNat salt) => (v -> v -> v) -> k -> v -> HashMapT salt k v
+            -> HashMapT salt k v
 -- We're not going to worry about allocating a function closure
 -- to pass to insertModifying. See comments at 'adjust'.
 insertWith f k new m = insertModifying new (\old -> (# f new old #)) k m
@@ -1015,11 +1067,11 @@ insertWith f k new m = insertModifying new (\old -> (# f new old #)) k m
 -- to apply to calculate a new value when the key is present. Thanks
 -- to the unboxed unary tuple, we avoid introducing any unnecessary
 -- thunks in the tree.
-insertModifying :: (Eq k, Hashable k) => v -> (v -> (# v #)) -> k -> HashMap k v
-            -> HashMap k v
+insertModifying :: forall k v salt . (Eq k, Hashable k, KnownNat salt) => v -> (v -> (# v #)) -> k -> HashMapT salt k v
+            -> HashMapT salt k v
 insertModifying x f k0 m0 = go h0 k0 0 m0
   where
-    !h0 = hash k0
+    !h0 = hash (Proxy :: Proxy salt) k0
     go !h !k !_ Empty = Leaf h (L k x)
     go h k s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
@@ -1079,19 +1131,19 @@ insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
 {-# INLINE insertModifyingArr #-}
 
 -- | In-place update version of insertWith
-unsafeInsertWith :: forall k v. (Eq k, Hashable k)
-                 => (v -> v -> v) -> k -> v -> HashMap k v
-                 -> HashMap k v
+unsafeInsertWith :: forall k v salt. (Eq k, Hashable k, KnownNat salt)
+                 => (v -> v -> v) -> k -> v -> HashMapT salt k v
+                 -> HashMapT salt k v
 unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (const f) k0 v0 m0
 {-# INLINABLE unsafeInsertWith #-}
 
-unsafeInsertWithKey :: forall k v. (Eq k, Hashable k)
-                 => (k -> v -> v -> v) -> k -> v -> HashMap k v
-                 -> HashMap k v
+unsafeInsertWithKey :: forall k v salt. (Eq k, Hashable k, KnownNat salt)
+                 => (k -> v -> v -> v) -> k -> v -> HashMapT salt k v
+                 -> HashMapT salt k v
 unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
-    h0 = hash k0
-    go :: Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
+    h0 = hash (Proxy :: Proxy salt) k0
+    go :: Hash -> k -> v -> Shift -> HashMapT salt k v -> ST s (HashMapT salt k v)
     go !h !k x !_ Empty = return $! Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
@@ -1122,11 +1174,11 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 
 -- | /O(log n)/ Remove the mapping for the specified key from this map
 -- if present.
-delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
-delete k m = delete' (hash k) k m
+delete :: forall k v salt . (Eq k, Hashable k, KnownNat salt) => k -> HashMapT salt k v -> HashMapT salt k v
+delete k m = delete' (hash (Proxy :: Proxy salt) k) k m
 {-# INLINABLE delete #-}
 
-delete' :: Eq k => Hash -> k -> HashMap k v -> HashMap k v
+delete' :: Eq k => Hash -> k -> HashMapT salt k v -> HashMapT salt k v
 delete' h0 k0 m0 = go h0 k0 0 m0
   where
     go !_ !_ !_ Empty = Empty
@@ -1186,10 +1238,10 @@ delete' h0 k0 m0 = go h0 k0 0 m0
 --
 -- We can skip:
 --  - the key equality check on the leaf, if we reach a leaf it must be the key
-deleteKeyExists :: Int -> Hash -> k -> HashMap k v -> HashMap k v
+deleteKeyExists :: Int -> Hash -> k -> HashMapT salt k v -> HashMapT salt k v
 deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 0 m0
   where
-    go :: Int -> Hash -> k -> Int -> HashMap k v -> HashMap k v
+    go :: Int -> Hash -> k -> Int -> HashMapT salt k v -> HashMapT salt k v
     go !_collPos !_h !_k !_s (Leaf _ _) = Empty
     go collPos h k s (BitmapIndexed b ary) =
             let !st = A.index ary i
@@ -1229,7 +1281,7 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 0 m0
 
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
-adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
+adjust :: (Eq k, Hashable k, KnownNat salt) => (v -> v) -> k -> HashMapT salt k v -> HashMapT salt k v
 -- This operation really likes to leak memory, so using this
 -- indirect implementation shouldn't hurt much. Furthermore, it allows
 -- GHC to avoid a leak when the function is lazy. In particular,
@@ -1241,10 +1293,10 @@ adjust f k m = adjust# (\v -> (# f v #)) k m
 {-# INLINE adjust #-}
 
 -- | Much like 'adjust', but not inherently leaky.
-adjust# :: (Eq k, Hashable k) => (v -> (# v #)) -> k -> HashMap k v -> HashMap k v
+adjust# :: forall k v salt . (Eq k, Hashable k, KnownNat salt) => (v -> (# v #)) -> k -> HashMapT salt k v -> HashMapT salt k v
 adjust# f k0 m0 = go h0 k0 0 m0
   where
-    h0 = hash k0
+    h0 = hash (Proxy :: Proxy salt) k0
     go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky y))
         | hy == h && ky == k = case f y of
@@ -1280,7 +1332,7 @@ adjust# f k0 m0 = go h0 k0 0 m0
 -- | /O(log n)/  The expression @('update' f k map)@ updates the value @x@ at @k@
 -- (if it is in the map). If @(f x)@ is 'Nothing', the element is deleted.
 -- If it is @('Just' y)@, the key @k@ is bound to the new value @y@.
-update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
+update :: (Eq k, Hashable k, KnownNat salt) => (a -> Maybe a) -> k -> HashMapT salt k a -> HashMapT salt k a
 update f = alter (>>= f)
 {-# INLINABLE update #-}
 
@@ -1293,7 +1345,7 @@ update f = alter (>>= f)
 -- @
 -- 'lookup' k ('alter' f k m) = f ('lookup' k m)
 -- @
-alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
+alter :: (Eq k, Hashable k, KnownNat salt) => (Maybe v -> Maybe v) -> k -> HashMapT salt k v -> HashMapT salt k v
 -- TODO(m-renaud): Consider using specialized insert and delete for alter.
 alter f k m =
   case f (lookup k m) of
@@ -1310,8 +1362,8 @@ alter f k m =
 -- <https://hackage.haskell.org/package/lens/docs/Control-Lens-At.html#v:at Control.Lens.At>.
 --
 -- @since 0.2.10
-alterF :: (Functor f, Eq k, Hashable k)
-       => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
+alterF ::  forall f k v salt . (Functor f, Eq k, Hashable k, KnownNat salt)
+       => (Maybe v -> f (Maybe v)) -> k -> HashMapT salt k v -> f (HashMapT salt k v)
 -- We only calculate the hash once, but unless this is rewritten
 -- by rules we may test for key equality multiple times.
 -- We force the value of the map for consistency with the rewritten
@@ -1319,7 +1371,7 @@ alterF :: (Functor f, Eq k, Hashable k)
 -- @f@ and a functor that is similar to Const but not actually Const.
 alterF f = \ !k !m ->
   let
-    !h = hash k
+    !h = hash (Proxy :: Proxy salt) k
     mv = lookup' h k m
   in (<$> f mv) $ \fres ->
     case fres of
@@ -1402,18 +1454,18 @@ bogus# _ = error "Data.HashMap.alterF internal error: hit bogus#"
 --
 -- Failure to abide by these laws will make demons come out of your nose.
 alterFWeird
-       :: (Functor f, Eq k, Hashable k)
+       :: (Functor f, Eq k, Hashable k, KnownNat salt)
        => f (Maybe v)
        -> f (Maybe v)
-       -> (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
+       -> (Maybe v -> f (Maybe v)) -> k -> HashMapT salt k v -> f (HashMapT salt k v)
 alterFWeird _ _ f = alterFEager f
 {-# INLINE [0] alterFWeird #-}
 
 -- | This is the default version of alterF that we use in most non-trivial
 -- cases. It's called "eager" because it looks up the given key in the map
 -- eagerly, whether or not the given function requires that information.
-alterFEager :: (Functor f, Eq k, Hashable k)
-       => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
+alterFEager :: forall f k v salt . (Functor f, Eq k, Hashable k, KnownNat salt)
+       => (Maybe v -> f (Maybe v)) -> k -> HashMapT salt k v -> f (HashMapT salt k v)
 alterFEager f !k m = (<$> f mv) $ \fres ->
   case fres of
 
@@ -1442,7 +1494,7 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
         -- If the value changed, update the value.
         else insertKeyExists collPos h k v' m
 
-  where !h = hash k
+  where !h = hash (Proxy :: Proxy salt) k
         !lookupRes = lookupRecordCollision h k m
         !mv = case lookupRes of
            Absent -> Nothing
@@ -1465,7 +1517,7 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
 -- False
 --
 -- @since 0.2.12
-isSubmapOf :: (Eq k, Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
+isSubmapOf :: (Eq k, Hashable k, Eq v, KnownNat salt) => HashMapT salt k v -> HashMapT salt k v -> Bool
 isSubmapOf = (inline isSubmapOfBy) (==)
 {-# INLINABLE isSubmapOf #-}
 
@@ -1485,7 +1537,7 @@ isSubmapOf = (inline isSubmapOfBy) (==)
 -- False
 --
 -- @since 0.2.12
-isSubmapOfBy :: (Eq k, Hashable k) => (v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2 -> Bool
+isSubmapOfBy :: (Eq k, Hashable k, KnownNat salt) => (v1 -> v2 -> Bool) -> HashMapT salt k v1 -> HashMapT salt k v2 -> Bool
 -- For maps without collisions the complexity is O(n*log m), where n is the size
 -- of m1 and m the size of m2: the inclusion operation visits every leaf in m1 at least once.
 -- For each leaf in m1, it looks up the key in m2.
@@ -1542,7 +1594,7 @@ isSubmapOfBy comp !m1 !m2 = go 0 m1 m2
 {-# INLINABLE isSubmapOfBy #-}
 
 -- | /O(min n m))/ Checks if a bitmap indexed node is a submap of another.
-submapBitmapIndexed :: (HashMap k v1 -> HashMap k v2 -> Bool) -> Bitmap -> A.Array (HashMap k v1) -> Bitmap -> A.Array (HashMap k v2) -> Bool
+submapBitmapIndexed :: (HashMapT salt k v1 -> HashMapT salt k v2 -> Bool) -> Bitmap -> A.Array (HashMapT salt k v1) -> Bitmap -> A.Array (HashMapT salt k v2) -> Bool
 submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .&. negate b1Orb2)
   where
     go :: Int -> Int -> Bitmap -> Bool
@@ -1575,23 +1627,23 @@ submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .
 --
 -- >>> union (fromList [(1,'a'),(2,'b')]) (fromList [(2,'c'),(3,'d')])
 -- fromList [(1,'a'),(2,'b'),(3,'d')]
-union :: (Eq k, Hashable k) => HashMap k v -> HashMap k v -> HashMap k v
+union :: (Eq k, Hashable k, KnownNat salt) => HashMapT salt k v -> HashMapT salt k v -> HashMapT salt k v
 union = unionWith const
 {-# INLINABLE union #-}
 
 -- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the
 -- result.
-unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
-          -> HashMap k v
+unionWith :: (Eq k, Hashable k, KnownNat salt) => (v -> v -> v) -> HashMapT salt k v -> HashMapT salt k v
+          -> HashMapT salt k v
 unionWith f = unionWithKey (const f)
 {-# INLINE unionWith #-}
 
 -- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the
 -- result.
-unionWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
-          -> HashMap k v
+unionWithKey :: (Eq k, Hashable k, KnownNat salt) => (k -> v -> v -> v) -> HashMapT salt k v -> HashMapT salt k v
+          -> HashMapT salt k v
 unionWithKey f = go 0
   where
     -- empty vs. anything
@@ -1707,8 +1759,8 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
 -- TODO: Figure out the time complexity of 'unions'.
 
 -- | Construct a set containing all elements from a list of sets.
-unions :: (Eq k, Hashable k) => [HashMap k v] -> HashMap k v
-unions = L.foldl' union empty
+unions :: (Eq k, Hashable k, KnownNat salt) => [HashMapT salt k v] -> HashMapT salt k v
+unions = L.foldl' union empty'
 {-# INLINE unions #-}
 
 
@@ -1738,7 +1790,7 @@ compose bc !ab
 -- * Transformations
 
 -- | /O(n)/ Transform this map by applying a function to every value.
-mapWithKey :: (k -> v1 -> v2) -> HashMap k v1 -> HashMap k v2
+mapWithKey :: (k -> v1 -> v2) -> HashMapT salt k v1 -> HashMapT salt k v2
 mapWithKey f = go
   where
     go Empty = Empty
@@ -1752,7 +1804,7 @@ mapWithKey f = go
 {-# INLINE mapWithKey #-}
 
 -- | /O(n)/ Transform this map by applying a function to every value.
-map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
+map :: (v1 -> v2) -> HashMapT salt k v1 -> HashMapT salt k v2
 map f = mapWithKey (const f)
 {-# INLINE map #-}
 
@@ -1769,7 +1821,7 @@ map f = mapWithKey (const f)
 traverseWithKey
   :: Applicative f
   => (k -> v1 -> f v2)
-  -> HashMap k v1 -> f (HashMap k v2)
+  -> HashMapT salt k v1 -> f (HashMapT salt k v2)
 traverseWithKey f = go
   where
     go Empty                 = pure Empty
@@ -1795,16 +1847,16 @@ traverseWithKey f = go
 -- fromList [(3,"c")]
 --
 -- @since 0.2.14.0
-mapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
-mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
+mapKeys :: (Eq k2, Hashable k2, KnownNat salt) => (k1 -> k2) -> HashMapT salt k1 v -> HashMapT salt k2 v
+mapKeys f = fromList' . foldrWithKey (\k x xs -> (f k, x) : xs) []
 
 ------------------------------------------------------------------------
 -- * Difference and intersection
 
 -- | /O(n*log m)/ Difference of two maps. Return elements of the first map
 -- not existing in the second.
-difference :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
-difference a b = foldlWithKey' go empty a
+difference :: (Eq k, Hashable k, KnownNat salt) => HashMapT salt k v -> HashMapT salt k w -> HashMapT salt k v
+difference a b = foldlWithKey' go empty' a
   where
     go m k v = case lookup k b of
                  Nothing -> insert k v m
@@ -1815,8 +1867,8 @@ difference a b = foldlWithKey' go empty a
 -- encountered, the combining function is applied to the values of these keys.
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
-differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
-differenceWith f a b = foldlWithKey' go empty a
+differenceWith :: (Eq k, Hashable k, KnownNat salt) => (v -> w -> Maybe v) -> HashMapT salt k v -> HashMapT salt k w -> HashMapT salt k v
+differenceWith f a b = foldlWithKey' go empty' a
   where
     go m k v = case lookup k b of
                  Nothing -> insert k v m
@@ -1825,8 +1877,8 @@ differenceWith f a b = foldlWithKey' go empty a
 
 -- | /O(n*log m)/ Intersection of two maps. Return elements of the first
 -- map for keys existing in the second.
-intersection :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
-intersection a b = foldlWithKey' go empty a
+intersection :: (Eq k, Hashable k, KnownNat salt) => HashMapT salt k v -> HashMapT salt k w -> HashMapT salt k v
+intersection a b = foldlWithKey' go empty' a
   where
     go m k v = case lookup k b of
                  Just _ -> insert k v m
@@ -1836,9 +1888,9 @@ intersection a b = foldlWithKey' go empty a
 -- | /O(n*log m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
-intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
-                 -> HashMap k v2 -> HashMap k v3
-intersectionWith f a b = foldlWithKey' go empty a
+intersectionWith :: (Eq k, Hashable k, KnownNat salt) => (v1 -> v2 -> v3) -> HashMapT salt k v1
+                 -> HashMapT salt k v2 -> HashMapT salt k v3
+intersectionWith f a b = foldlWithKey' go empty' a
   where
     go m k v = case lookup k b of
                  Just w -> insert k (f v w) m
@@ -1848,9 +1900,9 @@ intersectionWith f a b = foldlWithKey' go empty a
 -- | /O(n*log m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
-intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3)
-                    -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
-intersectionWithKey f a b = foldlWithKey' go empty a
+intersectionWithKey :: (Eq k, Hashable k, KnownNat salt) => (k -> v1 -> v2 -> v3)
+                    -> HashMapT salt k v1 -> HashMapT salt k v2 -> HashMapT salt k v3
+intersectionWithKey f a b = foldlWithKey' go empty' a
   where
     go m k v = case lookup k b of
                  Just w -> insert k (f k v w) m
@@ -1865,7 +1917,7 @@ intersectionWithKey f a b = foldlWithKey' go empty a
 -- left-identity of the operator).  Each application of the operator
 -- is evaluated before using the result in the next application.
 -- This function is strict in the starting value.
-foldl' :: (a -> v -> a) -> a -> HashMap k v -> a
+foldl' :: (a -> v -> a) -> a -> HashMapT salt k v -> a
 foldl' f = foldlWithKey' (\ z _ v -> f z v)
 {-# INLINE foldl' #-}
 
@@ -1874,7 +1926,7 @@ foldl' f = foldlWithKey' (\ z _ v -> f z v)
 -- right-identity of the operator).  Each application of the operator
 -- is evaluated before using the result in the next application.
 -- This function is strict in the starting value.
-foldr' :: (v -> a -> a) -> a -> HashMap k v -> a
+foldr' :: (v -> a -> a) -> a -> HashMapT salt k v -> a
 foldr' f = foldrWithKey' (\ _ v z -> f v z)
 {-# INLINE foldr' #-}
 
@@ -1883,7 +1935,7 @@ foldr' f = foldrWithKey' (\ _ v z -> f v z)
 -- left-identity of the operator).  Each application of the operator
 -- is evaluated before using the result in the next application.
 -- This function is strict in the starting value.
-foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
+foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMapT salt k v -> a
 foldlWithKey' f = go
   where
     go !z Empty                = z
@@ -1898,7 +1950,7 @@ foldlWithKey' f = go
 -- right-identity of the operator).  Each application of the operator
 -- is evaluated before using the result in the next application.
 -- This function is strict in the starting value.
-foldrWithKey' :: (k -> v -> a -> a) -> a -> HashMap k v -> a
+foldrWithKey' :: (k -> v -> a -> a) -> a -> HashMapT salt k v -> a
 foldrWithKey' f = flip go
   where
     go Empty z                 = z
@@ -1911,21 +1963,21 @@ foldrWithKey' f = flip go
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- right-identity of the operator).
-foldr :: (v -> a -> a) -> a -> HashMap k v -> a
+foldr :: (v -> a -> a) -> a -> HashMapT salt k v -> a
 foldr f = foldrWithKey (const f)
 {-# INLINE foldr #-}
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).
-foldl :: (a -> v -> a) -> a -> HashMap k v -> a
+foldl :: (a -> v -> a) -> a -> HashMapT salt k v -> a
 foldl f = foldlWithKey (\a _k v -> f a v)
 {-# INLINE foldl #-}
 
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- right-identity of the operator).
-foldrWithKey :: (k -> v -> a -> a) -> a -> HashMap k v -> a
+foldrWithKey :: (k -> v -> a -> a) -> a -> HashMapT salt k v -> a
 foldrWithKey f = flip go
   where
     go Empty z                 = z
@@ -1938,7 +1990,7 @@ foldrWithKey f = flip go
 -- | /O(n)/ Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).
-foldlWithKey :: (a -> k -> v -> a) -> a -> HashMap k v -> a
+foldlWithKey :: (a -> k -> v -> a) -> a -> HashMapT salt k v -> a
 foldlWithKey f = go
   where
     go z Empty                 = z
@@ -1950,7 +2002,7 @@ foldlWithKey f = go
 
 -- | /O(n)/ Reduce the map by applying a function to each element
 -- and combining the results with a monoid operation.
-foldMapWithKey :: Monoid m => (k -> v -> m) -> HashMap k v -> m
+foldMapWithKey :: Monoid m => (k -> v -> m) -> HashMapT salt k v -> m
 foldMapWithKey f = go
   where
     go Empty = mempty
@@ -1965,7 +2017,7 @@ foldMapWithKey f = go
 
 -- | /O(n)/ Transform this map by applying a function to every value
 --   and retaining only some of them.
-mapMaybeWithKey :: (k -> v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
+mapMaybeWithKey :: (k -> v1 -> Maybe v2) -> HashMapT salt k v1 -> HashMapT salt k v2
 mapMaybeWithKey f = filterMapAux onLeaf onColl
   where onLeaf (Leaf h (L k v)) | Just v' <- f k v = Just (Leaf h (L k v'))
         onLeaf _ = Nothing
@@ -1976,13 +2028,13 @@ mapMaybeWithKey f = filterMapAux onLeaf onColl
 
 -- | /O(n)/ Transform this map by applying a function to every value
 --   and retaining only some of them.
-mapMaybe :: (v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
+mapMaybe :: (v1 -> Maybe v2) -> HashMapT salt k v1 -> HashMapT salt k v2
 mapMaybe f = mapMaybeWithKey (const f)
 {-# INLINE mapMaybe #-}
 
 -- | /O(n)/ Filter this map by retaining only elements satisfying a
 -- predicate.
-filterWithKey :: forall k v. (k -> v -> Bool) -> HashMap k v -> HashMap k v
+filterWithKey :: forall k v salt. (k -> v -> Bool) -> HashMapT salt k v -> HashMapT salt k v
 filterWithKey pred = filterMapAux onLeaf onColl
   where onLeaf t@(Leaf _ (L k v)) | pred k v = Just t
         onLeaf _ = Nothing
@@ -1994,11 +2046,11 @@ filterWithKey pred = filterMapAux onLeaf onColl
 
 -- | Common implementation for 'filterWithKey' and 'mapMaybeWithKey',
 --   allowing the former to former to reuse terms.
-filterMapAux :: forall k v1 v2
-              . (HashMap k v1 -> Maybe (HashMap k v2))
+filterMapAux :: forall k v1 v2 salt
+              . (HashMapT salt k v1 -> Maybe (HashMapT salt k v2))
              -> (Leaf k v1 -> Maybe (Leaf k v2))
-             -> HashMap k v1
-             -> HashMap k v2
+             -> HashMapT salt k v1
+             -> HashMapT salt k v2
 filterMapAux onLeaf onColl = go
   where
     go Empty = Empty
@@ -2015,9 +2067,9 @@ filterMapAux onLeaf onColl = go
             mary <- A.new_ n
             step ary0 mary b0 0 0 1 n
       where
-        step :: A.Array (HashMap k v1) -> A.MArray s (HashMap k v2)
+        step :: A.Array (HashMapT salt k v1) -> A.MArray s (HashMapT salt k v2)
              -> Bitmap -> Int -> Int -> Bitmap -> Int
-             -> ST s (HashMap k v2)
+             -> ST s (HashMapT salt k v2)
         step !ary !mary !b i !j !bi n
             | i >= n = case j of
                 0 -> return Empty
@@ -2046,7 +2098,7 @@ filterMapAux onLeaf onColl = go
       where
         step :: A.Array (Leaf k v1) -> A.MArray s (Leaf k v2)
              -> Int -> Int -> Int
-             -> ST s (HashMap k v2)
+             -> ST s (HashMapT salt k v2)
         step !ary !mary i !j n
             | i >= n    = case j of
                 0 -> return Empty
@@ -2063,7 +2115,7 @@ filterMapAux onLeaf onColl = go
 
 -- | /O(n)/ Filter this map by retaining only elements which values
 -- satisfy a predicate.
-filter :: (v -> Bool) -> HashMap k v -> HashMap k v
+filter :: (v -> Bool) -> HashMapT salt k v -> HashMapT salt k v
 filter p = filterWithKey (\_ v -> p v)
 {-# INLINE filter #-}
 
@@ -2075,13 +2127,13 @@ filter p = filterWithKey (\_ v -> p v)
 
 -- | /O(n)/ Return a list of this map's keys.  The list is produced
 -- lazily.
-keys :: HashMap k v -> [k]
+keys :: HashMapT salt k v -> [k]
 keys = L.map fst . toList
 {-# INLINE keys #-}
 
 -- | /O(n)/ Return a list of this map's values.  The list is produced
 -- lazily.
-elems :: HashMap k v -> [v]
+elems :: HashMapT salt k v -> [v]
 elems = L.map snd . toList
 {-# INLINE elems #-}
 
@@ -2090,15 +2142,20 @@ elems = L.map snd . toList
 
 -- | /O(n)/ Return a list of this map's elements.  The list is
 -- produced lazily. The order of its elements is unspecified.
-toList :: HashMap k v -> [(k, v)]
+toList :: HashMapT salt k v -> [(k, v)]
 toList t = build (\ c z -> foldrWithKey (curry c) z t)
 {-# INLINE toList #-}
 
 -- | /O(n)/ Construct a map with the supplied mappings.  If the list
 -- contains duplicate mappings, the later mappings take precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
-fromList = L.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
+fromList = fromList'
 {-# INLINABLE fromList #-}
+
+-- | Same as 'fromList' but allows setting of a custom salt.
+fromList' :: forall k v (salt :: Nat) . (Eq k, Hashable k, KnownNat salt) => [(k, v)] -> HashMapT salt k v
+fromList' = L.foldl' (\ m (k, v) -> unsafeInsert k v m) empty'
+{-# INLINABLE fromList' #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
 -- the provided function @f@ to merge duplicate entries with
@@ -2115,7 +2172,7 @@ fromList = L.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 -- > = fromList [('a', 2), ('b', 1)]
 --
 -- Given a list of key-value pairs @xs :: [(k, v)]@, group all values by their
--- keys and return a @HashMap k [v]@.
+-- keys and return a @HashMapT salt k [v]@.
 --
 -- > let xs = [('a', 1), ('b', 2), ('a', 3)]
 -- > in fromListWith (++) [ (k, [v]) | (k, v) <- xs ]
@@ -2131,8 +2188,13 @@ fromList = L.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
+fromListWith = fromListWith'
 {-# INLINE fromListWith #-}
+
+-- | same as 'fromListWith' but allows setting of custom salt
+fromListWith' ::  forall k v (salt :: Nat) . (Eq k, Hashable k, KnownNat salt) => (v -> v -> v) -> [(k, v)] -> HashMapT salt k v
+fromListWith' f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty'
+{-# INLINE fromListWith' #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
 -- the provided function to merge duplicate entries.
@@ -2161,8 +2223,13 @@ fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 --
 -- @since 0.2.11
 fromListWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWithKey f = L.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) empty
+fromListWithKey = fromListWithKey'
 {-# INLINE fromListWithKey #-}
+
+-- | same as 'fromListWithKey' but allows setting of custom salt
+fromListWithKey' :: forall k v (salt :: Nat) . (Eq k, Hashable k, KnownNat salt) => (k -> v -> v -> v) -> [(k, v)] -> HashMapT salt k v
+fromListWithKey' f = L.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) empty'
+{-# INLINE fromListWithKey' #-}
 
 ------------------------------------------------------------------------
 -- Array operations
@@ -2346,7 +2413,7 @@ ptrEq x y = isTrue# (reallyUnsafePtrEquality# x y ==# 1#)
 
 ------------------------------------------------------------------------
 -- IsList instance
-instance (Eq k, Hashable k) => Exts.IsList (HashMap k v) where
-    type Item (HashMap k v) = (k, v)
-    fromList = fromList
+instance (Eq k, Hashable k, KnownNat salt) => Exts.IsList (HashMapT salt k v) where
+    type Item (HashMapT salt k v) = (k, v)
+    fromList = fromList'
     toList   = toList

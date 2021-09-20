@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP, FlexibleInstances, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main (main) where
@@ -14,13 +15,15 @@ import Data.Maybe (fromMaybe, isJust)
 import Control.Arrow (second)
 import Control.Monad (guard)
 import Data.Foldable (foldl')
+import GHC.TypeLits(KnownNat)
 #if !MIN_VERSION_base(4,8,0)
 import Data.Functor ((<$))
 import Data.Foldable (all)
 import Prelude hiding (all)
 #endif
 
-import Data.HashMap.Strict (HashMap)
+
+import Data.HashMap.Strict (HashMapT, HashMap)
 import qualified Data.HashMap.Strict as HM
 
 -- Key type that generates more hash collisions.
@@ -30,9 +33,9 @@ newtype Key = K { unK :: Int }
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
 
-instance (Arbitrary k, Arbitrary v, Eq k, Hashable k) =>
-         Arbitrary (HashMap k v) where
-    arbitrary = HM.fromList `fmap` arbitrary
+instance (Arbitrary k, Arbitrary v, Eq k, Hashable k, KnownNat salt) =>
+         Arbitrary (HashMapT salt k v) where
+    arbitrary = HM.fromList' `fmap` arbitrary
 
 instance Show (Int -> Int) where
     show _ = "<function>"
@@ -100,7 +103,7 @@ pFromListWithKeyStrict f =
 -- could be lazy in the "new" value. fromListWith must, however,
 -- be strict in whatever value is actually inserted into the map.
 -- Getting all these properties specified efficiently seems tricky.
--- Since it's not hard, we verify that the converted HashMap has
+-- Since it's not hard, we verify that the converted HashMapT salt has
 -- no unforced values. Rather than trying to go into detail for the
 -- rest, this test compares the strictness behavior of fromListWith
 -- to that of insertWith. The latter should be easier to specify

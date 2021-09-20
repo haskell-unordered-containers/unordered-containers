@@ -158,7 +158,9 @@ test-suite regressions
     test-framework >= 0.3.3,
     test-framework-hunit,
     test-framework-quickcheck2,
-    unordered-containers
+    unordered-containers,
+    text,
+    hashable
 
   default-language: Haskell2010
   ghc-options: -Wall
