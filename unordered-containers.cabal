@@ -8,6 +8,13 @@ description:
   .
   The declared cost of each operation is either worst-case or
   amortized, but remains valid even if structures are shared.
+  .
+  /Security/
+  .
+  This package currently provides no defenses against hash collision attacks
+  such as HashDoS.
+  Users who need to store input from untrusted sources are advised to use
+  @Data.Map@ or @Data.Set@ from the @containers@ package instead.
 license:        BSD3
 license-file:   LICENSE
 author:         Johan Tibell
