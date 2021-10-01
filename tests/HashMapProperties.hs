@@ -8,6 +8,7 @@ module Main (main) where
 
 import Control.Monad ( guard )
 import qualified Data.Foldable as Foldable
+import GHC.TypeLits(KnownNat)
 #if MIN_VERSION_base(4,10,0)
 import Data.Bifoldable
 #endif
@@ -16,11 +17,11 @@ import Data.Hashable (Hashable(hashWithSalt))
 import qualified Data.List as L
 import Data.Ord (comparing)
 #if defined(STRICT)
-import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict (HashMap, HashMapT)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as M
 #else
-import Data.HashMap.Lazy (HashMap)
+import Data.HashMap.Lazy (HashMap, HashMapT)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map.Lazy as M
 #endif
@@ -41,8 +42,9 @@ newtype Key = K { unK :: Int }
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
 
-instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
-  arbitrary = fmap (HM.fromList) arbitrary
+instance (Eq k, Hashable k, Arbitrary k, Arbitrary v, KnownNat salt)
+  => Arbitrary (HashMapT salt k v) where
+  arbitrary = fmap (HM.fromList') arbitrary
 
 ------------------------------------------------------------------------
 -- * Properties

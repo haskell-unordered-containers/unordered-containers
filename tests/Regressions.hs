@@ -1,12 +1,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE CPP #-}
+
 module Main where
 
 import Control.Applicative ((<$>))
 import Control.Exception (evaluate)
 import Control.Monad (replicateM)
 import Data.Hashable (Hashable(..))
+import qualified Data.Hashable as HAS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Lazy as HML
 import Data.List (delete)
@@ -16,11 +19,14 @@ import GHC.IO (IO (..))
 import System.Mem (performGC)
 import System.Mem.Weak (mkWeakPtr, deRefWeak)
 import System.Random (randomIO)
-import Test.HUnit (Assertion, assert)
+import Test.HUnit (Assertion, assert, (@=?))
 import Test.Framework (Test, defaultMain)
 import Test.Framework.Providers.HUnit (testCase)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck
+import Data.Proxy
+import qualified Data.HashMap.Internal as Internal
+import Data.Text(Text, pack)
 
 issue32 :: Assertion
 issue32 = assert $ isJust $ HM.lookup 7 m'
@@ -124,6 +130,28 @@ issue254Strict = do
   touch mp
   assert $ isNothing res
 
+goldenHash :: Assertion
+goldenHash = do
+  HAS.hash someString @=?
+    fromIntegral (toInteger (Internal.hash (Proxy :: Proxy Internal.DefaultSalt) someString))
+
+someString :: Text
+someString = pack "hello world"
+
+assertDefaultHash :: Assertion
+assertDefaultHash = do
+  -- I only found this by testing, the WORD_SIZE_IN_BITS doesn't
+  -- appear to be set, we get the warning, yet the
+  -- larger value in upstream is still being used.
+  -- https://github.com/haskell-unordered-containers/hashable/blob/master/src/Data/Hashable/Class.hs#L221
+#if MIN_VERSION_hashable(1,3,1)
+  HAS.hash someString  @=?
+    HAS.hashWithSalt 14695981039346656037 someString
+#else
+  HAS.hash someString  @=?
+    HAS.hashWithSalt 0xdc36d1615b7400a4 someString
+#endif
+
 ------------------------------------------------------------------------
 -- * Test list
 
@@ -135,6 +163,8 @@ tests =
     , testProperty "issue39b" propEqAfterDelete
     , testCase "issue254 lazy" issue254Lazy
     , testCase "issue254 strict" issue254Strict
+    , testCase "make sure default hash remains the same for backwards compatbility" goldenHash
+    , testCase "asserts the default hash in case they change it" assertDefaultHash
     ]
 
 ------------------------------------------------------------------------

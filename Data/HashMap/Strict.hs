@@ -26,7 +26,8 @@ module Data.HashMap.Strict
       -- * Strictness properties
       -- $strictness
 
-      HashMap
+      HashMapT
+    , HashMap
 
       -- * Construction
     , empty
@@ -100,6 +101,9 @@ module Data.HashMap.Strict
     , fromList
     , fromListWith
     , fromListWithKey
+    , fromList'
+    , fromListWith'
+    , fromListWithKey'
 
       -- ** HashSets
     , HS.keysSet

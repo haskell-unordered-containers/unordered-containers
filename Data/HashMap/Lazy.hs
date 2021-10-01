@@ -28,10 +28,13 @@ module Data.HashMap.Lazy
       -- $strictness
 
       HashMap
+    , HashMapT
 
       -- * Construction
     , empty
     , singleton
+    , empty'
+    , singleton'
 
       -- * Basic interface
     , null
@@ -101,6 +104,9 @@ module Data.HashMap.Lazy
     , fromList
     , fromListWith
     , fromListWithKey
+    , fromList'
+    , fromListWith'
+    , fromListWithKey'
 
       -- ** HashSets
     , HS.keysSet
