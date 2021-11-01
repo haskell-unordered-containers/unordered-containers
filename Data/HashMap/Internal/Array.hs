@@ -71,34 +71,18 @@ module Data.HashMap.Internal.Array
     , fromList
     ) where
 
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative (Applicative (..), (<$>))
-#endif
 import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData (..))
 import GHC.Exts(Int(..), Int#, reallyUnsafePtrEquality#, tagToEnum#, unsafeCoerce#, State#)
 import GHC.ST (ST(..))
-import Control.Monad.ST (stToIO)
+import Control.Monad.ST (runST, stToIO)
 
-#if __GLASGOW_HASKELL__ >= 709
 import Prelude hiding (filter, foldMap, foldr, foldl, length, map, read, traverse, all)
-#else
-import Prelude hiding (filter, foldr, foldl, length, map, read, all)
-#endif
 
-#if __GLASGOW_HASKELL__ >= 710
 import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
                  indexSmallArray#, unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                  SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
                  sizeofSmallMutableArray#, copySmallMutableArray#, cloneSmallMutableArray#)
-
-#else
-import GHC.Exts (Array#, newArray#, readArray#, writeArray#,
-                 indexArray#, unsafeFreezeArray#, unsafeThawArray#,
-                 MutableArray#, sizeofArray#, copyArray#, thawArray#,
-                 sizeofMutableArray#, copyMutableArray#, cloneMutableArray#)
-import Data.Monoid (Monoid (..))
-#endif
 
 #if defined(ASSERTS)
 import qualified Prelude
@@ -108,11 +92,9 @@ import qualified Prelude
 import qualified Control.DeepSeq as NF
 #endif
 
-import Data.HashMap.Internal.Unsafe (runST)
 import Control.Monad ((>=>))
 
 
-#if __GLASGOW_HASKELL__ >= 710
 type Array# a = SmallArray# a
 type MutableArray# a = SmallMutableArray# a
 
@@ -175,7 +157,6 @@ copyMutableArray# :: SmallMutableArray# d a
                   -> State# d
                   -> State# d
 copyMutableArray# = copySmallMutableArray#
-#endif
 
 ------------------------------------------------------------------------
 

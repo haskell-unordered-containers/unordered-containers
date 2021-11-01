@@ -137,17 +137,11 @@ module Data.HashMap.Internal
     , adjust#
     ) where
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative ((<$>), Applicative(pure))
-import Data.Monoid (Monoid(mempty, mappend))
-import Data.Traversable (Traversable(..))
-import Data.Word (Word)
-#endif
-#if __GLASGOW_HASKELL__ >= 711
+#if !MIN_VERSION_base(4,11,0)
 import Data.Semigroup (Semigroup((<>)))
 #endif
 import Control.DeepSeq (NFData(rnf))
-import Control.Monad.ST (ST)
+import Control.Monad.ST (ST, runST)
 import Data.Bits ((.&.), (.|.), complement, popCount, unsafeShiftL, unsafeShiftR)
 import Data.Data hiding (Typeable)
 import qualified Data.Foldable as Foldable
@@ -162,17 +156,14 @@ import Text.Read hiding (step)
 import qualified Data.HashMap.Internal.Array as A
 import qualified Data.Hashable as H
 import Data.Hashable (Hashable)
-import Data.HashMap.Internal.Unsafe (runST)
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
 import Data.Typeable (Typeable)
 
 import GHC.Exts (isTrue#)
 import qualified GHC.Exts as Exts
 
-#if MIN_VERSION_base(4,9,0)
 import Data.Functor.Classes
 import GHC.Stack
-#endif
 
 #if MIN_VERSION_hashable(1,2,5)
 import qualified Data.Hashable.Lifted as H
@@ -186,9 +177,7 @@ import qualified Control.DeepSeq as NF
 import GHC.Exts (TYPE, Int (..), Int#)
 #endif
 
-#if MIN_VERSION_base(4,8,0)
 import Data.Functor.Identity (Identity (..))
-#endif
 import Control.Applicative (Const (..))
 import Data.Coerce (coerce)
 
@@ -265,12 +254,10 @@ instance Foldable.Foldable (HashMap k) where
     {-# INLINE foldr' #-}
     foldl' = foldl'
     {-# INLINE foldl' #-}
-#if MIN_VERSION_base(4,8,0)
     null = null
     {-# INLINE null #-}
     length = size
     {-# INLINE length #-}
-#endif
 
 #if MIN_VERSION_base(4,10,0)
 -- | @since 0.2.11
@@ -283,7 +270,6 @@ instance Bifoldable HashMap where
     {-# INLINE bifoldl #-}
 #endif
 
-#if __GLASGOW_HASKELL__ >= 711
 -- | '<>' = 'union'
 --
 -- If a key occurs in both maps, the mapping from the first will be the mapping in the result.
@@ -295,7 +281,6 @@ instance Bifoldable HashMap where
 instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
   (<>) = union
   {-# INLINE (<>) #-}
-#endif
 
 -- | 'mempty' = 'empty'
 --
@@ -310,11 +295,7 @@ instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
 instance (Eq k, Hashable k) => Monoid (HashMap k v) where
   mempty = empty
   {-# INLINE mempty #-}
-#if __GLASGOW_HASKELL__ >= 711
   mappend = (<>)
-#else
-  mappend = union
-#endif
   {-# INLINE mappend #-}
 
 instance (Data k, Data v, Eq k, Hashable k) => Data (HashMap k v) where
@@ -336,7 +317,6 @@ type Hash   = Word
 type Bitmap = Word
 type Shift  = Int
 
-#if MIN_VERSION_base(4,9,0)
 instance Show2 HashMap where
     liftShowsPrec2 spk slk spv slv d m =
         showsUnaryWith (liftShowsPrec sp sl) "fromList" d (toList m)
@@ -353,7 +333,6 @@ instance (Eq k, Hashable k, Read k) => Read1 (HashMap k) where
       where
         rp' = liftReadsPrec rp rl
         rl' = liftReadList rp rl
-#endif
 
 instance (Eq k, Hashable k, Read k, Read e) => Read (HashMap k e) where
     readPrec = parens $ prec 10 $ do
@@ -371,13 +350,11 @@ instance Traversable (HashMap k) where
     traverse f = traverseWithKey (const f)
     {-# INLINABLE traverse #-}
 
-#if MIN_VERSION_base(4,9,0)
 instance Eq2 HashMap where
     liftEq2 = equal2
 
 instance Eq k => Eq1 (HashMap k) where
     liftEq = equal1
-#endif
 
 -- | Note that, in the presence of hash collisions, equal @HashMap@s may
 -- behave differently, i.e. substitutivity may be violated:
@@ -441,13 +418,11 @@ equal2 eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
 
     leafEq (L k v) (L k' v') = eqk k k' && eqv v v'
 
-#if MIN_VERSION_base(4,9,0)
 instance Ord2 HashMap where
     liftCompare2 = cmp
 
 instance Ord k => Ord1 (HashMap k) where
     liftCompare = cmp compare
-#endif
 
 -- | The ordering is total and consistent with the `Eq` instance. However,
 -- nothing else about the ordering is specified, and it may change from
@@ -775,11 +750,7 @@ lookupDefault def k t = findWithDefault def k t
 
 -- | /O(log n)/ Return the value to which the specified key is mapped.
 -- Calls 'error' if this map contains no mapping for the key.
-#if MIN_VERSION_base(4,9,0)
 (!) :: (Eq k, Hashable k, HasCallStack) => HashMap k v -> k -> v
-#else
-(!) :: (Eq k, Hashable k) => HashMap k v -> k -> v
-#endif
 (!) m k = case lookup k m of
     Just v  -> v
     Nothing -> error "Data.HashMap.Internal.(!): key not found"
@@ -1331,7 +1302,6 @@ alterF f = \ !k !m ->
 -- rule from firing.
 {-# INLINABLE [0] alterF #-}
 
-#if MIN_VERSION_base(4,8,0)
 -- This is just a bottom value. See the comment on the "alterFWeird"
 -- rule.
 test_bottom :: a
@@ -1448,7 +1418,6 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
            Absent -> Nothing
            Present v _ -> Just v
 {-# INLINABLE alterFEager #-}
-#endif
 
 -- | /O(n*log m)/ Inclusion of maps. A map is included in another map if the keys
 -- are subsets and the corresponding values are equal:

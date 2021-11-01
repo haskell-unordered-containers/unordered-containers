@@ -136,21 +136,13 @@ pFoldr = (L.sort . foldrSet (:) []) `eq`
          (L.sort . S.foldr (:) [])
 
 foldrSet :: (a -> b -> b) -> b -> Set.Set a -> b
-#if MIN_VERSION_containers(0,4,2)
 foldrSet = Set.foldr
-#else
-foldrSet = Foldable.foldr
-#endif
 
 pFoldl' :: Int -> [Int] -> Bool
 pFoldl' z0 = foldl'Set (+) z0 `eq` S.foldl' (+) z0
 
 foldl'Set :: (a -> b -> a) -> a -> Set.Set b -> a
-#if MIN_VERSION_containers(0,4,2)
 foldl'Set = Set.foldl'
-#else
-foldl'Set = Foldable.foldl'
-#endif
 
 ------------------------------------------------------------------------
 -- ** Filter

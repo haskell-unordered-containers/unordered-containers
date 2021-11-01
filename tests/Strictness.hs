@@ -14,11 +14,6 @@ import Data.Maybe (fromMaybe, isJust)
 import Control.Arrow (second)
 import Control.Monad (guard)
 import Data.Foldable (foldl')
-#if !MIN_VERSION_base(4,8,0)
-import Data.Functor ((<$))
-import Data.Foldable (all)
-import Prelude hiding (all)
-#endif
 
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
