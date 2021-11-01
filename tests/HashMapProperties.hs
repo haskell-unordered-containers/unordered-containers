@@ -27,9 +27,7 @@ import qualified Data.Map.Lazy as M
 import Test.QuickCheck (Arbitrary(..), Property, (==>), (===), forAll, elements)
 import Test.Framework (Test, defaultMain, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
-#if MIN_VERSION_base(4,8,0)
 import Data.Functor.Identity (Identity (..))
-#endif
 import Control.Applicative (Const (..))
 import Test.QuickCheck.Function (Fun, apply)
 import Test.QuickCheck.Poly (A, B)
@@ -196,12 +194,6 @@ pAlterF k f xs =
   fmap M.toAscList (M.alterF (apply f) k (M.fromList xs))
   ===
   fmap toAscList (HM.alterF (apply f) k (HM.fromList xs))
-
-#if !MIN_VERSION_base(4,8,0)
-newtype Identity a = Identity {runIdentity :: a}
-instance Functor Identity where
-  fmap f (Identity x) = Identity (f x)
-#endif
 
 pAlterFAdjust :: Key -> [(Key, Int)] -> Bool
 pAlterFAdjust k =

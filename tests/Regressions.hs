@@ -3,7 +3,6 @@
 {-# LANGUAGE UnboxedTuples #-}
 module Main where
 
-import Control.Applicative ((<$>))
 import Control.Exception (evaluate)
 import Control.Monad (replicateM)
 import Data.Hashable (Hashable(..))

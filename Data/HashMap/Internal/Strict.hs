@@ -118,11 +118,9 @@ module Data.HashMap.Internal.Strict
     , fromListWithKey
     ) where
 
+import Control.Monad.ST (runST)
 import Data.Bits ((.&.), (.|.))
 
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative (Applicative (..), (<$>))
-#endif
 import qualified Data.List as L
 import Data.Hashable (Hashable)
 import Prelude hiding (map, lookup)
@@ -135,10 +133,7 @@ import Data.HashMap.Internal hiding (
     differenceWith, intersectionWith, intersectionWithKey, map, mapWithKey,
     mapMaybe, mapMaybeWithKey, singleton, update, unionWith, unionWithKey,
     traverseWithKey)
-import Data.HashMap.Internal.Unsafe (runST)
-#if MIN_VERSION_base(4,8,0)
 import Data.Functor.Identity
-#endif
 import Control.Applicative (Const (..))
 import Data.Coerce
 
@@ -329,7 +324,6 @@ alterF f = \ !k !m ->
 -- don't fire.
 {-# INLINABLE [0] alterF #-}
 
-#if MIN_VERSION_base(4,8,0)
 -- See notes in Data.HashMap.Internal
 test_bottom :: a
 test_bottom = error "Data.HashMap.alterF internal error: hit test_bottom"
@@ -424,7 +418,6 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
           Absent -> Nothing
           Present v _ -> Just v
 {-# INLINABLE alterFEager #-}
-#endif
 
 ------------------------------------------------------------------------
 -- * Combine

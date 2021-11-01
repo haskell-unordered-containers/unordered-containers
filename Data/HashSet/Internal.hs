@@ -1,11 +1,7 @@
 {-# LANGUAGE CPP, DeriveDataTypeable #-}
-#if __GLASGOW_HASKELL__ >= 708
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
-#endif
-#if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Trustworthy #-}
-#endif
 {-# OPTIONS_HADDOCK not-home #-}
 
 ------------------------------------------------------------------------
@@ -94,30 +90,22 @@ module Data.HashSet.Internal
 
 import Control.DeepSeq (NFData(..))
 import Data.Data hiding (Typeable)
+import Data.Functor.Classes
 import Data.HashMap.Internal
   ( HashMap, foldMapWithKey, foldlWithKey, foldrWithKey
   , equalKeys, equalKeys1)
 import Data.Hashable (Hashable(hashWithSalt))
-#if __GLASGOW_HASKELL__ >= 711
+#if !MIN_VERSION_base(4,11,0)
 import Data.Semigroup (Semigroup(..))
-#elif __GLASGOW_HASKELL__ < 709
-import Data.Monoid (Monoid(..))
 #endif
 import GHC.Exts (build)
+import qualified GHC.Exts as Exts
 import Prelude hiding (filter, foldr, foldl, map, null)
 import qualified Data.Foldable as Foldable
 import qualified Data.HashMap.Internal as H
 import qualified Data.List as List
 import Data.Typeable (Typeable)
 import Text.Read
-
-#if __GLASGOW_HASKELL__ >= 708
-import qualified GHC.Exts as Exts
-#endif
-
-#if MIN_VERSION_base(4,9,0)
-import Data.Functor.Classes
-#endif
 
 #if MIN_VERSION_hashable(1,2,5)
 import qualified Data.Hashable.Lifted as H
@@ -127,16 +115,12 @@ import qualified Data.Hashable.Lifted as H
 import qualified Control.DeepSeq as NF
 #endif
 
-import Data.Functor ((<$))
-
 -- | A set of values.  A set cannot contain duplicate values.
 newtype HashSet a = HashSet {
       asMap :: HashMap a ()
     } deriving (Typeable)
 
-#if __GLASGOW_HASKELL__ >= 708
 type role HashSet nominal
-#endif
 
 instance (NFData a) => NFData (HashSet a) where
     rnf = rnf . asMap
@@ -170,19 +154,15 @@ instance (Eq a) => Eq (HashSet a) where
     HashSet a == HashSet b = equalKeys a b
     {-# INLINE (==) #-}
 
-#if MIN_VERSION_base(4,9,0)
 instance Eq1 HashSet where
     liftEq eq (HashSet a) (HashSet b) = equalKeys1 eq a b
-#endif
 
 instance (Ord a) => Ord (HashSet a) where
     compare (HashSet a) (HashSet b) = compare a b
     {-# INLINE compare #-}
 
-#if MIN_VERSION_base(4,9,0)
 instance Ord1 HashSet where
     liftCompare c (HashSet a) (HashSet b) = liftCompare2 c compare a b
-#endif
 
 instance Foldable.Foldable HashSet where
     foldMap f = foldMapWithKey (\a _ -> f a) . asMap
@@ -194,16 +174,13 @@ instance Foldable.Foldable HashSet where
     {-# INLINE foldl' #-}
     foldr' = foldr'
     {-# INLINE foldr' #-}
-#if MIN_VERSION_base(4,8,0)
     toList = toList
     {-# INLINE toList #-}
     null = null
     {-# INLINE null #-}
     length = size
     {-# INLINE length #-}
-#endif
 
-#if __GLASGOW_HASKELL__ >= 711
 -- | '<>' = 'union'
 --
 -- /O(n+m)/
@@ -218,7 +195,6 @@ instance Foldable.Foldable HashSet where
 instance (Hashable a, Eq a) => Semigroup (HashSet a) where
     (<>) = union
     {-# INLINE (<>) #-}
-#endif
 
 -- | 'mempty' = 'empty'
 --
@@ -236,11 +212,7 @@ instance (Hashable a, Eq a) => Semigroup (HashSet a) where
 instance (Hashable a, Eq a) => Monoid (HashSet a) where
     mempty = empty
     {-# INLINE mempty #-}
-#if __GLASGOW_HASKELL__ >= 711
     mappend = (<>)
-#else
-    mappend = union
-#endif
     {-# INLINE mappend #-}
 
 instance (Eq a, Hashable a, Read a) => Read (HashSet a) where
@@ -251,11 +223,9 @@ instance (Eq a, Hashable a, Read a) => Read (HashSet a) where
 
     readListPrec = readListPrecDefault
 
-#if MIN_VERSION_base(4,9,0)
 instance Show1 HashSet where
     liftShowsPrec sp sl d m =
         showsUnaryWith (liftShowsPrec sp sl) "fromList" d (toList m)
-#endif
 
 instance (Show a) => Show (HashSet a) where
     showsPrec d m = showParen (d > 10) $
@@ -486,9 +456,7 @@ fromList :: (Eq a, Hashable a) => [a] -> HashSet a
 fromList = HashSet . List.foldl' (\ m k -> H.insert k () m) H.empty
 {-# INLINE fromList #-}
 
-#if __GLASGOW_HASKELL__ >= 708
 instance (Eq a, Hashable a) => Exts.IsList (HashSet a) where
     type Item (HashSet a) = a
     fromList = fromList
     toList   = toList
-#endif
