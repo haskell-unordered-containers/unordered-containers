@@ -1,3 +1,13 @@
+## [0.2.15.0]
+
+* [Add security advisory regarding hash collision attacks](https://github.com/haskell-unordered-containers/unordered-containers/pull/320)
+
+* [Add support for hashable 1.4](https://github.com/haskell-unordered-containers/unordered-containers/pull/324)
+
+* [Drop support for GHC < 8](https://github.com/haskell-unordered-containers/unordered-containers/pull/323)
+
+[0.2.15.0]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.14.0...v0.2.15.0
+
 ## [0.2.14.0]
 
 * [Add `HashMap.mapKeys`.](https://github.com/haskell-unordered-containers/unordered-containers/pull/308) Thanks, Marco Perone!
