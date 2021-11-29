@@ -35,7 +35,7 @@
 -- strings.
 --
 -- Many operations have a average-case complexity of /O(log n)/.  The
--- implementation uses a large base (i.e. 16) so in practice these
+-- implementation uses a large base (i.e. 32) so in practice these
 -- operations are constant time.
 module Data.HashMap.Internal.Strict
     (
@@ -195,7 +195,7 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
     go h k x s (Full ary) =
         let st   = A.index ary i
             st'  = go h k x (s+bitsPerSubkey) st
-            ary' = update16 ary i $! st'
+            ary' = update32 ary i $! st'
         in Full ary'
       where i = index h s
     go h k x s t@(Collision hy v)
@@ -266,7 +266,7 @@ adjust f k0 m0 = go h0 k0 0 m0
         let i    = index h s
             st   = A.index ary i
             st'  = go h k (s+bitsPerSubkey) st
-            ary' = update16 ary i $! st'
+            ary' = update32 ary i $! st'
         in Full ary'
     go h k _ t@(Collision hy v)
         | h == hy   = Collision h (updateWith f k v)
@@ -494,12 +494,12 @@ unionWithKey f = go 0
     go s (Full ary1) t2 =
         let h2   = leafHashCode t2
             i    = index h2 s
-            ary' = update16With' ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
+            ary' = update32With' ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
         in Full ary'
     go s t1 (Full ary2) =
         let h1   = leafHashCode t1
             i    = index h1 s
-            ary' = update16With' ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
+            ary' = update32With' ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
         in Full ary'
 
     leafHashCode (Leaf h _) = h
