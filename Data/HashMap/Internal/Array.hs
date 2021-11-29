@@ -347,7 +347,7 @@ copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
 
 cloneM :: MArray s a -> Int -> Int -> ST s (MArray s a)
 cloneM _mary@(MArray mary#) _off@(I# off#) _len@(I# len#) =
-    CHECK_BOUNDS("cloneM_off", lengthM _mary, _off - 1)
+    CHECK_BOUNDS("cloneM_off", lengthM _mary, _off)
     CHECK_BOUNDS("cloneM_end", lengthM _mary, _off + _len - 1)
     ST $ \ s ->
     case cloneMutableArray# mary# off# len# s of
