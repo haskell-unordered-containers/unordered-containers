@@ -255,8 +255,8 @@ liftRnfArray rnf0 ary0 = go ary0 n0 0
 -- state thread, with each element containing the specified initial
 -- value.
 new :: Int -> a -> ST s (MArray s a)
-new (I# n#) b =
-    CHECK_GT("new",n,(0 :: Int))
+new _n@(I# n#) b =
+    CHECK_GT("new",_n,(0 :: Int))
     ST $ \s ->
         case newArray# n# b s of
             (# s', ary #) -> (# s', MArray ary #)
@@ -474,8 +474,8 @@ undefinedElem = error "Data.HashMap.Internal.Array: Undefined element"
 {-# NOINLINE undefinedElem #-}
 
 thaw :: Array e -> Int -> Int -> ST s (MArray s e)
-thaw !ary !_o@(I# o#) (I# n#) =
-    CHECK_LE("thaw", _o + n, length ary)
+thaw !ary !_o@(I# o#) _n@(I# n#) =
+    CHECK_LE("thaw", _o + _n, length ary)
         ST $ \ s -> case thawArray# (unArray ary) o# n# s of
             (# s2, mary# #) -> (# s2, MArray mary# #)
 {-# INLINE thaw #-}
