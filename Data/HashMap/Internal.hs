@@ -944,13 +944,11 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 -- key and a singleton HashMap pairing its key with its value.
 --
 -- Note: to avoid silly thunks, this function must be strict in the
--- key. See issue #232. We don't need to force the HashMap argument
--- because it's already in WHNF (having just been matched) and we
--- just put it directly in an array.
+-- key. See issue #232.
 two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
 two = go
   where
-    go s h1 k1 v1 h2 t2
+    go s h1 k1 v1 h2 !t2
         | bp1 == bp2 = do
             st <- go (s+bitsPerSubkey) h1 k1 v1 h2 t2
             ary <- A.singletonM st
