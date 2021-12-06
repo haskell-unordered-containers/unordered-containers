@@ -1,3 +1,15 @@
+## [0.2.16.0]
+
+* [Increase maximum branching factor from 16 to 32](https://github.com/haskell-unordered-containers/unordered-containers/pull/317)
+
+* [Tweak `union.goDifferentHash`](https://github.com/haskell-unordered-containers/unordered-containers/pull/277)
+
+* [Fix debug mode bounds check in `cloneM`](https://github.com/haskell-unordered-containers/unordered-containers/pull/331)
+
+* [Remove some old internal compatibility code](https://github.com/haskell-unordered-containers/unordered-containers/pull/334)
+
+[0.2.16.0]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.15.0...v0.2.16.0
+
 ## [0.2.15.0]
 
 * [Add security advisory regarding hash collision attacks](https://github.com/haskell-unordered-containers/unordered-containers/pull/320)
