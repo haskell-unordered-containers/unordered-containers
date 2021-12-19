@@ -102,7 +102,6 @@ import Prelude hiding (filter, foldr, foldl, map, null)
 import qualified Data.Foldable as Foldable
 import qualified Data.HashMap.Internal as H
 import qualified Data.List as List
-import qualified Data.List.NonEmpty as NonEmpty
 import Data.Typeable (Typeable)
 import Text.Read
 
@@ -194,8 +193,6 @@ instance Foldable.Foldable HashSet where
 instance (Hashable a, Eq a) => Semigroup (HashSet a) where
     (<>) = union
     {-# INLINE (<>) #-}
-    sconcat = mconcat . NonEmpty.toList
-    {-# INLINE sconcat #-}
     stimes = stimesIdempotentMonoid
     {-# INLINE stimes #-}
 
@@ -217,8 +214,6 @@ instance (Hashable a, Eq a) => Monoid (HashSet a) where
     {-# INLINE mempty #-}
     mappend = (<>)
     {-# INLINE mappend #-}
-    mconcat = unions
-    {-# INLINE mconcat #-}
 
 instance (Eq a, Hashable a, Read a) => Read (HashSet a) where
     readPrec = parens $ prec 10 $ do

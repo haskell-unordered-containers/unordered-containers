@@ -146,7 +146,6 @@ import qualified Data.Foldable as Foldable
 import Data.Bifoldable
 #endif
 import qualified Data.List as L
-import qualified Data.List.NonEmpty as NonEmpty
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#, inline)
 import Prelude hiding (filter, foldl, foldr, lookup, map, null, pred)
 import Text.Read hiding (step)
@@ -279,8 +278,6 @@ instance Bifoldable HashMap where
 instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
   (<>) = union
   {-# INLINE (<>) #-}
-  sconcat = mconcat . NonEmpty.toList
-  {-# INLINE sconcat #-}
   stimes = stimesIdempotentMonoid
   {-# INLINE stimes #-}
 
@@ -299,8 +296,6 @@ instance (Eq k, Hashable k) => Monoid (HashMap k v) where
   {-# INLINE mempty #-}
   mappend = (<>)
   {-# INLINE mappend #-}
-  mconcat = unions
-  {-# INLINE mconcat #-}
 
 instance (Data k, Data v, Eq k, Hashable k) => Data (HashMap k v) where
     gfoldl f z m   = z fromList `f` toList m
