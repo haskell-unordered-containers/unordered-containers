@@ -121,6 +121,7 @@ main :: IO ()
 main = do
     defaultMain
         [
+#ifdef BENCH_containers_Map
           env setupEnv $ \ ~(Env{..}) ->
           -- * Comparison to other data structures
           -- ** Map
@@ -161,10 +162,12 @@ main = do
             [ bench "String" $ whnf (M.isSubmapOf mSubset) m
             , bench "ByteString" $ whnf (M.isSubmapOf mbsSubset) mbs
             ]
-          ]
+          ],
+#endif
 
+#ifdef BENCH_hashmap_Map
           -- ** Map from the hashmap package
-        , env setupEnv $ \ ~(Env{..}) ->
+          env setupEnv $ \ ~(Env{..}) ->
           bgroup "hashmap/Map"
           [ bgroup "lookup"
             [ bench "String" $ whnf (lookupIHM keys) ihm
@@ -202,14 +205,12 @@ main = do
             [ bench "String" $ whnf (IHM.isSubmapOf ihmSubset) ihm
             , bench "ByteString" $ whnf (IHM.isSubmapOf ihmbsSubset) ihmbs
             ]
-          , bgroup "hash"
-            [ bench "String" $ whnf hash hm
-            , bench "ByteString" $ whnf hash hmbs
-            ]
-          ]
+          ],
+#endif
 
+#ifdef BENCH_containers_IntMap
           -- ** IntMap
-        , env setupEnv $ \ ~(Env{..}) ->
+          env setupEnv $ \ ~(Env{..}) ->
           bgroup "IntMap"
           [ bench "lookup" $ whnf (lookupIM keysI) im
           , bench "lookup-miss" $ whnf (lookupIM keysI') im
@@ -220,9 +221,10 @@ main = do
           , bench "size" $ whnf IM.size im
           , bench "fromList" $ whnf IM.fromList elemsI
           , bench "isSubmapOf" $ whnf (IM.isSubmapOf imSubset) im
-          ]
+          ],
+#endif
 
-        , env setupEnv $ \ ~(Env{..}) ->
+          env setupEnv $ \ ~(Env{..}) ->
           bgroup "HashMap"
           [ -- * Basic interface
             bgroup "lookup"
@@ -357,6 +359,11 @@ main = do
               , bench "Int" $ whnf (HM.fromListWith (+)) elemsDupI
               ]
             ]
+            -- Hashable instance
+          , bgroup "hash"
+            [ bench "String" $ whnf hash hm
+            , bench "ByteString" $ whnf hash hmbs
+            ]
           ]
         ]
 
@@ -438,6 +445,7 @@ isSubmapOfNaive m1 m2 = and [ Just v1 == HM.lookup k1 m2 | (k1,v1) <- HM.toList 
 {-# SPECIALIZE isSubmapOfNaive :: HM.HashMap String Int -> HM.HashMap String Int -> Bool #-}
 {-# SPECIALIZE isSubmapOfNaive :: HM.HashMap BS.ByteString Int -> HM.HashMap BS.ByteString Int -> Bool #-}
 
+#ifdef BENCH_containers_Map
 ------------------------------------------------------------------------
 -- * Map
 
@@ -458,7 +466,9 @@ deleteM xs m0 = foldl' (\m k -> M.delete k m) m0 xs
 {-# SPECIALIZE deleteM :: [String] -> M.Map String Int -> M.Map String Int #-}
 {-# SPECIALIZE deleteM :: [BS.ByteString] -> M.Map BS.ByteString Int
                        -> M.Map BS.ByteString Int #-}
+#endif
 
+#ifdef BENCH_hashmap_Map
 ------------------------------------------------------------------------
 -- * Map from the hashmap package
 
@@ -482,7 +492,9 @@ deleteIHM xs m0 = foldl' (\m k -> IHM.delete k m) m0 xs
                          -> IHM.Map String Int #-}
 {-# SPECIALIZE deleteIHM :: [BS.ByteString] -> IHM.Map BS.ByteString Int
                          -> IHM.Map BS.ByteString Int #-}
+#endif
 
+#ifdef BENCH_containers_IntMap
 ------------------------------------------------------------------------
 -- * IntMap
 
@@ -494,3 +506,4 @@ insertIM xs m0 = foldl' (\m (k, v) -> IM.insert k v m) m0 xs
 
 deleteIM :: [Int] -> IM.IntMap Int -> IM.IntMap Int
 deleteIM xs m0 = foldl' (\m k -> IM.delete k m) m0 xs
+#endif

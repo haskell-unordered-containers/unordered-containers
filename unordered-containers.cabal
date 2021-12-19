@@ -214,6 +214,7 @@ benchmark benchmarks
   ghc-options: -Wall -O2 -rtsopts -with-rtsopts=-A32m
   if impl(ghc >= 8.10)
     ghc-options: "-with-rtsopts=-A32m --nonmoving-gc"
+  -- cpp-options: -DBENCH_containers_Map -DBENCH_containers_IntMap -DBENCH_hashmap_Map
 
 source-repository head
   type:     git
