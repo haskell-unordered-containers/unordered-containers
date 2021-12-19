@@ -4,7 +4,6 @@
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
-{-# LANGUAGE LambdaCase #-}
 #if __GLASGOW_HASKELL__ >= 802
 {-# LANGUAGE TypeInType #-}
 {-# LANGUAGE UnboxedSums #-}
@@ -137,9 +136,7 @@ module Data.HashMap.Internal
     , adjust#
     ) where
 
-#if !MIN_VERSION_base(4,11,0)
-import Data.Semigroup (Semigroup((<>)))
-#endif
+import Data.Semigroup (Semigroup(..), stimesIdempotentMonoid)
 import Control.DeepSeq (NFData(rnf))
 import Control.Monad.ST (ST, runST)
 import Data.Bits ((.&.), (.|.), complement, popCount, unsafeShiftL, unsafeShiftR)
@@ -149,6 +146,7 @@ import qualified Data.Foldable as Foldable
 import Data.Bifoldable
 #endif
 import qualified Data.List as L
+import qualified Data.List.NonEmpty as NonEmpty
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#, inline)
 import Prelude hiding (filter, foldl, foldr, lookup, map, null, pred)
 import Text.Read hiding (step)
@@ -281,6 +279,10 @@ instance Bifoldable HashMap where
 instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
   (<>) = union
   {-# INLINE (<>) #-}
+  sconcat = mconcat . NonEmpty.toList
+  {-# INLINE sconcat #-}
+  stimes = stimesIdempotentMonoid
+  {-# INLINE stimes #-}
 
 -- | 'mempty' = 'empty'
 --
@@ -297,6 +299,8 @@ instance (Eq k, Hashable k) => Monoid (HashMap k v) where
   {-# INLINE mempty #-}
   mappend = (<>)
   {-# INLINE mappend #-}
+  mconcat = unions
+  {-# INLINE mconcat #-}
 
 instance (Data k, Data v, Eq k, Hashable k) => Data (HashMap k v) where
     gfoldl f z m   = z fromList `f` toList m

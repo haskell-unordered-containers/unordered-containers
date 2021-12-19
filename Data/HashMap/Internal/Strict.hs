@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns, CPP, PatternGuards, MagicHash, UnboxedTuples #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE Trustworthy #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
