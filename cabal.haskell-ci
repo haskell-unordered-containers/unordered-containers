@@ -2,9 +2,6 @@
 
 branches: master
 
--- Due to https://github.com/haskell-foundation/foundation/issues/554 via gauge.
-benchmarks: <9.2
-
 constraint-set debug
   constraints: unordered-containers +debug
   tests:       True

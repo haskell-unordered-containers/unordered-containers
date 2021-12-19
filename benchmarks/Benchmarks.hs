@@ -3,7 +3,6 @@
 module Main where
 
 import Control.DeepSeq
-import Gauge (bench, bgroup, defaultMain, env, nf, whnf)
 import Data.Bits ((.&.))
 import Data.Functor.Identity
 import Data.Hashable (Hashable, hash)
@@ -16,6 +15,7 @@ import Data.List (foldl')
 import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
 import Prelude hiding (lookup)
+import Test.Tasty.Bench (bench, bgroup, defaultMain, env, nf, whnf)
 
 import qualified Util.ByteString as UBS
 import qualified Util.Int as UI
