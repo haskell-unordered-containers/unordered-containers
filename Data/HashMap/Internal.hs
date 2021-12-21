@@ -1,10 +1,13 @@
-{-# LANGUAGE BangPatterns, CPP, MagicHash #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveLift #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RoleAnnotations #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
-{-# LANGUAGE LambdaCase #-}
 #if __GLASGOW_HASKELL__ >= 802
 {-# LANGUAGE TypeInType #-}
 {-# LANGUAGE UnboxedSums #-}
@@ -179,6 +182,7 @@ import GHC.Exts (TYPE, Int (..), Int#)
 import Data.Functor.Identity (Identity (..))
 import Control.Applicative (Const (..))
 import Data.Coerce (coerce)
+import qualified Language.Haskell.TH.Syntax as TH
 
 -- | A set of values.  A set cannot contain duplicate values.
 ------------------------------------------------------------------------
@@ -188,7 +192,7 @@ hash :: H.Hashable a => a -> Hash
 hash = fromIntegral . H.hash
 
 data Leaf k v = L !k v
-  deriving (Eq)
+  deriving (Eq, TH.Lift)
 
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L k v) = rnf k `seq` rnf v
@@ -214,6 +218,7 @@ data HashMap k v
     | Leaf !Hash !(Leaf k v)
     | Full !(A.Array (HashMap k v))
     | Collision !Hash !(A.Array (Leaf k v))
+      deriving (TH.Lift)
 
 type role HashMap nominal representational
 

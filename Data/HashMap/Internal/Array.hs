@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns, CPP, MagicHash, Rank2Types, UnboxedTuples, ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
@@ -69,6 +70,7 @@ module Data.HashMap.Internal.Array
     , traverse'
     , toList
     , fromList
+    , fromList'
     ) where
 
 import Control.Applicative (liftA2)
@@ -83,6 +85,8 @@ import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
                  indexSmallArray#, unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                  SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
                  sizeofSmallMutableArray#, copySmallMutableArray#, cloneSmallMutableArray#)
+
+import qualified Language.Haskell.TH.Syntax as TH
 
 #if defined(ASSERTS)
 import qualified Prelude
@@ -473,6 +477,27 @@ fromList n xs0 =
     go [] !mary !_   = return mary
     go (x:xs) mary i = do write mary i x
                           go xs mary (i+1)
+
+fromList' :: Int -> [a] -> Array a
+fromList' n xs0 =
+    CHECK_EQ("fromList'", n, Prelude.length xs0)
+        run $ do
+            mary <- new_ n
+            go xs0 mary 0
+  where
+    go [] !mary !_   = return mary
+    go (!x:xs) mary i = do write mary i x
+                           go xs mary (i+1)
+
+instance TH.Lift a => TH.Lift (Array a) where
+#if MIN_VERSION_template_haskell(2,16,0)
+  liftTyped ar = [|| fromList' arlen arlist ||]
+#else
+  lift ar = [| fromList' arlen arlist |]
+#endif
+    where
+      arlen = length ar
+      arlist = toList ar
 
 toList :: Array a -> [a]
 toList = foldr (:) []

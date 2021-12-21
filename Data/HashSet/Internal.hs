@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Trustworthy #-}
@@ -113,11 +114,13 @@ import qualified Data.Hashable.Lifted as H
 #if MIN_VERSION_deepseq(1,4,3)
 import qualified Control.DeepSeq as NF
 #endif
+import qualified Language.Haskell.TH.Syntax as TH
 
 -- | A set of values.  A set cannot contain duplicate values.
 newtype HashSet a = HashSet {
       asMap :: HashMap a ()
     }
+    } deriving (TH.Lift)
 
 type role HashSet nominal
 
