@@ -57,7 +57,7 @@ library
     base >= 4.9 && < 5,
     deepseq >= 1.1,
     hashable >= 1.0.1.1 && < 1.5,
-    template-haskell
+    template-haskell < 2.19
 
   default-language: Haskell2010
 
