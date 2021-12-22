@@ -6,6 +6,8 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
 #if __GLASGOW_HASKELL__ >= 802
@@ -192,10 +194,18 @@ hash :: H.Hashable a => a -> Hash
 hash = fromIntegral . H.hash
 
 data Leaf k v = L !k v
-  deriving (Eq, TH.Lift)
+  deriving (Eq)
 
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L k v) = rnf k `seq` rnf v
+
+-- | @since 0.2.17.0
+instance (TH.Lift k, TH.Lift v) => TH.Lift (Leaf k v) where
+#if MIN_VERSION_template_haskell(2,16,0)
+  liftTyped (L k v) = [|| L k $! v ||]
+#else
+  lift (L k v) = [| L k $! v |]
+#endif
 
 #if MIN_VERSION_deepseq(1,4,3)
 -- | @since 0.2.14.0
@@ -218,9 +228,11 @@ data HashMap k v
     | Leaf !Hash !(Leaf k v)
     | Full !(A.Array (HashMap k v))
     | Collision !Hash !(A.Array (Leaf k v))
-      deriving (TH.Lift)
 
 type role HashMap nominal representational
+
+-- | @since 0.2.17.0
+deriving instance (TH.Lift k, TH.Lift v) => TH.Lift (HashMap k v)
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Empty                 = ()

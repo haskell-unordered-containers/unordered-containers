@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE RoleAnnotations #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Trustworthy #-}
 {-# OPTIONS_HADDOCK not-home #-}
@@ -120,9 +121,11 @@ import qualified Language.Haskell.TH.Syntax as TH
 newtype HashSet a = HashSet {
       asMap :: HashMap a ()
     }
-    } deriving (TH.Lift)
 
 type role HashSet nominal
+
+-- | @since 0.2.17.0
+deriving instance TH.Lift a => TH.Lift (HashSet a)
 
 instance (NFData a) => NFData (HashSet a) where
     rnf = rnf . asMap
