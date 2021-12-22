@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, MagicHash #-}
+{-# LANGUAGE BangPatterns, CPP, MagicHash #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RoleAnnotations #-}
@@ -143,7 +143,7 @@ import Data.Semigroup (Semigroup((<>)))
 import Control.DeepSeq (NFData(rnf))
 import Control.Monad.ST (ST, runST)
 import Data.Bits ((.&.), (.|.), complement, popCount, unsafeShiftL, unsafeShiftR)
-import Data.Data hiding (Typeable)
+import Data.Data
 import qualified Data.Foldable as Foldable
 #if MIN_VERSION_base(4,10,0)
 import Data.Bifoldable
@@ -157,7 +157,6 @@ import qualified Data.HashMap.Internal.Array as A
 import qualified Data.Hashable as H
 import Data.Hashable (Hashable)
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
-import Data.Typeable (Typeable)
 
 import GHC.Exts (isTrue#)
 import qualified GHC.Exts as Exts
@@ -215,7 +214,6 @@ data HashMap k v
     | Leaf !Hash !(Leaf k v)
     | Full !(A.Array (HashMap k v))
     | Collision !Hash !(A.Array (Leaf k v))
-      deriving (Typeable)
 
 type role HashMap nominal representational
 
