@@ -303,6 +303,7 @@ instance (Data k, Data v, Eq k, Hashable k) => Data (HashMap k v) where
         1 -> k (z fromList)
         _ -> error "gunfold"
     dataTypeOf _   = hashMapDataType
+    dataCast1 f    = gcast1 f
     dataCast2 f    = gcast2 f
 
 fromListConstr :: Constr
