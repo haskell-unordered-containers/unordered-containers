@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, DeriveDataTypeable #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Trustworthy #-}
@@ -89,7 +89,7 @@ module Data.HashSet.Internal
     ) where
 
 import Control.DeepSeq (NFData(..))
-import Data.Data hiding (Typeable)
+import Data.Data
 import Data.Functor.Classes
 import Data.HashMap.Internal
   ( HashMap, foldMapWithKey, foldlWithKey, foldrWithKey
@@ -104,7 +104,6 @@ import Prelude hiding (filter, foldr, foldl, map, null)
 import qualified Data.Foldable as Foldable
 import qualified Data.HashMap.Internal as H
 import qualified Data.List as List
-import Data.Typeable (Typeable)
 import Text.Read
 
 #if MIN_VERSION_hashable(1,2,5)
@@ -118,7 +117,7 @@ import qualified Control.DeepSeq as NF
 -- | A set of values.  A set cannot contain duplicate values.
 newtype HashSet a = HashSet {
       asMap :: HashMap a ()
-    } deriving (Typeable)
+    }
 
 type role HashSet nominal
 
