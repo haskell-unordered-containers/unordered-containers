@@ -1,10 +1,15 @@
-{-# LANGUAGE BangPatterns, CPP, MagicHash #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveLift #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RoleAnnotations #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
-{-# LANGUAGE LambdaCase #-}
 #if __GLASGOW_HASKELL__ >= 802
 {-# LANGUAGE TypeInType #-}
 {-# LANGUAGE UnboxedSums #-}
@@ -179,6 +184,7 @@ import GHC.Exts (TYPE, Int (..), Int#)
 import Data.Functor.Identity (Identity (..))
 import Control.Applicative (Const (..))
 import Data.Coerce (coerce)
+import qualified Language.Haskell.TH.Syntax as TH
 
 -- | A set of values.  A set cannot contain duplicate values.
 ------------------------------------------------------------------------
@@ -192,6 +198,14 @@ data Leaf k v = L !k v
 
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L k v) = rnf k `seq` rnf v
+
+-- | @since 0.2.17.0
+instance (TH.Lift k, TH.Lift v) => TH.Lift (Leaf k v) where
+#if MIN_VERSION_template_haskell(2,16,0)
+  liftTyped (L k v) = [|| L k $! v ||]
+#else
+  lift (L k v) = [| L k $! v |]
+#endif
 
 #if MIN_VERSION_deepseq(1,4,3)
 -- | @since 0.2.14.0
@@ -216,6 +230,9 @@ data HashMap k v
     | Collision !Hash !(A.Array (Leaf k v))
 
 type role HashMap nominal representational
+
+-- | @since 0.2.17.0
+deriving instance (TH.Lift k, TH.Lift v) => TH.Lift (HashMap k v)
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf Empty                 = ()

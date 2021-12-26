@@ -2,6 +2,8 @@
 
 * Define `dataCast1` for `HashMap`.
 
+* [Add `Lift` instances for Template Haskell](https://github.com/haskell-unordered-containers/unordered-containers/pull/343)
+
 ## [0.2.16.0]
 
 * [Increase maximum branching factor from 16 to 32](https://github.com/haskell-unordered-containers/unordered-containers/pull/317)

@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE RoleAnnotations #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE Trustworthy #-}
 {-# OPTIONS_HADDOCK not-home #-}
@@ -113,6 +115,7 @@ import qualified Data.Hashable.Lifted as H
 #if MIN_VERSION_deepseq(1,4,3)
 import qualified Control.DeepSeq as NF
 #endif
+import qualified Language.Haskell.TH.Syntax as TH
 
 -- | A set of values.  A set cannot contain duplicate values.
 newtype HashSet a = HashSet {
@@ -120,6 +123,9 @@ newtype HashSet a = HashSet {
     }
 
 type role HashSet nominal
+
+-- | @since 0.2.17.0
+deriving instance TH.Lift a => TH.Lift (HashSet a)
 
 instance (NFData a) => NFData (HashSet a) where
     rnf = rnf . asMap
