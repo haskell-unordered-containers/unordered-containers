@@ -42,7 +42,7 @@
 
 module Data.HashSet.Internal
     (
-      HashSet
+      HashSet(..)
 
     -- * Construction
     , empty

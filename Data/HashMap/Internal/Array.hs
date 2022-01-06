@@ -21,8 +21,8 @@
 --
 -- Note that no bounds checking are performed.
 module Data.HashMap.Internal.Array
-    ( Array
-    , MArray
+    ( Array(..)
+    , MArray(..)
 
       -- * Creation
     , new
