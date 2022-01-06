@@ -142,9 +142,7 @@ module Data.HashMap.Internal
     , adjust#
     ) where
 
-#if !MIN_VERSION_base(4,11,0)
-import Data.Semigroup (Semigroup((<>)))
-#endif
+import Data.Semigroup (Semigroup(..), stimesIdempotentMonoid)
 import Control.DeepSeq (NFData(rnf))
 import Control.Monad.ST (ST, runST)
 import Data.Bits ((.&.), (.|.), complement, popCount, unsafeShiftL, unsafeShiftR)
@@ -296,6 +294,8 @@ instance Bifoldable HashMap where
 instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
   (<>) = union
   {-# INLINE (<>) #-}
+  stimes = stimesIdempotentMonoid
+  {-# INLINE stimes #-}
 
 -- | 'mempty' = 'empty'
 --

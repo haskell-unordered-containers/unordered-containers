@@ -97,9 +97,7 @@ import Data.HashMap.Internal
   ( HashMap, foldMapWithKey, foldlWithKey, foldrWithKey
   , equalKeys, equalKeys1)
 import Data.Hashable (Hashable(hashWithSalt))
-#if !MIN_VERSION_base(4,11,0)
-import Data.Semigroup (Semigroup(..))
-#endif
+import Data.Semigroup (Semigroup(..), stimesIdempotentMonoid)
 import GHC.Exts (build)
 import qualified GHC.Exts as Exts
 import Prelude hiding (filter, foldr, foldl, map, null)
@@ -200,6 +198,8 @@ instance Foldable.Foldable HashSet where
 instance (Hashable a, Eq a) => Semigroup (HashSet a) where
     (<>) = union
     {-# INLINE (<>) #-}
+    stimes = stimesIdempotentMonoid
+    {-# INLINE stimes #-}
 
 -- | 'mempty' = 'empty'
 --
