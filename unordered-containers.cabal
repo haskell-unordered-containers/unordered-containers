@@ -18,7 +18,7 @@ description:
 license:        BSD3
 license-file:   LICENSE
 author:         Johan Tibell
-maintainer:     johan.tibell@gmail.com, David.Feuer@gmail.com
+maintainer:     simon.jakobi@gmail.com, David.Feuer@gmail.com
 Homepage:       https://github.com/haskell-unordered-containers/unordered-containers
 bug-reports:    https://github.com/haskell-unordered-containers/unordered-containers/issues
 copyright:      2010-2014 Johan Tibell
