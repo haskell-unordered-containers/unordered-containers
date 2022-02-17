@@ -5,8 +5,8 @@ module Main (main) where
 
 import Data.Hashable (Hashable(hashWithSalt))
 import Test.ChasingBottoms.IsBottom
-import Test.Framework (Test, defaultMain, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty.QuickCheck (testProperty)
 import Test.QuickCheck (Arbitrary(arbitrary), Property, (===), (.&&.))
 import Test.QuickCheck.Function
 import Test.QuickCheck.Poly (A)
@@ -149,8 +149,8 @@ pFromListWithValueResultStrict lst comb_lazy calc_good_raw
 ------------------------------------------------------------------------
 -- * Test list
 
-tests :: [Test]
-tests =
+tests :: TestTree
+tests = testGroup "Strictness tests"
     [
     -- Basic interface
       testGroup "HashMap.Strict"

@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
 
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
--- comparing them to a simpler model, an association list.
+-- comparing them to @Map@ from @containers@.
 
 module Main (main) where
 
@@ -25,8 +25,8 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map.Lazy as M
 #endif
 import Test.QuickCheck (Arbitrary(..), Property, (==>), (===), forAll, elements)
-import Test.Framework (Test, defaultMain, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty.QuickCheck (testProperty)
 import Data.Functor.Identity (Identity (..))
 import Control.Applicative (Const (..))
 import Test.QuickCheck.Function (Fun, apply)
@@ -440,8 +440,8 @@ pKeys = (L.sort . M.keys) `eq` (L.sort . HM.keys)
 ------------------------------------------------------------------------
 -- * Test list
 
-tests :: [Test]
-tests =
+tests :: TestTree
+tests = testGroup "HashMap properties"
     [
     -- Instances
       testGroup "instances"

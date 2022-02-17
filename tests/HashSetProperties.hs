@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP, GeneralizedNewtypeDeriving #-}
 
 -- | Tests for the 'Data.HashSet' module.  We test functions by
--- comparing them to a simpler model, a list.
+-- comparing them to @Set@ from @containers@.
 
 module Main (main) where
 
@@ -12,8 +12,8 @@ import qualified Data.HashSet as S
 import qualified Data.Set as Set
 import Data.Ord (comparing)
 import Test.QuickCheck (Arbitrary, Property, (==>), (===))
-import Test.Framework (Test, defaultMain, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty.QuickCheck (testProperty)
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
@@ -159,8 +159,8 @@ pToList = Set.toAscList `eq` toAscList
 ------------------------------------------------------------------------
 -- * Test list
 
-tests :: [Test]
-tests =
+tests :: TestTree
+tests = testGroup "HashSet properties"
     [
     -- Instances
       testGroup "instances"
