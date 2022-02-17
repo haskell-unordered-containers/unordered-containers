@@ -4,11 +4,11 @@ import Data.HashMap.Internal.List
 import Data.List (nub, sort, sortBy)
 import Data.Ord (comparing)
 
-import Test.Framework (Test, defaultMain, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty.QuickCheck (testProperty)
 import Test.QuickCheck ((==>), (===), property, Property)
 
-tests :: Test
+tests :: TestTree
 tests = testGroup "Data.HashMap.Internal.List"
     [ testProperty "isPermutationBy" pIsPermutation
     , testProperty "isPermutationBy of different length" pIsPermutationDiffLength
@@ -65,4 +65,4 @@ pUnorderedCompare xs ys =
     unorderedCompare compare xs ys === modelUnorderedCompare xs ys
 
 main :: IO ()
-main = defaultMain [tests]
+main = defaultMain tests
