@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP, GeneralizedNewtypeDeriving #-}
 
 -- | Tests for the 'Data.HashSet' module.  We test functions by
--- comparing them to a simpler model, a list.
+-- comparing them to @Set@ from @containers@.
 
 module Main (main) where
 
