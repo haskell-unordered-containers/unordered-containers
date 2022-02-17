@@ -441,7 +441,7 @@ pKeys = (L.sort . M.keys) `eq` (L.sort . HM.keys)
 -- * Test list
 
 tests :: TestTree
-tests = testGroup "All"
+tests = testGroup "HashMap properties"
     [
     -- Instances
       testGroup "instances"
