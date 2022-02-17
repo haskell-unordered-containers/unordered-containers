@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
-module Main where
+module Regressions (tests) where
 
 import Control.Exception (evaluate)
 import Control.Monad (replicateM)
@@ -16,7 +16,7 @@ import System.Mem (performGC)
 import System.Mem.Weak (mkWeakPtr, deRefWeak)
 import System.Random (randomIO)
 import Test.HUnit (Assertion, assert)
-import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Test.Tasty.QuickCheck (testProperty)
 import Test.QuickCheck
@@ -135,9 +135,3 @@ tests = testGroup "Regression tests"
     , testCase "issue254 lazy" issue254Lazy
     , testCase "issue254 strict" issue254Strict
     ]
-
-------------------------------------------------------------------------
--- * Test harness
-
-main :: IO ()
-main = defaultMain tests

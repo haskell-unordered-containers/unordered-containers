@@ -4,7 +4,11 @@
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
 -- comparing them to @Map@ from @containers@.
 
-module Main (main) where
+#if defined(STRICT)
+module Properties.HashMapStrict (tests) where
+#else
+module Properties.HashMapLazy (tests) where
+#endif
 
 import Control.Monad ( guard )
 import qualified Data.Foldable as Foldable
@@ -25,7 +29,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map.Lazy as M
 #endif
 import Test.QuickCheck (Arbitrary(..), Property, (==>), (===), forAll, elements)
-import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.QuickCheck (testProperty)
 import Data.Functor.Identity (Identity (..))
 import Control.Applicative (Const (..))
@@ -441,7 +445,13 @@ pKeys = (L.sort . M.keys) `eq` (L.sort . HM.keys)
 -- * Test list
 
 tests :: TestTree
-tests = testGroup "HashMap properties"
+tests =
+  testGroup
+#if defined(STRICT)
+    "Data.HashMap.Strict"
+#else
+    "Data.HashMap.Lazy"
+#endif
     [
     -- Instances
       testGroup "instances"
@@ -570,12 +580,6 @@ eq_ :: (Eq k, Eq v, Hashable k, Ord k)
 eq_ f g = (M.toAscList . f) `eq` (toAscList . g)
 
 infix 4 `eq_`
-
-------------------------------------------------------------------------
--- * Test harness
-
-main :: IO ()
-main = defaultMain tests
 
 ------------------------------------------------------------------------
 -- * Helpers
