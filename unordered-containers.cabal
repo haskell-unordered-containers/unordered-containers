@@ -161,9 +161,9 @@ test-suite regressions
     HUnit,
     QuickCheck >= 2.4.0.1,
     random,
-    test-framework >= 0.3.3,
-    test-framework-hunit,
-    test-framework-quickcheck2,
+    tasty >= 1.4.0.3,
+    tasty-hunit >= 0.10.0.3,
+    tasty-quickcheck >= 0.10.1.2,
     unordered-containers
 
   default-language: Haskell2010

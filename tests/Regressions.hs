@@ -16,9 +16,9 @@ import System.Mem (performGC)
 import System.Mem.Weak (mkWeakPtr, deRefWeak)
 import System.Random (randomIO)
 import Test.HUnit (Assertion, assert)
-import Test.Framework (Test, defaultMain)
-import Test.Framework.Providers.HUnit (testCase)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty.HUnit (testCase)
+import Test.Tasty.QuickCheck (testProperty)
 import Test.QuickCheck
 
 issue32 :: Assertion
@@ -126,8 +126,8 @@ issue254Strict = do
 ------------------------------------------------------------------------
 -- * Test list
 
-tests :: [Test]
-tests =
+tests :: TestTree
+tests = testGroup "Regression tests"
     [
       testCase "issue32" issue32
     , testCase "issue39a" issue39
