@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
 
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
--- comparing them to a simpler model, an association list.
+-- comparing them to @Map@ from @containers@.
 
 module Main (main) where
 
