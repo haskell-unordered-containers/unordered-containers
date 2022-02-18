@@ -45,3 +45,9 @@ To include comparison benchmarks for `containers` and `hashmap` uncomment the
 ```
 cpp-options: -DBENCH_containers_Map -DBENCH_containers_IntMap -DBENCH_hashmap_Map
 ```
+
+### References
+
+* [Documentation for `cabal`](https://cabal.readthedocs.io/en/latest/)
+* [Documentation for our testing framework, `tasty`](https://github.com/UnkindPartition/tasty#readme)
+* [Documentation for our benchmark framework, `tasty-bench`](https://github.com/Bodigrim/tasty-bench#readme)
