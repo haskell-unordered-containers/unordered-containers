@@ -1,11 +1,11 @@
 {-# LANGUAGE CPP, FlexibleInstances, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Main (main) where
+module Strictness (tests) where
 
 import Data.Hashable (Hashable(hashWithSalt))
 import Test.ChasingBottoms.IsBottom
-import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.QuickCheck (testProperty)
 import Test.QuickCheck (Arbitrary(arbitrary), Property, (===), (.&&.))
 import Test.QuickCheck.Function
@@ -150,7 +150,7 @@ pFromListWithValueResultStrict lst comb_lazy calc_good_raw
 -- * Test list
 
 tests :: TestTree
-tests = testGroup "Strictness tests"
+tests = testGroup "Strictness"
     [
     -- Basic interface
       testGroup "HashMap.Strict"
@@ -174,12 +174,6 @@ tests = testGroup "Strictness tests"
       , testProperty "fromListWith is value-strict" pFromListWithValueResultStrict
       ]
     ]
-
-------------------------------------------------------------------------
--- * Test harness
-
-main :: IO ()
-main = defaultMain tests
 
 ------------------------------------------------------------------------
 -- * Utilities

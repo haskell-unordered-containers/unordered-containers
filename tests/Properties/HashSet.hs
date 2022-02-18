@@ -3,7 +3,7 @@
 -- | Tests for the 'Data.HashSet' module.  We test functions by
 -- comparing them to @Set@ from @containers@.
 
-module Main (main) where
+module Properties.HashSet (tests) where
 
 import qualified Data.Foldable as Foldable
 import Data.Hashable (Hashable(hashWithSalt))
@@ -12,7 +12,7 @@ import qualified Data.HashSet as S
 import qualified Data.Set as Set
 import Data.Ord (comparing)
 import Test.QuickCheck (Arbitrary, Property, (==>), (===))
-import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.QuickCheck (testProperty)
 
 -- Key type that generates more hash collisions.
@@ -160,7 +160,7 @@ pToList = Set.toAscList `eq` toAscList
 -- * Test list
 
 tests :: TestTree
-tests = testGroup "HashSet properties"
+tests = testGroup "Data.HashSet"
     [
     -- Instances
       testGroup "instances"
@@ -226,12 +226,6 @@ eq_ :: (Eq a, Hashable a, Ord a)
     -> Bool                          -- ^ True if the functions are
                                      -- equivalent
 eq_ f g = (Set.toAscList . f) `eq` (toAscList . g)
-
-------------------------------------------------------------------------
--- * Test harness
-
-main :: IO ()
-main = defaultMain tests
 
 ------------------------------------------------------------------------
 -- * Helpers

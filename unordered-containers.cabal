@@ -78,110 +78,29 @@ library
   if flag(debug)
     cpp-options: -DASSERTS
 
-test-suite hashmap-lazy-properties
+test-suite unordered-containers-tests
   hs-source-dirs: tests
-  main-is: HashMapProperties.hs
+  main-is: Main.hs
   type: exitcode-stdio-1.0
-
-  build-depends:
-    base,
-    containers >= 0.5.8,
-    hashable >= 1.0.1.1,
-    QuickCheck >= 2.4.0.1,
-    tasty >= 1.4.0.3,
-    tasty-quickcheck >= 0.10.1.2,
-    unordered-containers
-
-  default-language: Haskell2010
-  ghc-options: -Wall
-  cpp-options: -DASSERTS
-
-test-suite hashmap-strict-properties
-  hs-source-dirs: tests
-  main-is: HashMapProperties.hs
-  type: exitcode-stdio-1.0
-
-  build-depends:
-    base,
-    containers >= 0.5.8,
-    hashable >= 1.0.1.1,
-    QuickCheck >= 2.4.0.1,
-    tasty >= 1.4.0.3,
-    tasty-quickcheck >= 0.10.1.2,
-    unordered-containers
-
-  default-language: Haskell2010
-  ghc-options: -Wall
-  cpp-options: -DASSERTS -DSTRICT
-
-test-suite hashset-properties
-  hs-source-dirs: tests
-  main-is: HashSetProperties.hs
-  type: exitcode-stdio-1.0
-
-  build-depends:
-    base,
-    containers >= 0.4.2.0,
-    hashable >= 1.0.1.1,
-    QuickCheck >= 2.4.0.1,
-    tasty >= 1.4.0.3,
-    tasty-quickcheck >= 0.10.1.2,
-    unordered-containers
-
-  default-language: Haskell2010
-  ghc-options: -Wall
-  cpp-options: -DASSERTS
-
-test-suite list-tests
-  hs-source-dirs: tests .
-  main-is: List.hs
   other-modules:
-    Data.HashMap.Internal.List
-  type: exitcode-stdio-1.0
+    Regressions
+    Properties
+    Properties.HashMapLazy
+    Properties.HashMapStrict
+    Properties.HashSet
+    Properties.List
+    Strictness
 
   build-depends:
     base,
-    containers >= 0.4,
-    QuickCheck >= 2.4.0.1,
-    tasty >= 1.4.0.3,
-    tasty-quickcheck >= 0.10.1.2
-
-  default-language: Haskell2010
-  ghc-options: -Wall
-  cpp-options: -DASSERTS
-
-test-suite regressions
-  hs-source-dirs: tests
-  main-is: Regressions.hs
-  type: exitcode-stdio-1.0
-
-  build-depends:
-    base,
+    ChasingBottoms,
+    containers >= 0.5.8,
     hashable >= 1.0.1.1,
     HUnit,
     QuickCheck >= 2.4.0.1,
     random,
     tasty >= 1.4.0.3,
     tasty-hunit >= 0.10.0.3,
-    tasty-quickcheck >= 0.10.1.2,
-    unordered-containers
-
-  default-language: Haskell2010
-  ghc-options: -Wall
-  cpp-options: -DASSERTS
-
-test-suite strictness-properties
-  hs-source-dirs: tests
-  main-is: Strictness.hs
-  type: exitcode-stdio-1.0
-
-  build-depends:
-    base,
-    ChasingBottoms,
-    containers >= 0.4.2,
-    hashable >= 1.0.1.1,
-    QuickCheck >= 2.4.0.1,
-    tasty >= 1.4.0.3,
     tasty-quickcheck >= 0.10.1.2,
     unordered-containers
 

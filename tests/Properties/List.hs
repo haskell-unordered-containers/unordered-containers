@@ -1,10 +1,10 @@
-module Main (main) where
+module Properties.List (tests) where
 
 import Data.HashMap.Internal.List
 import Data.List (nub, sort, sortBy)
 import Data.Ord (comparing)
 
-import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.QuickCheck (testProperty)
 import Test.QuickCheck ((==>), (===), property, Property)
 
@@ -63,6 +63,3 @@ modelUnorderedCompareTrans xs ys zs =
 pUnorderedCompare :: [Int] -> [Int] -> Property
 pUnorderedCompare xs ys =
     unorderedCompare compare xs ys === modelUnorderedCompare xs ys
-
-main :: IO ()
-main = defaultMain tests
