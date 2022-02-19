@@ -39,6 +39,13 @@ Viewing the benchmark options:
 cabal run benches -- --help
 ```
 
+Running a specific benchmark with a reduced target standard deviation (default:
+5%):
+
+```
+cabal run benches -- -p /All.HashMap.lookup-miss.ByteString/ --stdev 1
+```
+
 To include comparison benchmarks for `containers` and `hashmap` uncomment the
 `cpp-options` in the benchmark section of `unordered-containers.cabal`:
 
