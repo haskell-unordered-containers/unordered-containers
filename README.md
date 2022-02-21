@@ -9,4 +9,4 @@ remains valid even if structures are shared.
 For background information and design considerations on this package see the
 [Developer Guide](docs/developer-guide.md).
 
-For practical contributor advice see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+For practical advice for contributors see [`CONTRIBUTING.md`](CONTRIBUTING.md).
