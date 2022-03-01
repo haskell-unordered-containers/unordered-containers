@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP  #-}
 {-# LANGUAGE Safe #-}
 
 ------------------------------------------------------------------------
@@ -137,4 +137,4 @@ module Data.HashSet
     ) where
 
 import Data.HashSet.Internal
-import Prelude ()
+import Prelude               ()

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 {-# OPTIONS_HADDOCK not-home #-}
@@ -25,10 +26,11 @@ module Data.HashMap.Internal.List
     , unorderedCompare
     ) where
 
+import Data.List  (sortBy)
 import Data.Maybe (fromMaybe)
-import Data.List (sortBy)
-import Data.Monoid
-import Prelude
+#if !MIN_VERSION_base(4,11,0)
+import Data.Semigroup ((<>))
+#endif
 
 -- Note: previous implemenation isPermutation = null (as // bs)
 -- was O(n^2) too.
@@ -68,7 +70,7 @@ unorderedCompare c as bs = go (sortBy cmpA as) (sortBy cmpB bs)
     go [] [] = EQ
     go [] (_ : _) = LT
     go (_ : _) [] = GT
-    go (x : xs) (y : ys) = c x y `mappend` go xs ys
+    go (x : xs) (y : ys) = c x y <> go xs ys
 
     cmpA a a' = compare (inB a) (inB a')
     cmpB b b' = compare (inA b) (inA b')
