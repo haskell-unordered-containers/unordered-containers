@@ -163,9 +163,7 @@ import qualified GHC.Exts as Exts
 import Data.Functor.Classes
 import GHC.Stack
 
-#if MIN_VERSION_hashable(1,2,5)
 import qualified Data.Hashable.Lifted as H
-#endif
 
 import qualified Control.DeepSeq as NF
 
@@ -486,7 +484,6 @@ equalKeys = go
 
     leafEq (L k1 _) (L k2 _) = k1 == k2
 
-#if MIN_VERSION_hashable(1,2,5)
 instance H.Hashable2 HashMap where
     liftHashWithSalt2 hk hv salt hm = go salt (toList' hm [])
       where
@@ -512,7 +509,6 @@ instance H.Hashable2 HashMap where
 
 instance (Hashable k) => H.Hashable1 (HashMap k) where
     liftHashWithSalt = H.liftHashWithSalt2 H.hashWithSalt
-#endif
 
 instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
     hashWithSalt salt hm = go salt hm
