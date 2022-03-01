@@ -106,9 +106,7 @@ import qualified Data.HashMap.Internal as H
 import qualified Data.List as List
 import Text.Read
 
-#if MIN_VERSION_hashable(1,2,5)
 import qualified Data.Hashable.Lifted as H
-#endif
 
 import qualified Control.DeepSeq as NF
 import qualified Language.Haskell.TH.Syntax as TH
@@ -241,10 +239,8 @@ instance (Data a, Eq a, Hashable a) => Data (HashSet a) where
     dataTypeOf _   = hashSetDataType
     dataCast1 f    = gcast1 f
 
-#if MIN_VERSION_hashable(1,2,6)
 instance H.Hashable1 HashSet where
     liftHashWithSalt h s = H.liftHashWithSalt2 h hashWithSalt s . asMap
-#endif
 
 instance (Hashable a) => Hashable (HashSet a) where
     hashWithSalt salt = hashWithSalt salt . asMap
