@@ -30,13 +30,12 @@ extra-source-files: CHANGES.md
 
 tested-with:
   GHC ==9.2.1
-   || ==9.0.1
+   || ==9.0.2
    || ==8.10.7
    || ==8.8.4
    || ==8.6.5
    || ==8.4.4
    || ==8.2.2
-   || ==8.0.2
 
 flag debug
   description:  Enable debug support
@@ -54,8 +53,8 @@ library
     Data.HashSet.Internal
 
   build-depends:
-    base >= 4.9 && < 5,
-    deepseq >= 1.1,
+    base >= 4.10 && < 5,
+    deepseq >= 1.4.3,
     hashable >= 1.0.1.1 && < 1.5,
     template-haskell < 2.19
 
@@ -70,11 +69,6 @@ library
 
   ghc-options: -Wall -O2 -fwarn-tabs -ferror-spans
 
-  if impl (ghc < 8.2)
-    -- This is absolutely necessary (but not sufficient) for correctness due to
-    -- the referential-transparency-breaking mutability in unsafeInsertWith. See
-    -- #147 and GHC #13615 for details. The bug was fixed in GHC 8.2.
-    ghc-options: -feager-blackholing
   if flag(debug)
     cpp-options: -DASSERTS
 

@@ -10,10 +10,8 @@
 {-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
-#if __GLASGOW_HASKELL__ >= 802
 {-# LANGUAGE TypeInType #-}
 {-# LANGUAGE UnboxedSums #-}
-#endif
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
@@ -148,9 +146,7 @@ import Control.Monad.ST (ST, runST)
 import Data.Bits ((.&.), (.|.), complement, popCount, unsafeShiftL, unsafeShiftR)
 import Data.Data
 import qualified Data.Foldable as Foldable
-#if MIN_VERSION_base(4,10,0)
 import Data.Bifoldable
-#endif
 import qualified Data.List as L
 import GHC.Exts ((==#), build, reallyUnsafePtrEquality#, inline)
 import Prelude hiding (filter, foldl, foldr, lookup, map, null, pred)
@@ -171,13 +167,9 @@ import GHC.Stack
 import qualified Data.Hashable.Lifted as H
 #endif
 
-#if MIN_VERSION_deepseq(1,4,3)
 import qualified Control.DeepSeq as NF
-#endif
 
-#if __GLASGOW_HASKELL__ >= 802
 import GHC.Exts (TYPE, Int (..), Int#)
-#endif
 
 import Data.Functor.Identity (Identity (..))
 import Control.Applicative (Const (..))
@@ -205,7 +197,6 @@ instance (TH.Lift k, TH.Lift v) => TH.Lift (Leaf k v) where
   lift (L k v) = [| L k $! v |]
 #endif
 
-#if MIN_VERSION_deepseq(1,4,3)
 -- | @since 0.2.14.0
 instance NFData k => NF.NFData1 (Leaf k) where
     liftRnf rnf2 = NF.liftRnf2 rnf rnf2
@@ -213,7 +204,6 @@ instance NFData k => NF.NFData1 (Leaf k) where
 -- | @since 0.2.14.0
 instance NF.NFData2 Leaf where
     liftRnf2 rnf1 rnf2 (L k v) = rnf1 k `seq` rnf2 v
-#endif
 
 -- Invariant: The length of the 1st argument to 'Full' is
 -- 2^bitsPerSubkey
@@ -239,7 +229,6 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf (Full ary)            = rnf ary
     rnf (Collision _ ary)     = rnf ary
 
-#if MIN_VERSION_deepseq(1,4,3)
 -- | @since 0.2.14.0
 instance NFData k => NF.NFData1 (HashMap k) where
     liftRnf rnf2 = NF.liftRnf2 rnf rnf2
@@ -251,7 +240,6 @@ instance NF.NFData2 HashMap where
     liftRnf2 rnf1 rnf2 (Leaf _ l)            = NF.liftRnf2 rnf1 rnf2 l
     liftRnf2 rnf1 rnf2 (Full ary)            = NF.liftRnf (NF.liftRnf2 rnf1 rnf2) ary
     liftRnf2 rnf1 rnf2 (Collision _ ary)     = NF.liftRnf (NF.liftRnf2 rnf1 rnf2) ary
-#endif
 
 instance Functor (HashMap k) where
     fmap = map
@@ -272,7 +260,6 @@ instance Foldable.Foldable (HashMap k) where
     length = size
     {-# INLINE length #-}
 
-#if MIN_VERSION_base(4,10,0)
 -- | @since 0.2.11
 instance Bifoldable HashMap where
     bifoldMap f g = foldMapWithKey (\ k v -> f k `mappend` g v)
@@ -281,7 +268,6 @@ instance Bifoldable HashMap where
     {-# INLINE bifoldr #-}
     bifoldl f g = foldlWithKey (\ acc k v -> (acc `f` k) `g` v)
     {-# INLINE bifoldl #-}
-#endif
 
 -- | '<>' = 'union'
 --
@@ -606,7 +592,6 @@ member k m = case lookup k m of
 -- | /O(log n)/ Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.
 lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
-#if __GLASGOW_HASKELL__ >= 802
 -- GHC does not yet perform a worker-wrapper transformation on
 -- unboxed sums automatically. That seems likely to happen at some
 -- point (possibly as early as GHC 8.6) but for now we do it manually.
@@ -619,16 +604,9 @@ lookup# :: (Eq k, Hashable k) => k -> HashMap k v -> (# (# #) | v #)
 lookup# k m = lookupCont (\_ -> (# (# #) | #)) (\v _i -> (# | v #)) (hash k) k 0 m
 {-# INLINABLE lookup# #-}
 
-#else
-
-lookup k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) (hash k) k 0 m
-{-# INLINABLE lookup #-}
-#endif
-
 -- | lookup' is a version of lookup that takes the hash separately.
 -- It is used to implement alterF.
 lookup' :: Eq k => Hash -> k -> HashMap k v -> Maybe v
-#if __GLASGOW_HASKELL__ >= 802
 -- GHC does not yet perform a worker-wrapper transformation on
 -- unboxed sums automatically. That seems likely to happen at some
 -- point (possibly as early as GHC 8.6) but for now we do it manually.
@@ -639,10 +617,6 @@ lookup' h k m = case lookupRecordCollision# h k m of
   (# (# #) | #) -> Nothing
   (# | (# a, _i #) #) -> Just a
 {-# INLINE lookup' #-}
-#else
-lookup' h k m = lookupCont (\_ -> Nothing) (\v _i -> Just v) h k 0 m
-{-# INLINABLE lookup' #-}
-#endif
 
 -- The result of a lookup, keeping track of if a hash collision occured.
 -- If a collision did not occur then it will have the Int value (-1).
@@ -662,7 +636,6 @@ data LookupRes a = Absent | Present a !Int
 --   Key in map, no collision => Present v (-1)
 --   Key in map, collision    => Present v position
 lookupRecordCollision :: Eq k => Hash -> k -> HashMap k v -> LookupRes v
-#if __GLASGOW_HASKELL__ >= 802
 lookupRecordCollision h k m = case lookupRecordCollision# h k m of
   (# (# #) | #) -> Absent
   (# | (# a, i #) #) -> Present a (I# i) -- GHC will eliminate the I#
@@ -679,12 +652,6 @@ lookupRecordCollision# h k m =
 -- INLINABLE to specialize to the Eq instance.
 {-# INLINABLE lookupRecordCollision# #-}
 
-#else /* GHC < 8.2 so there are no unboxed sums */
-
-lookupRecordCollision h k m = lookupCont (\_ -> Absent) Present h k 0 m
-{-# INLINABLE lookupRecordCollision #-}
-#endif
-
 -- A two-continuation version of lookupRecordCollision. This lets us
 -- share source code between lookup and lookupRecordCollision without
 -- risking any performance degradation.
@@ -698,11 +665,7 @@ lookupRecordCollision h k m = lookupCont (\_ -> Absent) Present h k 0 m
 -- keys at the top-level of a hashmap, the offset should be 0. When looking up
 -- keys at level @n@ of a hashmap, the offset should be @n * bitsPerSubkey@.
 lookupCont ::
-#if __GLASGOW_HASKELL__ >= 802
   forall rep (r :: TYPE rep) k v.
-#else
-  forall r k v.
-#endif
      Eq k
   => ((# #) -> r)    -- Absent continuation
   -> (v -> Int -> r) -- Present continuation
@@ -2155,11 +2118,7 @@ fromListWithKey f = L.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) empty
 -- | /O(n)/ Look up the value associated with the given key in an
 -- array.
 lookupInArrayCont ::
-#if __GLASGOW_HASKELL__ >= 802
   forall rep (r :: TYPE rep) k v.
-#else
-  forall r k v.
-#endif
   Eq k => ((# #) -> r) -> (v -> Int -> r) -> k -> A.Array (Leaf k v) -> r
 lookupInArrayCont absent present k0 ary0 = go k0 ary0 0 (A.length ary0)
   where

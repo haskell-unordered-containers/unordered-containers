@@ -110,9 +110,7 @@ import Text.Read
 import qualified Data.Hashable.Lifted as H
 #endif
 
-#if MIN_VERSION_deepseq(1,4,3)
 import qualified Control.DeepSeq as NF
-#endif
 import qualified Language.Haskell.TH.Syntax as TH
 
 -- | A set of values.  A set cannot contain duplicate values.
@@ -129,11 +127,9 @@ instance (NFData a) => NFData (HashSet a) where
     rnf = rnf . asMap
     {-# INLINE rnf #-}
 
-#if MIN_VERSION_deepseq(1,4,3)
 -- | @since 0.2.14.0
 instance NF.NFData1 HashSet where
     liftRnf rnf1 = NF.liftRnf2 rnf1 rnf . asMap
-#endif
 
 -- | Note that, in the presence of hash collisions, equal @HashSet@s may
 -- behave differently, i.e. substitutivity may be violated:

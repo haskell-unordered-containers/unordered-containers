@@ -12,9 +12,7 @@ module Properties.HashMapLazy (tests) where
 
 import Control.Monad ( guard )
 import qualified Data.Foldable as Foldable
-#if MIN_VERSION_base(4,10,0)
 import Data.Bifoldable
-#endif
 import Data.Function (on)
 import Data.Hashable (Hashable(hashWithSalt))
 import qualified Data.List as L
@@ -337,7 +335,6 @@ pFoldr = (L.sort . M.foldr (:) []) `eq` (L.sort . HM.foldr (:) [])
 pFoldl :: [(Int, Int)] -> Bool
 pFoldl = (L.sort . M.foldl (flip (:)) []) `eq` (L.sort . HM.foldl (flip (:)) [])
 
-#if MIN_VERSION_base(4,10,0)
 pBifoldMap :: [(Int, Int)] -> Bool
 pBifoldMap xs = concatMap f (HM.toList m) == bifoldMap (:[]) (:[]) m
   where f (k, v) = [k, v]
@@ -352,7 +349,6 @@ pBifoldl :: [(Int, Int)] -> Bool
 pBifoldl xs = reverse (concatMap f $ HM.toList m) == bifoldl (flip (:)) (flip (:)) [] m
   where f (k, v) = [k, v]
         m = HM.fromList xs
-#endif
 
 pFoldrWithKey :: [(Int, Int)] -> Bool
 pFoldrWithKey = (sortByKey . M.foldrWithKey f []) `eq`
@@ -514,11 +510,9 @@ tests =
     , testGroup "folds"
       [ testProperty "foldr" pFoldr
       , testProperty "foldl" pFoldl
-#if MIN_VERSION_base(4,10,0)
       , testProperty "bifoldMap" pBifoldMap
       , testProperty "bifoldr" pBifoldr
       , testProperty "bifoldl" pBifoldl
-#endif
       , testProperty "foldrWithKey" pFoldrWithKey
       , testProperty "foldlWithKey" pFoldlWithKey
       , testProperty "foldrWithKey'" pFoldrWithKey'
