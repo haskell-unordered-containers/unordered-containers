@@ -264,7 +264,6 @@ empty = HashSet H.empty
 -- fromList [1]
 singleton :: Hashable a => a -> HashSet a
 singleton a = HashSet (H.singleton a ())
-{-# INLINABLE singleton #-}
 
 -- | /O(1)/ Convert to set to the equivalent 'HashMap' with @()@ values.
 --
@@ -352,7 +351,6 @@ member :: (Eq a, Hashable a) => a -> HashSet a -> Bool
 member a s = case H.lookup a (asMap s) of
                Just _ -> True
                _      -> False
-{-# INLINABLE member #-}
 
 -- | /O(log n)/ Add the specified value to this set.
 --
@@ -360,7 +358,6 @@ member a s = case H.lookup a (asMap s) of
 -- fromList [1]
 insert :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 insert a = HashSet . H.insert a () . asMap
-{-# INLINABLE insert #-}
 
 -- | /O(log n)/ Remove the specified value from this set if present.
 --
@@ -370,7 +367,6 @@ insert a = HashSet . H.insert a () . asMap
 -- fromList [4,5,6]
 delete :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 delete a = HashSet . H.delete a . asMap
-{-# INLINABLE delete #-}
 
 -- | /O(n)/ Transform this set by applying a function to every value.
 -- The resulting set may be smaller than the source.
@@ -388,7 +384,6 @@ map f = fromList . List.map f . toList
 -- fromList [1]
 difference :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
-{-# INLINABLE difference #-}
 
 -- | /O(n)/ Intersection of two sets. Return elements present in both
 -- the first set and the second.
@@ -397,7 +392,6 @@ difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
 -- fromList [2,3]
 intersection :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 intersection (HashSet a) (HashSet b) = HashSet (H.intersection a b)
-{-# INLINABLE intersection #-}
 
 -- | /O(n)/ Reduce this set by applying a binary operator to all
 -- elements, using the given starting value (typically the

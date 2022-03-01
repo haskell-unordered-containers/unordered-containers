@@ -67,7 +67,7 @@ library
     MagicHash,
     BangPatterns
 
-  ghc-options: -Wall -O2 -fwarn-tabs -ferror-spans
+  ghc-options: -Wall -O2 -ferror-spans -fexpose-all-unfoldings
 
   if flag(debug)
     cpp-options: -DASSERTS
