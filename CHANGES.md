@@ -1,8 +1,14 @@
 ## [0.2.17.0]
 
-* Define `dataCast1` for `HashMap`.
+* [Define `dataCast1` for `HashMap`](https://github.com/haskell-unordered-containers/unordered-containers/pull/345)
 
 * [Add `Lift` instances for Template Haskell](https://github.com/haskell-unordered-containers/unordered-containers/pull/343)
+
+* [Add definitions for `stimes`](https://github.com/haskell-unordered-containers/unordered-containers/pull/340)
+
+* [Expose internal constructors for `HashSet`, `Array` and `MArray`](https://github.com/haskell-unordered-containers/unordered-containers/pull/347)
+
+[0.2.17.0]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.16.0...v0.2.17.0
 
 ## [0.2.16.0]
 
