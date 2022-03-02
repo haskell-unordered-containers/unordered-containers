@@ -1257,6 +1257,7 @@ alterF f = \ !k !m ->
 -- We unconditionally rewrite alterF in RULES, but we expose an
 -- unfolding just in case it's used in some way that prevents the
 -- rule from firing.
+{-# INLINABLE [0] alterF #-}
 
 -- This is just a bottom value. See the comment on the "alterFWeird"
 -- rule.
