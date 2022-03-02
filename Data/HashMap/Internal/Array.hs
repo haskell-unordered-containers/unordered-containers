@@ -92,9 +92,7 @@ import qualified Language.Haskell.TH.Syntax as TH
 import qualified Prelude
 #endif
 
-#if MIN_VERSION_deepseq(1,4,3)
 import qualified Control.DeepSeq as NF
-#endif
 
 import Control.Monad ((>=>))
 
@@ -173,7 +171,6 @@ rnfArray ary0 = go ary0 n0 0
 -- relevant rnf is strict, or in case it actually isn't.
 {-# INLINE rnfArray #-}
 
-#if MIN_VERSION_deepseq(1,4,3)
 -- | @since 0.2.14.0
 instance NF.NFData1 Array where
     liftRnf = liftRnfArray
@@ -187,7 +184,6 @@ liftRnfArray rnf0 ary0 = go ary0 n0 0
         | (# x #) <- index# ary i
         = rnf0 x `seq` go ary n (i+1)
 {-# INLINE liftRnfArray #-}
-#endif
 
 -- | Create a new mutable array of specified size, in the specified
 -- state thread, with each element containing the specified initial
