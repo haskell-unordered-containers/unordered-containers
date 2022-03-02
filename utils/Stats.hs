@@ -27,9 +27,6 @@ instance Semigroup Histogram where
 
 instance Monoid Histogram where
     mempty = H 0 0 0 0 0
-#if __GLASGOW_HASKELL__ < 803
-    mappend = (<>)
-#endif
 
 -- | Count the number of node types at each level
 nodeHistogram :: HM.HashMap k v -> [Histogram]

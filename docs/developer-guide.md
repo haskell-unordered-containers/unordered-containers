@@ -120,9 +120,9 @@ important functions and the memory layout is about as good as we can get using
 GHC.
 
 Avoiding allocation is done by making things strict (laziness is the enemy of
-predictable performance) and using `INLINABLE` to allow to be specialized at the
-call site (so key and value arguments to functions are passed as values rather
-than pointers to heap objects).
+predictable performance) and using `INLINABLE` / `-fexpose-all-unfoldings` to
+allow to be specialized at the call site (so key and value arguments to
+functions are passed as values rather than pointers to heap objects).
 
 The main remaining bottlenecks are due to e.g. GHC not allowing us to unpack an
 array into a constructor. Two examples: the `Full` constructor is a separate

@@ -160,7 +160,6 @@ singleton k !v = HM.singleton k v
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k !v = HM.insert k v
-{-# INLINABLE insert #-}
 
 -- | /O(log n)/ Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
@@ -200,13 +199,11 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith f k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-{-# INLINABLE insertWith #-}
 
 -- | In-place update version of insertWith
 unsafeInsertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
                  -> HashMap k v
 unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (const f) k0 v0 m0
-{-# INLINABLE unsafeInsertWith #-}
 
 unsafeInsertWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> k -> v -> HashMap k v
                     -> HashMap k v
@@ -241,7 +238,6 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWithKey f k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-{-# INLINABLE unsafeInsertWithKey #-}
 
 -- | /O(log n)/ Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
@@ -270,14 +266,12 @@ adjust f k0 m0 = go h0 k0 0 m0
     go h k _ t@(Collision hy v)
         | h == hy   = Collision h (updateWith f k v)
         | otherwise = t
-{-# INLINABLE adjust #-}
 
 -- | /O(log n)/  The expression @('update' f k map)@ updates the value @x@ at @k@
 -- (if it is in the map). If @(f x)@ is 'Nothing', the element is deleted.
 -- If it is @('Just' y)@, the key @k@ is bound to the new value @y@.
 update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
 update f = alter (>>= f)
-{-# INLINABLE update #-}
 
 -- | /O(log n)/  The expression @('alter' f k map)@ alters the value @x@ at @k@, or
 -- absence thereof.
@@ -292,7 +286,6 @@ alter f k m =
   case f (HM.lookup k m) of
     Nothing -> delete k m
     Just v  -> insert k v m
-{-# INLINABLE alter #-}
 
 -- | /O(log n)/  The expression (@'alterF' f k map@) alters the value @x@ at
 -- @k@, or absence thereof.
@@ -416,7 +409,6 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
         !mv = case lookupRes of
           Absent -> Nothing
           Present v _ -> Just v
-{-# INLINABLE alterFEager #-}
 
 ------------------------------------------------------------------------
 -- * Combine
@@ -594,7 +586,6 @@ differenceWith f a b = foldlWithKey' go empty a
     go m k v = case HM.lookup k b of
                  Nothing -> insert k v m
                  Just w  -> maybe m (\y -> insert k y m) (f v w)
-{-# INLINABLE differenceWith #-}
 
 -- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
@@ -606,7 +597,6 @@ intersectionWith f a b = foldlWithKey' go empty a
     go m k v = case HM.lookup k b of
                  Just w -> insert k (f v w) m
                  _      -> m
-{-# INLINABLE intersectionWith #-}
 
 -- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
@@ -618,7 +608,6 @@ intersectionWithKey f a b = foldlWithKey' go empty a
     go m k v = case HM.lookup k b of
                  Just w -> insert k (f k v w) m
                  _      -> m
-{-# INLINABLE intersectionWithKey #-}
 
 ------------------------------------------------------------------------
 -- ** Lists
@@ -628,7 +617,6 @@ intersectionWithKey f a b = foldlWithKey' go empty a
 -- precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = L.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) empty
-{-# INLINABLE fromList #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
 -- the provided function @f@ to merge duplicate entries with
@@ -705,7 +693,6 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> let !v' = f y in A.update ary i (L k v')
                      | otherwise -> go k ary (i+1) n
-{-# INLINABLE updateWith #-}
 
 -- | Append the given key and value to the array. If the key is
 -- already present, instead update the value of the key by applying
@@ -715,7 +702,6 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
 updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
 updateOrSnocWith f = updateOrSnocWithKey (const f)
-{-# INLINABLE updateOrSnocWith #-}
 
 -- | Append the given key and value to the array. If the key is
 -- already present, instead update the value of the key by applying
@@ -737,7 +723,6 @@ updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> let !v' = f k v y in A.update ary i (L k v')
                      | otherwise -> go k v ary (i+1) n
-{-# INLINABLE updateOrSnocWithKey #-}
 
 ------------------------------------------------------------------------
 -- Smart constructors

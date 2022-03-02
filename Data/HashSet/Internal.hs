@@ -106,13 +106,9 @@ import qualified Data.HashMap.Internal as H
 import qualified Data.List as List
 import Text.Read
 
-#if MIN_VERSION_hashable(1,2,5)
 import qualified Data.Hashable.Lifted as H
-#endif
 
-#if MIN_VERSION_deepseq(1,4,3)
 import qualified Control.DeepSeq as NF
-#endif
 import qualified Language.Haskell.TH.Syntax as TH
 
 -- | A set of values.  A set cannot contain duplicate values.
@@ -129,11 +125,9 @@ instance (NFData a) => NFData (HashSet a) where
     rnf = rnf . asMap
     {-# INLINE rnf #-}
 
-#if MIN_VERSION_deepseq(1,4,3)
 -- | @since 0.2.14.0
 instance NF.NFData1 HashSet where
     liftRnf rnf1 = NF.liftRnf2 rnf1 rnf . asMap
-#endif
 
 -- | Note that, in the presence of hash collisions, equal @HashSet@s may
 -- behave differently, i.e. substitutivity may be violated:
@@ -245,10 +239,8 @@ instance (Data a, Eq a, Hashable a) => Data (HashSet a) where
     dataTypeOf _   = hashSetDataType
     dataCast1 f    = gcast1 f
 
-#if MIN_VERSION_hashable(1,2,6)
 instance H.Hashable1 HashSet where
     liftHashWithSalt h s = H.liftHashWithSalt2 h hashWithSalt s . asMap
-#endif
 
 instance (Hashable a) => Hashable (HashSet a) where
     hashWithSalt salt = hashWithSalt salt . asMap
@@ -272,7 +264,6 @@ empty = HashSet H.empty
 -- fromList [1]
 singleton :: Hashable a => a -> HashSet a
 singleton a = HashSet (H.singleton a ())
-{-# INLINABLE singleton #-}
 
 -- | /O(1)/ Convert to set to the equivalent 'HashMap' with @()@ values.
 --
@@ -360,7 +351,6 @@ member :: (Eq a, Hashable a) => a -> HashSet a -> Bool
 member a s = case H.lookup a (asMap s) of
                Just _ -> True
                _      -> False
-{-# INLINABLE member #-}
 
 -- | /O(log n)/ Add the specified value to this set.
 --
@@ -368,7 +358,6 @@ member a s = case H.lookup a (asMap s) of
 -- fromList [1]
 insert :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 insert a = HashSet . H.insert a () . asMap
-{-# INLINABLE insert #-}
 
 -- | /O(log n)/ Remove the specified value from this set if present.
 --
@@ -378,7 +367,6 @@ insert a = HashSet . H.insert a () . asMap
 -- fromList [4,5,6]
 delete :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 delete a = HashSet . H.delete a . asMap
-{-# INLINABLE delete #-}
 
 -- | /O(n)/ Transform this set by applying a function to every value.
 -- The resulting set may be smaller than the source.
@@ -396,7 +384,6 @@ map f = fromList . List.map f . toList
 -- fromList [1]
 difference :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
-{-# INLINABLE difference #-}
 
 -- | /O(n)/ Intersection of two sets. Return elements present in both
 -- the first set and the second.
@@ -405,7 +392,6 @@ difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
 -- fromList [2,3]
 intersection :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 intersection (HashSet a) (HashSet b) = HashSet (H.intersection a b)
-{-# INLINABLE intersection #-}
 
 -- | /O(n)/ Reduce this set by applying a binary operator to all
 -- elements, using the given starting value (typically the

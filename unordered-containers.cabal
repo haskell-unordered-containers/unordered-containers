@@ -30,13 +30,12 @@ extra-source-files: CHANGES.md
 
 tested-with:
   GHC ==9.2.1
-   || ==9.0.1
+   || ==9.0.2
    || ==8.10.7
    || ==8.8.4
    || ==8.6.5
    || ==8.4.4
    || ==8.2.2
-   || ==8.0.2
 
 flag debug
   description:  Enable debug support
@@ -54,9 +53,9 @@ library
     Data.HashSet.Internal
 
   build-depends:
-    base >= 4.9 && < 5,
-    deepseq >= 1.1,
-    hashable >= 1.0.1.1 && < 1.5,
+    base >= 4.10 && < 5,
+    deepseq >= 1.4.3,
+    hashable >= 1.2.5 && < 1.5,
     template-haskell < 2.19
 
   default-language: Haskell2010
@@ -68,13 +67,8 @@ library
     MagicHash,
     BangPatterns
 
-  ghc-options: -Wall -O2 -fwarn-tabs -ferror-spans
+  ghc-options: -Wall -O2 -ferror-spans -fexpose-all-unfoldings
 
-  if impl (ghc < 8.2)
-    -- This is absolutely necessary (but not sufficient) for correctness due to
-    -- the referential-transparency-breaking mutability in unsafeInsertWith. See
-    -- #147 and GHC #13615 for details. The bug was fixed in GHC 8.2.
-    ghc-options: -feager-blackholing
   if flag(debug)
     cpp-options: -DASSERTS
 
@@ -95,7 +89,7 @@ test-suite unordered-containers-tests
     base,
     ChasingBottoms,
     containers >= 0.5.8,
-    hashable >= 1.0.1.1,
+    hashable,
     HUnit,
     QuickCheck >= 2.4.0.1,
     random,
@@ -122,8 +116,8 @@ benchmark benchmarks
     base >= 4.8.0,
     bytestring >= 0.10.0.0,
     containers,
-    deepseq >= 1.4,
-    hashable >= 1.0.1.1,
+    deepseq,
+    hashable,
     hashmap,
     mtl,
     random,
