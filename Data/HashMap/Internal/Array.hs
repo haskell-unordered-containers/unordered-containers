@@ -303,9 +303,8 @@ insert ary idx b = runST (insertM ary idx b)
 insertM :: Array e -> Int -> e -> ST s (Array e)
 insertM ary idx b =
     CHECK_BOUNDS("insertM", count + 1, idx)
-        do mary <- new_ (count+1)
+        do mary <- new (count+1) b
            copy ary 0 mary 0 idx
-           write mary idx b
            copy ary idx mary (idx+1) (count-idx)
            unsafeFreeze mary
   where !count = length ary
