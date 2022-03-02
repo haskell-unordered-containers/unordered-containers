@@ -423,13 +423,13 @@ delete ary idx = runST (deleteM ary idx)
 -- | /O(n)/ Delete an element at the given position in this array,
 -- decreasing its size by one.
 deleteM :: Array e -> Int -> ST s (Array e)
-deleteM ary idx = do
+deleteM ary0 idx = do
     CHECK_BOUNDS("deleteM", count, idx)
-        do mary <- new_ (count-1)
-           copy ary 0 mary 0 idx
-           copy ary (idx+1) mary idx (count-(idx+1))
-           unsafeFreeze mary
-  where !count = length ary
+        do mary0 <- unsafeThaw ary0
+           mary1 <- cloneM mary0 0 (count-1)
+           copy ary0 (idx+1) mary1 idx (count-(idx+1))
+           unsafeFreeze mary1
+  where !count = length ary0
 {-# INLINE deleteM #-}
 
 map :: (a -> b) -> Array a -> Array b
