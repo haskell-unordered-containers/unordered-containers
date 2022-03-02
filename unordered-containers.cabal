@@ -55,7 +55,7 @@ library
   build-depends:
     base >= 4.10 && < 5,
     deepseq >= 1.4.3,
-    hashable >= 1.0.1.1 && < 1.5,
+    hashable >= 1.2.5 && < 1.5,
     template-haskell < 2.19
 
   default-language: Haskell2010
@@ -89,7 +89,7 @@ test-suite unordered-containers-tests
     base,
     ChasingBottoms,
     containers >= 0.5.8,
-    hashable >= 1.0.1.1,
+    hashable,
     HUnit,
     QuickCheck >= 2.4.0.1,
     random,
@@ -116,8 +116,8 @@ benchmark benchmarks
     base >= 4.8.0,
     bytestring >= 0.10.0.0,
     containers,
-    deepseq >= 1.4,
-    hashable >= 1.0.1.1,
+    deepseq,
+    hashable,
     hashmap,
     mtl,
     random,
