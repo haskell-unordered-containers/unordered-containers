@@ -6,10 +6,12 @@
 -- comparing them to @Map@ from @containers@.
 
 #if defined(STRICT)
-module Properties.HashMapStrict (tests) where
+#define MODULE_NAME Properties.HashMapStrict
 #else
-module Properties.HashMapLazy (tests) where
+#define MODULE_NAME Properties HashMapLazy
 #endif
+
+module MODULE_NAME (tests) where
 
 import Control.Applicative      (Const (..))
 import Control.Monad            (guard)
