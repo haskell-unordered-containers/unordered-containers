@@ -58,3 +58,19 @@ cpp-options: -DBENCH_containers_Map -DBENCH_containers_IntMap -DBENCH_hashmap_Ma
 * [Documentation for `cabal`](https://cabal.readthedocs.io/en/latest/)
 * [Documentation for our testing framework, `tasty`](https://github.com/UnkindPartition/tasty#readme)
 * [Documentation for our benchmark framework, `tasty-bench`](https://github.com/Bodigrim/tasty-bench#readme)
+
+
+## Code style
+
+This package uses [`stylish-haskell`](https://hackage.haskell.org/package/stylish-haskell)
+to format language pragmas and import sections. To format a specific file, run
+
+```
+stylish-haskell -i FILENAME
+```
+
+To format all the Haskell files under a specific directory, run
+
+```
+stylish-haskell -ir DIRNAME
+```
