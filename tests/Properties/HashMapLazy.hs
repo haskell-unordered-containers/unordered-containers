@@ -8,7 +8,7 @@
 #if defined(STRICT)
 #define MODULE_NAME Properties.HashMapStrict
 #else
-#define MODULE_NAME Properties HashMapLazy
+#define MODULE_NAME Properties.HashMapLazy
 #endif
 
 module MODULE_NAME (tests) where
