@@ -1,9 +1,9 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveLift #-}
-{-# LANGUAGE RoleAnnotations #-}
+{-# LANGUAGE CPP                #-}
+{-# LANGUAGE DeriveLift         #-}
+{-# LANGUAGE RoleAnnotations    #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Trustworthy        #-}
+{-# LANGUAGE TypeFamilies       #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
 ------------------------------------------------------------------------
@@ -90,25 +90,22 @@ module Data.HashSet.Internal
     , keysSet
     ) where
 
-import Control.DeepSeq (NFData(..))
-import Data.Data
+import Control.DeepSeq       (NFData (..), NFData1 (..), liftRnf2)
+import Data.Data             (Constr, Data (..), DataType)
 import Data.Functor.Classes
-import Data.HashMap.Internal
-  ( HashMap, foldMapWithKey, foldlWithKey, foldrWithKey
-  , equalKeys, equalKeys1)
-import Data.Hashable (Hashable(hashWithSalt))
-import Data.Semigroup (Semigroup(..), stimesIdempotentMonoid)
-import GHC.Exts (build)
-import qualified GHC.Exts as Exts
-import Prelude hiding (filter, foldr, foldl, map, null)
-import qualified Data.Foldable as Foldable
-import qualified Data.HashMap.Internal as H
-import qualified Data.List as List
+import Data.HashMap.Internal (HashMap, equalKeys, equalKeys1, foldMapWithKey,
+                              foldlWithKey, foldrWithKey)
+import Data.Hashable         (Hashable (hashWithSalt))
+import Data.Hashable.Lifted  (Hashable1 (..), Hashable2 (..))
+import Data.Semigroup        (Semigroup (..), stimesIdempotentMonoid)
+import Prelude               hiding (filter, foldl, foldr, map, null)
 import Text.Read
 
-import qualified Data.Hashable.Lifted as H
-
-import qualified Control.DeepSeq as NF
+import qualified Data.Data                  as Data
+import qualified Data.Foldable              as Foldable
+import qualified Data.HashMap.Internal      as H
+import qualified Data.List                  as List
+import qualified GHC.Exts                   as Exts
 import qualified Language.Haskell.TH.Syntax as TH
 
 -- | A set of values.  A set cannot contain duplicate values.
@@ -126,8 +123,8 @@ instance (NFData a) => NFData (HashSet a) where
     {-# INLINE rnf #-}
 
 -- | @since 0.2.14.0
-instance NF.NFData1 HashSet where
-    liftRnf rnf1 = NF.liftRnf2 rnf1 rnf . asMap
+instance NFData1 HashSet where
+    liftRnf rnf1 = liftRnf2 rnf1 rnf . asMap
 
 -- | Note that, in the presence of hash collisions, equal @HashSet@s may
 -- behave differently, i.e. substitutivity may be violated:
@@ -233,23 +230,23 @@ instance (Show a) => Show (HashSet a) where
 instance (Data a, Eq a, Hashable a) => Data (HashSet a) where
     gfoldl f z m   = z fromList `f` toList m
     toConstr _     = fromListConstr
-    gunfold k z c  = case constrIndex c of
+    gunfold k z c  = case Data.constrIndex c of
         1 -> k (z fromList)
         _ -> error "gunfold"
     dataTypeOf _   = hashSetDataType
-    dataCast1 f    = gcast1 f
+    dataCast1 f    = Data.gcast1 f
 
-instance H.Hashable1 HashSet where
-    liftHashWithSalt h s = H.liftHashWithSalt2 h hashWithSalt s . asMap
+instance Hashable1 HashSet where
+    liftHashWithSalt h s = liftHashWithSalt2 h hashWithSalt s . asMap
 
 instance (Hashable a) => Hashable (HashSet a) where
     hashWithSalt salt = hashWithSalt salt . asMap
 
 fromListConstr :: Constr
-fromListConstr = mkConstr hashSetDataType "fromList" [] Prefix
+fromListConstr = Data.mkConstr hashSetDataType "fromList" [] Data.Prefix
 
 hashSetDataType :: DataType
-hashSetDataType = mkDataType "Data.HashSet.Internal.HashSet" [fromListConstr]
+hashSetDataType = Data.mkDataType "Data.HashSet.Internal.HashSet" [fromListConstr]
 
 -- | /O(1)/ Construct an empty set.
 --
@@ -445,7 +442,7 @@ filter p = HashSet . H.filterWithKey q . asMap
 -- | /O(n)/ Return a list of this set's elements.  The list is
 -- produced lazily.
 toList :: HashSet a -> [a]
-toList t = build (\ c z -> foldrWithKey ((const .) c) z (asMap t))
+toList t = Exts.build (\ c z -> foldrWithKey ((const .) c) z (asMap t))
 {-# INLINE toList #-}
 
 -- | /O(n*min(W, n))/ Construct a set from a list of elements.

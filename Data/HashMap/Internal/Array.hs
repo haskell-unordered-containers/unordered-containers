@@ -1,5 +1,10 @@
-{-# LANGUAGE BangPatterns, CPP, MagicHash, Rank2Types, UnboxedTuples, ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE CPP                   #-}
+{-# LANGUAGE MagicHash             #-}
+{-# LANGUAGE Rank2Types            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
+{-# LANGUAGE UnboxedTuples         #-}
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
@@ -74,27 +79,27 @@ module Data.HashMap.Internal.Array
     ) where
 
 import Control.Applicative (liftA2)
-import Control.DeepSeq (NFData (..))
-import GHC.Exts(Int(..), reallyUnsafePtrEquality#, tagToEnum#, unsafeCoerce#)
-import GHC.ST (ST(..))
-import Control.Monad.ST (runST, stToIO)
-
-import Prelude hiding (filter, foldMap, foldr, foldl, length, map, read, traverse, all)
-
-import GHC.Exts (SmallArray#, newSmallArray#, readSmallArray#, writeSmallArray#,
-                 indexSmallArray#, unsafeFreezeSmallArray#, unsafeThawSmallArray#,
-                 SmallMutableArray#, sizeofSmallArray#, copySmallArray#, thawSmallArray#,
-                 sizeofSmallMutableArray#, copySmallMutableArray#, cloneSmallMutableArray#)
+import Control.DeepSeq     (NFData (..), NFData1 (..))
+import Control.Monad       ((>=>))
+import Control.Monad.ST    (runST, stToIO)
+import GHC.Exts            (Int (..), SmallArray#, SmallMutableArray#,
+                            cloneSmallMutableArray#, copySmallArray#,
+                            copySmallMutableArray#, indexSmallArray#,
+                            newSmallArray#, readSmallArray#,
+                            reallyUnsafePtrEquality#, sizeofSmallArray#,
+                            sizeofSmallMutableArray#, tagToEnum#,
+                            thawSmallArray#, unsafeCoerce#,
+                            unsafeFreezeSmallArray#, unsafeThawSmallArray#,
+                            writeSmallArray#)
+import GHC.ST              (ST (..))
+import Prelude             hiding (all, filter, foldMap, foldl, foldr, length,
+                            map, read, traverse)
 
 import qualified Language.Haskell.TH.Syntax as TH
-
 #if defined(ASSERTS)
 import qualified Prelude
 #endif
 
-import qualified Control.DeepSeq as NF
-
-import Control.Monad ((>=>))
 
 #if defined(ASSERTS)
 -- This fugly hack is brought by GHC's apparent reluctance to deal
@@ -172,7 +177,7 @@ rnfArray ary0 = go ary0 n0 0
 {-# INLINE rnfArray #-}
 
 -- | @since 0.2.14.0
-instance NF.NFData1 Array where
+instance NFData1 Array where
     liftRnf = liftRnfArray
 
 liftRnfArray :: (a -> ()) -> Array a -> ()

@@ -1,32 +1,33 @@
+{-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE UnboxedTuples       #-}
 module Regressions (tests) where
 
-import Control.Exception (evaluate)
-import Control.Monad (replicateM)
-import Data.Hashable (Hashable(..))
-import qualified Data.HashMap.Strict as HM
-import qualified Data.HashMap.Lazy as HML
-import Data.List (delete)
-import Data.Maybe
-import GHC.Exts (touch#)
-import GHC.IO (IO (..))
-import System.Mem (performGC)
-import System.Mem.Weak (mkWeakPtr, deRefWeak)
-import System.Random (randomIO)
-import Test.HUnit (Assertion, assert)
-import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (testCase)
-import Test.Tasty.QuickCheck (testProperty)
+import Control.Exception     (evaluate)
+import Control.Monad         (replicateM)
+import Data.Hashable         (Hashable (..))
+import Data.List             (delete)
+import Data.Maybe            (isJust, isNothing)
+import GHC.Exts              (touch#)
+import GHC.IO                (IO (..))
+import System.Mem            (performGC)
+import System.Mem.Weak       (deRefWeak, mkWeakPtr)
+import System.Random         (randomIO)
+import Test.HUnit            (Assertion, assert)
 import Test.QuickCheck
+import Test.Tasty            (TestTree, testGroup)
+import Test.Tasty.HUnit      (testCase)
+import Test.Tasty.QuickCheck (testProperty)
+
+import qualified Data.HashMap.Lazy   as HML
+import qualified Data.HashMap.Strict as HMS
 
 issue32 :: Assertion
-issue32 = assert $ isJust $ HM.lookup 7 m'
+issue32 = assert $ isJust $ HMS.lookup 7 m'
   where
     ns = [0..16] :: [Int]
-    m = HM.fromList (zip ns (repeat []))
-    m' = HM.delete 10 m
+    m = HMS.fromList (zip ns (repeat []))
+    m' = HMS.delete 10 m
 
 ------------------------------------------------------------------------
 -- Issue #39
@@ -36,8 +37,8 @@ issue32 = assert $ isJust $ HM.lookup 7 m'
 issue39 :: Assertion
 issue39 = assert $ hm1 == hm2
   where
-    hm1 = HM.fromList ([a, b] `zip` [1, 1 :: Int ..])
-    hm2 = HM.fromList ([b, a] `zip` [1, 1 :: Int ..])
+    hm1 = HMS.fromList ([a, b] `zip` [1, 1 :: Int ..])
+    hm2 = HMS.fromList ([b, a] `zip` [1, 1 :: Int ..])
     a = (1, -1) :: (Int, Int)
     b = (-1, 1) :: (Int, Int)
 
@@ -76,10 +77,10 @@ propEqAfterDelete :: Keys -> Bool
 propEqAfterDelete (Keys keys) =
   let keyMap = mapFromKeys keys
       k      = head keys
-  in  HM.delete k keyMap == mapFromKeys (delete k keys)
+  in  HMS.delete k keyMap == mapFromKeys (delete k keys)
 
-mapFromKeys :: [Int] -> HM.HashMap Int ()
-mapFromKeys keys = HM.fromList (zip keys (repeat ()))
+mapFromKeys :: [Int] -> HMS.HashMap Int ()
+mapFromKeys keys = HMS.fromList (zip keys (repeat ()))
 
 ------------------------------------------------------------------------
 -- Issue #254
@@ -117,7 +118,7 @@ issue254Strict = do
   i :: Int <- randomIO
   let oldV = show i
   weakV <- mkWeakPtr oldV Nothing
-  mp <- evaluate $ HM.insert (KC 1) "3" $ HM.fromList [(KC 0, "1"), (KC 1, oldV)]
+  mp <- evaluate $ HMS.insert (KC 1) "3" $ HMS.fromList [(KC 0, "1"), (KC 1, oldV)]
   performGC
   res <- deRefWeak weakV
   touch mp

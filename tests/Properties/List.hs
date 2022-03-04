@@ -1,12 +1,11 @@
 module Properties.List (tests) where
 
 import Data.HashMap.Internal.List
-import Data.List (nub, sort, sortBy)
-import Data.Ord (comparing)
-
-import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.QuickCheck (testProperty)
-import Test.QuickCheck ((==>), (===), property, Property)
+import Data.List                  (nub, sort, sortBy)
+import Data.Ord                   (comparing)
+import Test.QuickCheck            (Property, property, (===), (==>))
+import Test.Tasty                 (TestTree, testGroup)
+import Test.Tasty.QuickCheck      (testProperty)
 
 tests :: TestTree
 tests = testGroup "Data.HashMap.Internal.List"

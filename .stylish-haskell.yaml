@@ -1,0 +1,9 @@
+steps:
+  - imports:
+      align: group
+      pad_module_names: true
+      long_list_align: inline
+  - language_pragmas:
+      align: true
+      remove_redundant: true
+      language_prefix: LANGUAGE

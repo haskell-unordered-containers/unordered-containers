@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP         #-}
 {-# LANGUAGE Trustworthy #-}
 
 ------------------------------------------------------------------------
@@ -106,9 +106,10 @@ module Data.HashMap.Lazy
     , HS.keysSet
     ) where
 
-import Data.HashMap.Internal as HM
+import Data.HashMap.Internal
+import Prelude               ()
+
 import qualified Data.HashSet.Internal as HS
-import Prelude ()
 
 -- $strictness
 --

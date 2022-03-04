@@ -2,10 +2,9 @@
 -- random 'ByteString's.
 module Util.ByteString where
 
-import qualified Data.ByteString as S
+import qualified Data.ByteString       as S
 import qualified Data.ByteString.Char8 as C
-
-import Util.String as String
+import qualified Util.String           as String
 
 -- | Generate a number of fixed length 'ByteString's where the content
 -- of the strings are letters in ascending order.

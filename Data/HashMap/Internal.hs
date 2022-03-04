@@ -1,17 +1,17 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveLift #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE RoleAnnotations #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE CPP                   #-}
+{-# LANGUAGE DeriveLift            #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MagicHash             #-}
+{-# LANGUAGE PatternGuards         #-}
+{-# LANGUAGE RoleAnnotations       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UnboxedTuples #-}
-{-# LANGUAGE TypeInType #-}
-{-# LANGUAGE UnboxedSums #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeInType            #-}
+{-# LANGUAGE UnboxedSums           #-}
+{-# LANGUAGE UnboxedTuples         #-}
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
@@ -140,39 +140,36 @@ module Data.HashMap.Internal
     , adjust#
     ) where
 
-import Data.Semigroup (Semigroup(..), stimesIdempotentMonoid)
-import Control.DeepSeq (NFData(rnf))
-import Control.Monad.ST (ST, runST)
-import Data.Bits ((.&.), (.|.), complement, popCount, unsafeShiftL, unsafeShiftR)
-import Data.Data
-import qualified Data.Foldable as Foldable
-import Data.Bifoldable
-import qualified Data.List as L
-import GHC.Exts ((==#), build, reallyUnsafePtrEquality#, inline)
-import Prelude hiding (filter, foldl, foldr, lookup, map, null, pred)
-import Text.Read hiding (step)
-
-import qualified Data.HashMap.Internal.Array as A
-import qualified Data.Hashable as H
-import Data.Hashable (Hashable)
+import Control.Applicative        (Const (..))
+import Control.DeepSeq            (NFData (..), NFData1 (..), NFData2 (..))
+import Control.Monad.ST           (ST, runST)
+import Data.Bifoldable            (Bifoldable (..))
+import Data.Bits                  (complement, popCount, unsafeShiftL,
+                                   unsafeShiftR, (.&.), (.|.))
+import Data.Coerce                (coerce)
+import Data.Data                  (Constr, Data (..), DataType)
+import Data.Functor.Classes       (Eq1 (..), Eq2 (..), Ord1 (..), Ord2 (..),
+                                   Read1 (..), Show1 (..), Show2 (..))
+import Data.Functor.Identity      (Identity (..))
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
+import Data.Hashable              (Hashable)
+import Data.Hashable.Lifted       (Hashable1, Hashable2)
+import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
+import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
+import GHC.Stack                  (HasCallStack)
+import Prelude                    hiding (filter, foldl, foldr, lookup, map,
+                                   null, pred)
+import Text.Read                  hiding (step)
 
-import GHC.Exts (isTrue#)
-import qualified GHC.Exts as Exts
-
-import Data.Functor.Classes
-import GHC.Stack
-
-import qualified Data.Hashable.Lifted as H
-
-import qualified Control.DeepSeq as NF
-
-import GHC.Exts (TYPE, Int (..), Int#)
-
-import Data.Functor.Identity (Identity (..))
-import Control.Applicative (Const (..))
-import Data.Coerce (coerce)
-import qualified Language.Haskell.TH.Syntax as TH
+import qualified Data.Data                   as Data
+import qualified Data.Foldable               as Foldable
+import qualified Data.Functor.Classes        as FC
+import qualified Data.HashMap.Internal.Array as A
+import qualified Data.Hashable               as H
+import qualified Data.Hashable.Lifted        as H
+import qualified Data.List                   as List
+import qualified GHC.Exts                    as Exts
+import qualified Language.Haskell.TH.Syntax  as TH
 
 -- | A set of values.  A set cannot contain duplicate values.
 ------------------------------------------------------------------------
@@ -196,11 +193,11 @@ instance (TH.Lift k, TH.Lift v) => TH.Lift (Leaf k v) where
 #endif
 
 -- | @since 0.2.14.0
-instance NFData k => NF.NFData1 (Leaf k) where
-    liftRnf rnf2 = NF.liftRnf2 rnf rnf2
+instance NFData k => NFData1 (Leaf k) where
+    liftRnf rnf2 = liftRnf2 rnf rnf2
 
 -- | @since 0.2.14.0
-instance NF.NFData2 Leaf where
+instance NFData2 Leaf where
     liftRnf2 rnf1 rnf2 (L k v) = rnf1 k `seq` rnf2 v
 
 -- Invariant: The length of the 1st argument to 'Full' is
@@ -228,16 +225,16 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
     rnf (Collision _ ary)     = rnf ary
 
 -- | @since 0.2.14.0
-instance NFData k => NF.NFData1 (HashMap k) where
-    liftRnf rnf2 = NF.liftRnf2 rnf rnf2
+instance NFData k => NFData1 (HashMap k) where
+    liftRnf rnf2 = liftRnf2 rnf rnf2
 
 -- | @since 0.2.14.0
-instance NF.NFData2 HashMap where
+instance NFData2 HashMap where
     liftRnf2 _ _ Empty                       = ()
-    liftRnf2 rnf1 rnf2 (BitmapIndexed _ ary) = NF.liftRnf (NF.liftRnf2 rnf1 rnf2) ary
-    liftRnf2 rnf1 rnf2 (Leaf _ l)            = NF.liftRnf2 rnf1 rnf2 l
-    liftRnf2 rnf1 rnf2 (Full ary)            = NF.liftRnf (NF.liftRnf2 rnf1 rnf2) ary
-    liftRnf2 rnf1 rnf2 (Collision _ ary)     = NF.liftRnf (NF.liftRnf2 rnf1 rnf2) ary
+    liftRnf2 rnf1 rnf2 (BitmapIndexed _ ary) = liftRnf (liftRnf2 rnf1 rnf2) ary
+    liftRnf2 rnf1 rnf2 (Leaf _ l)            = liftRnf2 rnf1 rnf2 l
+    liftRnf2 rnf1 rnf2 (Full ary)            = liftRnf (liftRnf2 rnf1 rnf2) ary
+    liftRnf2 rnf1 rnf2 (Collision _ ary)     = liftRnf (liftRnf2 rnf1 rnf2) ary
 
 instance Functor (HashMap k) where
     fmap = map
@@ -300,18 +297,18 @@ instance (Eq k, Hashable k) => Monoid (HashMap k v) where
 instance (Data k, Data v, Eq k, Hashable k) => Data (HashMap k v) where
     gfoldl f z m   = z fromList `f` toList m
     toConstr _     = fromListConstr
-    gunfold k z c  = case constrIndex c of
+    gunfold k z c  = case Data.constrIndex c of
         1 -> k (z fromList)
         _ -> error "gunfold"
     dataTypeOf _   = hashMapDataType
-    dataCast1 f    = gcast1 f
-    dataCast2 f    = gcast2 f
+    dataCast1 f    = Data.gcast1 f
+    dataCast2 f    = Data.gcast2 f
 
 fromListConstr :: Constr
-fromListConstr = mkConstr hashMapDataType "fromList" [] Prefix
+fromListConstr = Data.mkConstr hashMapDataType "fromList" [] Data.Prefix
 
 hashMapDataType :: DataType
-hashMapDataType = mkDataType "Data.HashMap.Internal.HashMap" [fromListConstr]
+hashMapDataType = Data.mkDataType "Data.HashMap.Internal.HashMap" [fromListConstr]
 
 type Hash   = Word
 type Bitmap = Word
@@ -319,7 +316,7 @@ type Shift  = Int
 
 instance Show2 HashMap where
     liftShowsPrec2 spk slk spv slv d m =
-        showsUnaryWith (liftShowsPrec sp sl) "fromList" d (toList m)
+        FC.showsUnaryWith (liftShowsPrec sp sl) "fromList" d (toList m)
       where
         sp = liftShowsPrec2 spk slk spv slv
         sl = liftShowList2 spk slk spv slv
@@ -328,8 +325,8 @@ instance Show k => Show1 (HashMap k) where
     liftShowsPrec = liftShowsPrec2 showsPrec showList
 
 instance (Eq k, Hashable k, Read k) => Read1 (HashMap k) where
-    liftReadsPrec rp rl = readsData $
-        readsUnaryWith (liftReadsPrec rp' rl') "fromList" fromList
+    liftReadsPrec rp rl = FC.readsData $
+        FC.readsUnaryWith (liftReadsPrec rp' rl') "fromList" fromList
       where
         rp' = liftReadsPrec rp rl
         rl' = liftReadList rp rl
@@ -484,7 +481,7 @@ equalKeys = go
 
     leafEq (L k1 _) (L k2 _) = k1 == k2
 
-instance H.Hashable2 HashMap where
+instance Hashable2 HashMap where
     liftHashWithSalt2 hk hv salt hm = go salt (leavesAndCollisions hm [])
       where
         -- go :: Int -> [HashMap k v] -> Int
@@ -502,12 +499,12 @@ instance H.Hashable2 HashMap where
 
         -- hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
         hashCollisionWithSalt s
-          = L.foldl' H.hashWithSalt s . arrayHashesSorted s
+          = List.foldl' H.hashWithSalt s . arrayHashesSorted s
 
         -- arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
-        arrayHashesSorted s = L.sort . L.map (hashLeafWithSalt s) . A.toList
+        arrayHashesSorted s = List.sort . List.map (hashLeafWithSalt s) . A.toList
 
-instance (Hashable k) => H.Hashable1 (HashMap k) where
+instance (Hashable k) => Hashable1 (HashMap k) where
     liftHashWithSalt = H.liftHashWithSalt2 H.hashWithSalt
 
 instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
@@ -529,10 +526,10 @@ instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
 
         hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
         hashCollisionWithSalt s
-          = L.foldl' H.hashWithSalt s . arrayHashesSorted s
+          = List.foldl' H.hashWithSalt s . arrayHashesSorted s
 
         arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
-        arrayHashesSorted s = L.sort . L.map (hashLeafWithSalt s) . A.toList
+        arrayHashesSorted s = List.sort . List.map (hashLeafWithSalt s) . A.toList
 
 -- | Helper to get 'Leaf's and 'Collision's as a list.
 leavesAndCollisions :: HashMap k v -> [HashMap k v] -> [HashMap k v]
@@ -1410,7 +1407,7 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
 --
 -- @since 0.2.12
 isSubmapOf :: (Eq k, Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
-isSubmapOf = (inline isSubmapOfBy) (==)
+isSubmapOf = (Exts.inline isSubmapOfBy) (==)
 {-# INLINABLE isSubmapOf #-}
 
 -- | /O(n*log m)/ Inclusion of maps with value comparison. A map is included in
@@ -1652,7 +1649,7 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
 
 -- | Construct a set containing all elements from a list of sets.
 unions :: (Eq k, Hashable k) => [HashMap k v] -> HashMap k v
-unions = L.foldl' union empty
+unions = List.foldl' union empty
 {-# INLINE unions #-}
 
 
@@ -2020,13 +2017,13 @@ filter p = filterWithKey (\_ v -> p v)
 -- | /O(n)/ Return a list of this map's keys.  The list is produced
 -- lazily.
 keys :: HashMap k v -> [k]
-keys = L.map fst . toList
+keys = List.map fst . toList
 {-# INLINE keys #-}
 
 -- | /O(n)/ Return a list of this map's values.  The list is produced
 -- lazily.
 elems :: HashMap k v -> [v]
-elems = L.map snd . toList
+elems = List.map snd . toList
 {-# INLINE elems #-}
 
 ------------------------------------------------------------------------
@@ -2035,13 +2032,13 @@ elems = L.map snd . toList
 -- | /O(n)/ Return a list of this map's elements.  The list is
 -- produced lazily. The order of its elements is unspecified.
 toList :: HashMap k v -> [(k, v)]
-toList t = build (\ c z -> foldrWithKey (curry c) z t)
+toList t = Exts.build (\ c z -> foldrWithKey (curry c) z t)
 {-# INLINE toList #-}
 
 -- | /O(n)/ Construct a map with the supplied mappings.  If the list
 -- contains duplicate mappings, the later mappings take precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
-fromList = L.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
+fromList = List.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 {-# INLINABLE fromList #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
@@ -2075,7 +2072,7 @@ fromList = L.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
+fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 {-# INLINE fromListWith #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
@@ -2105,7 +2102,7 @@ fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 --
 -- @since 0.2.11
 fromListWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWithKey f = L.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) empty
+fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) empty
 {-# INLINE fromListWithKey #-}
 
 ------------------------------------------------------------------------
@@ -2282,7 +2279,7 @@ fullNodeMask = complement (complement 0 `unsafeShiftL` maxChildren)
 -- | Check if two the two arguments are the same value.  N.B. This
 -- function might give false negatives (due to GC moving objects.)
 ptrEq :: a -> a -> Bool
-ptrEq x y = isTrue# (reallyUnsafePtrEquality# x y ==# 1#)
+ptrEq x y = Exts.isTrue# (Exts.reallyUnsafePtrEquality# x y ==# 1#)
 {-# INLINE ptrEq #-}
 
 ------------------------------------------------------------------------

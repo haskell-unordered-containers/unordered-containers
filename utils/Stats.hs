@@ -1,12 +1,13 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP             #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 module Stats where
 
-import qualified Data.HashMap.Internal.Array as A
-import Data.HashMap.Internal (HashMap(..))
-import qualified Data.HashMap.Internal as HM
+import Data.HashMap.Internal (HashMap (..))
 import Data.Semigroup
+
+import qualified Data.HashMap.Internal       as HM
+import qualified Data.HashMap.Internal.Array as A
 
 data Histogram = H {
       empty         :: !Int
