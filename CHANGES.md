@@ -8,6 +8,14 @@
 
 * [Expose internal constructors for `HashSet`, `Array` and `MArray`](https://github.com/haskell-unordered-containers/unordered-containers/pull/347)
 
+* [Tweak internal `Array.insertM` function](https://github.com/haskell-unordered-containers/unordered-containers/pull/359)
+
+* [Drop support for GHC 8.0](https://github.com/haskell-unordered-containers/unordered-containers/pull/354)
+
+* [Drop support for `hashable < 1.2.5`](https://github.com/haskell-unordered-containers/unordered-containers/pull/355)
+
+* Various cleanup and documentation improvements
+
 [0.2.17.0]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.16.0...v0.2.17.0
 
 ## [0.2.16.0]

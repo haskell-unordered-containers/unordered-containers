@@ -489,6 +489,7 @@ fromList' n xs0 =
     go (!x:xs) mary i = do write mary i x
                            go xs mary (i+1)
 
+-- | @since 0.2.17.0
 instance TH.Lift a => TH.Lift (Array a) where
 #if MIN_VERSION_template_haskell(2,16,0)
   liftTyped ar = [|| fromList' arlen arlist ||]
