@@ -2,8 +2,8 @@ module Main (main) where
 
 import Test.Tasty (defaultMain, testGroup)
 
-import qualified Regressions
 import qualified Properties
+import qualified Regressions
 import qualified Strictness
 
 main :: IO ()

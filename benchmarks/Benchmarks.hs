@@ -1,25 +1,30 @@
-{-# LANGUAGE CPP, DeriveAnyClass, DeriveGeneric, GADTs, PackageImports, RecordWildCards #-}
+{-# LANGUAGE CPP             #-}
+{-# LANGUAGE DeriveAnyClass  #-}
+{-# LANGUAGE DeriveGeneric   #-}
+{-# LANGUAGE GADTs           #-}
+{-# LANGUAGE PackageImports  #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Main where
 
-import Control.DeepSeq
-import Data.Bits ((.&.))
-import Data.Functor.Identity
-import Data.Hashable (Hashable, hash)
-import qualified Data.ByteString as BS
-import qualified "hashmap" Data.HashMap as IHM
-import qualified Data.HashMap.Strict as HM
-import qualified Data.IntMap as IM
-import qualified Data.Map as M
-import Data.List (foldl')
-import Data.Maybe (fromMaybe)
-import GHC.Generics (Generic)
-import Prelude hiding (lookup)
-import Test.Tasty.Bench (bench, bgroup, defaultMain, env, nf, whnf)
+import Control.DeepSeq       (NFData (..))
+import Data.Bits             ((.&.))
+import Data.Functor.Identity (Identity (..))
+import Data.Hashable         (Hashable, hash)
+import Data.List             (foldl')
+import Data.Maybe            (fromMaybe)
+import GHC.Generics          (Generic)
+import Prelude               hiding (lookup)
+import Test.Tasty.Bench      (bench, bgroup, defaultMain, env, nf, whnf)
 
-import qualified Util.ByteString as UBS
-import qualified Util.Int as UI
-import qualified Util.String as US
+import qualified Data.ByteString        as BS
+import qualified "hashmap" Data.HashMap as IHM
+import qualified Data.HashMap.Strict    as HM
+import qualified Data.IntMap            as IM
+import qualified Data.Map               as M
+import qualified Util.ByteString        as UBS
+import qualified Util.Int               as UI
+import qualified Util.String            as US
 
 data B where
     B :: NFData a => a -> B

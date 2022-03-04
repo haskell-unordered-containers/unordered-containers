@@ -1,38 +1,44 @@
-{-# LANGUAGE CPP, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
 
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
 -- comparing them to @Map@ from @containers@.
 
 #if defined(STRICT)
-module Properties.HashMapStrict (tests) where
+#define MODULE_NAME Properties.HashMapStrict
 #else
-module Properties.HashMapLazy (tests) where
+#define MODULE_NAME Properties.HashMapLazy
 #endif
 
-import Control.Monad ( guard )
-import qualified Data.Foldable as Foldable
+module MODULE_NAME (tests) where
+
+import Control.Applicative      (Const (..))
+import Control.Monad            (guard)
 import Data.Bifoldable
-import Data.Function (on)
-import Data.Hashable (Hashable(hashWithSalt))
-import qualified Data.List as L
-import Data.Ord (comparing)
-#if defined(STRICT)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Map.Strict as M
-#else
-import Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as HM
-import qualified Data.Map.Lazy as M
-#endif
-import Test.QuickCheck (Arbitrary(..), Property, (==>), (===), forAll, elements)
-import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.QuickCheck (testProperty)
-import Data.Functor.Identity (Identity (..))
-import Control.Applicative (Const (..))
+import Data.Function            (on)
+import Data.Functor.Identity    (Identity (..))
+import Data.Hashable            (Hashable (hashWithSalt))
+import Data.Ord                 (comparing)
+import Test.QuickCheck          (Arbitrary (..), Property, elements, forAll,
+                                 (===), (==>))
 import Test.QuickCheck.Function (Fun, apply)
-import Test.QuickCheck.Poly (A, B)
+import Test.QuickCheck.Poly     (A, B)
+import Test.Tasty               (TestTree, testGroup)
+import Test.Tasty.QuickCheck    (testProperty)
+
+import qualified Data.Foldable as Foldable
+import qualified Data.List     as List
+
+#if defined(STRICT)
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Map.Strict     as M
+#else
+import           Data.HashMap.Lazy (HashMap)
+import qualified Data.HashMap.Lazy as HM
+import qualified Data.Map.Lazy     as M
+#endif
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
@@ -102,22 +108,22 @@ pFunctor :: [(Key, Int)] -> Bool
 pFunctor = fmap (+ 1) `eq_` fmap (+ 1)
 
 pFoldable :: [(Int, Int)] -> Bool
-pFoldable = (L.sort . Foldable.foldr (:) []) `eq`
-            (L.sort . Foldable.foldr (:) [])
+pFoldable = (List.sort . Foldable.foldr (:) []) `eq`
+            (List.sort . Foldable.foldr (:) [])
 
 pHashable :: [(Key, Int)] -> [Int] -> Int -> Property
 pHashable xs is salt =
     x == y ==> hashWithSalt salt x === hashWithSalt salt y
   where
-    xs' = L.nubBy (\(k,_) (k',_) -> k == k') xs
+    xs' = List.nubBy (\(k,_) (k',_) -> k == k') xs
     ys = shuffle is xs'
     x = HM.fromList xs'
     y = HM.fromList ys
     -- Shuffle the list using indexes in the second
     shuffle :: [Int] -> [a] -> [a]
-    shuffle idxs = L.map snd
-                 . L.sortBy (comparing fst)
-                 . L.zip (idxs ++ [L.maximum (0:is) + 1 ..])
+    shuffle idxs = List.map snd
+                 . List.sortBy (comparing fst)
+                 . List.zip (idxs ++ [List.maximum (0:is) + 1 ..])
 
 ------------------------------------------------------------------------
 -- ** Basic interface
@@ -292,8 +298,8 @@ pMap = M.map (+ 1) `eq_` HM.map (+ 1)
 
 pTraverse :: [(Key, Int)] -> Bool
 pTraverse xs =
-  L.sort (fmap (L.sort . M.toList) (M.traverseWithKey (\_ v -> [v + 1, v + 2]) (M.fromList (take 10 xs))))
-     == L.sort (fmap (L.sort . HM.toList) (HM.traverseWithKey (\_ v -> [v + 1, v + 2]) (HM.fromList (take 10 xs))))
+  List.sort (fmap (List.sort . M.toList) (M.traverseWithKey (\_ v -> [v + 1, v + 2]) (M.fromList (take 10 xs))))
+     == List.sort (fmap (List.sort . HM.toList) (HM.traverseWithKey (\_ v -> [v + 1, v + 2]) (HM.fromList (take 10 xs))))
 
 pMapKeys :: [(Int, Int)] -> Bool
 pMapKeys = M.mapKeys (+1) `eq_` HM.mapKeys (+1)
@@ -330,10 +336,10 @@ pIntersectionWithKey xs ys = M.intersectionWithKey go (M.fromList xs) `eq_`
 -- ** Folds
 
 pFoldr :: [(Int, Int)] -> Bool
-pFoldr = (L.sort . M.foldr (:) []) `eq` (L.sort . HM.foldr (:) [])
+pFoldr = (List.sort . M.foldr (:) []) `eq` (List.sort . HM.foldr (:) [])
 
 pFoldl :: [(Int, Int)] -> Bool
-pFoldl = (L.sort . M.foldl (flip (:)) []) `eq` (L.sort . HM.foldl (flip (:)) [])
+pFoldl = (List.sort . M.foldl (flip (:)) []) `eq` (List.sort . HM.foldl (flip (:)) [])
 
 pBifoldMap :: [(Int, Int)] -> Bool
 pBifoldMap xs = concatMap f (HM.toList m) == bifoldMap (:[]) (:[]) m
@@ -376,10 +382,10 @@ pFoldlWithKey' = (sortByKey . M.foldlWithKey' f []) `eq`
   where f z k v = (k, v) : z
 
 pFoldl' :: [(Int, Int)] -> Bool
-pFoldl' = (L.sort . M.foldl' (flip (:)) []) `eq` (L.sort . HM.foldl' (flip (:)) [])
+pFoldl' = (List.sort . M.foldl' (flip (:)) []) `eq` (List.sort . HM.foldl' (flip (:)) [])
 
 pFoldr' :: [(Int, Int)] -> Bool
-pFoldr' = (L.sort . M.foldr' (:) []) `eq` (L.sort . HM.foldr' (:) [])
+pFoldr' = (List.sort . M.foldr' (:) []) `eq` (List.sort . HM.foldr' (:) [])
 
 ------------------------------------------------------------------------
 -- ** Filter
@@ -432,10 +438,10 @@ pToList :: [(Key, Int)] -> Bool
 pToList = M.toAscList `eq` toAscList
 
 pElems :: [(Key, Int)] -> Bool
-pElems = (L.sort . M.elems) `eq` (L.sort . HM.elems)
+pElems = (List.sort . M.elems) `eq` (List.sort . HM.elems)
 
 pKeys :: [(Key, Int)] -> Bool
-pKeys = (L.sort . M.keys) `eq` (L.sort . HM.keys)
+pKeys = (List.sort . M.keys) `eq` (List.sort . HM.keys)
 
 ------------------------------------------------------------------------
 -- * Test list
@@ -579,7 +585,7 @@ infix 4 `eq_`
 -- * Helpers
 
 sortByKey :: Ord k => [(k, v)] -> [(k, v)]
-sortByKey = L.sortBy (compare `on` fst)
+sortByKey = List.sortBy (compare `on` fst)
 
 toAscList :: Ord k => HM.HashMap k v -> [(k, v)]
-toAscList = L.sortBy (compare `on` fst) . HM.toList
+toAscList = List.sortBy (compare `on` fst) . HM.toList

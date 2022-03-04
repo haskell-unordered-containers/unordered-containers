@@ -1,21 +1,24 @@
-{-# LANGUAGE CPP, FlexibleInstances, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Strictness (tests) where
 
-import Data.Hashable (Hashable(hashWithSalt))
+import Control.Arrow                (second)
+import Control.Monad                (guard)
+import Data.Foldable                (foldl')
+import Data.HashMap.Strict          (HashMap)
+import Data.Hashable                (Hashable (hashWithSalt))
+import Data.Maybe                   (fromMaybe, isJust)
 import Test.ChasingBottoms.IsBottom
-import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.QuickCheck (testProperty)
-import Test.QuickCheck (Arbitrary(arbitrary), Property, (===), (.&&.))
+import Test.QuickCheck              (Arbitrary (arbitrary), Property, (.&&.),
+                                     (===))
 import Test.QuickCheck.Function
-import Test.QuickCheck.Poly (A)
-import Data.Maybe (fromMaybe, isJust)
-import Control.Arrow (second)
-import Control.Monad (guard)
-import Data.Foldable (foldl')
+import Test.QuickCheck.Poly         (A)
+import Test.Tasty                   (TestTree, testGroup)
+import Test.Tasty.QuickCheck        (testProperty)
 
-import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 
 -- Key type that generates more hash collisions.

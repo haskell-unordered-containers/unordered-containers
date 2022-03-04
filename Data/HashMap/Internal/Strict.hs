@@ -1,5 +1,9 @@
-{-# LANGUAGE BangPatterns, CPP, PatternGuards, MagicHash, UnboxedTuples #-}
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE BangPatterns  #-}
+{-# LANGUAGE CPP           #-}
+{-# LANGUAGE MagicHash     #-}
+{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE Trustworthy   #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
 ------------------------------------------------------------------------
@@ -117,24 +121,23 @@ module Data.HashMap.Internal.Strict
     , fromListWithKey
     ) where
 
-import Control.Monad.ST (runST)
-import Data.Bits ((.&.), (.|.))
+import Control.Applicative   (Const (..))
+import Control.Monad.ST      (runST)
+import Data.Bits             ((.&.), (.|.))
+import Data.Coerce           (coerce)
+import Data.Functor.Identity (Identity (..))
+import Data.HashMap.Internal hiding (adjust, alter, alterF, differenceWith,
+                              fromList, fromListWith, fromListWithKey, insert,
+                              insertWith, intersectionWith, intersectionWithKey,
+                              map, mapMaybe, mapMaybeWithKey, mapWithKey,
+                              singleton, traverseWithKey, unionWith,
+                              unionWithKey, update)
+import Data.Hashable         (Hashable)
+import Prelude               hiding (lookup, map)
 
-import qualified Data.List as L
-import Data.Hashable (Hashable)
-import Prelude hiding (map, lookup)
-
+import qualified Data.HashMap.Internal       as HM
 import qualified Data.HashMap.Internal.Array as A
-import qualified Data.HashMap.Internal as HM
-import Data.HashMap.Internal hiding (
-    alter, alterF, adjust, fromList, fromListWith, fromListWithKey,
-    insert, insertWith,
-    differenceWith, intersectionWith, intersectionWithKey, map, mapWithKey,
-    mapMaybe, mapMaybeWithKey, singleton, update, unionWith, unionWithKey,
-    traverseWithKey)
-import Data.Functor.Identity
-import Control.Applicative (Const (..))
-import Data.Coerce
+import qualified Data.List                   as List
 
 -- $strictness
 --
@@ -627,7 +630,7 @@ intersectionWithKey f a b = foldlWithKey' go empty a
 -- list contains duplicate mappings, the later mappings take
 -- precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
-fromList = L.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) empty
+fromList = List.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) empty
 {-# INLINABLE fromList #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
@@ -661,7 +664,7 @@ fromList = L.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) empty
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
+fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 {-# INLINE fromListWith #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
@@ -691,7 +694,7 @@ fromListWith f = L.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 --
 -- @since 0.2.11
 fromListWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWithKey f = L.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) empty
+fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) empty
 {-# INLINE fromListWithKey #-}
 
 ------------------------------------------------------------------------
