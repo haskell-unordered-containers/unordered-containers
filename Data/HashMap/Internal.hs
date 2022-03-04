@@ -452,7 +452,7 @@ cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
 
     leafCompare (L k v) (L k' v') = cmpk k k' `mappend` cmpv v v'
 
--- Same as 'equal' but doesn't compare the values.
+-- Same as 'equal2' but doesn't compare the values.
 equalKeys1 :: (k -> k' -> Bool) -> HashMap k v -> HashMap k' v' -> Bool
 equalKeys1 eq t1 t2 = go (toList' t1 []) (toList' t2 [])
   where
