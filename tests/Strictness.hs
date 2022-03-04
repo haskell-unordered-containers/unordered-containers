@@ -48,7 +48,7 @@ pSingletonKeyStrict :: Int -> Bool
 pSingletonKeyStrict v = isBottom $ HM.singleton (bottom :: Key) v
 
 pSingletonValueStrict :: Key -> Bool
-pSingletonValueStrict k = isBottom $ (HM.singleton k (bottom :: Int))
+pSingletonValueStrict k = isBottom $ HM.singleton k (bottom :: Int)
 
 pLookupDefaultKeyStrict :: Int -> HashMap Key Int -> Bool
 pLookupDefaultKeyStrict def m = isBottom $ HM.lookupDefault def bottom m

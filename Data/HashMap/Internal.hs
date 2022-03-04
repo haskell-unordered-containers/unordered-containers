@@ -194,7 +194,7 @@ instance (TH.Lift k, TH.Lift v) => TH.Lift (Leaf k v) where
 
 -- | @since 0.2.14.0
 instance NFData k => NFData1 (Leaf k) where
-    liftRnf rnf2 = liftRnf2 rnf rnf2
+    liftRnf = liftRnf2 rnf
 
 -- | @since 0.2.14.0
 instance NFData2 Leaf where
@@ -226,7 +226,7 @@ instance (NFData k, NFData v) => NFData (HashMap k v) where
 
 -- | @since 0.2.14.0
 instance NFData k => NFData1 (HashMap k) where
-    liftRnf rnf2 = liftRnf2 rnf rnf2
+    liftRnf = liftRnf2 rnf
 
 -- | @since 0.2.14.0
 instance NFData2 HashMap where
@@ -334,8 +334,7 @@ instance (Eq k, Hashable k, Read k) => Read1 (HashMap k) where
 instance (Eq k, Hashable k, Read k, Read e) => Read (HashMap k e) where
     readPrec = parens $ prec 10 $ do
       Ident "fromList" <- lexP
-      xs <- readPrec
-      return (fromList xs)
+      fromList <$> readPrec
 
     readListPrec = readListPrecDefault
 
@@ -508,7 +507,7 @@ instance (Hashable k) => Hashable1 (HashMap k) where
     liftHashWithSalt = H.liftHashWithSalt2 H.hashWithSalt
 
 instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
-    hashWithSalt salt hm = go salt hm
+    hashWithSalt = go
       where
         go :: Int -> HashMap k v -> Int
         go s Empty = s
@@ -717,7 +716,7 @@ findWithDefault def k t = case lookup k t of
 lookupDefault :: (Eq k, Hashable k)
               => v          -- ^ Default value to return.
               -> k -> HashMap k v -> v
-lookupDefault def k t = findWithDefault def k t
+lookupDefault = findWithDefault
 {-# INLINE lookupDefault #-}
 
 -- | /O(log n)/ Return the value to which the specified key is mapped.
@@ -968,7 +967,7 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
         | hy == h = if ky == k
                     then case f y of
                       (# v' #) | ptrEq y v' -> t
-                               | otherwise -> Leaf h (L k (v'))
+                               | otherwise -> Leaf h (L k v')
                     else collision h l (L k x)
         | otherwise = runST (two s h k x hy t)
     go h k s t@(BitmapIndexed b ary)
@@ -1264,10 +1263,9 @@ alterF f = \ !k !m ->
   let
     !h = hash k
     mv = lookup' h k m
-  in (<$> f mv) $ \fres ->
-    case fres of
-      Nothing -> maybe m (const (delete' h k m)) mv
-      Just v' -> insert' h k v' m
+  in (<$> f mv) $ \case
+    Nothing -> maybe m (const (delete' h k m)) mv
+    Just v' -> insert' h k v' m
 
 -- We unconditionally rewrite alterF in RULES, but we expose an
 -- unfolding just in case it's used in some way that prevents the
@@ -1356,8 +1354,7 @@ alterFWeird _ _ f = alterFEager f
 -- eagerly, whether or not the given function requires that information.
 alterFEager :: (Functor f, Eq k, Hashable k)
        => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
-alterFEager f !k m = (<$> f mv) $ \fres ->
-  case fres of
+alterFEager f !k m = (<$> f mv) $ \case
 
     ------------------------------
     -- Delete the key from the map.
@@ -1407,7 +1404,7 @@ alterFEager f !k m = (<$> f mv) $ \fres ->
 --
 -- @since 0.2.12
 isSubmapOf :: (Eq k, Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
-isSubmapOf = (Exts.inline isSubmapOfBy) (==)
+isSubmapOf = Exts.inline isSubmapOfBy (==)
 {-# INLINABLE isSubmapOf #-}
 
 -- | /O(n*log m)/ Inclusion of maps with value comparison. A map is included in
@@ -1634,10 +1631,10 @@ unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
                 go (i+1) (i1+1) (i2+1) (m `unsafeShiftL` 1)
             | b1 .&. m /= 0 = do
                 A.write mary i =<< A.indexM ary1 i1
-                go (i+1) (i1+1) (i2  ) (m `unsafeShiftL` 1)
+                go (i+1) (i1+1)  i2    (m `unsafeShiftL` 1)
             | otherwise     = do
                 A.write mary i =<< A.indexM ary2 i2
-                go (i+1) (i1  ) (i2+1) (m `unsafeShiftL` 1)
+                go (i+1)  i1    (i2+1) (m `unsafeShiftL` 1)
     go 0 0 0 (b' .&. negate b') -- XXX: b' must be non-zero
     return mary
     -- TODO: For the case where b1 .&. b2 == b1, i.e. when one is a
@@ -2268,7 +2265,7 @@ mask w s = 1 `unsafeShiftL` index w s
 -- | Mask out the 'bitsPerSubkey' bits used for indexing at this level
 -- of the tree.
 index :: Hash -> Shift -> Int
-index w s = fromIntegral $ (unsafeShiftR w s) .&. subkeyMask
+index w s = fromIntegral $ unsafeShiftR w s .&. subkeyMask
 {-# INLINE index #-}
 
 -- | A bitmask with the 'bitsPerSubkey' least significant bits set.
