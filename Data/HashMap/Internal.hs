@@ -395,7 +395,7 @@ equal1 eq = go
 
 equal2 :: (k -> k' -> Bool) -> (v -> v' -> Bool)
       -> HashMap k v -> HashMap k' v' -> Bool
-equal2 eqk eqv t1 t2 = go (toList' t1 []) (toList' t2 [])
+equal2 eqk eqv t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
   where
     -- If the two trees are the same, then their lists of 'Leaf's and
     -- 'Collision's read from left to right should be the same (modulo the
@@ -429,7 +429,7 @@ instance (Ord k, Ord v) => Ord (HashMap k v) where
 
 cmp :: (k -> k' -> Ordering) -> (v -> v' -> Ordering)
     -> HashMap k v -> HashMap k' v' -> Ordering
-cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
+cmp cmpk cmpv t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
   where
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
       = compare k1 k2 `mappend`
@@ -445,13 +445,13 @@ cmp cmpk cmpv t1 t2 = go (toList' t1 []) (toList' t2 [])
     go [] [] = EQ
     go [] _  = LT
     go _  [] = GT
-    go _ _ = error "cmp: Should never happen, toList' includes non Leaf / Collision"
+    go _ _ = error "cmp: Should never happen, leavesAndCollisions includes non Leaf / Collision"
 
     leafCompare (L k v) (L k' v') = cmpk k k' `mappend` cmpv v v'
 
 -- Same as 'equal2' but doesn't compare the values.
 equalKeys1 :: (k -> k' -> Bool) -> HashMap k v -> HashMap k' v' -> Bool
-equalKeys1 eq t1 t2 = go (toList' t1 []) (toList' t2 [])
+equalKeys1 eq t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
   where
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
       | k1 == k2 && leafEq l1 l2
@@ -482,7 +482,7 @@ equalKeys = go
     leafEq (L k1 _) (L k2 _) = k1 == k2
 
 instance Hashable2 HashMap where
-    liftHashWithSalt2 hk hv salt hm = go salt (toList' hm [])
+    liftHashWithSalt2 hk hv salt hm = go salt (leavesAndCollisions hm [])
       where
         -- go :: Int -> [HashMap k v] -> Int
         go s [] = s
@@ -531,15 +531,15 @@ instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
         arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
         arrayHashesSorted s = List.sort . List.map (hashLeafWithSalt s) . A.toList
 
-  -- Helper to get 'Leaf's and 'Collision's as a list.
-toList' :: HashMap k v -> [HashMap k v] -> [HashMap k v]
-toList' (BitmapIndexed _ ary) a = A.foldr toList' a ary
-toList' (Full ary)            a = A.foldr toList' a ary
-toList' l@(Leaf _ _)          a = l : a
-toList' c@(Collision _ _)     a = c : a
-toList' Empty                 a = a
+-- | Helper to get 'Leaf's and 'Collision's as a list.
+leavesAndCollisions :: HashMap k v -> [HashMap k v] -> [HashMap k v]
+leavesAndCollisions (BitmapIndexed _ ary) a = A.foldr leavesAndCollisions a ary
+leavesAndCollisions (Full ary)            a = A.foldr leavesAndCollisions a ary
+leavesAndCollisions l@(Leaf _ _)          a = l : a
+leavesAndCollisions c@(Collision _ _)     a = c : a
+leavesAndCollisions Empty                 a = a
 
--- Helper function to detect 'Leaf's and 'Collision's.
+-- | Helper function to detect 'Leaf's and 'Collision's.
 isLeafOrCollision :: HashMap k v -> Bool
 isLeafOrCollision (Leaf _ _)      = True
 isLeafOrCollision (Collision _ _) = True
