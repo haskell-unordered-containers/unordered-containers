@@ -595,8 +595,8 @@ differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> Ha
 differenceWith f a b = foldlWithKey' go empty a
   where
     go m k v = case HM.lookup k b of
-                 Nothing -> insert k v m
-                 Just w  -> maybe m (\y -> insert k y m) (f v w)
+                 Nothing -> v `seq` unsafeInsert k v m
+                 Just w  -> maybe m (\ !y -> unsafeInsert k y m) (f v w)
 {-# INLINABLE differenceWith #-}
 
 -- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
@@ -607,7 +607,7 @@ intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
 intersectionWith f a b = foldlWithKey' go empty a
   where
     go m k v = case HM.lookup k b of
-                 Just w -> insert k (f v w) m
+                 Just w -> let !x = f v w in unsafeInsert k x m
                  _      -> m
 {-# INLINABLE intersectionWith #-}
 
@@ -619,7 +619,7 @@ intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3)
 intersectionWithKey f a b = foldlWithKey' go empty a
   where
     go m k v = case HM.lookup k b of
-                 Just w -> insert k (f k v w) m
+                 Just w -> let !x = f k v w in unsafeInsert k x m
                  _      -> m
 {-# INLINABLE intersectionWithKey #-}
 
