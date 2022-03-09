@@ -507,7 +507,7 @@ instance (Hashable k) => Hashable1 (HashMap k) where
     liftHashWithSalt = H.liftHashWithSalt2 H.hashWithSalt
 
 instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
-    hashWithSalt = go
+    hashWithSalt salt hm = go salt hm
       where
         go :: Int -> HashMap k v -> Int
         go s Empty = s
