@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns  #-}
 {-# LANGUAGE CPP           #-}
+{-# LANGUAGE LambdaCase    #-}
 {-# LANGUAGE MagicHash     #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE Trustworthy   #-}
@@ -181,7 +182,7 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then leaf h k (f x y)
-                    else x `seq` (collision h l (L k x))
+                    else x `seq` collision h l (L k x)
         | otherwise = x `seq` runST (two s h k x hy t)
     go h k x s (BitmapIndexed b ary)
         | b .&. m == 0 =
@@ -221,7 +222,7 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | hy == h = if ky == k
                     then return $! leaf h k (f k x y)
                     else do
-                        let l' = x `seq` (L k x)
+                        let l' = x `seq` L k x
                         return $! collision h l l'
         | otherwise = x `seq` two s h k x hy t
     go h k x s t@(BitmapIndexed b ary)
@@ -316,10 +317,9 @@ alterF :: (Functor f, Eq k, Hashable k)
 alterF f = \ !k !m ->
   let !h = hash k
       mv = lookup' h k m
-  in (<$> f mv) $ \fres ->
-    case fres of
-      Nothing -> maybe m (const (delete' h k m)) mv
-      Just !v' -> insert' h k v' m
+  in (<$> f mv) $ \case
+    Nothing -> maybe m (const (delete' h k m)) mv
+    Just !v' -> insert' h k v' m
 
 -- We rewrite this function unconditionally in RULES, but we expose
 -- an unfolding just in case it's used in a context where the rules
@@ -734,7 +734,7 @@ updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
             -- Not found, append to the end.
             mary <- A.new_ (n + 1)
             A.copy ary 0 mary 0 n
-            let !l = v `seq` (L k v)
+            let !l = v `seq` L k v
             A.write mary n l
             return mary
         | otherwise = case A.index ary i of

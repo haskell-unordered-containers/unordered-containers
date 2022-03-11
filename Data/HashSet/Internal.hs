@@ -214,8 +214,7 @@ instance (Hashable a, Eq a) => Monoid (HashSet a) where
 instance (Eq a, Hashable a, Read a) => Read (HashSet a) where
     readPrec = parens $ prec 10 $ do
       Ident "fromList" <- lexP
-      xs <- readPrec
-      return (fromList xs)
+      fromList <$> readPrec
 
     readListPrec = readListPrecDefault
 
@@ -442,7 +441,7 @@ filter p = HashSet . H.filterWithKey q . asMap
 -- | /O(n)/ Return a list of this set's elements.  The list is
 -- produced lazily.
 toList :: HashSet a -> [a]
-toList t = Exts.build (\ c z -> foldrWithKey ((const .) c) z (asMap t))
+toList t = Exts.build (\ c z -> foldrWithKey (const . c) z (asMap t))
 {-# INLINE toList #-}
 
 -- | /O(n*min(W, n))/ Construct a set from a list of elements.
