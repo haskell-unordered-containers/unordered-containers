@@ -1615,7 +1615,7 @@ unionWithKey f = go 0
 -- | Strict in the result of @f@.
 unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.Array a -> A.Array a
              -> A.Array a
-unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
+unionArrayBy f !b1 !b2 !ary1 !ary2 = A.run $ do
     let b' = b1 .|. b2
     mary <- A.new_ (popCount b')
     -- iterate over nonzero bits of b1 .|. b2
