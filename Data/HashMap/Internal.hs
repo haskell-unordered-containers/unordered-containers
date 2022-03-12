@@ -740,7 +740,7 @@ collision h !e1 !e2 =
 
 -- | Create a 'BitmapIndexed' or 'Full' node.
 bitmapIndexedOrFull :: Bitmap -> A.Array (HashMap k v) -> HashMap k v
-bitmapIndexedOrFull b ary
+bitmapIndexedOrFull b !ary
     | b == fullNodeMask = Full ary
     | otherwise         = BitmapIndexed b ary
 {-# INLINE bitmapIndexedOrFull #-}
