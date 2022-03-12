@@ -442,9 +442,10 @@ map f = \ ary ->
     in run $ do
         mary <- new_ n
         go ary mary 0 n
+        return mary
   where
     go ary mary i n
-        | i >= n    = return mary
+        | i >= n    = return ()
         | otherwise = do
              x <- indexM ary i
              write mary i $ f x
@@ -458,9 +459,10 @@ map' f = \ ary ->
     in run $ do
         mary <- new_ n
         go ary mary 0 n
+        return mary
   where
     go ary mary i n
-        | i >= n    = return mary
+        | i >= n    = return ()
         | otherwise = do
              x <- indexM ary i
              write mary i $! f x
@@ -473,10 +475,11 @@ fromList n xs0 =
         run $ do
             mary <- new_ n
             go xs0 mary 0
+            return mary
   where
-    go [] !mary !_   = return mary
-    go (x:xs) mary i = do write mary i x
-                          go xs mary (i+1)
+    go []     !_   !_ = return ()
+    go (x:xs) mary i  = do write mary i x
+                           go xs mary (i+1)
 
 fromList' :: Int -> [a] -> Array a
 fromList' n xs0 =
@@ -484,10 +487,11 @@ fromList' n xs0 =
         run $ do
             mary <- new_ n
             go xs0 mary 0
+            return mary
   where
-    go [] !mary !_   = return mary
-    go (!x:xs) mary i = do write mary i x
-                           go xs mary (i+1)
+    go []      !_   !_ = return ()
+    go (!x:xs) mary i  = do write mary i x
+                            go xs mary (i+1)
 
 -- | @since 0.2.17.0
 instance TH.Lift a => TH.Lift (Array a) where
