@@ -740,6 +740,9 @@ collision h !e1 !e2 =
 
 -- | Create a 'BitmapIndexed' or 'Full' node.
 bitmapIndexedOrFull :: Bitmap -> A.Array (HashMap k v) -> HashMap k v
+-- The strictness in @ary@ helps achieve a nice code size reduction in
+-- @unionWith[Key]@. See the Core diffs in
+-- https://github.com/haskell-unordered-containers/unordered-containers/pull/230.
 bitmapIndexedOrFull b !ary
     | b == fullNodeMask = Full ary
     | otherwise         = BitmapIndexed b ary
