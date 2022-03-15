@@ -740,7 +740,10 @@ collision h !e1 !e2 =
 
 -- | Create a 'BitmapIndexed' or 'Full' node.
 bitmapIndexedOrFull :: Bitmap -> A.Array (HashMap k v) -> HashMap k v
-bitmapIndexedOrFull b ary
+-- The strictness in @ary@ helps achieve a nice code size reduction in
+-- @unionWith[Key]@ with GHC 9.2.2. See the Core diffs in
+-- https://github.com/haskell-unordered-containers/unordered-containers/pull/376.
+bitmapIndexedOrFull b !ary
     | b == fullNodeMask = Full ary
     | otherwise         = BitmapIndexed b ary
 {-# INLINE bitmapIndexedOrFull #-}
@@ -1615,7 +1618,10 @@ unionWithKey f = go 0
 -- | Strict in the result of @f@.
 unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.Array a -> A.Array a
              -> A.Array a
-unionArrayBy f b1 b2 ary1 ary2 = A.run $ do
+-- The manual forcing of @b1@, @b2@, @ary1@ and @ary2@ results in handsome
+-- Core size reductions with GHC 9.2.2. See the Core diffs in
+-- https://github.com/haskell-unordered-containers/unordered-containers/pull/376.
+unionArrayBy f !b1 !b2 !ary1 !ary2 = A.run $ do
     let b' = b1 .|. b2
     mary <- A.new_ (popCount b')
     -- iterate over nonzero bits of b1 .|. b2
