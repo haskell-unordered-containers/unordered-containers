@@ -144,21 +144,45 @@ issue379Union = do
   mThunkInfo <- noThunksInValues mempty (Foldable.toList u)
   assert $ isNothing mThunkInfo
 
-issue379UnionWith :: Assertion
-issue379UnionWith = do
+issue379StrictUnionWith :: Assertion
+issue379StrictUnionWith = do
   let m0 = HMS.fromList [(KC 1, 10), (KC 2, 20 :: Int)]
   let m1 = HMS.fromList [(KC 2, 20), (KC 3, 30)]
   let u = HMS.unionWith (+) m0 m1
   mThunkInfo <- noThunksInValues mempty (Foldable.toList u)
   assert $ isNothing mThunkInfo
 
-issue379UnionWithKey :: Assertion
-issue379UnionWithKey = do
+issue379StrictUnionWithKey :: Assertion
+issue379StrictUnionWithKey = do
   let m0 = HMS.fromList [(KC 1, 10), (KC 2, 20 :: Int)]
   let m1 = HMS.fromList [(KC 2, 20), (KC 3, 30)]
   let u = HMS.unionWithKey (\(KC i) v0 v1 -> i + v0 + v1) m0 m1
   mThunkInfo <- noThunksInValues mempty (Foldable.toList u)
   assert $ isNothing mThunkInfo
+
+-- Another key type that always collides.
+--
+-- Note (sjakobi): The KC newtype somehow can't be used to demonstrate the
+-- space leak in issue379LazyUnionWith.
+newtype SC = SC String
+  deriving (Eq, Ord, Show)
+instance Hashable SC where
+  hashWithSalt salt _ = salt
+
+issue379LazyUnionWith :: Assertion
+issue379LazyUnionWith = do
+  i :: Int <- randomIO
+  let k = SC (show i)
+  weakK <- mkWeakPtr k Nothing -- add the ability to test whether k is alive
+  let f :: Int -> Int
+      f x = error ("Should not be evaluated " ++ show x)
+  let m = HML.fromList [(SC "1", f 1), (SC "2", f 2), (k, f 3)]
+  let u = HML.unionWith (+) m m
+  Just v <- evaluate $ HML.lookup k u
+  performGC
+  res <- deRefWeak weakK -- gives Just if k is still alive
+  touch v -- makes sure that we didn't GC away the combined value
+  assert $ isNothing res
 
 #endif
 
@@ -176,8 +200,9 @@ tests = testGroup "Regression tests"
 #if MIN_VERSION_base(4,12,0)
     , testGroup "issue379"
           [ testCase "union" issue379Union
-          , testCase "unionWith" issue379UnionWith
-          , testCase "unionWithKey" issue379UnionWithKey
+          , testCase "Strict.unionWith" issue379StrictUnionWith
+          , testCase "Strict.unionWithKey" issue379StrictUnionWithKey
+          , testCase "Lazy.unionWith" issue379LazyUnionWith
           ]
 #endif
     ]
