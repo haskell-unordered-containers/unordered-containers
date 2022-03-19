@@ -10,6 +10,7 @@ import Data.List             (delete)
 import Data.Maybe            (isJust, isNothing)
 import GHC.Exts              (touch#)
 import GHC.IO                (IO (..))
+import NoThunks.Class        (noThunksInValues)
 import System.Mem            (performGC)
 import System.Mem.Weak       (deRefWeak, mkWeakPtr)
 import System.Random         (randomIO)
@@ -19,6 +20,7 @@ import Test.Tasty            (TestTree, testGroup)
 import Test.Tasty.HUnit      (testCase)
 import Test.Tasty.QuickCheck (testProperty)
 
+import qualified Data.Foldable       as Foldable
 import qualified Data.HashMap.Lazy   as HML
 import qualified Data.HashMap.Strict as HMS
 
@@ -125,6 +127,17 @@ issue254Strict = do
   assert $ isNothing res
 
 ------------------------------------------------------------------------
+-- Issue #379
+
+issue379Union :: Assertion
+issue379Union = do
+  let m0 = HMS.fromList [(KC 1, ()), (KC 2, ())]
+  let m1 = HMS.fromList [(KC 2, ()), (KC 3, ())]
+  let u = m0 `HMS.union` m1
+  mThunkInfo <- noThunksInValues mempty (Foldable.toList u)
+  assert $ isNothing mThunkInfo
+
+------------------------------------------------------------------------
 -- * Test list
 
 tests :: TestTree
@@ -135,4 +148,5 @@ tests = testGroup "Regression tests"
     , testProperty "issue39b" propEqAfterDelete
     , testCase "issue254 lazy" issue254Lazy
     , testCase "issue254 strict" issue254Strict
+    , testCase "issue379Union" issue379Union
     ]
