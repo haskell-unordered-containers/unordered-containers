@@ -162,8 +162,8 @@ issue379StrictUnionWithKey = do
 
 -- Another key type that always collides.
 --
--- Note (sjakobi): The KC newtype somehow can't be used to demonstrate the
--- space leak in issue379LazyUnionWith.
+-- Note (sjakobi): The KC newtype of Int somehow can't be used to demonstrate
+-- the space leak in issue379LazyUnionWith. This type does the trick.
 newtype SC = SC String
   deriving (Eq, Ord, Show)
 instance Hashable SC where
