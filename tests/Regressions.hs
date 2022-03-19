@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnboxedTuples       #-}
@@ -10,7 +11,6 @@ import Data.List             (delete)
 import Data.Maybe            (isJust, isNothing)
 import GHC.Exts              (touch#)
 import GHC.IO                (IO (..))
-import NoThunks.Class        (noThunksInValues)
 import System.Mem            (performGC)
 import System.Mem.Weak       (deRefWeak, mkWeakPtr)
 import System.Random         (randomIO)
@@ -20,9 +20,14 @@ import Test.Tasty            (TestTree, testGroup)
 import Test.Tasty.HUnit      (testCase)
 import Test.Tasty.QuickCheck (testProperty)
 
-import qualified Data.Foldable       as Foldable
 import qualified Data.HashMap.Lazy   as HML
 import qualified Data.HashMap.Strict as HMS
+
+#if MIN_VERSION_base(4,12,0)
+-- nothunks requires base >= 4.12
+import qualified Data.Foldable  as Foldable
+import           NoThunks.Class (noThunksInValues)
+#endif
 
 issue32 :: Assertion
 issue32 = assert $ isJust $ HMS.lookup 7 m'
@@ -129,6 +134,8 @@ issue254Strict = do
 ------------------------------------------------------------------------
 -- Issue #379
 
+#if MIN_VERSION_base(4,12,0)
+
 issue379Union :: Assertion
 issue379Union = do
   let m0 = HMS.fromList [(KC 1, ()), (KC 2, ())]
@@ -153,6 +160,8 @@ issue379UnionWithKey = do
   mThunkInfo <- noThunksInValues mempty (Foldable.toList u)
   assert $ isNothing mThunkInfo
 
+#endif
+
 ------------------------------------------------------------------------
 -- * Test list
 
@@ -164,9 +173,11 @@ tests = testGroup "Regression tests"
     , testProperty "issue39b" propEqAfterDelete
     , testCase "issue254 lazy" issue254Lazy
     , testCase "issue254 strict" issue254Strict
+#if MIN_VERSION_base(4,12,0)
     , testGroup "issue379"
           [ testCase "union" issue379Union
           , testCase "unionWith" issue379UnionWith
           , testCase "unionWithKey" issue379UnionWithKey
           ]
+#endif
     ]
