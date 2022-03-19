@@ -137,6 +137,22 @@ issue379Union = do
   mThunkInfo <- noThunksInValues mempty (Foldable.toList u)
   assert $ isNothing mThunkInfo
 
+issue379UnionWith :: Assertion
+issue379UnionWith = do
+  let m0 = HMS.fromList [(KC 1, 10), (KC 2, 20 :: Int)]
+  let m1 = HMS.fromList [(KC 2, 20), (KC 3, 30)]
+  let u = HMS.unionWith (+) m0 m1
+  mThunkInfo <- noThunksInValues mempty (Foldable.toList u)
+  assert $ isNothing mThunkInfo
+
+issue379UnionWithKey :: Assertion
+issue379UnionWithKey = do
+  let m0 = HMS.fromList [(KC 1, 10), (KC 2, 20 :: Int)]
+  let m1 = HMS.fromList [(KC 2, 20), (KC 3, 30)]
+  let u = HMS.unionWithKey (\(KC i) v0 v1 -> i + v0 + v1) m0 m1
+  mThunkInfo <- noThunksInValues mempty (Foldable.toList u)
+  assert $ isNothing mThunkInfo
+
 ------------------------------------------------------------------------
 -- * Test list
 
@@ -148,5 +164,9 @@ tests = testGroup "Regression tests"
     , testProperty "issue39b" propEqAfterDelete
     , testCase "issue254 lazy" issue254Lazy
     , testCase "issue254 strict" issue254Strict
-    , testCase "issue379Union" issue379Union
+    , testGroup "issue379"
+          [ testCase "union" issue379Union
+          , testCase "unionWith" issue379UnionWith
+          , testCase "unionWithKey" issue379UnionWithKey
+          ]
     ]
