@@ -453,7 +453,7 @@ unionWithKey f = go 0
         | h1 == h2  = Collision h1 (updateOrSnocWithKey (flip . f) k2 v2 ls1)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
-        | h1 == h2  = Collision h1 (updateOrConcatWithKey f ls1 ls2)
+        | h1 == h2  = Collision h1 (updateOrConcatWithKey (\k a b -> let !v = f k a b in (# v #)) ls1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     -- branch vs. branch
     go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
