@@ -160,6 +160,8 @@ issue379StrictUnionWithKey = do
   mThunkInfo <- noThunksInValues mempty (Foldable.toList u)
   assert $ isNothing mThunkInfo
 
+#endif
+
 -- Another key type that always collides.
 --
 -- Note (sjakobi): The KC newtype of Int somehow can't be used to demonstrate
@@ -184,8 +186,6 @@ issue379LazyUnionWith = do
   touch v -- makes sure that we didn't GC away the combined value
   assert $ isNothing res
 
-#endif
-
 ------------------------------------------------------------------------
 -- * Test list
 
@@ -197,12 +197,12 @@ tests = testGroup "Regression tests"
     , testProperty "issue39b" propEqAfterDelete
     , testCase "issue254 lazy" issue254Lazy
     , testCase "issue254 strict" issue254Strict
-#if MIN_VERSION_base(4,12,0)
     , testGroup "issue379"
-          [ testCase "union" issue379Union
+          [ testCase "Lazy.unionWith" issue379LazyUnionWith
+#if MIN_VERSION_base(4,12,0)
+          , testCase "union" issue379Union
           , testCase "Strict.unionWith" issue379StrictUnionWith
           , testCase "Strict.unionWithKey" issue379StrictUnionWithKey
-          , testCase "Lazy.unionWith" issue379LazyUnionWith
-          ]
 #endif
+          ]
     ]
