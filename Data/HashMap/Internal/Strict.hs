@@ -548,7 +548,7 @@ mapMaybeWithKey f = filterMapAux onLeaf onColl
   where onLeaf (Leaf h (L k v)) | Just v' <- f k v = Just (leaf h k v')
         onLeaf _ = Nothing
 
-        onColl (L k v) | Just v' <- f k v = Just (L k v')
+        onColl (L k v) | Just !v' <- f k v = Just (L k v')
                        | otherwise = Nothing
 {-# INLINE mapMaybeWithKey #-}
 
