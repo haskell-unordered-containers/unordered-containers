@@ -25,6 +25,7 @@ import qualified Data.HashMap.Strict as HMS
 
 #if MIN_VERSION_base(4,12,0)
 -- nothunks requires base >= 4.12
+#define HAVE_NOTHUNKS
 import qualified Data.Foldable  as Foldable
 import           NoThunks.Class (noThunksInValues)
 #endif
@@ -134,7 +135,7 @@ issue254Strict = do
 ------------------------------------------------------------------------
 -- Issue #379
 
-#if MIN_VERSION_base(4,12,0)
+#ifdef HAVE_NOTHUNKS
 
 issue379Union :: Assertion
 issue379Union = do
@@ -199,7 +200,7 @@ tests = testGroup "Regression tests"
     , testCase "issue254 strict" issue254Strict
     , testGroup "issue379"
           [ testCase "Lazy.unionWith" issue379LazyUnionWith
-#if MIN_VERSION_base(4,12,0)
+#ifdef HAVE_NOTHUNKS
           , testCase "union" issue379Union
           , testCase "Strict.unionWith" issue379StrictUnionWith
           , testCase "Strict.unionWithKey" issue379StrictUnionWithKey
