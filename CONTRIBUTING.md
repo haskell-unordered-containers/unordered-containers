@@ -98,6 +98,7 @@ meld a/ b/
 
 * [A collection of resources on GHC Core](https://stackoverflow.com/q/6121146/1013393)
 * [Some links about STG](https://stackoverflow.com/a/12118567/1013393)
+* [GHC User's Guide: _Debugging the compiler_](http://downloads.haskell.org/~ghc/latest/docs/html/users_guide/debugging.html)
 
 
 ## Code style
