@@ -94,6 +94,11 @@ them:
 meld a/ b/
 ```
 
+### References
+
+* [A collection of resources on GHC Core](https://stackoverflow.com/q/6121146/1013393)
+* [Some links about STG](https://stackoverflow.com/a/12118567/1013393)
+
 
 ## Code style
 
