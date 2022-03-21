@@ -60,6 +60,41 @@ cpp-options: -DBENCH_containers_Map -DBENCH_containers_IntMap -DBENCH_hashmap_Ma
 * [Documentation for our benchmark framework, `tasty-bench`](https://github.com/Bodigrim/tasty-bench#readme)
 
 
+## Inspecting the generated code
+
+The library section of `unordered-containers.cabal` contains a commented-out set of ghc-options for
+dumping Core and other forms of generated code. To dump this code, uncomment these options and run
+
+```
+cabal clean
+cabal build
+```
+
+You can find the resulting `.dump-*` files in `dist-newstyle/build/**/unordered-containers-*/build/`, e.g.
+
+```
+$ tree dist-newstyle/build/x86_64-linux/ghc-9.2.2/unordered-containers-0.2.16.0/build/
+dist-newstyle/build/x86_64-linux/ghc-9.2.2/unordered-containers-0.2.16.0/build/
+├── Data
+│   ├── HashMap
+│   │   ├── Internal
+│   │   │   ├── Array.dump-asm
+│   │   │   ├── Array.dump-cmm
+│   │   │   ├── Array.dump-simpl
+│   │   │   ├── Array.dump-stg-final
+...
+```
+
+To visually compare the generated code from two different states of the source tree, you can copy
+the `dist-newstyle/build/**/unordered-containers-*/build/` directory from each state to two
+directories `a` and `b` and then use a diff tool like [Meld](https://meldmerge.org/) to compare
+them:
+
+```
+meld a/ b/
+```
+
+
 ## Code style
 
 This package uses [`stylish-haskell`](https://hackage.haskell.org/package/stylish-haskell)
