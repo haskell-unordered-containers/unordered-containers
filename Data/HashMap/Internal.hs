@@ -122,7 +122,6 @@ module Data.HashMap.Internal
     , update32
     , update32M
     , update32With'
-    , updateOrConcatWith
     , updateOrConcatWithKey
     , filterMapAux
     , equalKeys
@@ -1551,7 +1550,7 @@ unionWithKey f = go 0
         | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k b a #)) k2 v2 ls1)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
-        | h1 == h2  = Collision h1 (updateOrConcatWithKey f ls1 ls2)
+        | h1 == h2  = Collision h1 (updateOrConcatWithKey (\k a b -> (# f k a b #)) ls1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     -- branch vs. branch
     go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
@@ -2177,11 +2176,7 @@ updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
             = go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWithKey #-}
 
-updateOrConcatWith :: Eq k => (v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-updateOrConcatWith f = updateOrConcatWithKey (const f)
-{-# INLINABLE updateOrConcatWith #-}
-
-updateOrConcatWithKey :: Eq k => (k -> v -> v -> v) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+updateOrConcatWithKey :: Eq k => (k -> v -> v -> (# v #)) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
 updateOrConcatWithKey f ary1 ary2 = A.run $ do
     -- TODO: instead of mapping and then folding, should we traverse?
     -- We'll have to be careful to avoid allocating pairs or similar.
@@ -2203,7 +2198,7 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
                Just i1 -> do -- key occurs in both arrays, store combination in position i1
                              L k v1 <- A.indexM ary1 i1
                              L _ v2 <- A.indexM ary2 i2
-                             A.write mary i1 (L k (f k v1 v2))
+                             case f k v1 v2 of (# v3 #) -> A.write mary i1 (L k v3)
                              go iEnd (i2+1)
                Nothing -> do -- key is only in ary2, append to end
                              A.write mary iEnd =<< A.indexM ary2 i2

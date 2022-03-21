@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnboxedTuples       #-}
@@ -21,6 +22,13 @@ import Test.Tasty.QuickCheck (testProperty)
 
 import qualified Data.HashMap.Lazy   as HML
 import qualified Data.HashMap.Strict as HMS
+
+#if MIN_VERSION_base(4,12,0)
+-- nothunks requires base >= 4.12
+#define HAVE_NOTHUNKS
+import qualified Data.Foldable  as Foldable
+import           NoThunks.Class (noThunksInValues)
+#endif
 
 issue32 :: Assertion
 issue32 = assert $ isJust $ HMS.lookup 7 m'
@@ -125,6 +133,61 @@ issue254Strict = do
   assert $ isNothing res
 
 ------------------------------------------------------------------------
+-- Issue #379
+
+#ifdef HAVE_NOTHUNKS
+
+issue379Union :: Assertion
+issue379Union = do
+  let m0 = HMS.fromList [(KC 1, ()), (KC 2, ())]
+  let m1 = HMS.fromList [(KC 2, ()), (KC 3, ())]
+  let u = m0 `HMS.union` m1
+  mThunkInfo <- noThunksInValues mempty (Foldable.toList u)
+  assert $ isNothing mThunkInfo
+
+issue379StrictUnionWith :: Assertion
+issue379StrictUnionWith = do
+  let m0 = HMS.fromList [(KC 1, 10), (KC 2, 20 :: Int)]
+  let m1 = HMS.fromList [(KC 2, 20), (KC 3, 30)]
+  let u = HMS.unionWith (+) m0 m1
+  mThunkInfo <- noThunksInValues mempty (Foldable.toList u)
+  assert $ isNothing mThunkInfo
+
+issue379StrictUnionWithKey :: Assertion
+issue379StrictUnionWithKey = do
+  let m0 = HMS.fromList [(KC 1, 10), (KC 2, 20 :: Int)]
+  let m1 = HMS.fromList [(KC 2, 20), (KC 3, 30)]
+  let u = HMS.unionWithKey (\(KC i) v0 v1 -> i + v0 + v1) m0 m1
+  mThunkInfo <- noThunksInValues mempty (Foldable.toList u)
+  assert $ isNothing mThunkInfo
+
+#endif
+
+-- Another key type that always collides.
+--
+-- Note (sjakobi): The KC newtype of Int somehow can't be used to demonstrate
+-- the space leak in issue379LazyUnionWith. This type does the trick.
+newtype SC = SC String
+  deriving (Eq, Ord, Show)
+instance Hashable SC where
+  hashWithSalt salt _ = salt
+
+issue379LazyUnionWith :: Assertion
+issue379LazyUnionWith = do
+  i :: Int <- randomIO
+  let k = SC (show i)
+  weakK <- mkWeakPtr k Nothing -- add the ability to test whether k is alive
+  let f :: Int -> Int
+      f x = error ("Should not be evaluated " ++ show x)
+  let m = HML.fromList [(SC "1", f 1), (SC "2", f 2), (k, f 3)]
+  let u = HML.unionWith (+) m m
+  Just v <- evaluate $ HML.lookup k u
+  performGC
+  res <- deRefWeak weakK -- gives Just if k is still alive
+  touch v -- makes sure that we didn't GC away the combined value
+  assert $ isNothing res
+
+------------------------------------------------------------------------
 -- * Test list
 
 tests :: TestTree
@@ -135,4 +198,12 @@ tests = testGroup "Regression tests"
     , testProperty "issue39b" propEqAfterDelete
     , testCase "issue254 lazy" issue254Lazy
     , testCase "issue254 strict" issue254Strict
+    , testGroup "issue379"
+          [ testCase "Lazy.unionWith" issue379LazyUnionWith
+#ifdef HAVE_NOTHUNKS
+          , testCase "union" issue379Union
+          , testCase "Strict.unionWith" issue379StrictUnionWith
+          , testCase "Strict.unionWithKey" issue379StrictUnionWithKey
+#endif
+          ]
     ]
