@@ -190,7 +190,7 @@ issue379LazyUnionWith = do
 ------------------------------------------------------------------------
 -- Issue #381
 
-#if MIN_VERSION_base(4,12,0)
+#ifdef HAVE_NOTHUNKS
 
 issue381mapMaybe :: Assertion
 issue381mapMaybe = do
@@ -227,7 +227,7 @@ tests = testGroup "Regression tests"
           , testCase "Strict.unionWithKey" issue379StrictUnionWithKey
 #endif
           ]
-#if MIN_VERSION_base(4,12,0)
+#ifdef HAVE_NOTHUNKS
     , testGroup "issue381"
           [ testCase "mapMaybe" issue381mapMaybe
           , testCase "mapMaybeWithKey" issue381mapMaybeWithKey
