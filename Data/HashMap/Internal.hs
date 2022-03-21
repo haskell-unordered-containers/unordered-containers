@@ -2198,8 +2198,7 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
                Just i1 -> do -- key occurs in both arrays, store combination in position i1
                              L k v1 <- A.indexM ary1 i1
                              L _ v2 <- A.indexM ary2 i2
-                             let !(# v3 #) = f k v1 v2
-                             A.write mary i1 (L k v3)
+                             case f k v1 v2 of (# v3 #) -> A.write mary i1 (L k v3)
                              go iEnd (i2+1)
                Nothing -> do -- key is only in ary2, append to end
                              A.write mary iEnd =<< A.indexM ary2 i2
