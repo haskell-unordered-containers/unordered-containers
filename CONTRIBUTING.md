@@ -62,7 +62,7 @@ cpp-options: -DBENCH_containers_Map -DBENCH_containers_IntMap -DBENCH_hashmap_Ma
 
 ## Inspecting the generated code
 
-The library section of `unordered-containers.cabal` contains a commented-out set of ghc-options for
+The library section in `unordered-containers.cabal` contains a commented-out set of `ghc-options` for
 dumping Core and other forms of generated code. To dump this code, uncomment these options and run
 
 ```
