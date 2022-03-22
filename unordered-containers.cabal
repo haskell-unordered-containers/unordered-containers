@@ -69,6 +69,11 @@ library
 
   ghc-options: -Wall -O2 -fwarn-tabs -ferror-spans
 
+  -- For dumping the generated code:
+  -- ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -ddump-asm -ddump-to-file
+  -- ghc-options: -dsuppress-coercions -dsuppress-unfoldings -dsuppress-module-prefixes
+  -- ghc-options: -dsuppress-uniques -dsuppress-timestamps
+
   if flag(debug)
     cpp-options: -DASSERTS
 
