@@ -188,6 +188,27 @@ issue379LazyUnionWith = do
   assert $ isNothing res
 
 ------------------------------------------------------------------------
+-- Issue #381
+
+#ifdef HAVE_NOTHUNKS
+
+issue381mapMaybe :: Assertion
+issue381mapMaybe = do
+  let m0 = HMS.fromList [(KC 1, 10), (KC 2, 20 :: Int)]
+  let m1 = HMS.mapMaybe (Just . (+ 1)) m0
+  mThunkInfo <- noThunksInValues mempty (Foldable.toList m1)
+  assert $ isNothing mThunkInfo
+
+issue381mapMaybeWithKey :: Assertion
+issue381mapMaybeWithKey = do
+  let m0 = HMS.fromList [(KC 1, 10), (KC 2, 20 :: Int)]
+  let m1 = HMS.mapMaybeWithKey (\(KC k) v -> Just (k + v)) m0
+  mThunkInfo <- noThunksInValues mempty (Foldable.toList m1)
+  assert $ isNothing mThunkInfo
+
+#endif
+
+------------------------------------------------------------------------
 -- * Test list
 
 tests :: TestTree
@@ -206,4 +227,10 @@ tests = testGroup "Regression tests"
           , testCase "Strict.unionWithKey" issue379StrictUnionWithKey
 #endif
           ]
+#ifdef HAVE_NOTHUNKS
+    , testGroup "issue381"
+          [ testCase "mapMaybe" issue381mapMaybe
+          , testCase "mapMaybeWithKey" issue381mapMaybeWithKey
+          ]
+#endif
     ]
