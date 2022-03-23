@@ -209,6 +209,23 @@ issue381mapMaybeWithKey = do
 #endif
 
 ------------------------------------------------------------------------
+-- Issue #382
+
+issue382 :: Assertion
+issue382 = do
+  i :: Int <- randomIO
+  let k = SC (show i)
+  weakK <- mkWeakPtr k Nothing -- add the ability to test whether k is alive
+  let f :: Int -> Int -> Int
+      f x = error ("Should not be evaluated " ++ show x)
+  let m = HML.fromListWith f [(k, 1), (k, 2)]
+  Just v <- evaluate $ HML.lookup k m
+  performGC
+  res <- deRefWeak weakK -- gives Just if k is still alive
+  touch v -- makes sure that we didn't GC away the combined value
+  assert $ isNothing res
+
+------------------------------------------------------------------------
 -- * Test list
 
 tests :: TestTree
@@ -233,4 +250,5 @@ tests = testGroup "Regression tests"
           , testCase "mapMaybeWithKey" issue381mapMaybeWithKey
           ]
 #endif
+    , testCase "issue382" issue382
     ]

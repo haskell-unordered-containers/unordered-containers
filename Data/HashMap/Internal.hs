@@ -1026,11 +1026,11 @@ insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
 unsafeInsertWith :: forall k v. (Eq k, Hashable k)
                  => (v -> v -> v) -> k -> v -> HashMap k v
                  -> HashMap k v
-unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (const f) k0 v0 m0
+unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (\_ a b -> (# f a b #)) k0 v0 m0
 {-# INLINABLE unsafeInsertWith #-}
 
 unsafeInsertWithKey :: forall k v. (Eq k, Hashable k)
-                 => (k -> v -> v -> v) -> k -> v -> HashMap k v
+                 => (k -> v -> v -> (# v #)) -> k -> v -> HashMap k v
                  -> HashMap k v
 unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
@@ -1039,7 +1039,8 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
     go !h !k x !_ Empty = return $! Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
-                    then return $! Leaf h (L k (f k x y))
+                    then case f k x y of
+                        (# v #) -> return $! Leaf h (L k v)
                     else return $! collision h l (L k x)
         | otherwise = two s h k x hy t
     go h k x s t@(BitmapIndexed b ary)
@@ -1060,7 +1061,7 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         return t
       where i = index h s
     go h k x s t@(Collision hy v)
-        | h == hy   = return $! Collision h (updateOrSnocWithKey (\key a b -> (# f key a b #) ) k x v)
+        | h == hy   = return $! Collision h (updateOrSnocWithKey f k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsertWithKey #-}
 
@@ -2104,7 +2105,7 @@ fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 --
 -- @since 0.2.11
 fromListWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) empty
+fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m) empty
 {-# INLINE fromListWithKey #-}
 
 ------------------------------------------------------------------------
