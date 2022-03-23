@@ -401,13 +401,13 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
 
     ------------------------------
     -- Update value
-    Just v' -> case lookupRes of
+    Just !v' -> case lookupRes of
 
       -- Key did not exist before, insert v' under a new key
       Absent -> insertNewKey h k v' m
 
       -- Key existed before, no hash collision
-      Present v collPos -> v' `seq`
+      Present v collPos ->
         if v `ptrEq` v'
         -- If the value is identical, no-op
         then m
