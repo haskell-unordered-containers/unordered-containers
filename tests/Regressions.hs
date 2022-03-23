@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE UnboxedTuples       #-}
 module Regressions (tests) where
 
@@ -11,6 +12,7 @@ import Data.List             (delete)
 import Data.Maybe            (isJust, isNothing)
 import GHC.Exts              (touch#)
 import GHC.IO                (IO (..))
+import Numeric.Natural       (Natural)
 import System.Mem            (performGC)
 import System.Mem.Weak       (deRefWeak, mkWeakPtr)
 import System.Random         (randomIO)
@@ -226,6 +228,27 @@ issue382 = do
   assert $ isNothing res
 
 ------------------------------------------------------------------------
+-- Issue #383
+
+#ifdef HAVE_NOTHUNKS
+
+-- Custom Functor to prevent interference from alterF rules
+newtype MyIdentity a = MyIdentity a
+instance Functor MyIdentity where
+  fmap f (MyIdentity x) = MyIdentity (f x)
+
+issue383 :: Assertion
+issue383 = do
+  i :: Int <- randomIO
+  let f Nothing = MyIdentity (Just (fromIntegral @Int @Natural (abs i)))
+      f Just{}  = MyIdentity (error "Impossible")
+  let (MyIdentity m) = HMS.alterF f () mempty
+  mThunkInfo <- noThunksInValues mempty (Foldable.toList m)
+  assert $ isNothing mThunkInfo
+
+#endif
+
+------------------------------------------------------------------------
 -- * Test list
 
 tests :: TestTree
@@ -251,4 +274,7 @@ tests = testGroup "Regression tests"
           ]
 #endif
     , testCase "issue382" issue382
+#ifdef HAVE_NOTHUNKS
+    , testCase "issue383" issue383
+#endif
     ]
