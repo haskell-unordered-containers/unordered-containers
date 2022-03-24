@@ -3,7 +3,6 @@
 {-# LANGUAGE DeriveLift            #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MagicHash             #-}
-{-# LANGUAGE MultiWayIf            #-}
 {-# LANGUAGE PatternGuards         #-}
 {-# LANGUAGE RoleAnnotations       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
@@ -144,9 +143,8 @@ import Control.Applicative        (Const (..))
 import Control.DeepSeq            (NFData (..), NFData1 (..), NFData2 (..))
 import Control.Monad.ST           (ST, runST)
 import Data.Bifoldable            (Bifoldable (..))
-import Data.Bits                  (bit, clearBit, complement,
-                                   countTrailingZeros, popCount, testBit,
-                                   unsafeShiftL, unsafeShiftR, (.&.), (.|.))
+import Data.Bits                  (complement, popCount, unsafeShiftL,
+                                   unsafeShiftR, (.&.), (.|.), countTrailingZeros)
 import Data.Coerce                (coerce)
 import Data.Data                  (Constr, Data (..), DataType)
 import Data.Functor.Classes       (Eq1 (..), Eq2 (..), Ord1 (..), Ord2 (..),
@@ -1627,24 +1625,26 @@ unionArrayBy f !b1 !b2 !ary1 !ary2 = A.run $ do
     let b' = b1 .|. b2
     mary <- A.new_ (popCount b')
     -- iterate over nonzero bits of b1 .|. b2
-    let go !b
-            | b == 0    = return ()
-            | otherwise = do
-                let ba = b1 .&. b2
-                    c  = countTrailingZeros b
-                    m  = bit c
-                    i  = sparseIndex b' m
-                    i1 = sparseIndex b1 m
-                    i2 = sparseIndex b2 m
-                t <- if | testBit ba c -> do
-                            x1 <- A.indexM ary1 i1
-                            x2 <- A.indexM ary2 i2
-                            return $! f x1 x2
-                        | testBit b1 c -> A.indexM ary1 i1
-                        | otherwise    -> A.indexM ary2 i2
-                A.write mary i t
-                go (clearBit b c)
-    go b'
+    -- it would be nice if we could shift m by more than 1 each time
+    let ba = b1 .&. b2
+        go !i !i1 !i2 !b
+            | b == 0        = return ()
+            | testBit ba = do
+                x1 <- A.indexM ary1 i1
+                x2 <- A.indexM ary2 i2
+                A.write mary i $! f x1 x2
+                go (i+1) (i1+1) (i2+1) b''
+            | testBit b1 = do
+                A.write mary i =<< A.indexM ary1 i1
+                go (i+1) (i1+1)  i2    b''
+            | otherwise  = do
+                A.write mary i =<< A.indexM ary2 i2
+                go (i+1)  i1    (i2+1) b''
+          where
+            m = 1 `unsafeShiftL` (countTrailingZeros b)
+            testBit x = x .&. m /= 0
+            b'' = b .&. complement m
+    go 0 0 0 b'
     return mary
     -- TODO: For the case where b1 .&. b2 == b1, i.e. when one is a
     -- subset of the other, we could use a slightly simpler algorithm,
