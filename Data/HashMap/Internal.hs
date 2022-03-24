@@ -2361,22 +2361,28 @@ clone ary =
 bitsPerSubkey :: Int
 bitsPerSubkey = 5
 
+-- | The size of a 'Full' node, @2 ^ 'bitsPerSubkey'@.
 maxChildren :: Int
 maxChildren = 1 `unsafeShiftL` bitsPerSubkey
 
+-- | Bitmap with the lowest 'bitsPerSubkey' set, e.g. @0b11111@.
 subkeyMask :: Bitmap
 subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
 
+-- | Number of bits of the first...
 sparseIndex :: Bitmap -> Bitmap -> Int
 sparseIndex b m = popCount (b .&. (m - 1))
 {-# INLINE sparseIndex #-}
 
-mask :: Word -> Shift -> Bitmap
+-- | A single bit set at the 'Full' node index.
+mask :: Hash -> Shift -> Bitmap
 mask w s = 1 `unsafeShiftL` index w s
 {-# INLINE mask #-}
 
 -- | Mask out the 'bitsPerSubkey' bits used for indexing at this level
 -- of the tree.
+--
+-- The result is the index of the hash into the array of a 'Full' node.
 index :: Hash -> Shift -> Int
 index w s = fromIntegral $ unsafeShiftR w s .&. subkeyMask
 {-# INLINE index #-}
