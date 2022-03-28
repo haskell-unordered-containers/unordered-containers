@@ -1625,10 +1625,9 @@ unionArrayBy f !b1 !b2 !ary1 !ary2 = A.run $ do
     let b' = b1 .|. b2
     mary <- A.new_ (popCount b')
     -- iterate over nonzero bits of b1 .|. b2
-    -- it would be nice if we could shift m by more than 1 each time
     let ba = b1 .&. b2
         go !i !i1 !i2 !b
-            | b == 0        = return ()
+            | b == 0     = return ()
             | testBit ba = do
                 x1 <- A.indexM ary1 i1
                 x2 <- A.indexM ary2 i2
