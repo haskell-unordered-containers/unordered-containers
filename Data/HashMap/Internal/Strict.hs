@@ -362,8 +362,8 @@ impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
 "alterFinsertWith" [1] forall (f :: Maybe a -> Identity (Maybe a)) x y.
   alterFWeird (coerce (Just x)) (coerce (Just y)) f =
     coerce (HM.insertModifying x (\mold -> case runIdentity (f (Just mold)) of
-                                                 Nothing -> bogus# (# #)
-                                                 Just !new -> (# new #)))
+                                               Nothing -> bogus# (# #)
+                                               Just !new -> (# new #)))
 
 -- This rule is written a bit differently than the one for lazy
 -- maps because the adjust here is strict. We could write it the
