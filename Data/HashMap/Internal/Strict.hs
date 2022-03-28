@@ -49,74 +49,74 @@ module Data.HashMap.Internal.Strict
       HashMap
 
       -- * Construction
-    , Lazy.empty
+    , HM.empty
     , singleton
 
       -- * Basic interface
-    , Lazy.null
-    , Lazy.size
-    , Lazy.member
-    , Lazy.lookup
-    , (Lazy.!?)
-    , Lazy.findWithDefault
-    , Lazy.lookupDefault
-    , (Lazy.!)
+    , HM.null
+    , HM.size
+    , HM.member
+    , HM.lookup
+    , (HM.!?)
+    , HM.findWithDefault
+    , HM.lookupDefault
+    , (HM.!)
     , insert
     , insertWith
-    , Lazy.delete
+    , HM.delete
     , adjust
     , update
     , alter
     , alterF
-    , Lazy.isSubmapOf
-    , Lazy.isSubmapOfBy
+    , HM.isSubmapOf
+    , HM.isSubmapOfBy
 
       -- * Combine
       -- ** Union
-    , Lazy.union
+    , HM.union
     , unionWith
     , unionWithKey
-    , Lazy.unions
+    , HM.unions
 
     -- ** Compose
-    , Lazy.compose
+    , HM.compose
 
       -- * Transformations
     , map
     , mapWithKey
     , traverseWithKey
-    , Lazy.mapKeys
+    , HM.mapKeys
 
       -- * Difference and intersection
-    , Lazy.difference
+    , HM.difference
     , differenceWith
-    , Lazy.intersection
+    , HM.intersection
     , intersectionWith
     , intersectionWithKey
 
       -- * Folds
-    , Lazy.foldMapWithKey
-    , Lazy.foldr'
-    , Lazy.foldl'
-    , Lazy.foldrWithKey'
-    , Lazy.foldlWithKey'
-    , Lazy.foldr
-    , Lazy.foldl
-    , Lazy.foldrWithKey
-    , Lazy.foldlWithKey
+    , HM.foldMapWithKey
+    , HM.foldr'
+    , HM.foldl'
+    , HM.foldrWithKey'
+    , HM.foldlWithKey'
+    , HM.foldr
+    , HM.foldl
+    , HM.foldrWithKey
+    , HM.foldlWithKey
 
       -- * Filter
-    , Lazy.filter
-    , Lazy.filterWithKey
+    , HM.filter
+    , HM.filterWithKey
     , mapMaybe
     , mapMaybeWithKey
 
       -- * Conversions
-    , Lazy.keys
-    , Lazy.elems
+    , HM.keys
+    , HM.elems
 
       -- ** Lists
-    , Lazy.toList
+    , HM.toList
     , fromList
     , fromListWith
     , fromListWithKey
@@ -135,7 +135,7 @@ import Data.Hashable         (Hashable)
 import Prelude               hiding (lookup, map)
 
 -- See Note [Imports from Data.HashMap.Internal]
-import qualified Data.HashMap.Internal       as Lazy
+import qualified Data.HashMap.Internal       as HM
 import qualified Data.HashMap.Internal.Array as A
 import qualified Data.List                   as List
 
@@ -148,8 +148,8 @@ the strictness properties of any utilities. Mistakes can easily lead to space
 leaks, see e.g. #383.
 
 Therefore nearly all functions imported from Data.HashMap.Internal should be
-imported qualified with a `Lazy.` prefix. Only functions that do not manipulate
-HashMaps or their values are exempted.
+imported qualified. Only functions that do not manipulate HashMaps or their
+values are exempted.
 -}
 
 -- $strictness
@@ -166,7 +166,7 @@ HashMaps or their values are exempted.
 
 -- | /O(1)/ Construct a map with a single element.
 singleton :: (Hashable k) => k -> v -> HashMap k v
-singleton k !v = Lazy.singleton k v
+singleton k !v = HM.singleton k v
 
 ------------------------------------------------------------------------
 -- * Basic interface
@@ -175,7 +175,7 @@ singleton k !v = Lazy.singleton k v
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
-insert k !v = Lazy.insert k v
+insert k !v = HM.insert k v
 {-# INLINABLE insert #-}
 
 -- | /O(log n)/ Associate the value with the key in this map.  If
@@ -194,12 +194,12 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then leaf h k (f x y)
-                    else x `seq` Lazy.collision h l (L k x)
-        | otherwise = x `seq` runST (Lazy.two s h k x hy t)
+                    else x `seq` HM.collision h l (L k x)
+        | otherwise = x `seq` runST (HM.two s h k x hy t)
     go h k x s (BitmapIndexed b ary)
         | b .&. m == 0 =
             let ary' = A.insert ary i $! leaf h k x
-            in Lazy.bitmapIndexedOrFull (b .|. m) ary'
+            in HM.bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             let st   = A.index ary i
                 st'  = go h k x (s+bitsPerSubkey) st
@@ -210,7 +210,7 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
     go h k x s (Full ary) =
         let st   = A.index ary i
             st'  = go h k x (s+bitsPerSubkey) st
-            ary' = Lazy.update32 ary i $! st'
+            ary' = HM.update32 ary i $! st'
         in Full ary'
       where i = index h s
     go h k x s t@(Collision hy v)
@@ -235,12 +235,12 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
                     then return $! leaf h k (f k x y)
                     else do
                         let l' = x `seq` L k x
-                        return $! Lazy.collision h l l'
-        | otherwise = x `seq` Lazy.two s h k x hy t
+                        return $! HM.collision h l l'
+        | otherwise = x `seq` HM.two s h k x hy t
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
             ary' <- A.insertM ary i $! leaf h k x
-            return $! Lazy.bitmapIndexedOrFull (b .|. m) ary'
+            return $! HM.bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
             st' <- go h k x (s+bitsPerSubkey) st
@@ -281,7 +281,7 @@ adjust f k0 m0 = go h0 k0 0 m0
         let i    = index h s
             st   = A.index ary i
             st'  = go h k (s+bitsPerSubkey) st
-            ary' = Lazy.update32 ary i $! st'
+            ary' = HM.update32 ary i $! st'
         in Full ary'
     go h k _ t@(Collision hy v)
         | h == hy   = Collision h (updateWith f k v)
@@ -305,8 +305,8 @@ update f = alter (>>= f)
 -- @
 alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
 alter f k m =
-  case f (Lazy.lookup k m) of
-    Nothing -> Lazy.delete k m
+  case f (HM.lookup k m) of
+    Nothing -> HM.delete k m
     Just v  -> insert k v m
 {-# INLINABLE alter #-}
 
@@ -328,10 +328,10 @@ alterF :: (Functor f, Eq k, Hashable k)
 -- @f@ and a functor that is similar to Const but not actually Const.
 alterF f = \ !k !m ->
   let !h = hash k
-      mv = Lazy.lookup' h k m
+      mv = HM.lookup' h k m
   in (<$> f mv) $ \case
-    Nothing -> maybe m (const (Lazy.delete' h k m)) mv
-    Just !v' -> Lazy.insert' h k v' m
+    Nothing -> maybe m (const (HM.delete' h k m)) mv
+    Just !v' -> HM.insert' h k v' m
 
 -- We rewrite this function unconditionally in RULES, but we expose
 -- an unfolding just in case it's used in a context where the rules
@@ -357,11 +357,11 @@ impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
 
 "alterFconstant" forall (f :: Maybe a -> Identity (Maybe a)) x.
   alterFWeird x x f = \ !k !m ->
-    Identity (case runIdentity x of {Nothing -> Lazy.delete k m; Just a -> insert k a m})
+    Identity (case runIdentity x of {Nothing -> HM.delete k m; Just a -> insert k a m})
 
 "alterFinsertWith" [1] forall (f :: Maybe a -> Identity (Maybe a)) x y.
   alterFWeird (coerce (Just x)) (coerce (Just y)) f =
-    coerce (Lazy.insertModifying x (\mold -> case runIdentity (f (Just mold)) of
+    coerce (HM.insertModifying x (\mold -> case runIdentity (f (Just mold)) of
                                                  Nothing -> bogus# (# #)
                                                  Just !new -> (# new #)))
 
@@ -375,7 +375,7 @@ impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
                                Nothing -> impossibleAdjust))
 
 "alterFlookup" forall _ign1 _ign2 (f :: Maybe a -> Const r (Maybe a)) .
-  alterFWeird _ign1 _ign2 f = \ !k !m -> Const (getConst (f (Lazy.lookup k m)))
+  alterFWeird _ign1 _ign2 f = \ !k !m -> Const (getConst (f (HM.lookup k m)))
  #-}
 
 -- This is a very unsafe version of alterF used for RULES. When calling
@@ -409,14 +409,14 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
       Absent -> m
 
       -- Key did exist, no collision
-      Present _ collPos -> Lazy.deleteKeyExists collPos h k m
+      Present _ collPos -> HM.deleteKeyExists collPos h k m
 
     ------------------------------
     -- Update value
     Just !v' -> case lookupRes of
 
       -- Key did not exist before, insert v' under a new key
-      Absent -> Lazy.insertNewKey h k v' m
+      Absent -> HM.insertNewKey h k v' m
 
       -- Key existed before, no hash collision
       Present v collPos ->
@@ -424,10 +424,10 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
         -- If the value is identical, no-op
         then m
         -- If the value changed, update the value.
-        else Lazy.insertKeyExists collPos h k v' m
+        else HM.insertKeyExists collPos h k v' m
 
   where !h = hash k
-        !lookupRes = Lazy.lookupRecordCollision h k m
+        !lookupRes = HM.lookupRecordCollision h k m
         !mv = case lookupRes of
           Absent -> Nothing
           Present v _ -> Just v
@@ -456,7 +456,7 @@ unionWithKey f = go 0
     go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
                       then leaf h1 k1 (f k1 v1 v2)
-                      else Lazy.collision h1 l1 l2
+                      else HM.collision h1 l1 l2
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
         | h1 == h2  = Collision h1 (updateOrSnocWithKey f k1 v1 ls2)
@@ -465,28 +465,28 @@ unionWithKey f = go 0
         | h1 == h2  = Collision h1 (updateOrSnocWithKey (flip . f) k2 v2 ls1)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
-        | h1 == h2  = Collision h1 (Lazy.updateOrConcatWithKey (\k a b -> let !v = f k a b in (# v #)) ls1 ls2)
+        | h1 == h2  = Collision h1 (HM.updateOrConcatWithKey (\k a b -> let !v = f k a b in (# v #)) ls1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     -- branch vs. branch
     go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
         let b'   = b1 .|. b2
-            ary' = Lazy.unionArrayBy (go (s+bitsPerSubkey)) b1 b2 ary1 ary2
-        in Lazy.bitmapIndexedOrFull b' ary'
+            ary' = HM.unionArrayBy (go (s+bitsPerSubkey)) b1 b2 ary1 ary2
+        in HM.bitmapIndexedOrFull b' ary'
     go s (BitmapIndexed b1 ary1) (Full ary2) =
-        let ary' = Lazy.unionArrayBy (go (s+bitsPerSubkey)) b1 fullNodeMask ary1 ary2
+        let ary' = HM.unionArrayBy (go (s+bitsPerSubkey)) b1 fullNodeMask ary1 ary2
         in Full ary'
     go s (Full ary1) (BitmapIndexed b2 ary2) =
-        let ary' = Lazy.unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask b2 ary1 ary2
+        let ary' = HM.unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask b2 ary1 ary2
         in Full ary'
     go s (Full ary1) (Full ary2) =
-        let ary' = Lazy.unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask fullNodeMask
+        let ary' = HM.unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask fullNodeMask
                    ary1 ary2
         in Full ary'
     -- leaf vs. branch
     go s (BitmapIndexed b1 ary1) t2
         | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
                                b'   = b1 .|. m2
-                           in Lazy.bitmapIndexedOrFull b' ary'
+                           in HM.bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
                                    go (s+bitsPerSubkey) st1 t2
                            in BitmapIndexed b1 ary'
@@ -497,7 +497,7 @@ unionWithKey f = go 0
     go s t1 (BitmapIndexed b2 ary2)
         | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
                                b'   = b2 .|. m1
-                           in Lazy.bitmapIndexedOrFull b' ary'
+                           in HM.bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
                                    go (s+bitsPerSubkey) t1 st2
                            in BitmapIndexed b2 ary'
@@ -508,12 +508,12 @@ unionWithKey f = go 0
     go s (Full ary1) t2 =
         let h2   = leafHashCode t2
             i    = index h2 s
-            ary' = Lazy.update32With' ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
+            ary' = HM.update32With' ary1 i $ \st1 -> go (s+bitsPerSubkey) st1 t2
         in Full ary'
     go s t1 (Full ary2) =
         let h1   = leafHashCode t1
             i    = index h1 s
-            ary' = Lazy.update32With' ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
+            ary' = HM.update32With' ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
         in Full ary'
 
     leafHashCode (Leaf h _) = h
@@ -556,7 +556,7 @@ map f = mapWithKey (const f)
 -- | /O(n)/ Transform this map by applying a function to every value
 --   and retaining only some of them.
 mapMaybeWithKey :: (k -> v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
-mapMaybeWithKey f = Lazy.filterMapAux onLeaf onColl
+mapMaybeWithKey f = HM.filterMapAux onLeaf onColl
   where onLeaf (Leaf h (L k v)) | Just v' <- f k v = Just (leaf h k v')
         onLeaf _ = Nothing
 
@@ -604,11 +604,11 @@ traverseWithKey f = go
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
 differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
-differenceWith f a b = Lazy.foldlWithKey' go Lazy.empty a
+differenceWith f a b = HM.foldlWithKey' go HM.empty a
   where
-    go m k v = case Lazy.lookup k b of
-                 Nothing -> v `seq` Lazy.unsafeInsert k v m
-                 Just w  -> maybe m (\ !y -> Lazy.unsafeInsert k y m) (f v w)
+    go m k v = case HM.lookup k b of
+                 Nothing -> v `seq` HM.unsafeInsert k v m
+                 Just w  -> maybe m (\ !y -> HM.unsafeInsert k y m) (f v w)
 {-# INLINABLE differenceWith #-}
 
 -- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
@@ -616,10 +616,10 @@ differenceWith f a b = Lazy.foldlWithKey' go Lazy.empty a
 -- maps.
 intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
                  -> HashMap k v2 -> HashMap k v3
-intersectionWith f a b = Lazy.foldlWithKey' go Lazy.empty a
+intersectionWith f a b = HM.foldlWithKey' go HM.empty a
   where
-    go m k v = case Lazy.lookup k b of
-                 Just w -> let !x = f v w in Lazy.unsafeInsert k x m
+    go m k v = case HM.lookup k b of
+                 Just w -> let !x = f v w in HM.unsafeInsert k x m
                  _      -> m
 {-# INLINABLE intersectionWith #-}
 
@@ -628,10 +628,10 @@ intersectionWith f a b = Lazy.foldlWithKey' go Lazy.empty a
 -- maps.
 intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3)
                     -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
-intersectionWithKey f a b = Lazy.foldlWithKey' go Lazy.empty a
+intersectionWithKey f a b = HM.foldlWithKey' go HM.empty a
   where
-    go m k v = case Lazy.lookup k b of
-                 Just w -> let !x = f k v w in Lazy.unsafeInsert k x m
+    go m k v = case HM.lookup k b of
+                 Just w -> let !x = f k v w in HM.unsafeInsert k x m
                  _      -> m
 {-# INLINABLE intersectionWithKey #-}
 
@@ -642,7 +642,7 @@ intersectionWithKey f a b = Lazy.foldlWithKey' go Lazy.empty a
 -- list contains duplicate mappings, the later mappings take
 -- precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
-fromList = List.foldl' (\ m (k, !v) -> Lazy.unsafeInsert k v m) Lazy.empty
+fromList = List.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) HM.empty
 {-# INLINABLE fromList #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
@@ -676,7 +676,7 @@ fromList = List.foldl' (\ m (k, !v) -> Lazy.unsafeInsert k v m) Lazy.empty
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
 fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) Lazy.empty
+fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) HM.empty
 {-# INLINE fromListWith #-}
 
 -- | /O(n*log n)/ Construct a map from a list of elements.  Uses
@@ -706,7 +706,7 @@ fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) Lazy.empty
 --
 -- @since 0.2.11
 fromListWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) Lazy.empty
+fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) HM.empty
 {-# INLINE fromListWithKey #-}
 
 ------------------------------------------------------------------------
