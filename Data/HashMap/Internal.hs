@@ -1626,7 +1626,7 @@ unionArrayBy f !b1 !b2 !ary1 !ary2 = A.run $ do
     mary <- A.new_ (popCount bCombined)
     -- iterate over nonzero bits of b1 .|. b2
     let go !i !i1 !i2 !b
-            | b == 0     = return ()
+            | b == 0 = return ()
             | testBit (b1 .&. b2) = do
                 x1 <- A.indexM ary1 i1
                 x2 <- A.indexM ary2 i2
@@ -1634,10 +1634,10 @@ unionArrayBy f !b1 !b2 !ary1 !ary2 = A.run $ do
                 go (i+1) (i1+1) (i2+1) b'
             | testBit b1 = do
                 A.write mary i =<< A.indexM ary1 i1
-                go (i+1) (i1+1)  i2    b'
-            | otherwise  = do
+                go (i+1) (i1+1) i2 b'
+            | otherwise = do
                 A.write mary i =<< A.indexM ary2 i2
-                go (i+1)  i1    (i2+1) b'
+                go (i+1) i1 (i2+1) b'
           where
             m = 1 `unsafeShiftL` (countTrailingZeros b)
             testBit x = x .&. m /= 0
