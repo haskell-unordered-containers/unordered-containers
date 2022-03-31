@@ -314,7 +314,10 @@ main = do
             ]
 
             -- Combine
-          , bench "union" $ whnf (HM.union hmi) hmi2
+          , bgroup "union" 
+            [ bench "Int" $ whnf (HM.union hmi) hmi2
+            , bench "ByteString" $ whnf (HM.union hmbs) hmbsSubset
+            ]
 
             -- Transformations
           , bench "map" $ whnf (HM.map (\ v -> v + 1)) hmi

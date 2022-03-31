@@ -144,7 +144,7 @@ import Control.DeepSeq            (NFData (..), NFData1 (..), NFData2 (..))
 import Control.Monad.ST           (ST, runST)
 import Data.Bifoldable            (Bifoldable (..))
 import Data.Bits                  (complement, popCount, unsafeShiftL,
-                                   unsafeShiftR, (.&.), (.|.))
+                                   unsafeShiftR, (.&.), (.|.), countTrailingZeros)
 import Data.Coerce                (coerce)
 import Data.Data                  (Constr, Data (..), DataType)
 import Data.Functor.Classes       (Eq1 (..), Eq2 (..), Ord1 (..), Ord2 (..),
@@ -1622,26 +1622,27 @@ unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.Array a -> A.Array a
 -- Core size reductions with GHC 9.2.2. See the Core diffs in
 -- https://github.com/haskell-unordered-containers/unordered-containers/pull/376.
 unionArrayBy f !b1 !b2 !ary1 !ary2 = A.run $ do
-    let b' = b1 .|. b2
-    mary <- A.new_ (popCount b')
+    let bCombined = b1 .|. b2
+    mary <- A.new_ (popCount bCombined)
     -- iterate over nonzero bits of b1 .|. b2
-    -- it would be nice if we could shift m by more than 1 each time
-    let ba = b1 .&. b2
-        go !i !i1 !i2 !m
-            | m > b'        = return ()
-            | b' .&. m == 0 = go i i1 i2 (m `unsafeShiftL` 1)
-            | ba .&. m /= 0 = do
+    let go !i !i1 !i2 !b
+            | b == 0 = return ()
+            | testBit (b1 .&. b2) = do
                 x1 <- A.indexM ary1 i1
                 x2 <- A.indexM ary2 i2
                 A.write mary i $! f x1 x2
-                go (i+1) (i1+1) (i2+1) (m `unsafeShiftL` 1)
-            | b1 .&. m /= 0 = do
+                go (i+1) (i1+1) (i2+1) b'
+            | testBit b1 = do
                 A.write mary i =<< A.indexM ary1 i1
-                go (i+1) (i1+1)  i2    (m `unsafeShiftL` 1)
-            | otherwise     = do
+                go (i+1) (i1+1) i2 b'
+            | otherwise = do
                 A.write mary i =<< A.indexM ary2 i2
-                go (i+1)  i1    (i2+1) (m `unsafeShiftL` 1)
-    go 0 0 0 (b' .&. negate b') -- XXX: b' must be non-zero
+                go (i+1) i1 (i2+1) b'
+          where
+            m = 1 `unsafeShiftL` (countTrailingZeros b)
+            testBit x = x .&. m /= 0
+            b' = b .&. complement m
+    go 0 0 0 bCombined
     return mary
     -- TODO: For the case where b1 .&. b2 == b1, i.e. when one is a
     -- subset of the other, we could use a slightly simpler algorithm,
