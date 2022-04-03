@@ -2358,41 +2358,63 @@ clone ary =
 ------------------------------------------------------------------------
 -- Bit twiddling
 
+-- TODO: Name this 'bitsPerLevel'?! What's a "subkey"?
 bitsPerSubkey :: Int
 bitsPerSubkey = 5
 
--- | The size of a 'Full' node, @2 ^ 'bitsPerSubkey'@.
+-- | The size of a 'Full' node, i.e. @2 ^ 'bitsPerSubkey'@.
 maxChildren :: Int
 maxChildren = 1 `unsafeShiftL` bitsPerSubkey
 
--- | Bitmap with the lowest 'bitsPerSubkey' set, e.g. @0b11111@.
+-- | Bitmap with the lowest 'bitsPerSubkey' bits set, i.e. @0b11111@.
 subkeyMask :: Bitmap
 subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
 
--- | Number of bits of the first...
-sparseIndex :: Bitmap -> Bitmap -> Int
+-- | This array index is computed by counting the number of bits below the
+-- 'index' represented by the mask.
+--
+-- >>> sparseIndex 0b0110_0110 0b0010_0000
+-- 2
+sparseIndex ::
+    Bitmap ->
+    -- ^ Bitmap of a 'BitmapIndexed' node
+    Bitmap ->
+    -- ^ One-bit 'mask' corresponding to the 'index' of a hash
+    Int
+    -- ^ Index into the array of the 'BitmapIndexed' node
 sparseIndex b m = popCount (b .&. (m - 1))
 {-# INLINE sparseIndex #-}
 
--- | A single bit set at the 'Full' node index.
+-- | Given a 'Hash' and a 'Shift' that indicates the level in the tree, compute
+-- the bitmap that contains only the 'index' of the hash at this level.
+--
+-- >>> mask 0b0010_0010 0
+-- 0b0100
 mask :: Hash -> Shift -> Bitmap
 mask w s = 1 `unsafeShiftL` index w s
 {-# INLINE mask #-}
 
--- | Mask out the 'bitsPerSubkey' bits used for indexing at this level
--- of the tree.
+-- | Given a 'Hash' and a 'Shift' that indicates the level in the tree, compute
+-- the index into a 'Full' node or into the bitmap of of `BitmapIndexed` node.
 --
--- The result is the index of the hash into the array of a 'Full' node.
+-- >>> index 0b0010_0010 0
+-- 0b0000_0010
 index :: Hash -> Shift -> Int
 index w s = fromIntegral $ unsafeShiftR w s .&. subkeyMask
 {-# INLINE index #-}
 
--- | A bitmask with the 'bitsPerSubkey' least significant bits set.
+-- TODO: Should be named _map_ instead of _mask_
+
+-- | A bitmap with the 'maxChildren' least significant bits set, i.e.
+-- @0xFF_FF_FF_FF@.
 fullNodeMask :: Bitmap
 -- This needs to use 'shiftL' instead of 'unsafeShiftL', to avoid UB.
 -- See issue #412.
 fullNodeMask = complement (complement 0 `shiftL` maxChildren)
 {-# INLINE fullNodeMask #-}
+
+------------------------------------------------------------------------
+-- Pointer equality
 
 -- | Check if two the two arguments are the same value.  N.B. This
 -- function might give false negatives (due to GC moving objects.)
