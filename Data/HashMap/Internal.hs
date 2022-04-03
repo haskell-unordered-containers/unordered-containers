@@ -1274,11 +1274,19 @@ update f = alter (>>= f)
 -- 'lookup' k ('alter' f k m) = f ('lookup' k m)
 -- @
 alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
--- TODO(m-renaud): Consider using specialized insert and delete for alter.
 alter f k m =
-  case f (lookup k m) of
-    Nothing -> delete k m
-    Just v  -> insert k v m
+    let !h = hash k
+        !lookupRes = lookupRecordCollision h k m
+    in case f (lookupResToMaybe lookupRes) of
+        Nothing -> case lookupRes of
+            Absent            -> m
+            Present _ collPos -> deleteKeyExists collPos h k m
+        Just v' -> case lookupRes of
+            Absent            -> insertNewKey h k v' m
+            Present v collPos ->
+                if v `ptrEq` v'
+                    then m
+                    else insertKeyExists collPos h k v' m
 {-# INLINABLE alter #-}
 
 -- | \(O(\log n)\)  The expression @('alterF' f k map)@ alters the value @x@ at
