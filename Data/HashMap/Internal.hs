@@ -134,6 +134,7 @@ module Data.HashMap.Internal
     , equalKeys1
     , lookupRecordCollision
     , LookupRes(..)
+    , lookupResToMaybe
     , insert'
     , delete'
     , lookup'
@@ -654,6 +655,10 @@ lookup' h k m = case lookupRecordCollision# h k m of
 -- The result of a lookup, keeping track of if a hash collision occured.
 -- If a collision did not occur then it will have the Int value (-1).
 data LookupRes a = Absent | Present a !Int
+
+lookupResToMaybe :: LookupRes a -> Maybe a
+lookupResToMaybe Absent        = Nothing
+lookupResToMaybe (Present x _) = Just x
 
 -- Internal helper for lookup. This version takes the precomputed hash so
 -- that functions that make multiple calls to lookup and related functions
