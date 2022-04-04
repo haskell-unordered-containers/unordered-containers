@@ -1,3 +1,24 @@
+## [0.2.18.0]
+
+* [Fix strictness properties of `Strict.mapMaybe[WithKey]`](https://github.com/haskell-unordered-containers/unordered-containers/pull/385)
+
+* [Fix strictness properties of `Strict.alterFEager`](https://github.com/haskell-unordered-containers/unordered-containers/pull/384)
+
+* [Fix space leaks in `union[With[Key]]`](https://github.com/haskell-unordered-containers/unordered-containers/pull/380)
+
+* [Fix space leak in `Lazy.fromListWith`](https://github.com/haskell-unordered-containers/unordered-containers/pull/386)
+
+* [Speed up `difference*` and `intersection*` with `unsafeInsert`](https://github.com/haskell-unordered-containers/unordered-containers/pull/372)
+
+* [`unionArrayBy`: Find next 1-bits with `countTrailingZeros`](https://github.com/haskell-unordered-containers/unordered-containers/pull/395)
+  - This speeds up `union*` for sparsely filled nodes, while penalizing `union` operations on densely filled nodes.
+
+* [Reduce reboxing in internal array operations](https://github.com/haskell-unordered-containers/unordered-containers/pull/377)
+
+* [Reduce code size of array operations in `union*`](https://github.com/haskell-unordered-containers/unordered-containers/pull/376)
+
+[0.2.18.0]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.17.0...v0.2.18.0
+
 ## [0.2.17.0]
 
 * [Define `dataCast1` for `HashMap`](https://github.com/haskell-unordered-containers/unordered-containers/pull/345)
