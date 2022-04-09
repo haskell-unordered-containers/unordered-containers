@@ -1820,7 +1820,10 @@ intersectionWithKey f = go 0
       where
         i = index h1 s
         
-    intersectionArray s b1 b2 ary1 ary2 = normalize b ary
+    intersectionArray s b1 b2 ary1 ary2
+      -- don't create an array of size zero in intersectionArrayBy
+      | b1 .&. b2 == 0 = Empty
+      | otherwise = normalize b ary
       where
         (b, ary) = intersectionArrayBy (go (s + bitsPerSubkey)) b1 b2 ary1 ary2
 
@@ -1835,8 +1838,7 @@ intersectionArrayBy f = intersectionArrayByFilter f $ \case Empty -> False; _ ->
 
 intersectionArrayByFilter :: (v1 -> v2 -> v3) -> (v3 -> Bool) -> Bitmap -> Bitmap -> A.Array v1 -> A.Array v2 -> (Bitmap, A.Array v3)
 intersectionArrayByFilter f p !b1 !b2 !ary1 !ary2 = runST $ do
-  let bCombined = b1 .|. b2
-  mary <- A.new_ $ popCount $ b1 .&. b2
+  mary <- A.new_ $ popCount bIntersect
   -- iterate over nonzero bits of b1 .&. b2
   let go !i !i1 !i2 !b !bFinal
         | b == 0 = pure (i, bFinal)
@@ -1855,10 +1857,13 @@ intersectionArrayByFilter f p !b1 !b2 !ary1 !ary2 = runST $ do
           m = 1 `unsafeShiftL` countTrailingZeros b
           testBit x = x .&. m /= 0
           b' = b .&. complement m
-  (maryLen, bFinal) <- go 0 0 0 bCombined (b1 .&. b2)
+  (maryLen, bFinal) <- go 0 0 0 bCombined bIntersect
   A.shrink mary maryLen
   ary <- A.unsafeFreeze mary
   pure (bFinal, ary)
+  where
+    bCombined = b1 .|. b2
+    bIntersect = b1 .&. b2
 {-# INLINE intersectionArrayByFilter #-}
 
 intersectionUnorderedArrayWithKey :: (Eq k) => (k -> v1 -> v2 -> (# v3 #)) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> A.Array (Leaf k v3)
