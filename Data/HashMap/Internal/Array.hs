@@ -219,7 +219,7 @@ shrink mary _n@(I# n#) =
   ST $ \s -> case Exts.shrinkSmallMutableArray# (unMArray mary) n# s of
     s' -> (# s', mary #)
 #else
-shrink mary n = cloneM marr 0 n
+shrink mary n = cloneM mary 0 n
 #endif 
 {-# INLINE shrink #-}
 
