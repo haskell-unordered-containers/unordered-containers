@@ -92,7 +92,8 @@ import GHC.Exts            (Int (..), SmallArray#, SmallMutableArray#,
                             sizeofSmallMutableArray#, tagToEnum#,
                             thawSmallArray#, unsafeCoerce#,
                             unsafeFreezeSmallArray#, unsafeThawSmallArray#,
-                            writeSmallArray#, shrinkSmallMutableArray#)
+                            writeSmallArray#)
+import qualified GHC.Exts as Exts
 import GHC.ST              (ST (..))
 import Prelude             hiding (all, filter, foldMap, foldl, foldr, length,
                             map, read, traverse)
@@ -215,7 +216,7 @@ shrink :: MArray s a -> Int -> ST s (MArray s a)
 shrink mary _n@(I# n#) =
   CHECK_GE("shrink", _n, (0 :: Int))
   CHECK_LE("shrink", _n, (lengthM mary))
-  ST $ \s -> case shrinkSmallMutableArray# (unMArray mary) n# s of
+  ST $ \s -> case Exts.shrinkSmallMutableArray# (unMArray mary) n# s of
     s' -> (# s', mary #)
 #else
 shrink mary n = do
