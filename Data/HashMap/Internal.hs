@@ -1768,11 +1768,11 @@ intersectionWith f = inline intersectionWithKey $ const f
 -- | /O(n*log m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
-intersectionWithKey ::  (Eq k, Hashable k) => (k -> v1 -> v2 -> v3) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
+intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
 intersectionWithKey f = intersectionWithKey# (\k v1 v2 -> (# f k v1 v2 #))
 {-# INLINABLE intersectionWithKey #-}
 
-intersectionWithKey# ::  (Eq k, Hashable k) => (k -> v1 -> v2 -> (# v3 #)) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
+intersectionWithKey# :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
 intersectionWithKey# f = go 0
   where
     -- empty vs. anything
