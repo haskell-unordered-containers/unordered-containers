@@ -1785,9 +1785,10 @@ intersectionWithKey# f = go 0
     go _ (Collision h1 ls1) (Collision h2 ls2)
       | h1 == h2 = runST $ do
         (len, mary) <- intersectionUnorderedArrayWithKey f ls1 ls2
-        if len == 0
-          then pure Empty
-          else Collision h1 <$> (A.unsafeFreeze =<< A.shrink mary len)
+        case len of
+          0 -> pure Empty
+          1 -> Leaf h1 <$> A.read mary 0
+          _ -> Collision h1 <$> (A.unsafeFreeze =<< A.shrink mary len)
       | otherwise = Empty
     -- branch vs. branch
     go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) = intersectionArray s b1 b2 ary1 ary2
@@ -1819,10 +1820,10 @@ intersectionWithKey# f = go 0
       | b1 .&. b2 == 0 = Empty
       | otherwise = runST $ do
         (b, len, ary) <- intersectionArrayBy (go (s + bitsPerSubkey)) b1 b2 ary1 ary2
-        -- don't shrink an array of length 0
-        if len == 0
-          then pure Empty
-          else bitmapIndexedOrFull b <$> (A.unsafeFreeze =<< A.shrink ary len)
+        case len of
+          0 -> pure Empty
+          1 -> A.read ary 0
+          _ -> bitmapIndexedOrFull b <$> (A.unsafeFreeze =<< A.shrink ary len)
 
 {-# INLINE intersectionWithKey# #-}
 
