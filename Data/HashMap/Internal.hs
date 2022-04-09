@@ -1783,10 +1783,12 @@ intersectionWithKey# f = go 0
     go s t1 (Leaf h2 (L k2 v2)) = lookupCont (\_ -> Empty) (\v _ -> case f k2 v v2 of (# v' #) -> Leaf h2 $ L k2 v') h2 k2 s t1
     -- collision vs. collision
     go _ (Collision h1 ls1) (Collision h2 ls2)
-      | h1 == h2 = if A.length ls == 0 then Empty else Collision h1 ls
+      | h1 == h2 = runST $ do
+        (len, mary) <- intersectionUnorderedArrayWithKey f ls1 ls2
+        if len == 0
+          then pure Empty
+          else Collision h1 <$> (A.unsafeFreeze =<< A.shrink mary len)
       | otherwise = Empty
-      where
-        ls = intersectionUnorderedArrayWithKey f ls1 ls2
     -- branch vs. branch
     go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) = intersectionArray s b1 b2 ary1 ary2
     go s (BitmapIndexed b1 ary1) (Full ary2) = intersectionArray s b1 fullNodeMask ary1 ary2
@@ -1815,21 +1817,21 @@ intersectionWithKey# f = go 0
     intersectionArray s b1 b2 ary1 ary2
       -- don't create an array of size zero in intersectionArrayBy
       | b1 .&. b2 == 0 = Empty
-      | otherwise = normalize b ary
-      where
-        (b, ary) = intersectionArrayBy (go (s + bitsPerSubkey)) b1 b2 ary1 ary2
+      | otherwise = runST $ do
+        (b, len, ary) <- intersectionArrayBy (go (s + bitsPerSubkey)) b1 b2 ary1 ary2
+        -- don't shrink an array of length 0
+        if len == 0
+          then pure Empty
+          else bitmapIndexedOrFull b <$> (A.unsafeFreeze =<< A.shrink ary len)
 
-    normalize b ary
-      | A.length ary == 0 = Empty
-      | otherwise = bitmapIndexedOrFull b ary
 {-# INLINE intersectionWithKey# #-}
 
-intersectionArrayBy :: (v1 -> v2 -> HashMap k v) -> Bitmap -> Bitmap -> A.Array v1 -> A.Array v2 -> (Bitmap, A.Array (HashMap k v))
+intersectionArrayBy :: (v1 -> v2 -> HashMap k v) -> Bitmap -> Bitmap -> A.Array v1 -> A.Array v2 -> ST s (Bitmap, Int, A.MArray s (HashMap k v))
 intersectionArrayBy f = intersectionArrayByFilter f $ \case Empty -> False; _ -> True
 {-# INLINE intersectionArrayBy #-}
 
-intersectionArrayByFilter :: (v1 -> v2 -> v3) -> (v3 -> Bool) -> Bitmap -> Bitmap -> A.Array v1 -> A.Array v2 -> (Bitmap, A.Array v3)
-intersectionArrayByFilter f p !b1 !b2 !ary1 !ary2 = runST $ do
+intersectionArrayByFilter :: (v1 -> v2 -> v3) -> (v3 -> Bool) -> Bitmap -> Bitmap -> A.Array v1 -> A.Array v2 -> ST s (Bitmap, Int, A.MArray s v3)
+intersectionArrayByFilter f p !b1 !b2 !ary1 !ary2 = do
   mary <- A.new_ $ popCount bIntersect
   -- iterate over nonzero bits of b1 .&. b2
   let go !i !i1 !i2 !b !bFinal
@@ -1850,15 +1852,14 @@ intersectionArrayByFilter f p !b1 !b2 !ary1 !ary2 = runST $ do
           testBit x = x .&. m /= 0
           b' = b .&. complement m
   (maryLen, bFinal) <- go 0 0 0 bCombined bIntersect
-  ary <- A.unsafeFreeze =<< A.shrink mary maryLen
-  pure (bFinal, ary)
+  pure (bFinal, maryLen, mary)
   where
     bCombined = b1 .|. b2
     bIntersect = b1 .&. b2
 {-# INLINE intersectionArrayByFilter #-}
 
-intersectionUnorderedArrayWithKey :: (Eq k) => (k -> v1 -> v2 -> (# v3 #)) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> A.Array (Leaf k v3)
-intersectionUnorderedArrayWithKey f ary1 ary2 = A.run $ do
+intersectionUnorderedArrayWithKey :: (Eq k) => (k -> v1 -> v2 -> (# v3 #)) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> ST s (Int, A.MArray s (Leaf k v3))
+intersectionUnorderedArrayWithKey f ary1 ary2 = do
   mary2 <- A.thaw ary2 0 $ A.length ary2
   mary <- A.new_ $ A.length ary1 + A.length ary2
   let go i j
@@ -1873,7 +1874,7 @@ intersectionUnorderedArrayWithKey f ary1 ary2 = A.run $ do
             Nothing -> do
               go (i + 1) j
   maryLen <- go 0 0
-  A.shrink mary maryLen
+  pure (maryLen, mary)
 {-# INLINABLE intersectionUnorderedArrayWithKey #-}
 
 searchSwap :: Eq k => k -> Int -> A.MArray s (Leaf k v) -> ST s (Maybe (Leaf k v))
