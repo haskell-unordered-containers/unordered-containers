@@ -1850,8 +1850,7 @@ intersectionArrayByFilter f p !b1 !b2 !ary1 !ary2 = runST $ do
           testBit x = x .&. m /= 0
           b' = b .&. complement m
   (maryLen, bFinal) <- go 0 0 0 bCombined bIntersect
-  A.shrink mary maryLen
-  ary <- A.unsafeFreeze mary
+  ary <- A.unsafeFreeze =<< A.shrink mary maryLen
   pure (bFinal, ary)
   where
     bCombined = b1 .|. b2
@@ -1875,7 +1874,6 @@ intersectionUnorderedArrayWithKey f ary1 ary2 = A.run $ do
               go (i + 1) j
   maryLen <- go 0 0
   A.shrink mary maryLen
-  pure mary
 {-# INLINABLE intersectionUnorderedArrayWithKey #-}
 
 searchSwap :: Eq k => k -> Int -> A.MArray s (Leaf k v) -> ST s (Maybe (Leaf k v))

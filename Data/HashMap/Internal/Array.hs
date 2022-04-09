@@ -208,14 +208,23 @@ new _n@(I# n#) b =
 new_ :: Int -> ST s (MArray s a)
 new_ n = new n undefinedElem
 
-shrink :: MArray s a -> Int -> ST s ()
+-- when shrinkSmallMutableArray# is available, the returned array is the same as the array given, as it is shrunk in place
+-- otherwise a copy is made
+shrink :: MArray s a -> Int -> ST s (MArray s a)
+#if MIN_VERSION_GLASGOW_HASKELL(8, 10, 7, 0)
 shrink mary _n@(I# n#) =
   CHECK_GE("shrink", _n, (0 :: Int))
   CHECK_LE("shrink", _n, (lengthM mary))
   ST $ \s -> case shrinkSmallMutableArray# (unMArray mary) n# s of
-    s' -> (# s', () #)
+    s' -> (# s', mary #)
+#else
+shrink mary n = do
+  mary' <- new_ n
+  copyM mary 0 mary' 0 n
+  pure mary'
+#endif 
 {-# INLINE shrink #-}
-  
+
 singleton :: a -> Array a
 singleton x = runST (singletonM x)
 {-# INLINE singleton #-}
