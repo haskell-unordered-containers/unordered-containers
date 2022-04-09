@@ -152,6 +152,7 @@ import Data.Functor.Classes       (Eq1 (..), Eq2 (..), Ord1 (..), Ord2 (..),
 import Data.Functor.Identity      (Identity (..))
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
 import Data.Hashable              (Hashable)
+import Debug.Trace (traceId)
 import Data.Hashable.Lifted       (Hashable1, Hashable2)
 import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
 import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
@@ -169,6 +170,8 @@ import qualified Data.Hashable.Lifted        as H
 import qualified Data.List                   as List
 import qualified GHC.Exts                    as Exts
 import qualified Language.Haskell.TH.Syntax  as TH
+import Numeric (showIntAtBase)
+import Data.Char (intToDigit)
 
 -- | A set of values.  A set cannot contain duplicate values.
 ------------------------------------------------------------------------
@@ -178,7 +181,7 @@ hash :: H.Hashable a => a -> Hash
 hash = fromIntegral . H.hash
 
 data Leaf k v = L !k v
-  deriving (Eq)
+  deriving (Show, Eq)
 
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L k v) = rnf k `seq` rnf v
@@ -210,6 +213,7 @@ data HashMap k v
     | Leaf !Hash !(Leaf k v)
     | Full !(A.Array (HashMap k v))
     | Collision !Hash !(A.Array (Leaf k v))
+    deriving (Show)
 
 type role HashMap nominal representational
 
@@ -337,9 +341,9 @@ instance (Eq k, Hashable k, Read k, Read e) => Read (HashMap k e) where
 
     readListPrec = readListPrecDefault
 
-instance (Show k, Show v) => Show (HashMap k v) where
-    showsPrec d m = showParen (d > 10) $
-      showString "fromList " . shows (toList m)
+-- instance (Show k, Show v) => Show (HashMap k v) where
+--     showsPrec d m = showParen (d > 10) $
+--       showString "fromList " . shows (toList m)
 
 instance Traversable (HashMap k) where
     traverse f = traverseWithKey (const f)
@@ -1602,10 +1606,6 @@ unionWithKey f = go 0
             ary' = update32With' ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
         in Full ary'
 
-    leafHashCode (Leaf h _) = h
-    leafHashCode (Collision h _) = h
-    leafHashCode _ = error "leafHashCode"
-
     goDifferentHash s h1 h2 t1 t2
         | m1 == m2  = BitmapIndexed m1 (A.singleton $! goDifferentHash (s+bitsPerSubkey) h1 h2 t1 t2)
         | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
@@ -1639,7 +1639,7 @@ unionArrayBy f !b1 !b2 !ary1 !ary2 = A.run $ do
                 A.write mary i =<< A.indexM ary2 i2
                 go (i+1) i1 (i2+1) b'
           where
-            m = 1 `unsafeShiftL` (countTrailingZeros b)
+            m = 1 `unsafeShiftL` countTrailingZeros b
             testBit x = x .&. m /= 0
             b' = b .&. complement m
     go 0 0 0 bCombined
@@ -1770,37 +1770,154 @@ differenceWith f a b = foldlWithKey' go empty a
 
 -- | /O(n*log m)/ Intersection of two maps. Return elements of the first
 -- map for keys existing in the second.
-intersection :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
-intersection a b = foldlWithKey' go empty a
-  where
-    go m k v = case lookup k b of
-                 Just _ -> unsafeInsert k v m
-                 _      -> m
+intersection :: (Eq k, Hashable k, Show v, Show w, Show k) => HashMap k v -> HashMap k w -> HashMap k v
+intersection = intersectionWith const
 {-# INLINABLE intersection #-}
 
 -- | /O(n*log m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
-intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
-                 -> HashMap k v2 -> HashMap k v3
-intersectionWith f a b = foldlWithKey' go empty a
-  where
-    go m k v = case lookup k b of
-                 Just w -> unsafeInsert k (f v w) m
-                 _      -> m
+intersectionWith :: (Show v1, Show v2, Show v3, Show k, Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
+intersectionWith f = intersectionWithKey $ const f
 {-# INLINABLE intersectionWith #-}
 
 -- | /O(n*log m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
-intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3)
-                    -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
-intersectionWithKey f a b = foldlWithKey' go empty a
+intersectionWithKey ::  (Show v1, Show v2, Show v3, Show k, Eq k, Hashable k) => (k -> v1 -> v2 -> v3) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
+intersectionWithKey f = go 0
   where
-    go m k v = case lookup k b of
-                 Just w -> unsafeInsert k (f k v w) m
-                 _      -> m
+    -- empty vs. anything
+    go !_ _ Empty = Empty
+    go _ Empty _ = Empty
+    -- leaf vs. anything
+    go s (Leaf h1 (L k1 v1)) t2 = lookupCont (\_ -> Empty) (\v _ -> Leaf h1 $ L k1 $ f k1 v1 v) h1 k1 s t2
+    go s t1 (Leaf h2 (L k2 v2)) = lookupCont (\_ -> Empty) (\v _ -> Leaf h2 $ L k2 $ f k2 v v2) h2 k2 s t1
+    -- collision vs. collision
+    go _ (Collision h1 ls1) (Collision h2 ls2)
+      | h1 == h2 = if A.length ls == 0 then Empty else Collision h1 ls
+      | otherwise = Empty
+      where
+        ls = intersectionUnorderedArrayWithKey (\k v1 v2 -> (# f k v1 v2 #)) ls1 ls2
+    -- branch vs. branch
+    go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) = normalize b ary
+      where
+        (b, ary) = intersectionArrayBy (go (s + bitsPerSubkey)) b1 b2 ary1 ary2
+    go s (BitmapIndexed b1 ary1) (Full ary2) = normalize b ary
+      where
+        (b, ary) = intersectionArrayBy (go (s + bitsPerSubkey)) b1 fullNodeMask ary1 ary2
+    go s (Full ary1) (BitmapIndexed b2 ary2) = normalize b ary
+      where
+        (b, ary) = intersectionArrayBy (go (s + bitsPerSubkey)) fullNodeMask b2 ary1 ary2
+    go s (Full ary1) (Full ary2) = normalize b ary
+      where
+        (b, ary) = intersectionArrayBy (go (s + bitsPerSubkey)) fullNodeMask fullNodeMask ary1 ary2
+    -- collision vs. branch
+    go s (BitmapIndexed b1 ary1) t2@(Collision h2 _ls2)
+      | b1 .&. m2 == 0 = Empty
+      | otherwise = go (s + bitsPerSubkey) (A.index ary1 i) t2
+      where
+        m2 = mask h2 s
+        i = sparseIndex b1 m2
+    go s t1@(Collision h1 _ls1) (BitmapIndexed b2 ary2)
+      | b2 .&. m1 == 0 = Empty
+      | otherwise = go (s + bitsPerSubkey) t1 (A.index ary2 i)
+      where
+        m1 = mask h1 s
+        i = sparseIndex b2 m1
+    go s (Full ary1) t2@(Collision h2 _ls2) = go (s + bitsPerSubkey) (A.index ary1 i) t2
+      where
+        i = index h2 s
+    go s t1@(Collision h1 _ls1) (Full ary2) = go (s + bitsPerSubkey) t1 (A.index ary2 i)
+      where
+        i = index h1 s
+        
+    normalize b ary
+      | A.length ary == 0 = Empty
+      | otherwise = bitmapIndexedOrFull b ary
 {-# INLINABLE intersectionWithKey #-}
+
+showBitmap ::  Bitmap -> String
+showBitmap b = showIntAtBase 2 intToDigit b ""
+
+intersectionArrayBy :: (Show v1, Show v2, Show k, Show v) => (v1 -> v2 -> HashMap k v) -> Bitmap -> Bitmap -> A.Array v1 -> A.Array v2 -> (Bitmap, A.Array (HashMap k v))
+intersectionArrayBy f = intersectionArrayByFilter f $ \case Empty -> False; _ -> True
+{-# INLINE intersectionArrayBy #-}
+
+intersectionArrayByFilter :: (Show v1, Show v2, Show v3) => (v1 -> v2 -> v3) -> (v3 -> Bool) -> Bitmap -> Bitmap -> A.Array v1 -> A.Array v2 -> (Bitmap, A.Array v3)
+intersectionArrayByFilter f p !b1 !b2 !ary1 !ary2 = runST $ do
+  let bCombined = b1 .|. b2
+  let
+      -- !_ = traceId $ "intersecting arrays"
+      -- !_ = traceId $ "b1: " ++ showBitmap b1
+      -- !_ = traceId $ "b2: " ++ showBitmap b2
+      -- !_ = traceId $ "bCombined: " ++ showBitmap bCombined
+  mary <- A.new_ $ popCount $ b1 .&. b2
+  -- iterate over nonzero bits of b1 .&. b2
+  let go !i !i1 !i2 !b !bFinal
+        | b == 0 = pure (i, bFinal)
+        | testBit $ b1 .&. b2 = do
+          x1 <- A.indexM ary1 i1
+          x2 <- A.indexM ary2 i2
+          let
+              -- !_ = traceId $ "i1: " ++ show i1
+              -- !_ = traceId $ "i2: " ++ show i2
+              -- !_ = traceId $ "x1: " ++ show x1
+              -- !_ = traceId $ "x2: " ++ show x2
+              -- !_ = traceId $ "writing " ++ show (f x1 x2)
+          let !x = f x1 x2
+          if p x
+            then do
+              A.write mary i $! f x1 x2
+              go (i + 1) (i1 + 1) (i2 + 1) b' bFinal
+            else go i (i1 + 1) (i2 + 1) b' (bFinal .&. complement m)
+        | testBit b1 = go i (i1 + 1) i2 b' bFinal
+        | otherwise = go i i1 (i2 + 1) b' bFinal
+        where
+          m = 1 `unsafeShiftL` countTrailingZeros b
+          testBit x = x .&. m /= 0
+          b' = b .&. complement m
+  (maryLen, bFinal) <- go 0 0 0 bCombined (b1 .&. b2)
+  A.shrink mary maryLen
+  ary <- A.unsafeFreeze mary
+  pure (bFinal, ary)
+{-# INLINE intersectionArrayByFilter #-}
+
+intersectionUnorderedArrayWithKey :: (Show k, Show v1, Show v2, Show v3, Eq k) => (k -> v1 -> v2 -> (# v3 #)) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> A.Array (Leaf k v3)
+intersectionUnorderedArrayWithKey f ary1 ary2 = A.run $ do
+  mary2 <- A.thaw ary2 0 $ A.length ary2
+  mary <- A.new_ $ A.length ary1 + A.length ary2
+  let go i j
+        | i >= A.length ary1 || j >= A.lengthM mary2 = pure j
+        | otherwise = do
+          L k1 v1 <- A.indexM ary1 i
+          searchSwap k1 j mary2 >>= \case
+            Just (L _k2 v2) -> do
+              -- let !_ = traceId $ "found " ++ show k1
+              let !(# v3 #) = f k1 v1 v2
+              A.write mary j $ L k1 v3
+              go (i + 1) (j + 1)
+            Nothing -> do
+              -- let !_ = traceId $ "did not find " ++ show k1
+              go (i + 1) j
+  maryLen <- go 0 0
+  A.shrink mary maryLen
+  pure mary
+{-# INLINABLE intersectionUnorderedArrayWithKey #-}
+
+searchSwap :: Eq k => k -> Int -> A.MArray s (Leaf k v) -> ST s (Maybe (Leaf k v))
+searchSwap toFind start = go start toFind start
+  where
+    go i0 k i mary
+      | i >= A.lengthM mary = pure Nothing
+      | otherwise = do
+        l@(L k' _v) <- A.read mary i
+        if k == k'
+          then do
+            A.write mary i =<< A.read mary i0
+            pure $ Just l
+          else go i0 k (i + 1) mary
+
 
 ------------------------------------------------------------------------
 -- * Folds
@@ -2281,6 +2398,12 @@ fullNodeMask = complement (complement 0 `unsafeShiftL` maxChildren)
 ptrEq :: a -> a -> Bool
 ptrEq x y = Exts.isTrue# (Exts.reallyUnsafePtrEquality# x y ==# 1#)
 {-# INLINE ptrEq #-}
+
+leafHashCode :: HashMap k v -> Hash
+leafHashCode (Leaf h _) = h
+leafHashCode (Collision h _) = h
+leafHashCode _ = error "leafHashCode"
+{-# INLINE leafHashCode #-}
 
 ------------------------------------------------------------------------
 -- IsList instance

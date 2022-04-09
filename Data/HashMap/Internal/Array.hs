@@ -76,6 +76,7 @@ module Data.HashMap.Internal.Array
     , toList
     , fromList
     , fromList'
+    , shrink
     ) where
 
 import Control.Applicative (liftA2)
@@ -90,7 +91,7 @@ import GHC.Exts            (Int (..), SmallArray#, SmallMutableArray#,
                             sizeofSmallMutableArray#, tagToEnum#,
                             thawSmallArray#, unsafeCoerce#,
                             unsafeFreezeSmallArray#, unsafeThawSmallArray#,
-                            writeSmallArray#)
+                            writeSmallArray#, shrinkSmallMutableArray#)
 import GHC.ST              (ST (..))
 import Prelude             hiding (all, filter, foldMap, foldl, foldr, length,
                             map, read, traverse)
@@ -204,6 +205,12 @@ new _n@(I# n#) b =
 new_ :: Int -> ST s (MArray s a)
 new_ n = new n undefinedElem
 
+shrink :: MArray s a -> Int -> ST s ()
+shrink mary (I# n#) =
+  ST $ \s -> case shrinkSmallMutableArray# (unMArray mary) n# s of
+    s' -> (# s', () #)
+{-# INLINE shrink #-}
+  
 singleton :: a -> Array a
 singleton x = runST (singletonM x)
 {-# INLINE singleton #-}

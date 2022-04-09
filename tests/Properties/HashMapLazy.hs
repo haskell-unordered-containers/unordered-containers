@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
+{-# LANGUAGE BangPatterns #-}
 
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
 -- comparing them to @Map@ from @containers@.
@@ -17,6 +18,7 @@ import Control.Applicative      (Const (..))
 import Control.Monad            (guard)
 import Data.Bifoldable
 import Data.Function            (on)
+import Debug.Trace (traceId)
 import Data.Functor.Identity    (Identity (..))
 import Data.Hashable            (Hashable (hashWithSalt))
 import Data.Ord                 (comparing)
@@ -26,6 +28,7 @@ import Test.QuickCheck.Function (Fun, apply)
 import Test.QuickCheck.Poly     (A, B)
 import Test.Tasty               (TestTree, testGroup)
 import Test.Tasty.QuickCheck    (testProperty)
+import Test.Tasty.HUnit
 
 import qualified Data.Foldable as Foldable
 import qualified Data.List     as List
@@ -42,7 +45,7 @@ import qualified Data.Map.Lazy     as M
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Eq, Ord, Read, Show)
+            deriving (Arbitrary, Eq, Ord, Read, Show, Num)
 
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
@@ -249,7 +252,15 @@ pSubmapDifference m1 m2 = HM.isSubmapOf (HM.difference m1 m2) m1
 
 pNotSubmapDifference :: HashMap Key Int -> HashMap Key Int -> Property
 pNotSubmapDifference m1 m2 =
-  not (HM.null (HM.intersection m1 m2)) ==>
+  not (HM.null (HM.intersection m1 m2)) ==> do
+
+  let
+      res = HM.intersection m1 m2
+      res' = M.intersection (M.fromList $ HM.toList m1) (M.fromList $ HM.toList m2)
+      -- !_ = traceId $ "res: " ++ show res
+      -- !_ = traceId $ "res': " ++ show res'
+      -- !_ = traceId $ "m1: " ++ show m1
+      -- !_ = traceId $ "m2: " ++ show m2
   not (HM.isSubmapOf m1 (HM.difference m1 m2))
 
 pSubmapDelete :: HashMap Key Int -> Property
@@ -318,8 +329,20 @@ pDifferenceWith xs ys = M.differenceWith f (M.fromList xs) `eq_`
     f x y = if x == 0 then Nothing else Just (x - y)
 
 pIntersection :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pIntersection xs ys = M.intersection (M.fromList xs) `eq_`
-                      HM.intersection (HM.fromList xs) $ ys
+pIntersection xs ys = do
+  let
+      res' = M.intersection (M.fromList xs) (M.fromList ys)
+      res = HM.intersection (HM.fromList xs) (HM.fromList ys)
+      -- !_ = traceId $ "res': " ++ show res'
+      -- !_ = traceId $ "res: " ++ show res
+      -- !_ = traceId $ "xs: " ++ show (HM.fromList xs)
+      -- !_ = traceId $ "ys: " ++ show (HM.fromList ys)
+  M.intersection (M.fromList xs)
+    `eq_` HM.intersection (HM.fromList xs)
+    $ ys
+
+intersectionBad :: Assertion
+intersectionBad = pIntersection [(-20, 0), (0, 0)] [(0, 0), (20, 0)] @? "should be true"
 
 pIntersectionWith :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pIntersectionWith xs ys = M.intersectionWith (-) (M.fromList xs) `eq_`
@@ -531,6 +554,7 @@ tests =
       [ testProperty "difference" pDifference
       , testProperty "differenceWith" pDifferenceWith
       , testProperty "intersection" pIntersection
+      , testCase "intersectionBad" intersectionBad
       , testProperty "intersectionWith" pIntersectionWith
       , testProperty "intersectionWithKey" pIntersectionWithKey
       ]
