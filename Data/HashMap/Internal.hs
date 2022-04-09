@@ -819,17 +819,9 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
         in Full (update32 ary i st')
       where i = index h s
     go h k x s t@(Collision hy v)
-        | h == hy   = Collision h (snocNewLeaf (L k x) v)
+        | h == hy   = Collision h (A.snoc v (L k x))
         | otherwise =
             go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-      where
-        snocNewLeaf :: Leaf k v -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-        snocNewLeaf leaf ary = A.run $ do
-          let n = A.length ary
-          mary <- A.new_ (n + 1)
-          A.copy ary 0 mary 0 n
-          A.write mary n leaf
-          return mary
 {-# NOINLINE insertNewKey #-}
 
 
@@ -1008,12 +1000,8 @@ insertModifyingArr :: Eq k => v -> (v -> (# v #)) -> k -> A.Array (Leaf k v)
 insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
-        | i >= n = A.run $ do
-            -- Not found, append to the end.
-            mary <- A.new_ (n + 1)
-            A.copy ary 0 mary 0 n
-            A.write mary n (L k x)
-            return mary
+          -- Not found, append to the end.
+        | i >= n = A.snoc ary $ L k x
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> case f y of
                                       (# y' #) -> if ptrEq y y'
@@ -2164,12 +2152,8 @@ updateOrSnocWithKey :: Eq k => (k -> v -> v -> (# v #)) -> k -> v -> A.Array (Le
 updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
   where
     go !k v !ary !i !n
-        | i >= n = A.run $ do
-            -- Not found, append to the end.
-            mary <- A.new_ (n + 1)
-            A.copy ary 0 mary 0 n
-            A.write mary n (L k v)
-            return mary
+        -- Not found, append to the end.
+        | i >= n = A.snoc ary $ L k v
         | L kx y <- A.index ary i
         , k == kx
         , (# v2 #) <- f k v y
