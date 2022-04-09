@@ -819,17 +819,9 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
         in Full (update32 ary i st')
       where i = index h s
     go h k x s t@(Collision hy v)
-        | h == hy   = Collision h (snocNewLeaf (L k x) v)
+        | h == hy   = Collision h (A.snoc v (L k x))
         | otherwise =
             go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-      where
-        snocNewLeaf :: Leaf k v -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-        snocNewLeaf leaf ary = A.run $ do
-          let n = A.length ary
-          mary <- A.new_ (n + 1)
-          A.copy ary 0 mary 0 n
-          A.write mary n leaf
-          return mary
 {-# NOINLINE insertNewKey #-}
 
 
@@ -1008,12 +1000,8 @@ insertModifyingArr :: Eq k => v -> (v -> (# v #)) -> k -> A.Array (Leaf k v)
 insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
-        | i >= n = A.run $ do
-            -- Not found, append to the end.
-            mary <- A.new_ (n + 1)
-            A.copy ary 0 mary 0 n
-            A.write mary n (L k x)
-            return mary
+          -- Not found, append to the end.
+        | i >= n = A.snoc ary $ L k x
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> case f y of
                                       (# y' #) -> if ptrEq y y'
@@ -1780,21 +1768,25 @@ intersectionWith f = inline intersectionWithKey $ const f
 -- | /O(n*log m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
-intersectionWithKey ::  (Eq k, Hashable k) => (k -> v1 -> v2 -> v3) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
-intersectionWithKey f = go 0
+intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
+intersectionWithKey f = intersectionWithKey# (\k v1 v2 -> (# f k v1 v2 #))
+{-# INLINABLE intersectionWithKey #-}
+
+intersectionWithKey# :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
+intersectionWithKey# f = go 0
   where
     -- empty vs. anything
     go !_ _ Empty = Empty
     go _ Empty _ = Empty
     -- leaf vs. anything
-    go s (Leaf h1 (L k1 v1)) t2 = lookupCont (\_ -> Empty) (\v _ -> Leaf h1 $ L k1 $ f k1 v1 v) h1 k1 s t2
-    go s t1 (Leaf h2 (L k2 v2)) = lookupCont (\_ -> Empty) (\v _ -> Leaf h2 $ L k2 $ f k2 v v2) h2 k2 s t1
+    go s (Leaf h1 (L k1 v1)) t2 = lookupCont (\_ -> Empty) (\v _ -> case f k1 v1 v of (# v' #) -> Leaf h1 $ L k1 v') h1 k1 s t2
+    go s t1 (Leaf h2 (L k2 v2)) = lookupCont (\_ -> Empty) (\v _ -> case f k2 v v2 of (# v' #) -> Leaf h2 $ L k2 v') h2 k2 s t1
     -- collision vs. collision
     go _ (Collision h1 ls1) (Collision h2 ls2)
       | h1 == h2 = if A.length ls == 0 then Empty else Collision h1 ls
       | otherwise = Empty
       where
-        ls = intersectionUnorderedArrayWithKey (\k v1 v2 -> (# f k v1 v2 #)) ls1 ls2
+        ls = intersectionUnorderedArrayWithKey f ls1 ls2
     -- branch vs. branch
     go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) = intersectionArray s b1 b2 ary1 ary2
     go s (BitmapIndexed b1 ary1) (Full ary2) = intersectionArray s b1 fullNodeMask ary1 ary2
@@ -1830,7 +1822,7 @@ intersectionWithKey f = go 0
     normalize b ary
       | A.length ary == 0 = Empty
       | otherwise = bitmapIndexedOrFull b ary
-{-# INLINABLE intersectionWithKey #-}
+{-# INLINE intersectionWithKey# #-}
 
 intersectionArrayBy :: (v1 -> v2 -> HashMap k v) -> Bitmap -> Bitmap -> A.Array v1 -> A.Array v2 -> (Bitmap, A.Array (HashMap k v))
 intersectionArrayBy f = intersectionArrayByFilter f $ \case Empty -> False; _ -> True
@@ -2263,12 +2255,8 @@ updateOrSnocWithKey :: Eq k => (k -> v -> v -> (# v #)) -> k -> v -> A.Array (Le
 updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
   where
     go !k v !ary !i !n
-        | i >= n = A.run $ do
-            -- Not found, append to the end.
-            mary <- A.new_ (n + 1)
-            A.copy ary 0 mary 0 n
-            A.write mary n (L k v)
-            return mary
+        -- Not found, append to the end.
+        | i >= n = A.snoc ary $ L k v
         | L kx y <- A.index ary i
         , k == kx
         , (# v2 #) <- f k v y

@@ -34,6 +34,7 @@ module Data.HashMap.Internal.Array
     , new_
     , singleton
     , singletonM
+    , snoc
     , pair
 
       -- * Basic interface
@@ -222,6 +223,15 @@ singleton x = runST (singletonM x)
 singletonM :: a -> ST s (Array a)
 singletonM x = new 1 x >>= unsafeFreeze
 {-# INLINE singletonM #-}
+
+snoc :: Array a -> a -> Array a
+snoc ary x = run $ do
+  mary <- new (n + 1) x
+  copy ary 0 mary 0 n
+  pure mary
+  where
+    n = length ary
+{-# INLINE snoc #-}
 
 pair :: a -> a -> Array a
 pair x y = run $ do
