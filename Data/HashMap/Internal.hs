@@ -178,7 +178,7 @@ hash :: H.Hashable a => a -> Hash
 hash = fromIntegral . H.hash
 
 data Leaf k v = L !k v
-  deriving (Show, Eq)
+  deriving (Eq)
 
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L k v) = rnf k `seq` rnf v
@@ -1775,7 +1775,7 @@ intersection = intersectionWith const
 -- maps.
 intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
 intersectionWith f = intersectionWithKey $ const f
-{-# INLINABLE intersectionWith #-}
+{-# INLINE intersectionWith #-}
 
 -- | /O(n*log m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
@@ -1827,7 +1827,7 @@ intersectionWithKey f = go 0
     normalize b ary
       | A.length ary == 0 = Empty
       | otherwise = bitmapIndexedOrFull b ary
-{-# INLINABLE intersectionWithKey #-}
+{-# INLINE intersectionWithKey #-}
 
 intersectionArrayBy :: (v1 -> v2 -> HashMap k v) -> Bitmap -> Bitmap -> A.Array v1 -> A.Array v2 -> (Bitmap, A.Array (HashMap k v))
 intersectionArrayBy f = intersectionArrayByFilter f $ \case Empty -> False; _ -> True
