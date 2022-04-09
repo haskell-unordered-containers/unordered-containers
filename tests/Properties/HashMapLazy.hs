@@ -329,14 +329,7 @@ pDifferenceWith xs ys = M.differenceWith f (M.fromList xs) `eq_`
     f x y = if x == 0 then Nothing else Just (x - y)
 
 pIntersection :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pIntersection xs ys = do
-  let
-      res' = M.intersection (M.fromList xs) (M.fromList ys)
-      res = HM.intersection (HM.fromList xs) (HM.fromList ys)
-      -- !_ = traceId $ "res': " ++ show res'
-      -- !_ = traceId $ "res: " ++ show res
-      -- !_ = traceId $ "xs: " ++ show (HM.fromList xs)
-      -- !_ = traceId $ "ys: " ++ show (HM.fromList ys)
+pIntersection xs ys = 
   M.intersection (M.fromList xs)
     `eq_` HM.intersection (HM.fromList xs)
     $ ys
