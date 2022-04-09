@@ -210,7 +210,6 @@ data HashMap k v
     | Leaf !Hash !(Leaf k v)
     | Full !(A.Array (HashMap k v))
     | Collision !Hash !(A.Array (Leaf k v))
-    deriving (Show)
 
 type role HashMap nominal representational
 
@@ -338,9 +337,9 @@ instance (Eq k, Hashable k, Read k, Read e) => Read (HashMap k e) where
 
     readListPrec = readListPrecDefault
 
--- instance (Show k, Show v) => Show (HashMap k v) where
---     showsPrec d m = showParen (d > 10) $
---       showString "fromList " . shows (toList m)
+instance (Show k, Show v) => Show (HashMap k v) where
+    showsPrec d m = showParen (d > 10) $
+      showString "fromList " . shows (toList m)
 
 instance Traversable (HashMap k) where
     traverse f = traverseWithKey (const f)
