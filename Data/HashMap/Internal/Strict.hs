@@ -138,6 +138,7 @@ import Prelude               hiding (lookup, map)
 import qualified Data.HashMap.Internal       as HM
 import qualified Data.HashMap.Internal.Array as A
 import qualified Data.List                   as List
+import GHC.Exts (inline)
 
 {-
 Note [Imports from Data.HashMap.Internal]
@@ -616,11 +617,7 @@ differenceWith f a b = HM.foldlWithKey' go HM.empty a
 -- maps.
 intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
                  -> HashMap k v2 -> HashMap k v3
-intersectionWith f a b = HM.foldlWithKey' go HM.empty a
-  where
-    go m k v = case HM.lookup k b of
-                 Just w -> let !x = f v w in HM.unsafeInsert k x m
-                 _      -> m
+intersectionWith f = inline intersectionWithKey $ const f
 {-# INLINABLE intersectionWith #-}
 
 -- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
@@ -628,11 +625,7 @@ intersectionWith f a b = HM.foldlWithKey' go HM.empty a
 -- maps.
 intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3)
                     -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
-intersectionWithKey f a b = HM.foldlWithKey' go HM.empty a
-  where
-    go m k v = case HM.lookup k b of
-                 Just w -> let !x = f k v w in HM.unsafeInsert k x m
-                 _      -> m
+intersectionWithKey f = HM.intersectionWithKey# $ \k v1 v2 -> let !v3 = f k v1 v2 in (# v3 #)
 {-# INLINABLE intersectionWithKey #-}
 
 ------------------------------------------------------------------------

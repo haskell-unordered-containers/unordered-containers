@@ -78,6 +78,7 @@ module Data.HashMap.Internal
     , intersection
     , intersectionWith
     , intersectionWithKey
+    , intersectionWithKey#
 
       -- * Folds
     , foldr'
@@ -1769,7 +1770,7 @@ intersectionWith f = inline intersectionWithKey $ const f
 -- the provided function is used to combine the values from the two
 -- maps.
 intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
-intersectionWithKey f = intersectionWithKey# (\k v1 v2 -> (# f k v1 v2 #))
+intersectionWithKey f = intersectionWithKey# $ \k v1 v2 -> (# f k v1 v2 #)
 {-# INLINABLE intersectionWithKey #-}
 
 intersectionWithKey# :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
@@ -1794,7 +1795,7 @@ intersectionWithKey# f = go 0
     go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) = intersectionArray s b1 b2 ary1 ary2
     go s (BitmapIndexed b1 ary1) (Full ary2) = intersectionArray s b1 fullNodeMask ary1 ary2
     go s (Full ary1) (BitmapIndexed b2 ary2) = intersectionArray s fullNodeMask b2 ary1 ary2
-    go s (Full ary1) (Full ary2) = intersectionArray s fullNodeMask fullNodeMask ary1 ary2 
+    go s (Full ary1) (Full ary2) = intersectionArray s fullNodeMask fullNodeMask ary1 ary2
     -- collision vs. branch
     go s (BitmapIndexed b1 ary1) t2@(Collision h2 _ls2)
       | b1 .&. m2 == 0 = Empty
@@ -1814,7 +1815,7 @@ intersectionWithKey# f = go 0
     go s t1@(Collision h1 _ls1) (Full ary2) = go (s + bitsPerSubkey) t1 (A.index ary2 i)
       where
         i = index h1 s
-        
+
     intersectionArray s b1 b2 ary1 ary2
       -- don't create an array of size zero in intersectionArrayBy
       | b1 .&. b2 == 0 = Empty
@@ -1824,15 +1825,19 @@ intersectionWithKey# f = go 0
           0 -> pure Empty
           1 -> A.read ary 0
           _ -> bitmapIndexedOrFull b <$> (A.unsafeFreeze =<< A.shrink ary len)
-
 {-# INLINE intersectionWithKey# #-}
 
-intersectionArrayBy :: (v1 -> v2 -> HashMap k v) -> Bitmap -> Bitmap -> A.Array v1 -> A.Array v2 -> ST s (Bitmap, Int, A.MArray s (HashMap k v))
-intersectionArrayBy f = intersectionArrayByFilter f $ \case Empty -> False; _ -> True
-{-# INLINE intersectionArrayBy #-}
-
-intersectionArrayByFilter :: (v1 -> v2 -> v3) -> (v3 -> Bool) -> Bitmap -> Bitmap -> A.Array v1 -> A.Array v2 -> ST s (Bitmap, Int, A.MArray s v3)
-intersectionArrayByFilter f p !b1 !b2 !ary1 !ary2 = do
+intersectionArrayBy ::
+  ( HashMap k v1 ->
+    HashMap k v2 ->
+    HashMap k v3
+  ) ->
+  Bitmap ->
+  Bitmap ->
+  A.Array (HashMap k v1) ->
+  A.Array (HashMap k v2) ->
+  ST s (Bitmap, Int, A.MArray s (HashMap k v3))
+intersectionArrayBy f !b1 !b2 !ary1 !ary2 = do
   mary <- A.new_ $ popCount bIntersect
   -- iterate over nonzero bits of b1 .&. b2
   let go !i !i1 !i2 !b !bFinal
@@ -1840,12 +1845,11 @@ intersectionArrayByFilter f p !b1 !b2 !ary1 !ary2 = do
         | testBit $ b1 .&. b2 = do
           x1 <- A.indexM ary1 i1
           x2 <- A.indexM ary2 i2
-          let !x = f x1 x2
-          if p x
-            then do
+          case f x1 x2 of
+            Empty -> go i (i1 + 1) (i2 + 1) b' (bFinal .&. complement m)
+            _ -> do
               A.write mary i $! f x1 x2
               go (i + 1) (i1 + 1) (i2 + 1) b' bFinal
-            else go i (i1 + 1) (i2 + 1) b' (bFinal .&. complement m)
         | testBit b1 = go i (i1 + 1) i2 b' bFinal
         | otherwise = go i i1 (i2 + 1) b' bFinal
         where
@@ -1857,9 +1861,9 @@ intersectionArrayByFilter f p !b1 !b2 !ary1 !ary2 = do
   where
     bCombined = b1 .|. b2
     bIntersect = b1 .&. b2
-{-# INLINE intersectionArrayByFilter #-}
+{-# INLINE intersectionArrayBy #-}
 
-intersectionUnorderedArrayWithKey :: (Eq k) => (k -> v1 -> v2 -> (# v3 #)) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> ST s (Int, A.MArray s (Leaf k v3))
+intersectionUnorderedArrayWithKey :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> ST s (Int, A.MArray s (Leaf k v3))
 intersectionUnorderedArrayWithKey f ary1 ary2 = do
   mary2 <- A.thaw ary2 0 $ A.length ary2
   mary <- A.new_ $ A.length ary1 + A.length ary2
@@ -1876,7 +1880,7 @@ intersectionUnorderedArrayWithKey f ary1 ary2 = do
               go (i + 1) j
   maryLen <- go 0 0
   pure (maryLen, mary)
-{-# INLINABLE intersectionUnorderedArrayWithKey #-}
+{-# INLINE intersectionUnorderedArrayWithKey #-}
 
 searchSwap :: Eq k => k -> Int -> A.MArray s (Leaf k v) -> ST s (Maybe (Leaf k v))
 searchSwap toFind start = go start toFind start
