@@ -1863,7 +1863,7 @@ intersectionArrayBy f !b1 !b2 !ary1 !ary2 = do
     bIntersect = b1 .&. b2
 {-# INLINE intersectionArrayBy #-}
 
-intersectionUnorderedArrayWithKey :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> ST s (Int, A.MArray s (Leaf k v3))
+intersectionCollisions :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> ST s (Int, A.MArray s (Leaf k v3))
 intersectionUnorderedArrayWithKey f ary1 ary2 = do
   mary2 <- A.thaw ary2 0 $ A.length ary2
   mary <- A.new_ $ A.length ary1 + A.length ary2
