@@ -1785,7 +1785,7 @@ intersectionWithKey# f = go 0
     -- collision vs. collision
     go _ (Collision h1 ls1) (Collision h2 ls2)
       | h1 == h2 = runST $ do
-        (len, mary) <- intersectionUnorderedArrayWithKey f ls1 ls2
+        (len, mary) <- intersectionCollisions f ls1 ls2
         case len of
           0 -> pure Empty
           1 -> Leaf h1 <$> A.read mary 0
@@ -1864,7 +1864,7 @@ intersectionArrayBy f !b1 !b2 !ary1 !ary2 = do
 {-# INLINE intersectionArrayBy #-}
 
 intersectionCollisions :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> ST s (Int, A.MArray s (Leaf k v3))
-intersectionUnorderedArrayWithKey f ary1 ary2 = do
+intersectionCollisions f ary1 ary2 = do
   mary2 <- A.thaw ary2 0 $ A.length ary2
   mary <- A.new_ $ A.length ary1 + A.length ary2
   let go i j
@@ -1880,7 +1880,7 @@ intersectionUnorderedArrayWithKey f ary1 ary2 = do
               go (i + 1) j
   maryLen <- go 0 0
   pure (maryLen, mary)
-{-# INLINE intersectionUnorderedArrayWithKey #-}
+{-# INLINE intersectionCollisions #-}
 
 searchSwap :: Eq k => k -> Int -> A.MArray s (Leaf k v) -> ST s (Maybe (Leaf k v))
 searchSwap toFind start = go start toFind start
