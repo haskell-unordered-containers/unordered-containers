@@ -391,7 +391,7 @@ difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
 --
 -- >>> HashSet.intersection (HashSet.fromList [1,2,3]) (HashSet.fromList [2,3,4])
 -- fromList [2,3]
-intersection :: (Show a, Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
+intersection :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 intersection (HashSet a) (HashSet b) = HashSet (H.intersection a b)
 {-# INLINABLE intersection #-}
 
