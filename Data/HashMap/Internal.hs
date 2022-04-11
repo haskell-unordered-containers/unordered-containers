@@ -155,7 +155,7 @@ import Data.Hashable              (Hashable)
 import Data.Hashable.Lifted       (Hashable1, Hashable2)
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
 import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
-import GHC.Exts                   (Int (..), Int#, TYPE, (==#), inline)
+import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
 import GHC.Stack                  (HasCallStack)
 import Prelude                    hiding (filter, foldl, foldr, lookup, map,
                                    null, pred)
@@ -1756,14 +1756,14 @@ differenceWith f a b = foldlWithKey' go empty a
 -- | /O(n*log m)/ Intersection of two maps. Return elements of the first
 -- map for keys existing in the second.
 intersection :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
-intersection = inline intersectionWith const
+intersection = Exts.inline intersectionWith const
 {-# INLINABLE intersection #-}
 
 -- | /O(n*log m)/ Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
 intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
-intersectionWith f = inline intersectionWithKey $ const f
+intersectionWith f = Exts.inline intersectionWithKey $ const f
 {-# INLINABLE intersectionWith #-}
 
 -- | /O(n*log m)/ Intersection of two maps. If a key occurs in both maps
