@@ -210,7 +210,7 @@ new_ n = new n undefinedElem
 -- | When 'Exts.shrinkSmallMutableArray#' is available, the returned array is the same as the array given, as it is shrunk in place.
 -- Otherwise a copy is made.
 shrink :: MArray s a -> Int -> ST s (MArray s a)
-#if MIN_VERSION_GLASGOW_HASKELL(8, 10, 7, 0)
+#if __GLASGOW_HASKELL__ >= 810
 shrink mary _n@(I# n#) =
   CHECK_GT("shrink", _n, (0 :: Int))
   CHECK_LE("shrink", _n, (lengthM mary))
