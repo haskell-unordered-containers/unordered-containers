@@ -1591,6 +1591,10 @@ unionWithKey f = go 0
             ary' = update32With' ary2 i $ \st2 -> go (s+bitsPerSubkey) t1 st2
         in Full ary'
 
+    leafHashCode (Leaf h _) = h
+    leafHashCode (Collision h _) = h
+    leafHashCode _ = error "leafHashCode"
+
     goDifferentHash s h1 h2 t1 t2
         | m1 == m2  = BitmapIndexed m1 (A.singleton $! goDifferentHash (s+bitsPerSubkey) h1 h2 t1 t2)
         | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
@@ -1866,7 +1870,7 @@ intersectionArrayBy f !b1 !b2 !ary1 !ary2 = do
 intersectionCollisions :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> ST s (Int, A.MArray s (Leaf k v3))
 intersectionCollisions f ary1 ary2 = do
   mary2 <- A.thaw ary2 0 $ A.length ary2
-  mary <- A.new_ $ A.length ary1 + A.length ary2
+  mary <- A.new_ $ min (A.length ary1) (A.length ary2)
   let go i j
         | i >= A.length ary1 || j >= A.lengthM mary2 = pure j
         | otherwise = do
@@ -2381,12 +2385,6 @@ fullNodeMask = complement (complement 0 `unsafeShiftL` maxChildren)
 ptrEq :: a -> a -> Bool
 ptrEq x y = Exts.isTrue# (Exts.reallyUnsafePtrEquality# x y ==# 1#)
 {-# INLINE ptrEq #-}
-
-leafHashCode :: HashMap k v -> Hash
-leafHashCode (Leaf h _) = h
-leafHashCode (Collision h _) = h
-leafHashCode _ = error "leafHashCode"
-{-# INLINE leafHashCode #-}
 
 ------------------------------------------------------------------------
 -- IsList instance

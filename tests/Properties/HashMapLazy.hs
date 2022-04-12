@@ -18,7 +18,6 @@ import Control.Applicative      (Const (..))
 import Control.Monad            (guard)
 import Data.Bifoldable
 import Data.Function            (on)
-import Debug.Trace (traceId)
 import Data.Functor.Identity    (Identity (..))
 import Data.Hashable            (Hashable (hashWithSalt))
 import Data.Ord                 (comparing)
@@ -252,15 +251,7 @@ pSubmapDifference m1 m2 = HM.isSubmapOf (HM.difference m1 m2) m1
 
 pNotSubmapDifference :: HashMap Key Int -> HashMap Key Int -> Property
 pNotSubmapDifference m1 m2 =
-  not (HM.null (HM.intersection m1 m2)) ==> do
-
-  let
-      res = HM.intersection m1 m2
-      res' = M.intersection (M.fromList $ HM.toList m1) (M.fromList $ HM.toList m2)
-      -- !_ = traceId $ "res: " ++ show res
-      -- !_ = traceId $ "res': " ++ show res'
-      -- !_ = traceId $ "m1: " ++ show m1
-      -- !_ = traceId $ "m2: " ++ show m2
+  not (HM.null (HM.intersection m1 m2)) ==>
   not (HM.isSubmapOf m1 (HM.difference m1 m2))
 
 pSubmapDelete :: HashMap Key Int -> Property
@@ -333,9 +324,6 @@ pIntersection xs ys =
   M.intersection (M.fromList xs)
     `eq_` HM.intersection (HM.fromList xs)
     $ ys
-
-intersectionBad :: Assertion
-intersectionBad = pIntersection [(-20, 0), (0, 0)] [(0, 0), (20, 0)] @? "should be true"
 
 pIntersectionWith :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pIntersectionWith xs ys = M.intersectionWith (-) (M.fromList xs) `eq_`
@@ -547,7 +535,6 @@ tests =
       [ testProperty "difference" pDifference
       , testProperty "differenceWith" pDifferenceWith
       , testProperty "intersection" pIntersection
-      , testCase "intersectionBad" intersectionBad
       , testProperty "intersectionWith" pIntersectionWith
       , testProperty "intersectionWithKey" pIntersectionWithKey
       ]
