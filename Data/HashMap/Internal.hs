@@ -1882,6 +1882,15 @@ intersectionCollisions f ary1 ary2 = do
   pure (maryLen, mary)
 {-# INLINE intersectionCollisions #-}
 
+-- | Say we have
+-- @
+-- 1 2 3 4
+-- @
+-- and we search for @3@. Then we can mutate the array to
+-- @
+-- undefined 2 1 4
+-- @
+-- We don't actually need to write undefined, we just have to make sure that the next search starts 1 after the current one.
 searchSwap :: Eq k => k -> Int -> A.MArray s (Leaf k v) -> ST s (Maybe (Leaf k v))
 searchSwap toFind start = go start toFind start
   where
