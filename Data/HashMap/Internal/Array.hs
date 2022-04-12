@@ -207,8 +207,8 @@ new _n@(I# n#) b =
 new_ :: Int -> ST s (MArray s a)
 new_ n = new n undefinedElem
 
--- when shrinkSmallMutableArray# is available, the returned array is the same as the array given, as it is shrunk in place
--- otherwise a copy is made
+-- | When 'Exts.shrinkSmallMutableArray#' is available, the returned array is the same as the array given, as it is shrunk in place.
+-- Otherwise a copy is made.
 shrink :: MArray s a -> Int -> ST s (MArray s a)
 #if MIN_VERSION_GLASGOW_HASKELL(8, 10, 7, 0)
 shrink mary _n@(I# n#) =
