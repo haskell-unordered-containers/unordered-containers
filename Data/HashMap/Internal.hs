@@ -2375,12 +2375,12 @@ subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
 --
 -- >>> sparseIndex 0b0110_0110 0b0010_0000
 -- 2
-sparseIndex ::
-    Bitmap ->
+sparseIndex
+    :: Bitmap
     -- ^ Bitmap of a 'BitmapIndexed' node
-    Bitmap ->
+    -> Bitmap
     -- ^ One-bit 'mask' corresponding to the 'index' of a hash
-    Int
+    -> Int
     -- ^ Index into the array of the 'BitmapIndexed' node
 sparseIndex b m = popCount (b .&. (m - 1))
 {-# INLINE sparseIndex #-}
