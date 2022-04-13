@@ -599,7 +599,7 @@ traverseWithKey f = go
 ------------------------------------------------------------------------
 -- * Difference and intersection
 
--- | \(O(n*\log m)\) Difference with a combining function. When two equal keys are
+-- | \(O(n \log m)\) Difference with a combining function. When two equal keys are
 -- encountered, the combining function is applied to the values of these keys.
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
@@ -638,14 +638,14 @@ intersectionWithKey f a b = HM.foldlWithKey' go HM.empty a
 ------------------------------------------------------------------------
 -- ** Lists
 
--- | \(O(n*\log n)\) Construct a map with the supplied mappings.  If the
+-- | \(O(n \log n)\) Construct a map with the supplied mappings.  If the
 -- list contains duplicate mappings, the later mappings take
 -- precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = List.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) HM.empty
 {-# INLINABLE fromList #-}
 
--- | \(O(n*\log n)\) Construct a map from a list of elements.  Uses
+-- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
 -- the provided function @f@ to merge duplicate entries with
 -- @(f newVal oldVal)@.
 --
@@ -679,7 +679,7 @@ fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) HM.empty
 {-# INLINE fromListWith #-}
 
--- | \(O(n*\log n)\) Construct a map from a list of elements.  Uses
+-- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
 -- the provided function to merge duplicate entries.
 --
 -- === Examples

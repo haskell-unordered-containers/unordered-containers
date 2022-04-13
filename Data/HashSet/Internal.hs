@@ -285,7 +285,7 @@ fromMap = HashSet
 keysSet :: HashMap k a -> HashSet k
 keysSet m = fromMap (() <$ m)
 
--- | \(O(n*\log m)\) Inclusion of sets.
+-- | \(O(n \log m)\) Inclusion of sets.
 --
 -- ==== __Examples__
 --
@@ -444,7 +444,7 @@ toList :: HashSet a -> [a]
 toList t = Exts.build (\ c z -> foldrWithKey (const . c) z (asMap t))
 {-# INLINE toList #-}
 
--- | \(O(n*\min(W, n))\) Construct a set from a list of elements.
+-- | \(O(n \min(W, n))\) Construct a set from a list of elements.
 fromList :: (Eq a, Hashable a) => [a] -> HashSet a
 fromList = HashSet . List.foldl' (\ m k -> H.insert k () m) H.empty
 {-# INLINE fromList #-}

@@ -1379,7 +1379,7 @@ alterFEager f !k m = (<$> f mv) $ \case
            Present v _ -> Just v
 {-# INLINABLE alterFEager #-}
 
--- | \(O(n*\log m)\) Inclusion of maps. A map is included in another map if the keys
+-- | \(O(n \log m)\) Inclusion of maps. A map is included in another map if the keys
 -- are subsets and the corresponding values are equal:
 --
 -- > isSubmapOf m1 m2 = keys m1 `isSubsetOf` keys m2 &&
@@ -1398,7 +1398,7 @@ isSubmapOf :: (Eq k, Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
 isSubmapOf = Exts.inline isSubmapOfBy (==)
 {-# INLINABLE isSubmapOf #-}
 
--- | \(O(n*\log m)\) Inclusion of maps with value comparison. A map is included in
+-- | \(O(n \log m)\) Inclusion of maps with value comparison. A map is included in
 -- another map if the keys are subsets and if the comparison function is true
 -- for the corresponding values:
 --
@@ -1734,7 +1734,7 @@ mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 ------------------------------------------------------------------------
 -- * Difference and intersection
 
--- | \(O(n*\log m)\) Difference of two maps. Return elements of the first map
+-- | \(O(n \log m)\) Difference of two maps. Return elements of the first map
 -- not existing in the second.
 difference :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
 difference a b = foldlWithKey' go empty a
@@ -1744,7 +1744,7 @@ difference a b = foldlWithKey' go empty a
                  _       -> m
 {-# INLINABLE difference #-}
 
--- | \(O(n*\log m)\) Difference with a combining function. When two equal keys are
+-- | \(O(n \log m)\) Difference with a combining function. When two equal keys are
 -- encountered, the combining function is applied to the values of these keys.
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
@@ -1756,7 +1756,7 @@ differenceWith f a b = foldlWithKey' go empty a
                  Just w  -> maybe m (\y -> unsafeInsert k y m) (f v w)
 {-# INLINABLE differenceWith #-}
 
--- | \(O(n*\log m)\) Intersection of two maps. Return elements of the first
+-- | \(O(n \log m)\) Intersection of two maps. Return elements of the first
 -- map for keys existing in the second.
 intersection :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
 intersection a b = foldlWithKey' go empty a
@@ -1766,7 +1766,7 @@ intersection a b = foldlWithKey' go empty a
                  _      -> m
 {-# INLINABLE intersection #-}
 
--- | \(O(n*\log m)\) Intersection of two maps. If a key occurs in both maps
+-- | \(O(n \log m)\) Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
 intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
@@ -1778,7 +1778,7 @@ intersectionWith f a b = foldlWithKey' go empty a
                  _      -> m
 {-# INLINABLE intersectionWith #-}
 
--- | \(O(n*\log m)\) Intersection of two maps. If a key occurs in both maps
+-- | \(O(n \log m)\) Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
 intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3)
@@ -2033,7 +2033,7 @@ fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = List.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 {-# INLINABLE fromList #-}
 
--- | \(O(n*\log n)\) Construct a map from a list of elements.  Uses
+-- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
 -- the provided function @f@ to merge duplicate entries with
 -- @(f newVal oldVal)@.
 --
@@ -2067,7 +2067,7 @@ fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 {-# INLINE fromListWith #-}
 
--- | \(O(n*\log n)\) Construct a map from a list of elements.  Uses
+-- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
 -- the provided function to merge duplicate entries.
 --
 -- === Examples
