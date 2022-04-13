@@ -1787,19 +1787,12 @@ intersectionWithKey# f = go 0
     go s (Leaf h1 (L k1 v1)) t2 = lookupCont (\_ -> Empty) (\v _ -> case f k1 v1 v of (# v' #) -> Leaf h1 $ L k1 v') h1 k1 s t2
     go s t1 (Leaf h2 (L k2 v2)) = lookupCont (\_ -> Empty) (\v _ -> case f k2 v v2 of (# v' #) -> Leaf h2 $ L k2 v') h2 k2 s t1
     -- collision vs. collision
-    go _ (Collision h1 ls1) (Collision h2 ls2)
-      | h1 == h2 = runST $ do
-        (len, mary) <- intersectionCollisions f ls1 ls2
-        case len of
-          0 -> pure Empty
-          1 -> Leaf h1 <$> A.read mary 0
-          _ -> Collision h1 <$> (A.unsafeFreeze =<< A.shrink mary len)
-      | otherwise = Empty
+    go _ (Collision h1 ls1) (Collision h2 ls2) = intersectionCollisions f h1 h2 ls1 ls2
     -- branch vs. branch
-    go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) = intersectionArray s b1 b2 ary1 ary2
-    go s (BitmapIndexed b1 ary1) (Full ary2) = intersectionArray s b1 fullNodeMask ary1 ary2
-    go s (Full ary1) (BitmapIndexed b2 ary2) = intersectionArray s fullNodeMask b2 ary1 ary2
-    go s (Full ary1) (Full ary2) = intersectionArray s fullNodeMask fullNodeMask ary1 ary2
+    go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) = intersectionArrayBy (go (s + bitsPerSubkey)) b1 b2 ary1 ary2
+    go s (BitmapIndexed b1 ary1) (Full ary2) = intersectionArrayBy (go (s + bitsPerSubkey)) b1 fullNodeMask ary1 ary2
+    go s (Full ary1) (BitmapIndexed b2 ary2) = intersectionArrayBy (go (s + bitsPerSubkey)) fullNodeMask b2 ary1 ary2
+    go s (Full ary1) (Full ary2) = intersectionArrayBy (go (s + bitsPerSubkey)) fullNodeMask fullNodeMask ary1 ary2
     -- collision vs. branch
     go s (BitmapIndexed b1 ary1) t2@(Collision h2 _ls2)
       | b1 .&. m2 == 0 = Empty
@@ -1819,16 +1812,6 @@ intersectionWithKey# f = go 0
     go s t1@(Collision h1 _ls1) (Full ary2) = go (s + bitsPerSubkey) t1 (A.index ary2 i)
       where
         i = index h1 s
-
-    intersectionArray s b1 b2 ary1 ary2
-      -- don't create an array of size zero in intersectionArrayBy
-      | b1 .&. b2 == 0 = Empty
-      | otherwise = runST $ do
-        (b, len, ary) <- intersectionArrayBy (go (s + bitsPerSubkey)) b1 b2 ary1 ary2
-        case len of
-          0 -> pure Empty
-          1 -> A.read ary 0
-          _ -> bitmapIndexedOrFull b <$> (A.unsafeFreeze =<< A.shrink ary len)
 {-# INLINE intersectionWithKey# #-}
 
 intersectionArrayBy ::
@@ -1840,10 +1823,12 @@ intersectionArrayBy ::
   Bitmap ->
   A.Array (HashMap k v1) ->
   A.Array (HashMap k v2) ->
-  ST s (Bitmap, Int, A.MArray s (HashMap k v3))
-intersectionArrayBy f !b1 !b2 !ary1 !ary2 = do
+  HashMap k v3
+intersectionArrayBy f !b1 !b2 !ary1 !ary2
+  | b1 .&. b2 == 0 = Empty
+  | otherwise = runST $ do
   mary <- A.new_ $ popCount bIntersect
-  -- iterate over nonzero bits of b1 .&. b2
+  -- iterate over nonzero bits of b1 .|. b2
   let go !i !i1 !i2 !b !bFinal
         | b == 0 = pure (i, bFinal)
         | testBit $ b1 .&. b2 = do
@@ -1860,15 +1845,19 @@ intersectionArrayBy f !b1 !b2 !ary1 !ary2 = do
           m = 1 `unsafeShiftL` countTrailingZeros b
           testBit x = x .&. m /= 0
           b' = b .&. complement m
-  (maryLen, bFinal) <- go 0 0 0 bCombined bIntersect
-  pure (bFinal, maryLen, mary)
+  (len, bFinal) <- go 0 0 0 bCombined bIntersect
+  case len of
+    0 -> pure Empty
+    1 -> A.read mary 0
+    _ -> bitmapIndexedOrFull bFinal <$> (A.unsafeFreeze =<< A.shrink mary len)
   where
     bCombined = b1 .|. b2
     bIntersect = b1 .&. b2
 {-# INLINE intersectionArrayBy #-}
 
-intersectionCollisions :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> ST s (Int, A.MArray s (Leaf k v3))
-intersectionCollisions f ary1 ary2 = do
+intersectionCollisions :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> Hash -> Hash -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> HashMap k v3
+intersectionCollisions f h1 h2 ary1 ary2
+  | h1 == h2 =  runST $ do
   mary2 <- A.thaw ary2 0 $ A.length ary2
   mary <- A.new_ $ min (A.length ary1) (A.length ary2)
   let go i j
@@ -1882,8 +1871,12 @@ intersectionCollisions f ary1 ary2 = do
               go (i + 1) (j + 1)
             Nothing -> do
               go (i + 1) j
-  maryLen <- go 0 0
-  pure (maryLen, mary)
+  len <- go 0 0
+  case len of
+    0 -> pure Empty
+    1 -> Leaf h1 <$> A.read mary 0
+    _ -> Collision h1 <$> (A.unsafeFreeze =<< A.shrink mary len)
+  | otherwise = Empty
 {-# INLINE intersectionCollisions #-}
 
 -- | Say we have

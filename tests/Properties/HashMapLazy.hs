@@ -27,7 +27,6 @@ import Test.QuickCheck.Function (Fun, apply)
 import Test.QuickCheck.Poly     (A, B)
 import Test.Tasty               (TestTree, testGroup)
 import Test.Tasty.QuickCheck    (testProperty)
-import Test.Tasty.HUnit
 
 import qualified Data.Foldable as Foldable
 import qualified Data.List     as List
