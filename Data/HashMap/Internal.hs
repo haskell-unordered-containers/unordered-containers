@@ -546,23 +546,23 @@ isLeafOrCollision _               = False
 ------------------------------------------------------------------------
 -- * Construction
 
--- | /O(1)/ Construct an empty map.
+-- | \(O(1)\) Construct an empty map.
 empty :: HashMap k v
 empty = Empty
 
--- | /O(1)/ Construct a map with a single element.
+-- | \(O(1)\) Construct a map with a single element.
 singleton :: (Hashable k) => k -> v -> HashMap k v
 singleton k v = Leaf (hash k) (L k v)
 
 ------------------------------------------------------------------------
 -- * Basic interface
 
--- | /O(1)/ Return 'True' if this map is empty, 'False' otherwise.
+-- | \(O(1)\) Return 'True' if this map is empty, 'False' otherwise.
 null :: HashMap k v -> Bool
 null Empty = True
 null _   = False
 
--- | /O(n)/ Return the number of key-value mappings in this map.
+-- | \(O(n)\) Return the number of key-value mappings in this map.
 size :: HashMap k v -> Int
 size t = go t 0
   where
@@ -572,7 +572,7 @@ size t = go t 0
     go (Full ary)            n = A.foldl' (flip go) n ary
     go (Collision _ ary)     n = n + A.length ary
 
--- | /O(log n)/ Return 'True' if the specified key is present in the
+-- | \(O(\log n)\) Return 'True' if the specified key is present in the
 -- map, 'False' otherwise.
 member :: (Eq k, Hashable k) => k -> HashMap k a -> Bool
 member k m = case lookup k m of
@@ -580,7 +580,7 @@ member k m = case lookup k m of
     Just _  -> True
 {-# INLINABLE member #-}
 
--- | /O(log n)/ Return the value to which the specified key is mapped,
+-- | \(O(\log n)\) Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.
 lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
 -- GHC does not yet perform a worker-wrapper transformation on
@@ -683,7 +683,7 @@ lookupCont absent present !h0 !k0 !s0 !m0 = go h0 k0 s0 m0
         | otherwise = absent (# #)
 {-# INLINE lookupCont #-}
 
--- | /O(log n)/ Return the value to which the specified key is mapped,
+-- | \(O(\log n)\) Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.
 --
 -- This is a flipped version of 'lookup'.
@@ -694,7 +694,7 @@ lookupCont absent present !h0 !k0 !s0 !m0 = go h0 k0 s0 m0
 {-# INLINE (!?) #-}
 
 
--- | /O(log n)/ Return the value to which the specified key is mapped,
+-- | \(O(\log n)\) Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
 --
 -- @since 0.2.11
@@ -707,7 +707,7 @@ findWithDefault def k t = case lookup k t of
 {-# INLINABLE findWithDefault #-}
 
 
--- | /O(log n)/ Return the value to which the specified key is mapped,
+-- | \(O(\log n)\) Return the value to which the specified key is mapped,
 -- or the default value if this map contains no mapping for the key.
 --
 -- DEPRECATED: lookupDefault is deprecated as of version 0.2.11, replaced
@@ -718,7 +718,7 @@ lookupDefault :: (Eq k, Hashable k)
 lookupDefault = findWithDefault
 {-# INLINE lookupDefault #-}
 
--- | /O(log n)/ Return the value to which the specified key is mapped.
+-- | \(O(\log n)\) Return the value to which the specified key is mapped.
 -- Calls 'error' if this map contains no mapping for the key.
 (!) :: (Eq k, Hashable k, HasCallStack) => HashMap k v -> k -> v
 (!) m k = case lookup k m of
@@ -747,7 +747,7 @@ bitmapIndexedOrFull b !ary
     | otherwise         = BitmapIndexed b ary
 {-# INLINE bitmapIndexedOrFull #-}
 
--- | /O(log n)/ Associate the specified value with the specified
+-- | \(O(\log n)\) Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
@@ -932,7 +932,7 @@ two = go
              | otherwise               = 0
 {-# INLINE two #-}
 
--- | /O(log n)/ Associate the value with the key in this map.  If
+-- | \(O(\log n)\) Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
 -- is replaced by the result of applying the given function to the new
 -- and old value.  Example:
@@ -1053,7 +1053,7 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsertWithKey #-}
 
--- | /O(log n)/ Remove the mapping for the specified key from this map
+-- | \(O(\log n)\) Remove the mapping for the specified key from this map
 -- if present.
 delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
 delete k m = delete' (hash k) k m
@@ -1160,7 +1160,7 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 0 m0
     go !_ !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
 {-# NOINLINE deleteKeyExists #-}
 
--- | /O(log n)/ Adjust the value tied to a given key in this map only
+-- | \(O(\log n)\) Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
 adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
 -- This operation really likes to leak memory, so using this
@@ -1210,7 +1210,7 @@ adjust# f k0 m0 = go h0 k0 0 m0
         | otherwise = t
 {-# INLINABLE adjust# #-}
 
--- | /O(log n)/  The expression @('update' f k map)@ updates the value @x@ at @k@
+-- | \(O(\log n)\)  The expression @('update' f k map)@ updates the value @x@ at @k@
 -- (if it is in the map). If @(f x)@ is 'Nothing', the element is deleted.
 -- If it is @('Just' y)@, the key @k@ is bound to the new value @y@.
 update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
@@ -1218,7 +1218,7 @@ update f = alter (>>= f)
 {-# INLINABLE update #-}
 
 
--- | /O(log n)/  The expression @('alter' f k map)@ alters the value @x@ at @k@, or
+-- | \(O(\log n)\)  The expression @('alter' f k map)@ alters the value @x@ at @k@, or
 -- absence thereof.
 --
 -- 'alter' can be used to insert, delete, or update a value in a map. In short:
@@ -1234,7 +1234,7 @@ alter f k m =
     Just v  -> insert k v m
 {-# INLINABLE alter #-}
 
--- | /O(log n)/  The expression @('alterF' f k map)@ alters the value @x@ at
+-- | \(O(\log n)\)  The expression @('alterF' f k map)@ alters the value @x@ at
 -- @k@, or absence thereof.
 --
 --  'alterF' can be used to insert, delete, or update a value in a map.
@@ -1379,7 +1379,7 @@ alterFEager f !k m = (<$> f mv) $ \case
            Present v _ -> Just v
 {-# INLINABLE alterFEager #-}
 
--- | /O(n*log m)/ Inclusion of maps. A map is included in another map if the keys
+-- | \(O(n*\log m)\) Inclusion of maps. A map is included in another map if the keys
 -- are subsets and the corresponding values are equal:
 --
 -- > isSubmapOf m1 m2 = keys m1 `isSubsetOf` keys m2 &&
@@ -1398,7 +1398,7 @@ isSubmapOf :: (Eq k, Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
 isSubmapOf = Exts.inline isSubmapOfBy (==)
 {-# INLINABLE isSubmapOf #-}
 
--- | /O(n*log m)/ Inclusion of maps with value comparison. A map is included in
+-- | \(O(n*\log m)\) Inclusion of maps with value comparison. A map is included in
 -- another map if the keys are subsets and if the comparison function is true
 -- for the corresponding values:
 --
@@ -1470,7 +1470,7 @@ isSubmapOfBy comp !m1 !m2 = go 0 m1 m2
     go _ (Full {}) (BitmapIndexed {}) = False
 {-# INLINABLE isSubmapOfBy #-}
 
--- | /O(min n m))/ Checks if a bitmap indexed node is a submap of another.
+-- | \(O(\min n m))\) Checks if a bitmap indexed node is a submap of another.
 submapBitmapIndexed :: (HashMap k v1 -> HashMap k v2 -> Bool) -> Bitmap -> A.Array (HashMap k v1) -> Bitmap -> A.Array (HashMap k v2) -> Bool
 submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .&. negate b1Orb2)
   where
@@ -1497,7 +1497,7 @@ submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .
 ------------------------------------------------------------------------
 -- * Combine
 
--- | /O(n+m)/ The union of two maps. If a key occurs in both maps, the
+-- | \(O(n+m)\) The union of two maps. If a key occurs in both maps, the
 -- mapping from the first will be the mapping in the result.
 --
 -- ==== __Examples__
@@ -1508,7 +1508,7 @@ union :: (Eq k, Hashable k) => HashMap k v -> HashMap k v -> HashMap k v
 union = unionWith const
 {-# INLINABLE union #-}
 
--- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
+-- | \(O(n+m)\) The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the
 -- result.
 unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
@@ -1516,7 +1516,7 @@ unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
 unionWith f = unionWithKey (const f)
 {-# INLINE unionWith #-}
 
--- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
+-- | \(O(n+m)\) The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the
 -- result.
 unionWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
@@ -1670,7 +1670,7 @@ compose bc !ab
 ------------------------------------------------------------------------
 -- * Transformations
 
--- | /O(n)/ Transform this map by applying a function to every value.
+-- | \(O(n)\) Transform this map by applying a function to every value.
 mapWithKey :: (k -> v1 -> v2) -> HashMap k v1 -> HashMap k v2
 mapWithKey f = go
   where
@@ -1684,7 +1684,7 @@ mapWithKey f = go
                            A.map' (\ (L k v) -> L k (f k v)) ary
 {-# INLINE mapWithKey #-}
 
--- | /O(n)/ Transform this map by applying a function to every value.
+-- | \(O(n)\) Transform this map by applying a function to every value.
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = mapWithKey (const f)
 {-# INLINE map #-}
@@ -1692,7 +1692,7 @@ map f = mapWithKey (const f)
 -- TODO: We should be able to use mutation to create the new
 -- 'HashMap'.
 
--- | /O(n)/ Perform an 'Applicative' action for each key-value pair
+-- | \(O(n)\) Perform an 'Applicative' action for each key-value pair
 -- in a 'HashMap' and produce a 'HashMap' of all the results.
 --
 -- Note: the order in which the actions occur is unspecified. In particular,
@@ -1713,7 +1713,7 @@ traverseWithKey f = go
         Collision h <$> A.traverse' (\ (L k v) -> L k <$> f k v) ary
 {-# INLINE traverseWithKey #-}
 
--- | /O(n)/.
+-- | \(O(n)\).
 -- @'mapKeys' f s@ is the map obtained by applying @f@ to each key of @s@.
 --
 -- The size of the result may be smaller if @f@ maps two or more distinct
@@ -1734,7 +1734,7 @@ mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 ------------------------------------------------------------------------
 -- * Difference and intersection
 
--- | /O(n*log m)/ Difference of two maps. Return elements of the first map
+-- | \(O(n*\log m)\) Difference of two maps. Return elements of the first map
 -- not existing in the second.
 difference :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
 difference a b = foldlWithKey' go empty a
@@ -1744,7 +1744,7 @@ difference a b = foldlWithKey' go empty a
                  _       -> m
 {-# INLINABLE difference #-}
 
--- | /O(n*log m)/ Difference with a combining function. When two equal keys are
+-- | \(O(n*\log m)\) Difference with a combining function. When two equal keys are
 -- encountered, the combining function is applied to the values of these keys.
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
@@ -1756,7 +1756,7 @@ differenceWith f a b = foldlWithKey' go empty a
                  Just w  -> maybe m (\y -> unsafeInsert k y m) (f v w)
 {-# INLINABLE differenceWith #-}
 
--- | /O(n*log m)/ Intersection of two maps. Return elements of the first
+-- | \(O(n*\log m)\) Intersection of two maps. Return elements of the first
 -- map for keys existing in the second.
 intersection :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
 intersection a b = foldlWithKey' go empty a
@@ -1766,7 +1766,7 @@ intersection a b = foldlWithKey' go empty a
                  _      -> m
 {-# INLINABLE intersection #-}
 
--- | /O(n*log m)/ Intersection of two maps. If a key occurs in both maps
+-- | \(O(n*\log m)\) Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
 intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
@@ -1778,7 +1778,7 @@ intersectionWith f a b = foldlWithKey' go empty a
                  _      -> m
 {-# INLINABLE intersectionWith #-}
 
--- | /O(n*log m)/ Intersection of two maps. If a key occurs in both maps
+-- | \(O(n*\log m)\) Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
 intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3)
@@ -1793,7 +1793,7 @@ intersectionWithKey f a b = foldlWithKey' go empty a
 ------------------------------------------------------------------------
 -- * Folds
 
--- | /O(n)/ Reduce this map by applying a binary operator to all
+-- | \(O(n)\) Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
 -- is evaluated before using the result in the next application.
@@ -1802,7 +1802,7 @@ foldl' :: (a -> v -> a) -> a -> HashMap k v -> a
 foldl' f = foldlWithKey' (\ z _ v -> f z v)
 {-# INLINE foldl' #-}
 
--- | /O(n)/ Reduce this map by applying a binary operator to all
+-- | \(O(n)\) Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- right-identity of the operator).  Each application of the operator
 -- is evaluated before using the result in the next application.
@@ -1811,7 +1811,7 @@ foldr' :: (v -> a -> a) -> a -> HashMap k v -> a
 foldr' f = foldrWithKey' (\ _ v z -> f v z)
 {-# INLINE foldr' #-}
 
--- | /O(n)/ Reduce this map by applying a binary operator to all
+-- | \(O(n)\) Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
 -- is evaluated before using the result in the next application.
@@ -1826,7 +1826,7 @@ foldlWithKey' f = go
     go z (Collision _ ary)     = A.foldl' (\ z' (L k v) -> f z' k v) z ary
 {-# INLINE foldlWithKey' #-}
 
--- | /O(n)/ Reduce this map by applying a binary operator to all
+-- | \(O(n)\) Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- right-identity of the operator).  Each application of the operator
 -- is evaluated before using the result in the next application.
@@ -1841,21 +1841,21 @@ foldrWithKey' f = flip go
     go (Collision _ ary) !z    = A.foldr' (\ (L k v) z' -> f k v z') z ary
 {-# INLINE foldrWithKey' #-}
 
--- | /O(n)/ Reduce this map by applying a binary operator to all
+-- | \(O(n)\) Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- right-identity of the operator).
 foldr :: (v -> a -> a) -> a -> HashMap k v -> a
 foldr f = foldrWithKey (const f)
 {-# INLINE foldr #-}
 
--- | /O(n)/ Reduce this map by applying a binary operator to all
+-- | \(O(n)\) Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).
 foldl :: (a -> v -> a) -> a -> HashMap k v -> a
 foldl f = foldlWithKey (\a _k v -> f a v)
 {-# INLINE foldl #-}
 
--- | /O(n)/ Reduce this map by applying a binary operator to all
+-- | \(O(n)\) Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- right-identity of the operator).
 foldrWithKey :: (k -> v -> a -> a) -> a -> HashMap k v -> a
@@ -1868,7 +1868,7 @@ foldrWithKey f = flip go
     go (Collision _ ary) z     = A.foldr (\ (L k v) z' -> f k v z') z ary
 {-# INLINE foldrWithKey #-}
 
--- | /O(n)/ Reduce this map by applying a binary operator to all
+-- | \(O(n)\) Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).
 foldlWithKey :: (a -> k -> v -> a) -> a -> HashMap k v -> a
@@ -1881,7 +1881,7 @@ foldlWithKey f = go
     go z (Collision _ ary)     = A.foldl (\ z' (L k v) -> f z' k v) z ary
 {-# INLINE foldlWithKey #-}
 
--- | /O(n)/ Reduce the map by applying a function to each element
+-- | \(O(n)\) Reduce the map by applying a function to each element
 -- and combining the results with a monoid operation.
 foldMapWithKey :: Monoid m => (k -> v -> m) -> HashMap k v -> m
 foldMapWithKey f = go
@@ -1896,7 +1896,7 @@ foldMapWithKey f = go
 ------------------------------------------------------------------------
 -- * Filter
 
--- | /O(n)/ Transform this map by applying a function to every value
+-- | \(O(n)\) Transform this map by applying a function to every value
 --   and retaining only some of them.
 mapMaybeWithKey :: (k -> v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
 mapMaybeWithKey f = filterMapAux onLeaf onColl
@@ -1907,13 +1907,13 @@ mapMaybeWithKey f = filterMapAux onLeaf onColl
                        | otherwise = Nothing
 {-# INLINE mapMaybeWithKey #-}
 
--- | /O(n)/ Transform this map by applying a function to every value
+-- | \(O(n)\) Transform this map by applying a function to every value
 --   and retaining only some of them.
 mapMaybe :: (v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
 mapMaybe f = mapMaybeWithKey (const f)
 {-# INLINE mapMaybe #-}
 
--- | /O(n)/ Filter this map by retaining only elements satisfying a
+-- | \(O(n)\) Filter this map by retaining only elements satisfying a
 -- predicate.
 filterWithKey :: forall k v. (k -> v -> Bool) -> HashMap k v -> HashMap k v
 filterWithKey pred = filterMapAux onLeaf onColl
@@ -1994,7 +1994,7 @@ filterMapAux onLeaf onColl = go
             | otherwise = step ary mary (i+1) j n
 {-# INLINE filterMapAux #-}
 
--- | /O(n)/ Filter this map by retaining only elements which values
+-- | \(O(n)\) Filter this map by retaining only elements which values
 -- satisfy a predicate.
 filter :: (v -> Bool) -> HashMap k v -> HashMap k v
 filter p = filterWithKey (\_ v -> p v)
@@ -2006,13 +2006,13 @@ filter p = filterWithKey (\_ v -> p v)
 -- TODO: Improve fusion rules by modelled them after the Prelude ones
 -- on lists.
 
--- | /O(n)/ Return a list of this map's keys.  The list is produced
+-- | \(O(n)\) Return a list of this map's keys.  The list is produced
 -- lazily.
 keys :: HashMap k v -> [k]
 keys = List.map fst . toList
 {-# INLINE keys #-}
 
--- | /O(n)/ Return a list of this map's values.  The list is produced
+-- | \(O(n)\) Return a list of this map's values.  The list is produced
 -- lazily.
 elems :: HashMap k v -> [v]
 elems = List.map snd . toList
@@ -2021,19 +2021,19 @@ elems = List.map snd . toList
 ------------------------------------------------------------------------
 -- ** Lists
 
--- | /O(n)/ Return a list of this map's elements.  The list is
+-- | \(O(n)\) Return a list of this map's elements.  The list is
 -- produced lazily. The order of its elements is unspecified.
 toList :: HashMap k v -> [(k, v)]
 toList t = Exts.build (\ c z -> foldrWithKey (curry c) z t)
 {-# INLINE toList #-}
 
--- | /O(n)/ Construct a map with the supplied mappings.  If the list
+-- | \(O(n)\) Construct a map with the supplied mappings.  If the list
 -- contains duplicate mappings, the later mappings take precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = List.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 {-# INLINABLE fromList #-}
 
--- | /O(n*log n)/ Construct a map from a list of elements.  Uses
+-- | \(O(n*\log n)\) Construct a map from a list of elements.  Uses
 -- the provided function @f@ to merge duplicate entries with
 -- @(f newVal oldVal)@.
 --
@@ -2067,7 +2067,7 @@ fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 {-# INLINE fromListWith #-}
 
--- | /O(n*log n)/ Construct a map from a list of elements.  Uses
+-- | \(O(n*\log n)\) Construct a map from a list of elements.  Uses
 -- the provided function to merge duplicate entries.
 --
 -- === Examples
@@ -2100,7 +2100,7 @@ fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (
 ------------------------------------------------------------------------
 -- Array operations
 
--- | /O(n)/ Look up the value associated with the given key in an
+-- | \(O(n)\) Look up the value associated with the given key in an
 -- array.
 lookupInArrayCont ::
   forall rep (r :: TYPE rep) k v.
@@ -2116,7 +2116,7 @@ lookupInArrayCont absent present k0 ary0 = go k0 ary0 0 (A.length ary0)
                 | otherwise -> go k ary (i+1) n
 {-# INLINE lookupInArrayCont #-}
 
--- | /O(n)/ Lookup the value associated with the given key in this
+-- | \(O(n)\) Lookup the value associated with the given key in this
 -- array.  Returns 'Nothing' if the key wasn't found.
 indexOf :: Eq k => k -> A.Array (Leaf k v) -> Maybe Int
 indexOf k0 ary0 = go k0 ary0 0 (A.length ary0)
@@ -2193,7 +2193,7 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
     return mary
 {-# INLINABLE updateOrConcatWithKey #-}
 
--- | /O(n*m)/ Check if the first array is a subset of the second array.
+-- | \(O(n*m)\) Check if the first array is a subset of the second array.
 subsetArray :: Eq k => (v1 -> v2 -> Bool) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> Bool
 subsetArray cmpV ary1 ary2 = A.length ary1 <= A.length ary2 && A.all inAry2 ary1
   where
@@ -2203,12 +2203,12 @@ subsetArray cmpV ary1 ary2 = A.length ary1 <= A.length ary2 && A.all inAry2 ary1
 ------------------------------------------------------------------------
 -- Manually unrolled loops
 
--- | /O(n)/ Update the element at the given position in this array.
+-- | \(O(n)\) Update the element at the given position in this array.
 update32 :: A.Array e -> Int -> e -> A.Array e
 update32 ary idx b = runST (update32M ary idx b)
 {-# INLINE update32 #-}
 
--- | /O(n)/ Update the element at the given position in this array.
+-- | \(O(n)\) Update the element at the given position in this array.
 update32M :: A.Array e -> Int -> e -> ST s (A.Array e)
 update32M ary idx b = do
     mary <- clone ary
@@ -2216,7 +2216,7 @@ update32M ary idx b = do
     A.unsafeFreeze mary
 {-# INLINE update32M #-}
 
--- | /O(n)/ Update the element at the given position in this array, by applying a function to it.
+-- | \(O(n)\) Update the element at the given position in this array, by applying a function to it.
 update32With' :: A.Array e -> Int -> (e -> e) -> A.Array e
 update32With' ary idx f
   | (# x #) <- A.index# ary idx

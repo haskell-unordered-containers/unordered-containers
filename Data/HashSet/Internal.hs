@@ -36,7 +36,7 @@
 -- especially when value comparison is expensive, as in the case of
 -- strings.
 --
--- Many operations have a average-case complexity of /O(log n)/.  The
+-- Many operations have a average-case complexity of \(O(\log n)\).  The
 -- implementation uses a large base (i.e. 32) so in practice these
 -- operations are constant time.
 
@@ -177,7 +177,7 @@ instance Foldable.Foldable HashSet where
 
 -- | '<>' = 'union'
 --
--- /O(n+m)/
+-- \(O(n+m)\)
 --
 -- To obtain good performance, the smaller set must be presented as
 -- the first argument.
@@ -196,7 +196,7 @@ instance (Hashable a, Eq a) => Semigroup (HashSet a) where
 --
 -- 'mappend' = 'union'
 --
--- /O(n+m)/
+-- \(O(n+m)\)
 --
 -- To obtain good performance, the smaller set must be presented as
 -- the first argument.
@@ -247,14 +247,14 @@ fromListConstr = Data.mkConstr hashSetDataType "fromList" [] Data.Prefix
 hashSetDataType :: DataType
 hashSetDataType = Data.mkDataType "Data.HashSet.Internal.HashSet" [fromListConstr]
 
--- | /O(1)/ Construct an empty set.
+-- | \(O(1)\) Construct an empty set.
 --
 -- >>> HashSet.empty
 -- fromList []
 empty :: HashSet a
 empty = HashSet H.empty
 
--- | /O(1)/ Construct a set with a single element.
+-- | \(O(1)\) Construct a set with a single element.
 --
 -- >>> HashSet.singleton 1
 -- fromList [1]
@@ -262,21 +262,21 @@ singleton :: Hashable a => a -> HashSet a
 singleton a = HashSet (H.singleton a ())
 {-# INLINABLE singleton #-}
 
--- | /O(1)/ Convert to set to the equivalent 'HashMap' with @()@ values.
+-- | \(O(1)\) Convert to set to the equivalent 'HashMap' with @()@ values.
 --
 -- >>> HashSet.toMap (HashSet.singleton 1)
 -- fromList [(1,())]
 toMap :: HashSet a -> HashMap a ()
 toMap = asMap
 
--- | /O(1)/ Convert from the equivalent 'HashMap' with @()@ values.
+-- | \(O(1)\) Convert from the equivalent 'HashMap' with @()@ values.
 --
 -- >>> HashSet.fromMap (HashMap.singleton 1 ())
 -- fromList [1]
 fromMap :: HashMap a () -> HashSet a
 fromMap = HashSet
 
--- | /O(n)/ Produce a 'HashSet' of all the keys in the given 'HashMap'.
+-- | \(O(n)\) Produce a 'HashSet' of all the keys in the given 'HashMap'.
 --
 -- >>> HashSet.keysSet (HashMap.fromList [(1, "a"), (2, "b")]
 -- fromList [1,2]
@@ -285,7 +285,7 @@ fromMap = HashSet
 keysSet :: HashMap k a -> HashSet k
 keysSet m = fromMap (() <$ m)
 
--- | /O(n*log m)/ Inclusion of sets.
+-- | \(O(n*\log m)\) Inclusion of sets.
 --
 -- ==== __Examples__
 --
@@ -299,7 +299,7 @@ keysSet m = fromMap (() <$ m)
 isSubsetOf :: (Eq a, Hashable a) => HashSet a -> HashSet a -> Bool
 isSubsetOf s1 s2 = H.isSubmapOfBy (\_ _ -> True) (asMap s1) (asMap s2)
 
--- | /O(n+m)/ Construct a set containing all elements from both sets.
+-- | \(O(n+m)\) Construct a set containing all elements from both sets.
 --
 -- To obtain good performance, the smaller set must be presented as
 -- the first argument.
@@ -317,7 +317,7 @@ unions :: (Eq a, Hashable a) => [HashSet a] -> HashSet a
 unions = List.foldl' union empty
 {-# INLINE unions #-}
 
--- | /O(1)/ Return 'True' if this set is empty, 'False' otherwise.
+-- | \(O(1)\) Return 'True' if this set is empty, 'False' otherwise.
 --
 -- >>> HashSet.null HashSet.empty
 -- True
@@ -327,7 +327,7 @@ null :: HashSet a -> Bool
 null = H.null . asMap
 {-# INLINE null #-}
 
--- | /O(n)/ Return the number of elements in this set.
+-- | \(O(n)\) Return the number of elements in this set.
 --
 -- >>> HashSet.size HashSet.empty
 -- 0
@@ -337,7 +337,7 @@ size :: HashSet a -> Int
 size = H.size . asMap
 {-# INLINE size #-}
 
--- | /O(log n)/ Return 'True' if the given value is present in this
+-- | \(O(\log n)\) Return 'True' if the given value is present in this
 -- set, 'False' otherwise.
 --
 -- >>> HashSet.member 1 (Hashset.fromList [1,2,3])
@@ -350,7 +350,7 @@ member a s = case H.lookup a (asMap s) of
                _      -> False
 {-# INLINABLE member #-}
 
--- | /O(log n)/ Add the specified value to this set.
+-- | \(O(\log n)\) Add the specified value to this set.
 --
 -- >>> HashSet.insert 1 HashSet.empty
 -- fromList [1]
@@ -358,7 +358,7 @@ insert :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 insert a = HashSet . H.insert a () . asMap
 {-# INLINABLE insert #-}
 
--- | /O(log n)/ Remove the specified value from this set if present.
+-- | \(O(\log n)\) Remove the specified value from this set if present.
 --
 -- >>> HashSet.delete 1 (HashSet.fromList [1,2,3])
 -- fromList [2,3]
@@ -368,7 +368,7 @@ delete :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
 delete a = HashSet . H.delete a . asMap
 {-# INLINABLE delete #-}
 
--- | /O(n)/ Transform this set by applying a function to every value.
+-- | \(O(n)\) Transform this set by applying a function to every value.
 -- The resulting set may be smaller than the source.
 --
 -- >>> HashSet.map show (HashSet.fromList [1,2,3])
@@ -377,7 +377,7 @@ map :: (Hashable b, Eq b) => (a -> b) -> HashSet a -> HashSet b
 map f = fromList . List.map f . toList
 {-# INLINE map #-}
 
--- | /O(n)/ Difference of two sets. Return elements of the first set
+-- | \(O(n)\) Difference of two sets. Return elements of the first set
 -- not existing in the second.
 --
 -- >>> HashSet.difference (HashSet.fromList [1,2,3]) (HashSet.fromList [2,3,4])
@@ -386,7 +386,7 @@ difference :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
 {-# INLINABLE difference #-}
 
--- | /O(n)/ Intersection of two sets. Return elements present in both
+-- | \(O(n)\) Intersection of two sets. Return elements present in both
 -- the first set and the second.
 --
 -- >>> HashSet.intersection (HashSet.fromList [1,2,3]) (HashSet.fromList [2,3,4])
@@ -395,7 +395,7 @@ intersection :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
 intersection (HashSet a) (HashSet b) = HashSet (H.intersection a b)
 {-# INLINABLE intersection #-}
 
--- | /O(n)/ Reduce this set by applying a binary operator to all
+-- | \(O(n)\) Reduce this set by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).  Each application of the operator
 -- is evaluated before before using the result in the next
@@ -405,7 +405,7 @@ foldl' f z0 = H.foldlWithKey' g z0 . asMap
   where g z k _ = f z k
 {-# INLINE foldl' #-}
 
--- | /O(n)/ Reduce this set by applying a binary operator to all
+-- | \(O(n)\) Reduce this set by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- right-identity of the operator). Each application of the operator
 -- is evaluated before before using the result in the next
@@ -415,7 +415,7 @@ foldr' f z0 = H.foldrWithKey' g z0 . asMap
   where g k _ z = f k z
 {-# INLINE foldr' #-}
 
--- | /O(n)/ Reduce this set by applying a binary operator to all
+-- | \(O(n)\) Reduce this set by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- right-identity of the operator).
 foldr :: (b -> a -> a) -> a -> HashSet b -> a
@@ -423,7 +423,7 @@ foldr f z0 = foldrWithKey g z0 . asMap
   where g k _ z = f k z
 {-# INLINE foldr #-}
 
--- | /O(n)/ Reduce this set by applying a binary operator to all
+-- | \(O(n)\) Reduce this set by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).
 foldl :: (a -> b -> a) -> a -> HashSet b -> a
@@ -431,20 +431,20 @@ foldl f z0 = foldlWithKey g z0 . asMap
   where g z k _ = f z k
 {-# INLINE foldl #-}
 
--- | /O(n)/ Filter this set by retaining only elements satisfying a
+-- | \(O(n)\) Filter this set by retaining only elements satisfying a
 -- predicate.
 filter :: (a -> Bool) -> HashSet a -> HashSet a
 filter p = HashSet . H.filterWithKey q . asMap
   where q k _ = p k
 {-# INLINE filter #-}
 
--- | /O(n)/ Return a list of this set's elements.  The list is
+-- | \(O(n)\) Return a list of this set's elements.  The list is
 -- produced lazily.
 toList :: HashSet a -> [a]
 toList t = Exts.build (\ c z -> foldrWithKey (const . c) z (asMap t))
 {-# INLINE toList #-}
 
--- | /O(n*min(W, n))/ Construct a set from a list of elements.
+-- | \(O(n*\min(W, n))\) Construct a set from a list of elements.
 fromList :: (Eq a, Hashable a) => [a] -> HashSet a
 fromList = HashSet . List.foldl' (\ m k -> H.insert k () m) H.empty
 {-# INLINE fromList #-}

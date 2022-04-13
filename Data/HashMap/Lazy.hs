@@ -19,7 +19,7 @@
 -- especially when key comparison is expensive, as in the case of
 -- strings.
 --
--- Many operations have a average-case complexity of /O(log n)/.  The
+-- Many operations have a average-case complexity of \(O(\log n)\).  The
 -- implementation uses a large base (i.e. 32) so in practice these
 -- operations are constant time.
 module Data.HashMap.Lazy
