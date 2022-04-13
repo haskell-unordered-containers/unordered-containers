@@ -86,7 +86,7 @@ The implementation is based on /hash array mapped tries/.  A
 especially when value comparisons are expensive, as in the case of
 strings.
 
-Many operations have a average-case complexity of /O(log n)/.  The
+Many operations have a average-case complexity of \(O(\log n)\).  The
 implementation uses a large base (i.e. 16) so in practice these
 operations are constant time.
 -}
