@@ -1797,10 +1797,14 @@ intersectionWithKey# f = go 0
     -- collision vs. collision
     go _ (Collision h1 ls1) (Collision h2 ls2) = intersectionCollisions f h1 h2 ls1 ls2
     -- branch vs. branch
-    go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) = intersectionArrayBy (go (s + bitsPerSubkey)) b1 b2 ary1 ary2
-    go s (BitmapIndexed b1 ary1) (Full ary2) = intersectionArrayBy (go (s + bitsPerSubkey)) b1 fullNodeMask ary1 ary2
-    go s (Full ary1) (BitmapIndexed b2 ary2) = intersectionArrayBy (go (s + bitsPerSubkey)) fullNodeMask b2 ary1 ary2
-    go s (Full ary1) (Full ary2) = intersectionArrayBy (go (s + bitsPerSubkey)) fullNodeMask fullNodeMask ary1 ary2
+    go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
+      intersectionArrayBy (go (s + bitsPerSubkey)) b1 b2 ary1 ary2
+    go s (BitmapIndexed b1 ary1) (Full ary2) =
+      intersectionArrayBy (go (s + bitsPerSubkey)) b1 fullNodeMask ary1 ary2
+    go s (Full ary1) (BitmapIndexed b2 ary2) =
+      intersectionArrayBy (go (s + bitsPerSubkey)) fullNodeMask b2 ary1 ary2
+    go s (Full ary1) (Full ary2) =
+      intersectionArrayBy (go (s + bitsPerSubkey)) fullNodeMask fullNodeMask ary1 ary2
     -- collision vs. branch
     go s (BitmapIndexed b1 ary1) t2@(Collision h2 _ls2)
       | b1 .&. m2 == 0 = Empty
