@@ -144,7 +144,7 @@ import Control.DeepSeq            (NFData (..), NFData1 (..), NFData2 (..))
 import Control.Monad.ST           (ST, runST)
 import Data.Bifoldable            (Bifoldable (..))
 import Data.Bits                  (complement, popCount, unsafeShiftL,
-                                   unsafeShiftR, (.&.), (.|.), countTrailingZeros)
+                                   unsafeShiftR, (.&.), (.|.), countTrailingZeros, shiftL)
 import Data.Coerce                (coerce)
 import Data.Data                  (Constr, Data (..), DataType)
 import Data.Functor.Classes       (Eq1 (..), Eq2 (..), Ord1 (..), Ord2 (..),
@@ -2257,7 +2257,9 @@ index w s = fromIntegral $ unsafeShiftR w s .&. subkeyMask
 
 -- | A bitmask with the 'bitsPerSubkey' least significant bits set.
 fullNodeMask :: Bitmap
-fullNodeMask = complement (complement 0 `unsafeShiftL` maxChildren)
+-- This needs to use 'shiftL' instead of 'unsafeShiftL', to avoid UB.
+-- See issue #412.
+fullNodeMask = complement (complement 0 `shiftL` maxChildren)
 {-# INLINE fullNodeMask #-}
 
 -- | Check if two the two arguments are the same value.  N.B. This
