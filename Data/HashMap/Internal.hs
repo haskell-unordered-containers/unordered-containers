@@ -2366,8 +2366,8 @@ bitsPerSubkey = 5
 maxChildren :: Int
 maxChildren = 1 `unsafeShiftL` bitsPerSubkey
 
--- | Bitmap with the lowest 'bitsPerSubkey' bits set, i.e. @0b11111@.
-subkeyMask :: Bitmap
+-- | Bit mask with the lowest 'bitsPerSubkey' bits set, i.e. @0b11111@.
+subkeyMask :: Word
 subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
 
 -- | This array index is computed by counting the number of bits below the
