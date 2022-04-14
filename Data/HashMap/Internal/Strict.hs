@@ -128,17 +128,17 @@ import Data.Bits             ((.&.), (.|.))
 import Data.Coerce           (coerce)
 import Data.Functor.Identity (Identity (..))
 -- See Note [Imports from Data.HashMap.Internal]
+import Data.Hashable         (Hashable)
 import Data.HashMap.Internal (Hash, HashMap (..), Leaf (..), LookupRes (..),
                               bitsPerSubkey, fullNodeMask, hash, index, mask,
                               ptrEq, sparseIndex)
-import Data.Hashable         (Hashable)
 import Prelude               hiding (lookup, map)
 
 -- See Note [Imports from Data.HashMap.Internal]
 import qualified Data.HashMap.Internal       as HM
 import qualified Data.HashMap.Internal.Array as A
 import qualified Data.List                   as List
-import GHC.Exts (inline)
+import qualified GHC.Exts                    as Exts
 
 {-
 Note [Imports from Data.HashMap.Internal]
@@ -617,7 +617,7 @@ differenceWith f a b = HM.foldlWithKey' go HM.empty a
 -- maps.
 intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
                  -> HashMap k v2 -> HashMap k v3
-intersectionWith f = inline intersectionWithKey $ const f
+intersectionWith f = Exts.inline intersectionWithKey $ const f
 {-# INLINABLE intersectionWith #-}
 
 -- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
