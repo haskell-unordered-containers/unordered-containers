@@ -2257,6 +2257,8 @@ index w s = fromIntegral $ unsafeShiftR w s .&. subkeyMask
 
 -- | A bitmask with the 'bitsPerSubkey' least significant bits set.
 fullNodeMask :: Bitmap
+-- This needs to use 'shiftL' instead of 'unsafeShiftL', to avoid UB.
+-- See issue #412.
 fullNodeMask = complement (complement 0 `shiftL` maxChildren)
 {-# INLINE fullNodeMask #-}
 
