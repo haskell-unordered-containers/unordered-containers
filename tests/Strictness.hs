@@ -8,8 +8,8 @@ module Strictness (tests) where
 import Control.Arrow                (second)
 import Control.Monad                (guard)
 import Data.Foldable                (foldl')
-import Data.HashMap.Strict          (HashMap)
 import Data.Hashable                (Hashable (hashWithSalt))
+import Data.HashMap.Strict          (HashMap)
 import Data.Maybe                   (fromMaybe, isJust)
 import Test.ChasingBottoms.IsBottom
 import Test.QuickCheck              (Arbitrary (arbitrary), Property, (.&&.),

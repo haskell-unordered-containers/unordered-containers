@@ -93,11 +93,11 @@ import GHC.Exts            (Int (..), SmallArray#, SmallMutableArray#,
                             thawSmallArray#, unsafeCoerce#,
                             unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                             writeSmallArray#)
-import qualified GHC.Exts as Exts
 import GHC.ST              (ST (..))
 import Prelude             hiding (all, filter, foldMap, foldl, foldr, length,
                             map, read, traverse)
 
+import qualified GHC.Exts                   as Exts
 import qualified Language.Haskell.TH.Syntax as TH
 #if defined(ASSERTS)
 import qualified Prelude

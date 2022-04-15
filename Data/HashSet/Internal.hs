@@ -93,10 +93,10 @@ module Data.HashSet.Internal
 import Control.DeepSeq       (NFData (..), NFData1 (..), liftRnf2)
 import Data.Data             (Constr, Data (..), DataType)
 import Data.Functor.Classes
-import Data.HashMap.Internal (HashMap, equalKeys, equalKeys1, foldMapWithKey,
-                              foldlWithKey, foldrWithKey)
 import Data.Hashable         (Hashable (hashWithSalt))
 import Data.Hashable.Lifted  (Hashable1 (..), Hashable2 (..))
+import Data.HashMap.Internal (HashMap, equalKeys, equalKeys1, foldMapWithKey,
+                              foldlWithKey, foldrWithKey)
 import Data.Semigroup        (Semigroup (..), stimesIdempotentMonoid)
 import Prelude               hiding (filter, foldl, foldr, map, null)
 import Text.Read
