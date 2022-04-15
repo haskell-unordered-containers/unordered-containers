@@ -1,7 +1,6 @@
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
-{-# LANGUAGE BangPatterns #-}
 
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
 -- comparing them to @Map@ from @containers@.

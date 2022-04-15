@@ -144,8 +144,9 @@ import Control.Applicative        (Const (..))
 import Control.DeepSeq            (NFData (..), NFData1 (..), NFData2 (..))
 import Control.Monad.ST           (ST, runST)
 import Data.Bifoldable            (Bifoldable (..))
-import Data.Bits                  (complement, popCount, unsafeShiftL,
-                                   unsafeShiftR, (.&.), (.|.), countTrailingZeros, shiftL)
+import Data.Bits                  (complement, countTrailingZeros, popCount,
+                                   shiftL, unsafeShiftL, unsafeShiftR, (.&.),
+                                   (.|.))
 import Data.Coerce                (coerce)
 import Data.Data                  (Constr, Data (..), DataType)
 import Data.Functor.Classes       (Eq1 (..), Eq2 (..), Ord1 (..), Ord2 (..),
