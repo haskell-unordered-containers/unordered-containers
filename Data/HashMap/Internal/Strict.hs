@@ -38,7 +38,7 @@
 -- especially when key comparison is expensive, as in the case of
 -- strings.
 --
--- Many operations have a average-case complexity of /O(log n)/.  The
+-- Many operations have a average-case complexity of \(O(\log n)\).  The
 -- implementation uses a large base (i.e. 32) so in practice these
 -- operations are constant time.
 module Data.HashMap.Internal.Strict
@@ -165,21 +165,21 @@ values are exempted.
 ------------------------------------------------------------------------
 -- * Construction
 
--- | /O(1)/ Construct a map with a single element.
+-- | \(O(1)\) Construct a map with a single element.
 singleton :: (Hashable k) => k -> v -> HashMap k v
 singleton k !v = HM.singleton k v
 
 ------------------------------------------------------------------------
 -- * Basic interface
 
--- | /O(log n)/ Associate the specified value with the specified
+-- | \(O(\log n)\) Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k !v = HM.insert k v
 {-# INLINABLE insert #-}
 
--- | /O(log n)/ Associate the value with the key in this map.  If
+-- | \(O(\log n)\) Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
 -- is replaced by the result of applying the given function to the new
 -- and old value.  Example:
@@ -260,7 +260,7 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsertWithKey #-}
 
--- | /O(log n)/ Adjust the value tied to a given key in this map only
+-- | \(O(\log n)\) Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
 adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
 adjust f k0 m0 = go h0 k0 0 m0
@@ -289,14 +289,14 @@ adjust f k0 m0 = go h0 k0 0 m0
         | otherwise = t
 {-# INLINABLE adjust #-}
 
--- | /O(log n)/  The expression @('update' f k map)@ updates the value @x@ at @k@
+-- | \(O(\log n)\)  The expression @('update' f k map)@ updates the value @x@ at @k@
 -- (if it is in the map). If @(f x)@ is 'Nothing', the element is deleted.
 -- If it is @('Just' y)@, the key @k@ is bound to the new value @y@.
 update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
 update f = alter (>>= f)
 {-# INLINABLE update #-}
 
--- | /O(log n)/  The expression @('alter' f k map)@ alters the value @x@ at @k@, or
+-- | \(O(\log n)\)  The expression @('alter' f k map)@ alters the value @x@ at @k@, or
 -- absence thereof.
 --
 -- 'alter' can be used to insert, delete, or update a value in a map. In short:
@@ -311,7 +311,7 @@ alter f k m =
     Just v  -> insert k v m
 {-# INLINABLE alter #-}
 
--- | /O(log n)/  The expression (@'alterF' f k map@) alters the value @x@ at
+-- | \(O(\log n)\)  The expression (@'alterF' f k map@) alters the value @x@ at
 -- @k@, or absence thereof.
 --
 -- 'alterF' can be used to insert, delete, or update a value in a map.
@@ -437,14 +437,14 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
 ------------------------------------------------------------------------
 -- * Combine
 
--- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
+-- | \(O(n+m)\) The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the result.
 unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
 unionWith f = unionWithKey (const f)
 {-# INLINE unionWith #-}
 
--- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
+-- | \(O(n+m)\) The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the result.
 unionWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
@@ -533,7 +533,7 @@ unionWithKey f = go 0
 ------------------------------------------------------------------------
 -- * Transformations
 
--- | /O(n)/ Transform this map by applying a function to every value.
+-- | \(O(n)\) Transform this map by applying a function to every value.
 mapWithKey :: (k -> v1 -> v2) -> HashMap k v1 -> HashMap k v2
 mapWithKey f = go
   where
@@ -545,7 +545,7 @@ mapWithKey f = go
         Collision h $ A.map' (\ (L k v) -> let !v' = f k v in L k v') ary
 {-# INLINE mapWithKey #-}
 
--- | /O(n)/ Transform this map by applying a function to every value.
+-- | \(O(n)\) Transform this map by applying a function to every value.
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = mapWithKey (const f)
 {-# INLINE map #-}
@@ -554,7 +554,7 @@ map f = mapWithKey (const f)
 ------------------------------------------------------------------------
 -- * Filter
 
--- | /O(n)/ Transform this map by applying a function to every value
+-- | \(O(n)\) Transform this map by applying a function to every value
 --   and retaining only some of them.
 mapMaybeWithKey :: (k -> v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
 mapMaybeWithKey f = HM.filterMapAux onLeaf onColl
@@ -565,13 +565,13 @@ mapMaybeWithKey f = HM.filterMapAux onLeaf onColl
                        | otherwise = Nothing
 {-# INLINE mapMaybeWithKey #-}
 
--- | /O(n)/ Transform this map by applying a function to every value
+-- | \(O(n)\) Transform this map by applying a function to every value
 --   and retaining only some of them.
 mapMaybe :: (v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
 mapMaybe f = mapMaybeWithKey (const f)
 {-# INLINE mapMaybe #-}
 
--- | /O(n)/ Perform an 'Applicative' action for each key-value pair
+-- | \(O(n)\) Perform an 'Applicative' action for each key-value pair
 -- in a 'HashMap' and produce a 'HashMap' of all the results. Each 'HashMap'
 -- will be strict in all its values.
 --
@@ -600,7 +600,7 @@ traverseWithKey f = go
 ------------------------------------------------------------------------
 -- * Difference and intersection
 
--- | /O(n*log m)/ Difference with a combining function. When two equal keys are
+-- | \(O(n \log m)\) Difference with a combining function. When two equal keys are
 -- encountered, the combining function is applied to the values of these keys.
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
@@ -612,7 +612,7 @@ differenceWith f a b = HM.foldlWithKey' go HM.empty a
                  Just w  -> maybe m (\ !y -> HM.unsafeInsert k y m) (f v w)
 {-# INLINABLE differenceWith #-}
 
--- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
+-- | \(O(n+m)\) Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
 intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
@@ -620,7 +620,7 @@ intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
 intersectionWith f = Exts.inline intersectionWithKey $ const f
 {-# INLINABLE intersectionWith #-}
 
--- | /O(n+m)/ Intersection of two maps. If a key occurs in both maps
+-- | \(O(n+m)\) Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
 intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3)
@@ -631,14 +631,14 @@ intersectionWithKey f = HM.intersectionWithKey# $ \k v1 v2 -> let !v3 = f k v1 v
 ------------------------------------------------------------------------
 -- ** Lists
 
--- | /O(n*log n)/ Construct a map with the supplied mappings.  If the
+-- | \(O(n \log n)\) Construct a map with the supplied mappings.  If the
 -- list contains duplicate mappings, the later mappings take
 -- precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = List.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) HM.empty
 {-# INLINABLE fromList #-}
 
--- | /O(n*log n)/ Construct a map from a list of elements.  Uses
+-- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
 -- the provided function @f@ to merge duplicate entries with
 -- @(f newVal oldVal)@.
 --
@@ -672,7 +672,7 @@ fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) HM.empty
 {-# INLINE fromListWith #-}
 
--- | /O(n*log n)/ Construct a map from a list of elements.  Uses
+-- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
 -- the provided function to merge duplicate entries.
 --
 -- === Examples
@@ -735,13 +735,8 @@ updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.Array (Leaf k v
 updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
   where
     go !k v !ary !i !n
-        | i >= n = A.run $ do
-            -- Not found, append to the end.
-            mary <- A.new_ (n + 1)
-            A.copy ary 0 mary 0 n
-            let !l = v `seq` L k v
-            A.write mary n l
-            return mary
+        -- Not found, append to the end.
+        | i >= n = A.snoc ary $! L k $! v
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> let !v' = f k v y in A.update ary i (L k v')
                      | otherwise -> go k v ary (i+1) n

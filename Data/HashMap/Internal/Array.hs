@@ -323,13 +323,13 @@ trim :: MArray s a -> Int -> ST s (Array a)
 trim mary n = cloneM mary 0 n >>= unsafeFreeze
 {-# INLINE trim #-}
 
--- | /O(n)/ Insert an element at the given position in this array,
+-- | \(O(n)\) Insert an element at the given position in this array,
 -- increasing its size by one.
 insert :: Array e -> Int -> e -> Array e
 insert ary idx b = runST (insertM ary idx b)
 {-# INLINE insert #-}
 
--- | /O(n)/ Insert an element at the given position in this array,
+-- | \(O(n)\) Insert an element at the given position in this array,
 -- increasing its size by one.
 insertM :: Array e -> Int -> e -> ST s (Array e)
 insertM ary idx b =
@@ -341,12 +341,12 @@ insertM ary idx b =
   where !count = length ary
 {-# INLINE insertM #-}
 
--- | /O(n)/ Update the element at the given position in this array.
+-- | \(O(n)\) Update the element at the given position in this array.
 update :: Array e -> Int -> e -> Array e
 update ary idx b = runST (updateM ary idx b)
 {-# INLINE update #-}
 
--- | /O(n)/ Update the element at the given position in this array.
+-- | \(O(n)\) Update the element at the given position in this array.
 updateM :: Array e -> Int -> e -> ST s (Array e)
 updateM ary idx b =
     CHECK_BOUNDS("updateM", count, idx)
@@ -356,7 +356,7 @@ updateM ary idx b =
   where !count = length ary
 {-# INLINE updateM #-}
 
--- | /O(n)/ Update the element at the given positio in this array, by
+-- | \(O(n)\) Update the element at the given positio in this array, by
 -- applying a function to it.  Evaluates the element to WHNF before
 -- inserting it into the array.
 updateWith' :: Array e -> Int -> (e -> e) -> Array e
@@ -365,7 +365,7 @@ updateWith' ary idx f
   = update ary idx $! f x
 {-# INLINE updateWith' #-}
 
--- | /O(1)/ Update the element at the given position in this array,
+-- | \(O(1)\) Update the element at the given position in this array,
 -- without copying.
 unsafeUpdateM :: Array e -> Int -> e -> ST s ()
 unsafeUpdateM ary idx b =
@@ -444,13 +444,13 @@ thaw !ary !_o@(I# o#) _n@(I# n#) =
             (# s2, mary# #) -> (# s2, MArray mary# #)
 {-# INLINE thaw #-}
 
--- | /O(n)/ Delete an element at the given position in this array,
+-- | \(O(n)\) Delete an element at the given position in this array,
 -- decreasing its size by one.
 delete :: Array e -> Int -> Array e
 delete ary idx = runST (deleteM ary idx)
 {-# INLINE delete #-}
 
--- | /O(n)/ Delete an element at the given position in this array,
+-- | \(O(n)\) Delete an element at the given position in this array,
 -- decreasing its size by one.
 deleteM :: Array e -> Int -> ST s (Array e)
 deleteM ary idx = do
