@@ -77,6 +77,7 @@ module Data.HashMap.Internal.Array
     , toList
     , fromList
     , fromList'
+    , shrink
     ) where
 
 import Control.Applicative (liftA2)
@@ -92,6 +93,7 @@ import GHC.Exts            (Int (..), SmallArray#, SmallMutableArray#,
                             thawSmallArray#, unsafeCoerce#,
                             unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                             writeSmallArray#)
+import qualified GHC.Exts as Exts
 import GHC.ST              (ST (..))
 import Prelude             hiding (all, filter, foldMap, foldl, foldr, length,
                             map, read, traverse)
@@ -204,6 +206,20 @@ new _n@(I# n#) b =
 
 new_ :: Int -> ST s (MArray s a)
 new_ n = new n undefinedElem
+
+-- | When 'Exts.shrinkSmallMutableArray#' is available, the returned array is the same as the array given, as it is shrunk in place.
+-- Otherwise a copy is made.
+shrink :: MArray s a -> Int -> ST s (MArray s a)
+#if __GLASGOW_HASKELL__ >= 810
+shrink mary _n@(I# n#) =
+  CHECK_GT("shrink", _n, (0 :: Int))
+  CHECK_LE("shrink", _n, (lengthM mary))
+  ST $ \s -> case Exts.shrinkSmallMutableArray# (unMArray mary) n# s of
+    s' -> (# s', mary #)
+#else
+shrink mary n = cloneM mary 0 n
+#endif 
+{-# INLINE shrink #-}
 
 singleton :: a -> Array a
 singleton x = runST (singletonM x)

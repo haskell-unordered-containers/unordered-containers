@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
+{-# LANGUAGE BangPatterns #-}
 
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
 -- comparing them to @Map@ from @containers@.
@@ -42,7 +43,7 @@ import qualified Data.Map.Lazy     as M
 
 -- Key type that generates more hash collisions.
 newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Eq, Ord, Read, Show)
+            deriving (Arbitrary, Eq, Ord, Read, Show, Num)
 
 instance Hashable Key where
     hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
@@ -318,8 +319,10 @@ pDifferenceWith xs ys = M.differenceWith f (M.fromList xs) `eq_`
     f x y = if x == 0 then Nothing else Just (x - y)
 
 pIntersection :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pIntersection xs ys = M.intersection (M.fromList xs) `eq_`
-                      HM.intersection (HM.fromList xs) $ ys
+pIntersection xs ys = 
+  M.intersection (M.fromList xs)
+    `eq_` HM.intersection (HM.fromList xs)
+    $ ys
 
 pIntersectionWith :: [(Key, Int)] -> [(Key, Int)] -> Bool
 pIntersectionWith xs ys = M.intersectionWith (-) (M.fromList xs) `eq_`

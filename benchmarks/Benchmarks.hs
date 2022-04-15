@@ -318,13 +318,17 @@ main = do
             [ bench "Int" $ whnf (HM.union hmi) hmi2
             , bench "ByteString" $ whnf (HM.union hmbs) hmbsSubset
             ]
+          
+          , bgroup "intersection"
+            [ bench "Int" $ whnf (HM.intersection hmi) hmi2
+            , bench "ByteString" $ whnf (HM.intersection hmbs) hmbsSubset
+            ]
 
             -- Transformations
           , bench "map" $ whnf (HM.map (\ v -> v + 1)) hmi
 
             -- * Difference and intersection
           , bench "difference" $ whnf (HM.difference hmi) hmi2
-          , bench "intersection" $ whnf (HM.intersection hmi) hmi2
 
             -- Folds
           , bench "foldl'" $ whnf (HM.foldl' (+) 0) hmi
