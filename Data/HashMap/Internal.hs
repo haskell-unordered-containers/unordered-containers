@@ -311,8 +311,20 @@ fromListConstr = Data.mkConstr hashMapDataType "fromList" [] Data.Prefix
 hashMapDataType :: DataType
 hashMapDataType = Data.mkDataType "Data.HashMap.Internal.HashMap" [fromListConstr]
 
+-- | This type is used to store the hash of a key, as produced with 'hash'.
 type Hash   = Word
+
+-- | A bitmap as contained by a 'BitmapIndexed' node, or a 'fullNodeMask'
+-- corresponding to a 'Full' node.
+--
+-- Only the lower 'maxChildren' bits are used. The remaining bits must be zeros.
 type Bitmap = Word
+
+-- | 'Shift' values correspond to the level of the tree that we're currently
+-- operating at. At the root level the 'Shift' is @0@. For the subsequent
+-- levels the 'Shift' values are 'bitsPerSubkey', @2*'bitsPerSubkey'@ etc.
+--
+-- Valid values are non-negative and less than @bitSize (0 :: Word)@.
 type Shift  = Int
 
 instance Show2 HashMap where
@@ -2358,7 +2370,12 @@ clone ary =
 ------------------------------------------------------------------------
 -- Bit twiddling
 
--- TODO: Name this 'bitsPerLevel'?! What's a "subkey"?
+-- TODO: Name this 'bitsPerLevel'?! What is a "subkey"?
+-- https://github.com/haskell-unordered-containers/unordered-containers/issues/425
+
+-- | Number of bits that are inspected at each level of the hash tree.
+--
+-- This constant is named _t_ in the original _Ideal Hash Trees_ paper.
 bitsPerSubkey :: Int
 bitsPerSubkey = 5
 
@@ -2390,7 +2407,10 @@ sparseIndex b m = popCount (b .&. (m - 1))
 --
 -- >>> mask 0b0010_0010 0
 -- 0b0100
-mask :: Hash -> Shift -> Bitmap
+mask
+    :: Hash
+    -> Shift
+    -> Bitmap
 mask w s = 1 `unsafeShiftL` index w s
 {-# INLINE mask #-}
 
@@ -2399,11 +2419,14 @@ mask w s = 1 `unsafeShiftL` index w s
 --
 -- >>> index 0b0010_0010 0
 -- 0b0000_0010
-index :: Hash -> Shift -> Int
+index
+    :: Hash
+    -> Shift
+    -> Int
 index w s = fromIntegral $ unsafeShiftR w s .&. subkeyMask
 {-# INLINE index #-}
 
--- TODO: Should be named _map_ instead of _mask_
+-- TODO: Should be named _(bit)map_ instead of _mask_
 
 -- | A bitmap with the 'maxChildren' least significant bits set, i.e.
 -- @0xFF_FF_FF_FF@.
