@@ -1,3 +1,15 @@
+## [0.2.19.0] – April 2022
+
+* [Make intersections much faster](https://github.com/haskell-unordered-containers/unordered-containers/pull/406)
+
+* [Fix undefined behaviour on 32-bit platforms](https://github.com/haskell-unordered-containers/unordered-containers/pull/413)
+
+* Speed up some array-appending operations: [#407](https://github.com/haskell-unordered-containers/unordered-containers/pull/407), [#409](https://github.com/haskell-unordered-containers/unordered-containers/pull/409)
+
+* [Use MathJax format for complexity annotations](https://github.com/haskell-unordered-containers/unordered-containers/pull/411)
+
+[0.2.19.0]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.18.0...v0.2.19.0
+
 ## [0.2.18.0]
 
 * [Fix strictness properties of `Strict.mapMaybe[WithKey]`](https://github.com/haskell-unordered-containers/unordered-containers/pull/385)
