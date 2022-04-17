@@ -1859,9 +1859,10 @@ intersectionArrayBy f !b1 !b2 !ary1 !ary2
             testBit x = x .&. m /= 0
             b' = b .&. complement m
     (len, bFinal) <- go 0 0 0 bCombined bIntersect
+    l <- A.read mary 0
     case len of
       0 -> pure Empty
-      1 -> A.read mary 0
+      1 | isLeafOrCollision l -> pure l
       _ -> bitmapIndexedOrFull bFinal <$> (A.unsafeFreeze =<< A.shrink mary len)
   where
     bCombined = b1 .|. b2
@@ -1915,6 +1916,49 @@ searchSwap toFind start = go start toFind start
           else go i0 k (i + 1) mary
 {-# INLINE searchSwap #-}
 
+type WhenMissingKey k x y = k -> x -> Maybe y
+
+type WhenMissingTree k x y = HashMap k x -> HashMap k y
+
+type WhenMatched k x y z = k -> x -> y -> Maybe z
+
+type MergeLeaf k x y z = Hash -> Hash -> Leaf k x -> Leaf k y -> HashMap k z
+
+type MergeCollision k x y z = Hash -> Hash -> A.Array (Leaf k x) -> A.Array (Leaf k y) -> HashMap k z
+
+type MergeBitmap k x y z = Bitmap -> Bitmap -> A.Array (HashMap k x) -> A.Array (HashMap k y) -> HashMap k z
+
+-- what a monstrosity
+mergeMonstrosity ::
+  MergeLeaf k x y z ->
+  MergeCollision k x y z ->
+  WhenMissingKey k x z ->
+  WhenMissingTree k x z ->
+  WhenMissingKey k y z ->
+  WhenMissingTree k y z ->
+  WhenMatched k x y z ->
+  HashMap k x ->
+  HashMap k y ->
+  HashMap k z
+mergeMonstrosity
+  mergeLeaf
+  mergeCollision
+  missK1
+  missT1
+  missK2
+  missT2
+  match = go 0
+    where
+      go !_ t1 Empty = missT1 t1
+      go _ Empty t2 = missT2 t2
+      go _ (Leaf h1 l1) (Leaf h2 l2) = mergeLeaf h1 h2 l1 l2
+      go _ (Collision h1 ls1) (Collision h2 ls2) = mergeCollision h1 h2 ls1 ls2
+      go _ (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) = mergeBitmap b1 b2 ary1 ary2
+{-# INLINE mergeMonstrosity #-}
+
+mergeBitmap :: Bitmap -> Bitmap -> A.Array (HashMap k x) -> A.Array (HashMap k y) -> HashMap k z
+mergeBitmap b1 b2 ary1 ary2 = undefined
+{-# INLINE mergeBitmap #-}
 
 ------------------------------------------------------------------------
 -- * Folds
