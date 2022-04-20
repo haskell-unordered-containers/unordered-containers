@@ -7,6 +7,7 @@ module Regressions (tests) where
 
 import Control.Exception     (evaluate)
 import Control.Monad         (replicateM)
+import Data.Bits             (shiftL)
 import Data.Hashable         (Hashable (..))
 import Data.List             (delete)
 import Data.Maybe            (isJust, isNothing)
@@ -24,6 +25,7 @@ import Test.Tasty.QuickCheck (testProperty)
 
 import qualified Data.HashMap.Lazy   as HML
 import qualified Data.HashMap.Strict as HMS
+import qualified Data.HashSet        as HS
 
 #if MIN_VERSION_base(4,12,0)
 -- nothunks requires base >= 4.12
@@ -249,6 +251,18 @@ issue383 = do
 #endif
 
 ------------------------------------------------------------------------
+-- Issue #420
+
+issue420 :: Assertion
+issue420 = do
+  let k1 :: Int = 1 `shiftL` 10
+  let k2 :: Int = 2 `shiftL` 10
+  let s0 = HS.fromList [k1, k2]
+  let s1 = s0 `HS.intersection` s0
+  assert $ k1 `HS.member` s1
+  assert $ k2 `HS.member` s1
+
+------------------------------------------------------------------------
 -- * Test list
 
 tests :: TestTree
@@ -277,4 +291,5 @@ tests = testGroup "Regression tests"
 #ifdef HAVE_NOTHUNKS
     , testCase "issue383" issue383
 #endif
+    , testCase "issue420" issue420
     ]
