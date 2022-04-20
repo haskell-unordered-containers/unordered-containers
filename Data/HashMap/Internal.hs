@@ -1859,10 +1859,13 @@ intersectionArrayBy f !b1 !b2 !ary1 !ary2
             testBit x = x .&. m /= 0
             b' = b .&. complement m
     (len, bFinal) <- go 0 0 0 bCombined bIntersect
-    l <- A.read mary 0
     case len of
       0 -> pure Empty
-      1 | isLeafOrCollision l -> pure l
+      1 -> do
+        l <- A.read mary 0
+        if isLeafOrCollision l
+          then pure l
+          else BitmapIndexed bFinal <$> (A.unsafeFreeze =<< A.shrink mary len)
       _ -> bitmapIndexedOrFull bFinal <$> (A.unsafeFreeze =<< A.shrink mary len)
   where
     bCombined = b1 .|. b2
