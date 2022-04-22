@@ -2375,7 +2375,7 @@ clone ary =
 
 -- | Number of bits that are inspected at each level of the hash tree.
 --
--- This constant is named _t_ in the original _Ideal Hash Trees_ paper.
+-- This constant is named /t/ in the original /Ideal Hash Trees/ paper.
 bitsPerSubkey :: Int
 bitsPerSubkey = 5
 
