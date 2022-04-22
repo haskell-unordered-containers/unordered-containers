@@ -2418,7 +2418,7 @@ mask w s = 1 `unsafeShiftL` index w s
 {-# INLINE mask #-}
 
 -- | Given a 'Hash' and a 'Shift' that indicates the level in the tree, compute
--- the index into a 'Full' node or into the bitmap of of `BitmapIndexed` node.
+-- the index into a 'Full' node or into the bitmap of a `BitmapIndexed` node.
 --
 -- >>> index 0b0010_0010 0
 -- 0b0000_0010
