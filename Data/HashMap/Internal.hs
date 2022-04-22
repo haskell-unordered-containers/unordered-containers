@@ -2410,10 +2410,7 @@ sparseIndex b m = popCount (b .&. (m - 1))
 --
 -- >>> mask 0b0010_0010 0
 -- 0b0100
-mask
-    :: Hash
-    -> Shift
-    -> Bitmap
+mask :: Hash -> Shift -> Bitmap
 mask w s = 1 `unsafeShiftL` index w s
 {-# INLINE mask #-}
 
@@ -2422,10 +2419,7 @@ mask w s = 1 `unsafeShiftL` index w s
 --
 -- >>> index 0b0010_0010 0
 -- 0b0000_0010
-index
-    :: Hash
-    -> Shift
-    -> Int
+index :: Hash -> Shift -> Int
 index w s = fromIntegral $ unsafeShiftR w s .&. subkeyMask
 {-# INLINE index #-}
 
