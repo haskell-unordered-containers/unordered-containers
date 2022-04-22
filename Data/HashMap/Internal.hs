@@ -311,8 +311,20 @@ fromListConstr = Data.mkConstr hashMapDataType "fromList" [] Data.Prefix
 hashMapDataType :: DataType
 hashMapDataType = Data.mkDataType "Data.HashMap.Internal.HashMap" [fromListConstr]
 
+-- | This type is used to store the hash of a key, as produced with 'hash'.
 type Hash   = Word
+
+-- | A bitmap as contained by a 'BitmapIndexed' node, or a 'fullNodeMask'
+-- corresponding to a 'Full' node.
+--
+-- Only the lower 'maxChildren' bits are used. The remaining bits must be zeros.
 type Bitmap = Word
+
+-- | 'Shift' values correspond to the level of the tree that we're currently
+-- operating at. At the root level the 'Shift' is @0@. For the subsequent
+-- levels the 'Shift' values are 'bitsPerSubkey', @2*'bitsPerSubkey'@ etc.
+--
+-- Valid values are non-negative and less than @bitSize (0 :: Word)@.
 type Shift  = Int
 
 instance Show2 HashMap where
@@ -2358,35 +2370,71 @@ clone ary =
 ------------------------------------------------------------------------
 -- Bit twiddling
 
+-- TODO: Name this 'bitsPerLevel'?! What is a "subkey"?
+-- https://github.com/haskell-unordered-containers/unordered-containers/issues/425
+
+-- | Number of bits that are inspected at each level of the hash tree.
+--
+-- This constant is named /t/ in the original /Ideal Hash Trees/ paper.
 bitsPerSubkey :: Int
 bitsPerSubkey = 5
 
+-- | The size of a 'Full' node, i.e. @2 ^ 'bitsPerSubkey'@.
 maxChildren :: Int
 maxChildren = 1 `unsafeShiftL` bitsPerSubkey
 
-subkeyMask :: Bitmap
+-- | Bit mask with the lowest 'bitsPerSubkey' bits set, i.e. @0b11111@.
+subkeyMask :: Word
 subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
 
-sparseIndex :: Bitmap -> Bitmap -> Int
-sparseIndex b m = popCount (b .&. (m - 1))
-{-# INLINE sparseIndex #-}
-
-mask :: Word -> Shift -> Bitmap
-mask w s = 1 `unsafeShiftL` index w s
-{-# INLINE mask #-}
-
--- | Mask out the 'bitsPerSubkey' bits used for indexing at this level
--- of the tree.
+-- | Given a 'Hash' and a 'Shift' that indicates the level in the tree, compute
+-- the index into a 'Full' node or into the bitmap of a `BitmapIndexed` node.
+--
+-- >>> index 0b0010_0010 0
+-- 0b0000_0010
 index :: Hash -> Shift -> Int
 index w s = fromIntegral $ unsafeShiftR w s .&. subkeyMask
 {-# INLINE index #-}
 
--- | A bitmask with the 'bitsPerSubkey' least significant bits set.
+-- | Given a 'Hash' and a 'Shift' that indicates the level in the tree, compute
+-- the bitmap that contains only the 'index' of the hash at this level.
+--
+-- The result can be used for constructing one-element 'BitmapIndexed' nodes or
+-- to check whether a 'BitmapIndexed' node may possibly contain the given 'Hash'.
+--
+-- >>> mask 0b0010_0010 0
+-- 0b0100
+mask :: Hash -> Shift -> Bitmap
+mask w s = 1 `unsafeShiftL` index w s
+{-# INLINE mask #-}
+
+-- | This array index is computed by counting the number of bits below the
+-- 'index' represented by the mask.
+--
+-- >>> sparseIndex 0b0110_0110 0b0010_0000
+-- 2
+sparseIndex
+    :: Bitmap
+    -- ^ Bitmap of a 'BitmapIndexed' node
+    -> Bitmap
+    -- ^ One-bit 'mask' corresponding to the 'index' of a hash
+    -> Int
+    -- ^ Index into the array of the 'BitmapIndexed' node
+sparseIndex b m = popCount (b .&. (m - 1))
+{-# INLINE sparseIndex #-}
+
+-- TODO: Should be named _(bit)map_ instead of _mask_
+
+-- | A bitmap with the 'maxChildren' least significant bits set, i.e.
+-- @0xFF_FF_FF_FF@.
 fullNodeMask :: Bitmap
 -- This needs to use 'shiftL' instead of 'unsafeShiftL', to avoid UB.
 -- See issue #412.
 fullNodeMask = complement (complement 0 `shiftL` maxChildren)
 {-# INLINE fullNodeMask #-}
+
+------------------------------------------------------------------------
+-- Pointer equality
 
 -- | Check if two the two arguments are the same value.  N.B. This
 -- function might give false negatives (due to GC moving objects.)
