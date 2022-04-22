@@ -2387,6 +2387,27 @@ maxChildren = 1 `unsafeShiftL` bitsPerSubkey
 subkeyMask :: Word
 subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
 
+-- | Given a 'Hash' and a 'Shift' that indicates the level in the tree, compute
+-- the index into a 'Full' node or into the bitmap of a `BitmapIndexed` node.
+--
+-- >>> index 0b0010_0010 0
+-- 0b0000_0010
+index :: Hash -> Shift -> Int
+index w s = fromIntegral $ unsafeShiftR w s .&. subkeyMask
+{-# INLINE index #-}
+
+-- | Given a 'Hash' and a 'Shift' that indicates the level in the tree, compute
+-- the bitmap that contains only the 'index' of the hash at this level.
+--
+-- The result can be used for constructing one-element 'BitmapIndexed' nodes or
+-- to check whether a 'BitmapIndexed' node may possibly contain the given 'Hash'.
+--
+-- >>> mask 0b0010_0010 0
+-- 0b0100
+mask :: Hash -> Shift -> Bitmap
+mask w s = 1 `unsafeShiftL` index w s
+{-# INLINE mask #-}
+
 -- | This array index is computed by counting the number of bits below the
 -- 'index' represented by the mask.
 --
@@ -2401,27 +2422,6 @@ sparseIndex
     -- ^ Index into the array of the 'BitmapIndexed' node
 sparseIndex b m = popCount (b .&. (m - 1))
 {-# INLINE sparseIndex #-}
-
--- | Given a 'Hash' and a 'Shift' that indicates the level in the tree, compute
--- the bitmap that contains only the 'index' of the hash at this level.
---
--- The result can be used for constructing one-element 'BitmapIndexed' nodes or
--- to check whether a 'BitmapIndexed' node may possibly contain the given 'Hash'.
---
--- >>> mask 0b0010_0010 0
--- 0b0100
-mask :: Hash -> Shift -> Bitmap
-mask w s = 1 `unsafeShiftL` index w s
-{-# INLINE mask #-}
-
--- | Given a 'Hash' and a 'Shift' that indicates the level in the tree, compute
--- the index into a 'Full' node or into the bitmap of a `BitmapIndexed` node.
---
--- >>> index 0b0010_0010 0
--- 0b0000_0010
-index :: Hash -> Shift -> Int
-index w s = fromIntegral $ unsafeShiftR w s .&. subkeyMask
-{-# INLINE index #-}
 
 -- TODO: Should be named _(bit)map_ instead of _mask_
 
