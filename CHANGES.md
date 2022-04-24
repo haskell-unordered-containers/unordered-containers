@@ -1,3 +1,11 @@
+## [0.2.19.1] – April 2022
+
+* [Fix bug in `intersection[With[Key]]`](https://github.com/haskell-unordered-containers/unordered-containers/pull/427)
+
+* [Improve docs of bit twiddling functions](https://github.com/haskell-unordered-containers/unordered-containers/pull/396)
+
+[0.2.19.1]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.19.0...v0.2.19.1
+
 ## [0.2.19.0] – April 2022
 
 * [Make intersections much faster](https://github.com/haskell-unordered-containers/unordered-containers/pull/406)
