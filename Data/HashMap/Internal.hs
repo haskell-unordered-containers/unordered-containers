@@ -107,9 +107,10 @@ module Data.HashMap.Internal
     , fromListWith
     , fromListWithKey
 
-      -- Internals used by the strict version
+      -- ** Internals used by the strict version
     , Hash
     , Bitmap
+    , Shift
     , bitmapIndexedOrFull
     , collision
     , hash
