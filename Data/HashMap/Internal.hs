@@ -2100,9 +2100,9 @@ filterMapAux onLeaf onColl = go
                     ch <- A.read mary 0
                     case ch of
                       t | isLeafOrCollision t -> return t
-                      _                       -> BitmapIndexed b <$> A.trim mary 1
+                      _                       -> BitmapIndexed b <$> (A.unsafeFreeze =<< A.shrink mary 1)
                 _ -> do
-                    ary2 <- A.trim mary j
+                    ary2 <- A.unsafeFreeze =<< A.shrink mary j
                     return $! if j == maxChildren
                               then Full ary2
                               else BitmapIndexed b ary2
@@ -2129,7 +2129,7 @@ filterMapAux onLeaf onColl = go
                         return $! Leaf h l
                 _ | i == j -> do ary2 <- A.unsafeFreeze mary
                                  return $! Collision h ary2
-                  | otherwise -> do ary2 <- A.trim mary j
+                  | otherwise -> do ary2 <- A.unsafeFreeze =<< A.shrink mary j
                                     return $! Collision h ary2
             | Just el <- onColl $! A.index ary i
                 = A.write mary j el >> step ary mary (i+1) (j+1) n

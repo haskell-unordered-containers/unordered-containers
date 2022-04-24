@@ -52,7 +52,6 @@ module Data.HashMap.Internal.Array
     , insertM
     , delete
     , sameArray1
-    , trim
 
     , unsafeFreeze
     , unsafeThaw
@@ -60,6 +59,7 @@ module Data.HashMap.Internal.Array
     , run
     , copy
     , copyM
+    , cloneM
 
       -- * Folds
     , foldl
@@ -317,11 +317,6 @@ cloneM _mary@(MArray mary#) _off@(I# off#) _len@(I# len#) =
     ST $ \ s ->
     case cloneSmallMutableArray# mary# off# len# s of
       (# s', mary'# #) -> (# s', MArray mary'# #)
-
--- | Create a new array of the @n@ first elements of @mary@.
-trim :: MArray s a -> Int -> ST s (Array a)
-trim mary n = cloneM mary 0 n >>= unsafeFreeze
-{-# INLINE trim #-}
 
 -- | \(O(n)\) Insert an element at the given position in this array,
 -- increasing its size by one.
