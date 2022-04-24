@@ -117,7 +117,7 @@ module Data.HashMap.Internal
     , mask
     , index
     , bitsPerSubkey
-    , fullNodeMask
+    , fullBitmap
     , sparseIndex
     , two
     , unionArrayBy
@@ -315,7 +315,7 @@ hashMapDataType = Data.mkDataType "Data.HashMap.Internal.HashMap" [fromListConst
 -- | This type is used to store the hash of a key, as produced with 'hash'.
 type Hash   = Word
 
--- | A bitmap as contained by a 'BitmapIndexed' node, or a 'fullNodeMask'
+-- | A bitmap as contained by a 'BitmapIndexed' node, or a 'fullBitmap'
 -- corresponding to a 'Full' node.
 --
 -- Only the lower 'maxChildren' bits are used. The remaining bits must be zeros.
@@ -758,7 +758,7 @@ bitmapIndexedOrFull :: Bitmap -> A.Array (HashMap k v) -> HashMap k v
 -- @unionWith[Key]@ with GHC 9.2.2. See the Core diffs in
 -- https://github.com/haskell-unordered-containers/unordered-containers/pull/376.
 bitmapIndexedOrFull b !ary
-    | b == fullNodeMask = Full ary
+    | b == fullBitmap = Full ary
     | otherwise         = BitmapIndexed b ary
 {-# INLINE bitmapIndexedOrFull #-}
 
@@ -1110,7 +1110,7 @@ delete' h0 k0 m0 = go h0 k0 0 m0
             else case st' of
             Empty ->
                 let ary' = A.delete ary i
-                    bm   = fullNodeMask .&. complement (1 `unsafeShiftL` i)
+                    bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
                 in BitmapIndexed bm ary'
             _ -> Full (A.update ary i st')
       where i = index h s
@@ -1162,7 +1162,7 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 0 m0
         in case st' of
             Empty ->
                 let ary' = A.delete ary i
-                    bm   = fullNodeMask .&. complement (1 `unsafeShiftL` i)
+                    bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
                 in BitmapIndexed bm ary'
             _ -> Full (A.update ary i st')
       where i = index h s
@@ -1471,9 +1471,9 @@ isSubmapOfBy comp !m1 !m2 = go 0 m1 m2
     go s (BitmapIndexed b1 ls1) (BitmapIndexed b2 ls2) =
       submapBitmapIndexed (go (s+bitsPerSubkey)) b1 ls1 b2 ls2
     go s (BitmapIndexed b1 ls1) (Full ls2) =
-      submapBitmapIndexed (go (s+bitsPerSubkey)) b1 ls1 fullNodeMask ls2
+      submapBitmapIndexed (go (s+bitsPerSubkey)) b1 ls1 fullBitmap ls2
     go s (Full ls1) (Full ls2) =
-      submapBitmapIndexed (go (s+bitsPerSubkey)) fullNodeMask ls1 fullNodeMask ls2
+      submapBitmapIndexed (go (s+bitsPerSubkey)) fullBitmap ls1 fullBitmap ls2
 
     -- Collision and Full nodes always contain at least two entries. Hence it
     -- cannot be a map of a leaf.
@@ -1562,13 +1562,13 @@ unionWithKey f = go 0
             ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 b2 ary1 ary2
         in bitmapIndexedOrFull b' ary'
     go s (BitmapIndexed b1 ary1) (Full ary2) =
-        let ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 fullNodeMask ary1 ary2
+        let ary' = unionArrayBy (go (s+bitsPerSubkey)) b1 fullBitmap ary1 ary2
         in Full ary'
     go s (Full ary1) (BitmapIndexed b2 ary2) =
-        let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask b2 ary1 ary2
+        let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullBitmap b2 ary1 ary2
         in Full ary'
     go s (Full ary1) (Full ary2) =
-        let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask fullNodeMask
+        let ary' = unionArrayBy (go (s+bitsPerSubkey)) fullBitmap fullBitmap
                    ary1 ary2
         in Full ary'
     -- leaf vs. branch
@@ -1814,11 +1814,11 @@ intersectionWithKey# f = go 0
     go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
       intersectionArrayBy (go (s + bitsPerSubkey)) b1 b2 ary1 ary2
     go s (BitmapIndexed b1 ary1) (Full ary2) =
-      intersectionArrayBy (go (s + bitsPerSubkey)) b1 fullNodeMask ary1 ary2
+      intersectionArrayBy (go (s + bitsPerSubkey)) b1 fullBitmap ary1 ary2
     go s (Full ary1) (BitmapIndexed b2 ary2) =
-      intersectionArrayBy (go (s + bitsPerSubkey)) fullNodeMask b2 ary1 ary2
+      intersectionArrayBy (go (s + bitsPerSubkey)) fullBitmap b2 ary1 ary2
     go s (Full ary1) (Full ary2) =
-      intersectionArrayBy (go (s + bitsPerSubkey)) fullNodeMask fullNodeMask ary1 ary2
+      intersectionArrayBy (go (s + bitsPerSubkey)) fullBitmap fullBitmap ary1 ary2
     -- collision vs. branch
     go s (BitmapIndexed b1 ary1) t2@(Collision h2 _ls2)
       | b1 .&. m2 == 0 = Empty
@@ -2081,7 +2081,7 @@ filterMapAux onLeaf onColl = go
         | Just t' <- onLeaf t = t'
         | otherwise = Empty
     go (BitmapIndexed b ary) = filterA ary b
-    go (Full ary) = filterA ary fullNodeMask
+    go (Full ary) = filterA ary fullBitmap
     go (Collision h ary) = filterC ary h
 
     filterA ary0 b0 =
@@ -2427,15 +2427,13 @@ sparseIndex
 sparseIndex b m = popCount (b .&. (m - 1))
 {-# INLINE sparseIndex #-}
 
--- TODO: Should be named _(bit)map_ instead of _mask_
-
 -- | A bitmap with the 'maxChildren' least significant bits set, i.e.
 -- @0xFF_FF_FF_FF@.
-fullNodeMask :: Bitmap
+fullBitmap :: Bitmap
 -- This needs to use 'shiftL' instead of 'unsafeShiftL', to avoid UB.
 -- See issue #412.
-fullNodeMask = complement (complement 0 `shiftL` maxChildren)
-{-# INLINE fullNodeMask #-}
+fullBitmap = complement (complement 0 `shiftL` maxChildren)
+{-# INLINE fullBitmap #-}
 
 ------------------------------------------------------------------------
 -- Pointer equality
