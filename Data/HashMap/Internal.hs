@@ -1873,7 +1873,11 @@ intersectionArrayBy f !b1 !b2 !ary1 !ary2
     (len, bFinal) <- go 0 0 0 bCombined bIntersect
     case len of
       0 -> pure Empty
-      1 -> A.read mary 0
+      1 -> do
+        l <- A.read mary 0
+        if isLeafOrCollision l
+          then pure l
+          else BitmapIndexed bFinal <$> (A.unsafeFreeze =<< A.shrink mary 1)
       _ -> bitmapIndexedOrFull bFinal <$> (A.unsafeFreeze =<< A.shrink mary len)
   where
     bCombined = b1 .|. b2
@@ -1926,7 +1930,6 @@ searchSwap toFind start = go start toFind start
             pure $ Just l
           else go i0 k (i + 1) mary
 {-# INLINE searchSwap #-}
-
 
 ------------------------------------------------------------------------
 -- * Folds
