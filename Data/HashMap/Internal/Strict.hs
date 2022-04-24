@@ -130,7 +130,7 @@ import Data.Functor.Identity (Identity (..))
 -- See Note [Imports from Data.HashMap.Internal]
 import Data.Hashable         (Hashable)
 import Data.HashMap.Internal (Hash, HashMap (..), Leaf (..), LookupRes (..),
-                              bitsPerSubkey, fullNodeMask, hash, index, mask,
+                              bitsPerSubkey, fullBitmap, hash, index, mask,
                               ptrEq, sparseIndex)
 import Prelude               hiding (lookup, map)
 
@@ -474,13 +474,13 @@ unionWithKey f = go 0
             ary' = HM.unionArrayBy (go (s+bitsPerSubkey)) b1 b2 ary1 ary2
         in HM.bitmapIndexedOrFull b' ary'
     go s (BitmapIndexed b1 ary1) (Full ary2) =
-        let ary' = HM.unionArrayBy (go (s+bitsPerSubkey)) b1 fullNodeMask ary1 ary2
+        let ary' = HM.unionArrayBy (go (s+bitsPerSubkey)) b1 fullBitmap ary1 ary2
         in Full ary'
     go s (Full ary1) (BitmapIndexed b2 ary2) =
-        let ary' = HM.unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask b2 ary1 ary2
+        let ary' = HM.unionArrayBy (go (s+bitsPerSubkey)) fullBitmap b2 ary1 ary2
         in Full ary'
     go s (Full ary1) (Full ary2) =
-        let ary' = HM.unionArrayBy (go (s+bitsPerSubkey)) fullNodeMask fullNodeMask
+        let ary' = HM.unionArrayBy (go (s+bitsPerSubkey)) fullBitmap fullBitmap
                    ary1 ary2
         in Full ary'
     -- leaf vs. branch
