@@ -1906,7 +1906,7 @@ intersectionCollisions f h1 h2 ary1 ary2
     case len of
       0 -> pure Empty
       1 -> Leaf h1 <$> A.read mary 0
-      _ -> Collision h1 <$> (A.unsafeFreeze =<< A.shrink mary (len-1))
+      _ -> Collision h1 <$> (A.unsafeFreeze =<< A.shrink mary len)
   | otherwise = Empty
 {-# INLINE intersectionCollisions #-}
 
