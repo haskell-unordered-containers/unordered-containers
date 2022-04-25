@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
 
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
@@ -16,19 +18,23 @@ module MODULE_NAME (tests) where
 import Control.Applicative      (Const (..))
 import Control.Monad            (guard)
 import Data.Bifoldable
+import Data.Bits                (popCount, shiftL, (.&.))
 import Data.Function            (on)
 import Data.Functor.Identity    (Identity (..))
 import Data.Hashable            (Hashable (hashWithSalt))
 import Data.Ord                 (comparing)
-import Test.QuickCheck          (Arbitrary (..), Property, elements, forAll,
-                                 property, (===), (==>))
+import Data.Word                (Word16)
+import GHC.Generics             (Generic)
+import Test.QuickCheck          (Arbitrary (..), Gen, Large, Property, elements,
+                                 forAll, property, (===), (==>))
 import Test.QuickCheck.Function (Fun, apply)
 import Test.QuickCheck.Poly     (A, B)
 import Test.Tasty               (TestTree, testGroup)
 import Test.Tasty.QuickCheck    (testProperty)
 
-import qualified Data.Foldable as Foldable
-import qualified Data.List     as List
+import qualified Data.Foldable   as Foldable
+import qualified Data.List       as List
+import qualified Test.QuickCheck as QC
 
 #if defined(STRICT)
 import           Data.HashMap.Strict (HashMap)
@@ -41,14 +47,35 @@ import qualified Data.Map.Lazy     as M
 #endif
 
 -- Key type that generates more hash collisions.
-newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Eq, Ord, Read, Show, Num)
+data Key = K
+  { hash :: !Int
+  , bool :: !Bool
+  } deriving (Eq, Ord, Read, Show, Generic)
+
+instance Arbitrary Key where
+  arbitrary = K <$> arbitraryHash <*> arbitrary
+  shrink = QC.genericShrink
+
+arbitraryHash :: Gen Int
+arbitraryHash = do
+  w16 <- QC.getLarge <$> arbitrary @(Large Word16)
+  pure $ if even (popCount w16) then moreCollisions w16 else fromIntegral w16
+
+moreCollisions :: Word16 -> Int
+moreCollisions w = fromIntegral (w .&. mask)
+  where
+    -- 0b1001_0010_0100_1001
+    mask = 1 + 1 `shiftL` 3 + 1 `shiftL` 6 + 1 `shiftL` 9 + 1 `shiftL` 12 + 1 `shiftL` 15
 
 instance Hashable Key where
-    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
+  hashWithSalt _ (K h _) = h
 
 instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
   arbitrary = fmap (HM.fromList) arbitrary
+
+keyToInt :: Key -> Int
+keyToInt (K h False) = h
+keyToInt (K h True)  = negate h
 
 ------------------------------------------------------------------------
 -- * Properties
@@ -284,7 +311,7 @@ pUnionWithKey xs ys = M.unionWithKey go (M.fromList xs) `eq_`
                              HM.unionWithKey go (HM.fromList xs) $ ys
   where
     go :: Key -> Int -> Int -> Int
-    go (K k) i1 i2 = k - i1 + i2
+    go k i1 i2 = keyToInt k - i1 + i2
 
 pUnions :: [[(Key, Int)]] -> Property
 pUnions xss = M.toAscList (M.unions (map M.fromList xss)) ===
@@ -332,7 +359,7 @@ pIntersectionWithKey xs ys = M.intersectionWithKey go (M.fromList xs) `eq_`
                              HM.intersectionWithKey go (HM.fromList xs) $ ys
   where
     go :: Key -> Int -> Int -> Int
-    go (K k) i1 i2 = k - i1 - i2
+    go (K h _) i1 i2 = h - i1 - i2
 
 ------------------------------------------------------------------------
 -- ** Folds
@@ -394,7 +421,7 @@ pFoldr' = (List.sort . M.foldr' (:) []) `eq` (List.sort . HM.foldr' (:) [])
 
 pMapMaybeWithKey :: [(Key, Int)] -> Property
 pMapMaybeWithKey = M.mapMaybeWithKey f `eq_` HM.mapMaybeWithKey f
-  where f k v = guard (odd (unK k + v)) >> Just (v + 1)
+  where f k v = guard (odd (keyToInt k + v)) >> Just (v + 1)
 
 pMapMaybe :: [(Key, Int)] -> Property
 pMapMaybe = M.mapMaybe f `eq_` HM.mapMaybe f
@@ -405,7 +432,7 @@ pFilter = M.filter odd `eq_` HM.filter odd
 
 pFilterWithKey :: [(Key, Int)] -> Property
 pFilterWithKey = M.filterWithKey p `eq_` HM.filterWithKey p
-  where p k v = odd (unK k + v)
+  where p k v = odd (keyToInt k + v)
 
 ------------------------------------------------------------------------
 -- ** Conversions
@@ -433,7 +460,7 @@ pFromListWith kvs = (M.toAscList $ M.fromListWith Op kvsM) ===
 pFromListWithKey :: [(Key, Int)] -> Property
 pFromListWithKey kvs = (M.toAscList $ M.fromListWithKey combine kvsM) ===
                        (toAscList $ HM.fromListWithKey combine kvsM)
-  where kvsM = fmap (\(K k,v) -> (Leaf k, Leaf v)) kvs
+  where kvsM = fmap (\(k,v) -> (Leaf (keyToInt k), Leaf v)) kvs
         combine k v1 v2 = Op k (Op v1 v2)
 
 pToList :: [(Key, Int)] -> Property
