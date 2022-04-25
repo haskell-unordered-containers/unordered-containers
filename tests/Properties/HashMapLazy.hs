@@ -18,7 +18,7 @@ module MODULE_NAME (tests) where
 import Control.Applicative      (Const (..))
 import Control.Monad            (guard)
 import Data.Bifoldable
-import Data.Bits                (shiftL, (.&.))
+import Data.Bits                (bit, (.&.))
 import Data.Function            (on)
 import Data.Functor.Identity    (Identity (..))
 import Data.Hashable            (Hashable (hashWithSalt))
@@ -84,7 +84,7 @@ moreCollisions :: Int -> Int
 moreCollisions w = fromIntegral (w .&. mask)
 
 mask :: Int
-mask = sum [1 `shiftL` n | n <- [0, 3, 8, 14, 61]]
+mask = sum [bit n | n <- [0, 3, 8, 14, 61]]
 
 instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
   arbitrary = fmap (HM.fromList) arbitrary
