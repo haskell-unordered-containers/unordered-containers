@@ -2311,8 +2311,9 @@ updateOrConcatWithKey :: Eq k => (k -> v -> v -> (# v #)) -> A.Array (Leaf k v) 
 updateOrConcatWithKey f ary1 ary2 = A.run $ do
     let n1 = A.length ary1
     let n2 = A.length ary2
+    -- initialize output array with first element of ary1
     mary <- A.new (n1 + n2) (A.index ary1 0)
-    -- copy over all elements from ary1
+    -- copy over remaining elements from ary1
     A.copy ary1 1 mary 1 (n1-1)
     -- append or update all elements from ary2
     let go !iEnd !i2 !iMut
