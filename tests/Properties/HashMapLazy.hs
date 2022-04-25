@@ -50,15 +50,19 @@ import qualified Data.Map.Lazy     as M
 data Key = K
   { hash :: !Int
     -- ^ The hash of the key
-  , _s :: !SmallSum
+  , _x :: !SmallSum
     -- ^ Additional data, so we can have collisions for any hash
   } deriving (Eq, Ord, Read, Show, Generic)
+
+instance Hashable Key where
+  hashWithSalt _ (K h _) = h
 
 data SmallSum = A | B | C | D
   deriving (Eq, Ord, Read, Show, Generic, Enum, Bounded)
 
 instance Arbitrary SmallSum where
   arbitrary = QC.arbitraryBoundedEnum
+  shrink = QC.genericShrink
 
 instance Arbitrary Key where
   arbitrary = K <$> arbitraryHash <*> arbitrary
@@ -81,9 +85,6 @@ moreCollisions w = fromIntegral (w .&. mask)
 
 mask :: Int
 mask = sum [1 `shiftL` n | n <- [0, 3, 8, 14, 61]]
-
-instance Hashable Key where
-  hashWithSalt _ (K h _) = h
 
 instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
   arbitrary = fmap (HM.fromList) arbitrary
