@@ -374,7 +374,7 @@ pIntersectionWithKey xs ys = M.intersectionWithKey go (M.fromList xs) `eq_`
                              HM.intersectionWithKey go (HM.fromList xs) $ ys
   where
     go :: Key -> Int -> Int -> Int
-    go (K h _) i1 i2 = h - i1 - i2
+    go k i1 i2 = keyToInt k - i1 - i2
 
 ------------------------------------------------------------------------
 -- ** Folds
