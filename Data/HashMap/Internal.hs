@@ -2311,9 +2311,9 @@ updateOrConcatWithKey :: Eq k => (k -> v -> v -> (# v #)) -> A.Array (Leaf k v) 
 updateOrConcatWithKey f ary1 ary2 = A.run $ do
     let n1 = A.length ary1
     let n2 = A.length ary2
-    mary <- A.new (n1 + n2) (A.index ary1 1)
+    mary <- A.new_ (n1 + n2)
     -- copy over all elements from ary1
-    A.copy ary1 1 mary 1 (n1-1)
+    A.copy ary1 0 mary 0 n1
     -- append or update all elements from ary2
     let go !iEnd !i2 !iMut
           | i2 >= n2 = return iEnd
