@@ -8,7 +8,7 @@ module Properties.HashSet (tests) where
 
 import Data.Hashable         (Hashable (hashWithSalt))
 import Data.Ord              (comparing)
-import Test.QuickCheck       (Arbitrary, Property, (===), (==>))
+import Test.QuickCheck       (Arbitrary, Property, property, (===), (==>))
 import Test.Tasty            (TestTree, testGroup)
 import Test.Tasty.QuickCheck (testProperty)
 
@@ -30,26 +30,26 @@ instance Hashable Key where
 ------------------------------------------------------------------------
 -- ** Instances
 
-pEq :: [Key] -> [Key] -> Bool
+pEq :: [Key] -> [Key] -> Property
 pEq xs = (Set.fromList xs ==) `eq` (S.fromList xs ==)
 
-pNeq :: [Key] -> [Key] -> Bool
+pNeq :: [Key] -> [Key] -> Property
 pNeq xs = (Set.fromList xs /=) `eq` (S.fromList xs /=)
 
 -- We cannot compare to `Data.Map` as ordering is different.
-pOrd1 :: [Key] -> Bool
-pOrd1 xs = compare x x == EQ
+pOrd1 :: [Key] -> Property
+pOrd1 xs = compare x x === EQ
   where
     x = S.fromList xs
 
-pOrd2 :: [Key] -> [Key] -> [Key] -> Bool
+pOrd2 :: [Key] -> [Key] -> [Key] -> Property
 pOrd2 xs ys zs = case (compare x y, compare y z) of
-    (EQ, o)  -> compare x z == o
-    (o,  EQ) -> compare x z == o
-    (LT, LT) -> compare x z == LT
-    (GT, GT) -> compare x z == GT
-    (LT, GT) -> True -- ys greater than xs and zs.
-    (GT, LT) -> True
+    (EQ, o)  -> compare x z === o
+    (o,  EQ) -> compare x z === o
+    (LT, LT) -> compare x z === LT
+    (GT, GT) -> compare x z === GT
+    (LT, GT) -> property True -- ys greater than xs and zs.
+    (GT, LT) -> property True
   where
     x = S.fromList xs
     y = S.fromList ys
@@ -75,15 +75,15 @@ pOrdEq xs ys = case (compare x y, x == y) of
     x = S.fromList xs
     y = S.fromList ys
 
-pReadShow :: [Key] -> Bool
-pReadShow xs = Set.fromList xs == read (show (Set.fromList xs))
+pReadShow :: [Key] -> Property
+pReadShow xs = Set.fromList xs === read (show (Set.fromList xs))
 
-pFoldable :: [Int] -> Bool
+pFoldable :: [Int] -> Property
 pFoldable = (List.sort . Foldable.foldr (:) []) `eq`
             (List.sort . Foldable.foldr (:) [])
 
-pPermutationEq :: [Key] -> [Int] -> Bool
-pPermutationEq xs is = S.fromList xs == S.fromList ys
+pPermutationEq :: [Key] -> [Int] -> Property
+pPermutationEq xs is = S.fromList xs === S.fromList ys
   where
     ys = shuffle is xs
     shuffle idxs = List.map snd
@@ -105,42 +105,42 @@ pHashable xs is salt =
 ------------------------------------------------------------------------
 -- ** Basic interface
 
-pSize :: [Key] -> Bool
+pSize :: [Key] -> Property
 pSize = Set.size `eq` S.size
 
-pMember :: Key -> [Key] -> Bool
+pMember :: Key -> [Key] -> Property
 pMember k = Set.member k `eq` S.member k
 
-pInsert :: Key -> [Key] -> Bool
+pInsert :: Key -> [Key] -> Property
 pInsert a = Set.insert a `eq_` S.insert a
 
-pDelete :: Key -> [Key] -> Bool
+pDelete :: Key -> [Key] -> Property
 pDelete a = Set.delete a `eq_` S.delete a
 
 ------------------------------------------------------------------------
 -- ** Combine
 
-pUnion :: [Key] -> [Key] -> Bool
+pUnion :: [Key] -> [Key] -> Property
 pUnion xs ys = Set.union (Set.fromList xs) `eq_`
                S.union (S.fromList xs) $ ys
 
 ------------------------------------------------------------------------
 -- ** Transformations
 
-pMap :: [Key] -> Bool
+pMap :: [Key] -> Property
 pMap = Set.map (+ 1) `eq_` S.map (+ 1)
 
 ------------------------------------------------------------------------
 -- ** Folds
 
-pFoldr :: [Int] -> Bool
+pFoldr :: [Int] -> Property
 pFoldr = (List.sort . foldrSet (:) []) `eq`
          (List.sort . S.foldr (:) [])
 
 foldrSet :: (a -> b -> b) -> b -> Set.Set a -> b
 foldrSet = Set.foldr
 
-pFoldl' :: Int -> [Int] -> Bool
+pFoldl' :: Int -> [Int] -> Property
 pFoldl' z0 = foldl'Set (+) z0 `eq` S.foldl' (+) z0
 
 foldl'Set :: (a -> b -> a) -> a -> Set.Set b -> a
@@ -149,13 +149,13 @@ foldl'Set = Set.foldl'
 ------------------------------------------------------------------------
 -- ** Filter
 
-pFilter :: [Key] -> Bool
+pFilter :: [Key] -> Property
 pFilter = Set.filter odd `eq_` S.filter odd
 
 ------------------------------------------------------------------------
 -- ** Conversions
 
-pToList :: [Key] -> Bool
+pToList :: [Key] -> Property
 pToList = Set.toAscList `eq` toAscList
 
 ------------------------------------------------------------------------
@@ -211,22 +211,21 @@ type Model a = Set.Set a
 
 -- | Check that a function operating on a 'HashMap' is equivalent to
 -- one operating on a 'Model'.
-eq :: (Eq a, Hashable a, Ord a, Eq b)
+eq :: (Eq a, Hashable a, Ord a, Show a, Eq b, Show b)
    => (Model a -> b)      -- ^ Function that modifies a 'Model' in the same
                           -- way
    -> (S.HashSet a -> b)  -- ^ Function that modified a 'HashSet'
    -> [a]                 -- ^ Initial content of the 'HashSet' and 'Model'
-   -> Bool                -- ^ True if the functions are equivalent
-eq f g xs = g (S.fromList xs) == f (Set.fromList xs)
+   -> Property
+eq f g xs = f (Set.fromList xs) === g (S.fromList xs)
 
-eq_ :: (Eq a, Hashable a, Ord a)
+eq_ :: (Eq a, Hashable a, Ord a, Show a)
     => (Model a -> Model a)          -- ^ Function that modifies a 'Model'
     -> (S.HashSet a -> S.HashSet a)  -- ^ Function that modified a
                                      -- 'HashSet' in the same way
     -> [a]                           -- ^ Initial content of the 'HashSet'
                                      -- and 'Model'
-    -> Bool                          -- ^ True if the functions are
-                                     -- equivalent
+    -> Property
 eq_ f g = (Set.toAscList . f) `eq` (toAscList . g)
 
 ------------------------------------------------------------------------
