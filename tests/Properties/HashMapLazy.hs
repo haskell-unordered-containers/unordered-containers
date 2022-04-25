@@ -18,7 +18,7 @@ module MODULE_NAME (tests) where
 import Control.Applicative      (Const (..))
 import Control.Monad            (guard)
 import Data.Bifoldable
-import Data.Bits                (popCount, shiftL, (.&.))
+import Data.Bits                (shiftL, (.&.))
 import Data.Function            (on)
 import Data.Functor.Identity    (Identity (..))
 import Data.Hashable            (Hashable (hashWithSalt))
@@ -49,8 +49,16 @@ import qualified Data.Map.Lazy     as M
 -- Key type that generates more hash collisions.
 data Key = K
   { hash :: !Int
-  , bool :: !Bool
+    -- ^ The hash of the key
+  , _s :: !SmallSum
+    -- ^ Additional data, so we can have collisions for any hash
   } deriving (Eq, Ord, Read, Show, Generic)
+
+data SmallSum = A | B | C | D
+  deriving (Eq, Ord, Read, Show, Generic, Enum, Bounded)
+
+instance Arbitrary SmallSum where
+  arbitrary = QC.arbitraryBoundedEnum
 
 instance Arbitrary Key where
   arbitrary = K <$> arbitraryHash <*> arbitrary
@@ -58,14 +66,21 @@ instance Arbitrary Key where
 
 arbitraryHash :: Gen Int
 arbitraryHash = do
-  w16 <- QC.getLarge <$> arbitrary @(Large Word16)
-  pure $ if even (popCount w16) then moreCollisions w16 else fromIntegral w16
+  let gens =
+        [ (2, (fromIntegral . QC.getLarge) <$> arbitrary @(Large Word16))
+        , (1, QC.getSmall <$> arbitrary)
+        , (1, QC.getLarge <$> arbitrary)
+        ]
+  i <- QC.frequency gens
+  moreCollisions' <- QC.elements [moreCollisions, id]
+  pure (moreCollisions' i)
 
-moreCollisions :: Word16 -> Int
+-- | Mask out most bits to produce more collisions
+moreCollisions :: Int -> Int
 moreCollisions w = fromIntegral (w .&. mask)
-  where
-    -- 0b1001_0010_0100_1001
-    mask = 1 + 1 `shiftL` 3 + 1 `shiftL` 6 + 1 `shiftL` 9 + 1 `shiftL` 12 + 1 `shiftL` 15
+
+mask :: Int
+mask = sum [1 `shiftL` n | n <- [0, 3, 8, 14, 61]]
 
 instance Hashable Key where
   hashWithSalt _ (K h _) = h
@@ -74,8 +89,7 @@ instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v)
   arbitrary = fmap (HM.fromList) arbitrary
 
 keyToInt :: Key -> Int
-keyToInt (K h False) = h
-keyToInt (K h True)  = negate h
+keyToInt (K h x) = h * fromEnum x
 
 ------------------------------------------------------------------------
 -- * Properties
