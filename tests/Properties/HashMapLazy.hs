@@ -567,7 +567,7 @@ eq :: (Eq a, Eq k, Hashable k, Ord k, Show a, Show k)
                              -- way
    -> [(k, v)]               -- ^ Initial content of the 'HashMap' and 'Model'
    -> Property
-eq f g xs = g (HM.fromList xs) === f (M.fromList xs)
+eq f g xs = f (M.fromList xs) === g (HM.fromList xs)
 
 infix 4 `eq`
 
