@@ -2319,7 +2319,7 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
           | i2 >= n2 = return iEnd
           | otherwise = do
               l@(L k v2) <- A.indexM ary2 i2
-              res <- searchSwap k iMut n2 mary
+              res <- searchSwap k iMut n1 mary
               case res of
                   Just (L _ v1) -> do -- key occurs in both arrays, store combination in position iMut
                       case f k v1 v2 of (# v3 #) -> A.write mary iMut (L k v3)
