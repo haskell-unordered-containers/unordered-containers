@@ -8,7 +8,7 @@ module Properties.HashSet (tests) where
 
 import Data.Hashable         (Hashable (hashWithSalt))
 import Data.Ord              (comparing)
-import Test.QuickCheck       (Arbitrary, Property, (===), (==>))
+import Test.QuickCheck       (Arbitrary, Property, property, (===), (==>))
 import Test.Tasty            (TestTree, testGroup)
 import Test.Tasty.QuickCheck (testProperty)
 
@@ -37,19 +37,19 @@ pNeq :: [Key] -> [Key] -> Property
 pNeq xs = (Set.fromList xs /=) `eq` (S.fromList xs /=)
 
 -- We cannot compare to `Data.Map` as ordering is different.
-pOrd1 :: [Key] -> Bool
-pOrd1 xs = compare x x == EQ
+pOrd1 :: [Key] -> Property
+pOrd1 xs = compare x x === EQ
   where
     x = S.fromList xs
 
-pOrd2 :: [Key] -> [Key] -> [Key] -> Bool
+pOrd2 :: [Key] -> [Key] -> [Key] -> Property
 pOrd2 xs ys zs = case (compare x y, compare y z) of
-    (EQ, o)  -> compare x z == o
-    (o,  EQ) -> compare x z == o
-    (LT, LT) -> compare x z == LT
-    (GT, GT) -> compare x z == GT
-    (LT, GT) -> True -- ys greater than xs and zs.
-    (GT, LT) -> True
+    (EQ, o)  -> compare x z === o
+    (o,  EQ) -> compare x z === o
+    (LT, LT) -> compare x z === LT
+    (GT, GT) -> compare x z === GT
+    (LT, GT) -> property True -- ys greater than xs and zs.
+    (GT, LT) -> property True
   where
     x = S.fromList xs
     y = S.fromList ys
@@ -75,15 +75,15 @@ pOrdEq xs ys = case (compare x y, x == y) of
     x = S.fromList xs
     y = S.fromList ys
 
-pReadShow :: [Key] -> Bool
-pReadShow xs = Set.fromList xs == read (show (Set.fromList xs))
+pReadShow :: [Key] -> Property
+pReadShow xs = Set.fromList xs === read (show (Set.fromList xs))
 
 pFoldable :: [Int] -> Property
 pFoldable = (List.sort . Foldable.foldr (:) []) `eq`
             (List.sort . Foldable.foldr (:) [])
 
-pPermutationEq :: [Key] -> [Int] -> Bool
-pPermutationEq xs is = S.fromList xs == S.fromList ys
+pPermutationEq :: [Key] -> [Int] -> Property
+pPermutationEq xs is = S.fromList xs === S.fromList ys
   where
     ys = shuffle is xs
     shuffle idxs = List.map snd

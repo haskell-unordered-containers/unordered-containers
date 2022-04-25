@@ -21,7 +21,7 @@ import Data.Functor.Identity    (Identity (..))
 import Data.Hashable            (Hashable (hashWithSalt))
 import Data.Ord                 (comparing)
 import Test.QuickCheck          (Arbitrary (..), Property, elements, forAll,
-                                 (===), (==>))
+                                 property, (===), (==>))
 import Test.QuickCheck.Function (Fun, apply)
 import Test.QuickCheck.Poly     (A, B)
 import Test.Tasty               (TestTree, testGroup)
@@ -63,19 +63,19 @@ pNeq :: [(Key, Int)] -> [(Key, Int)] -> Property
 pNeq xs = (M.fromList xs /=) `eq` (HM.fromList xs /=)
 
 -- We cannot compare to `Data.Map` as ordering is different.
-pOrd1 :: [(Key, Int)] -> Bool
-pOrd1 xs = compare x x == EQ
+pOrd1 :: [(Key, Int)] -> Property
+pOrd1 xs = compare x x === EQ
   where
     x = HM.fromList xs
 
-pOrd2 :: [(Key, Int)] -> [(Key, Int)] -> [(Key, Int)] -> Bool
+pOrd2 :: [(Key, Int)] -> [(Key, Int)] -> [(Key, Int)] -> Property
 pOrd2 xs ys zs = case (compare x y, compare y z) of
-    (EQ, o)  -> compare x z == o
-    (o,  EQ) -> compare x z == o
-    (LT, LT) -> compare x z == LT
-    (GT, GT) -> compare x z == GT
-    (LT, GT) -> True -- ys greater than xs and zs.
-    (GT, LT) -> True
+    (EQ, o)  -> compare x z === o
+    (o,  EQ) -> compare x z === o
+    (LT, LT) -> compare x z === LT
+    (GT, GT) -> compare x z === GT
+    (LT, GT) -> property True -- ys greater than xs and zs.
+    (GT, LT) -> property True
   where
     x = HM.fromList xs
     y = HM.fromList ys
@@ -101,8 +101,8 @@ pOrdEq xs ys = case (compare x y, x == y) of
     x = HM.fromList xs
     y = HM.fromList ys
 
-pReadShow :: [(Key, Int)] -> Bool
-pReadShow xs = M.fromList xs == read (show (M.fromList xs))
+pReadShow :: [(Key, Int)] -> Property
+pReadShow xs = M.fromList xs === read (show (M.fromList xs))
 
 pFunctor :: [(Key, Int)] -> Property
 pFunctor = fmap (+ 1) `eq_` fmap (+ 1)
@@ -231,8 +231,8 @@ pAlterFLookup k f =
   `eq`
   getConst . HM.alterF (Const . apply f) k
 
-pSubmap :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pSubmap xs ys = M.isSubmapOf (M.fromList xs) (M.fromList ys) ==
+pSubmap :: [(Key, Int)] -> [(Key, Int)] -> Property
+pSubmap xs ys = M.isSubmapOf (M.fromList xs) (M.fromList ys) ===
                 HM.isSubmapOf (HM.fromList xs) (HM.fromList ys)
 
 pSubmapReflexive :: HashMap Key Int -> Bool
@@ -286,8 +286,8 @@ pUnionWithKey xs ys = M.unionWithKey go (M.fromList xs) `eq_`
     go :: Key -> Int -> Int -> Int
     go (K k) i1 i2 = k - i1 + i2
 
-pUnions :: [[(Key, Int)]] -> Bool
-pUnions xss = M.toAscList (M.unions (map M.fromList xss)) ==
+pUnions :: [[(Key, Int)]] -> Property
+pUnions xss = M.toAscList (M.unions (map M.fromList xss)) ===
               toAscList (HM.unions (map HM.fromList xss))
 
 ------------------------------------------------------------------------
@@ -296,10 +296,10 @@ pUnions xss = M.toAscList (M.unions (map M.fromList xss)) ==
 pMap :: [(Key, Int)] -> Property
 pMap = M.map (+ 1) `eq_` HM.map (+ 1)
 
-pTraverse :: [(Key, Int)] -> Bool
+pTraverse :: [(Key, Int)] -> Property
 pTraverse xs =
   List.sort (fmap (List.sort . M.toList) (M.traverseWithKey (\_ v -> [v + 1, v + 2]) (M.fromList (take 10 xs))))
-     == List.sort (fmap (List.sort . HM.toList) (HM.traverseWithKey (\_ v -> [v + 1, v + 2]) (HM.fromList (take 10 xs))))
+     === List.sort (fmap (List.sort . HM.toList) (HM.traverseWithKey (\_ v -> [v + 1, v + 2]) (HM.fromList (take 10 xs))))
 
 pMapKeys :: [(Int, Int)] -> Property
 pMapKeys = M.mapKeys (+1) `eq_` HM.mapKeys (+1)
@@ -343,18 +343,18 @@ pFoldr = (List.sort . M.foldr (:) []) `eq` (List.sort . HM.foldr (:) [])
 pFoldl :: [(Int, Int)] -> Property
 pFoldl = (List.sort . M.foldl (flip (:)) []) `eq` (List.sort . HM.foldl (flip (:)) [])
 
-pBifoldMap :: [(Int, Int)] -> Bool
-pBifoldMap xs = concatMap f (HM.toList m) == bifoldMap (:[]) (:[]) m
+pBifoldMap :: [(Int, Int)] -> Property
+pBifoldMap xs = concatMap f (HM.toList m) === bifoldMap (:[]) (:[]) m
   where f (k, v) = [k, v]
         m = HM.fromList xs
 
-pBifoldr :: [(Int, Int)] -> Bool
-pBifoldr xs = concatMap f (HM.toList m) == bifoldr (:) (:) [] m
+pBifoldr :: [(Int, Int)] -> Property
+pBifoldr xs = concatMap f (HM.toList m) === bifoldr (:) (:) [] m
   where f (k, v) = [k, v]
         m = HM.fromList xs
 
-pBifoldl :: [(Int, Int)] -> Bool
-pBifoldl xs = reverse (concatMap f $ HM.toList m) == bifoldl (flip (:)) (flip (:)) [] m
+pBifoldl :: [(Int, Int)] -> Property
+pBifoldl xs = reverse (concatMap f $ HM.toList m) === bifoldl (flip (:)) (flip (:)) [] m
   where f (k, v) = [k, v]
         m = HM.fromList xs
 
@@ -425,13 +425,13 @@ instance Hashable a => Hashable (Magma a) where
 pFromList :: [(Key, Int)] -> Property
 pFromList = id `eq_` id
 
-pFromListWith :: [(Key, Int)] -> Bool
-pFromListWith kvs = (M.toAscList $ M.fromListWith Op kvsM) ==
+pFromListWith :: [(Key, Int)] -> Property
+pFromListWith kvs = (M.toAscList $ M.fromListWith Op kvsM) ===
                     (toAscList $ HM.fromListWith Op kvsM)
   where kvsM = fmap (fmap Leaf) kvs
 
-pFromListWithKey :: [(Key, Int)] -> Bool
-pFromListWithKey kvs = (M.toAscList $ M.fromListWithKey combine kvsM) ==
+pFromListWithKey :: [(Key, Int)] -> Property
+pFromListWithKey kvs = (M.toAscList $ M.fromListWithKey combine kvsM) ===
                        (toAscList $ HM.fromListWithKey combine kvsM)
   where kvsM = fmap (\(K k,v) -> (Leaf k, Leaf v)) kvs
         combine k v1 v2 = Op k (Op v1 v2)
