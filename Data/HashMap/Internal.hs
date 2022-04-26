@@ -107,6 +107,9 @@ module Data.HashMap.Internal
     , fromListWith
     , fromListWithKey
 
+      -- * Validity
+    , valid
+
       -- ** Internals used by the strict version
     , Hash
     , Bitmap
@@ -2456,3 +2459,85 @@ instance (Eq k, Hashable k) => Exts.IsList (HashMap k v) where
     type Item (HashMap k v) = (k, v)
     fromList = fromList
     toList   = toList
+
+------------------------------------------------------------------------
+-- Validity
+
+data Validity k = Invalid (Error k) SubHashPath | Valid
+  deriving (Show)
+
+instance Semigroup (Validity k) where
+  Valid <> y = y
+  x     <> _ = x
+
+instance Monoid (Validity k) where
+  mempty = Valid
+
+data Error k
+  = INV1_internal_Empty
+  | INV2_misplaced_hash !Hash
+  | INV3_key_hash_mismatch k !Hash
+  | INV4_collision_size !Int
+  | INV5_bad_BitmapIndexed_size !Int
+  | INV6_bitmap_array_size_mismatch !Bitmap !Int
+  | INV7_BitmapIndexed_invalid_only_subtree
+  | INV8_bad_Full_size !Int
+  deriving (Show)
+
+-- | A part of a 'Hash' with 'bitsPerSubkey' bits.
+type SubHash = Word
+
+data SubHashPath = Root | Cons !SubHash !SubHashPath
+  deriving (Show)
+
+valid :: Hashable k => HashMap k v -> Validity k
+valid Empty = Valid
+valid t = validInternal Root t
+  where
+    validInternal p Empty                 = Invalid INV1_internal_Empty p
+    validInternal p (Leaf h l)            = validHash p h <> validLeaf p h l
+    validInternal p (Collision h ary)     = validHash p h <> validCollision p h ary
+    validInternal p (BitmapIndexed b ary) = validBitmapIndexed p b ary
+    validInternal p (Full ary)            = validFull p ary
+
+    validHash p0 h0 = go p0 h0
+      where
+        go Root !_ = Valid
+        go (Cons sh p) h | h .&. subkeyMask == sh = go p (h `unsafeShiftR` bitsPerSubkey)
+                         | otherwise              = Invalid (INV2_misplaced_hash h0) p0
+
+    validLeaf p h (L k _) | hash k == h = Valid
+                          | otherwise   = Invalid (INV3_key_hash_mismatch k h) p
+
+    -- | TODO: check that keys are distinct
+    validCollision p h ary = validCollisionSize (A.length ary) <> A.foldMap (validLeaf p h) ary
+      where
+        validCollisionSize n | n < 2     = Invalid (INV4_collision_size n) p
+                             | otherwise = Valid
+
+    validBitmapIndexed p b ary = validArraySize <> validSubTrees p b ary
+      where
+        n = A.length ary
+        validArraySize | n < 1 || n >= maxChildren = Invalid (INV5_bad_BitmapIndexed_size n) p
+                       | popCount b == n           = Valid
+                       | otherwise                 = Invalid (INV6_bitmap_array_size_mismatch b n) p
+
+    validSubTrees p b ary
+      | A.length ary == 1
+      , isLeafOrCollision (A.index ary 0)
+      = Invalid INV7_BitmapIndexed_invalid_only_subtree p
+      | otherwise = go b
+      where
+        go 0 = Valid
+        go b' = validInternal (Cons (fromIntegral c) p) (A.index ary i) <> go b''
+          where
+            c = countTrailingZeros b'
+            m = 1 `unsafeShiftL` c
+            i = sparseIndex b m
+            b'' = b' .&. complement m
+
+    validFull p ary = validArraySize <> validSubTrees p fullBitmap ary
+      where
+        n = A.length ary
+        validArraySize | n == 32   = Valid
+                       | otherwise = Invalid (INV8_bad_Full_size n) p
