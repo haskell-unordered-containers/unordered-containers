@@ -113,7 +113,7 @@ module Data.HashMap.Internal
     , Validity(..)
     , Error(..)
     , SubHash
-    , SubHashPath(..)
+    , SubHashPath
 
       -- ** Internals used by the strict version
     , Hash
@@ -2495,12 +2495,11 @@ data Error k
 -- | A part of a 'Hash' with 'bitsPerSubkey' bits.
 type SubHash = Word
 
-data SubHashPath = Root | Cons !SubHash !SubHashPath
-  deriving (Eq, Show)
+type SubHashPath = [SubHash]
 
 valid :: Hashable k => HashMap k v -> Validity k
 valid Empty = Valid
-valid t     = validInternal Root t
+valid t     = validInternal [] t
   where
     validInternal p Empty                 = Invalid INV1_internal_Empty p
     validInternal p (Leaf h l)            = validHash p h <> validLeaf p h l
@@ -2508,11 +2507,11 @@ valid t     = validInternal Root t
     validInternal p (BitmapIndexed b ary) = validBitmapIndexed p b ary
     validInternal p (Full ary)            = validFull p ary
 
-    validHash p0 h0 = go p0 h0
+    validHash p0 h0 = go (reverse p0) h0
       where
-        go Root !_ = Valid
-        go (Cons sh p) h | h .&. subkeyMask == sh = go p (h `unsafeShiftR` bitsPerSubkey)
-                         | otherwise              = Invalid (INV2_misplaced_hash h0) p0
+        go [] !_ = Valid
+        go (sh:p) h | h .&. subkeyMask == sh = go p (h `unsafeShiftR` bitsPerSubkey)
+                    | otherwise              = Invalid (INV2_misplaced_hash h0) p0
 
     validLeaf p h (L k _) | hash k == h = Valid
                           | otherwise   = Invalid (INV3_key_hash_mismatch k h) p
@@ -2540,7 +2539,7 @@ valid t     = validInternal Root t
       | otherwise = go b
       where
         go 0  = Valid
-        go b' = validInternal (Cons (fromIntegral c) p) (A.index ary i) <> go b''
+        go b' = validInternal (fromIntegral c : p) (A.index ary i) <> go b''
           where
             c = countTrailingZeros b'
             m = 1 `unsafeShiftL` c
