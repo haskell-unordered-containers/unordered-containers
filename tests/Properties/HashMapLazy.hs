@@ -29,8 +29,9 @@ import Test.Tasty               (TestTree, testGroup)
 import Test.Tasty.QuickCheck    (testProperty)
 import Util.Key                 (Key, keyToInt)
 
-import qualified Data.Foldable as Foldable
-import qualified Data.List     as List
+import qualified Data.Foldable         as Foldable
+import qualified Data.HashMap.Internal as HMI
+import qualified Data.List             as List
 
 #if defined(STRICT)
 import           Data.HashMap.Strict (HashMap)
@@ -319,6 +320,9 @@ pIntersection xs ys =
     `eq_` HM.intersection (HM.fromList xs)
     $ ys
 
+pIntersectionValid :: HashMap Key () -> HashMap Key () -> Property
+pIntersectionValid x y = HMI.valid (HM.intersection x y) === HMI.Valid
+
 pIntersectionWith :: [(Key, Int)] -> [(Key, Int)] -> Property
 pIntersectionWith xs ys = M.intersectionWith (-) (M.fromList xs) `eq_`
                           HM.intersectionWith (-) (HM.fromList xs) $ ys
@@ -529,6 +533,7 @@ tests =
       [ testProperty "difference" pDifference
       , testProperty "differenceWith" pDifferenceWith
       , testProperty "intersection" pIntersection
+      , testProperty "intersection produces valid HashMap" pIntersectionValid
       , testProperty "intersectionWith" pIntersectionWith
       , testProperty "intersectionWithKey" pIntersectionWithKey
       ]
