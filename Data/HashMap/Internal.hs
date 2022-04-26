@@ -8,6 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
+{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE UnboxedSums           #-}
@@ -160,7 +161,8 @@ import Data.Functor.Identity      (Identity (..))
 import Data.Hashable              (Hashable)
 import Data.Hashable.Lifted       (Hashable1, Hashable2)
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
-import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
+import Data.Semigroup             (Semigroup (..), Sum (..),
+                                   stimesIdempotentMonoid)
 import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
 import GHC.Stack                  (HasCallStack)
 import Prelude                    hiding (filter, foldl, foldr, lookup, map,
@@ -2477,11 +2479,12 @@ data Error k
   = INV1_internal_Empty
   | INV2_misplaced_hash !Hash
   | INV3_key_hash_mismatch k !Hash
-  | INV4_collision_size !Int
-  | INV5_bad_BitmapIndexed_size !Int
-  | INV6_bitmap_array_size_mismatch !Bitmap !Int
-  | INV7_BitmapIndexed_invalid_only_subtree
-  | INV8_bad_Full_size !Int
+  | INV4_Collision_size !Int
+  | INV5_Collision_duplicate_key k !Hash
+  | INV6_bad_BitmapIndexed_size !Int
+  | INV7_bitmap_array_size_mismatch !Bitmap !Int
+  | INV8_BitmapIndexed_invalid_single_subtree
+  | INV9_bad_Full_size !Int
   deriving (Show)
 
 -- | A part of a 'Hash' with 'bitsPerSubkey' bits.
@@ -2492,7 +2495,7 @@ data SubHashPath = Root | Cons !SubHash !SubHashPath
 
 valid :: Hashable k => HashMap k v -> Validity k
 valid Empty = Valid
-valid t = validInternal Root t
+valid t     = validInternal Root t
   where
     validInternal p Empty                 = Invalid INV1_internal_Empty p
     validInternal p (Leaf h l)            = validHash p h <> validLeaf p h l
@@ -2509,26 +2512,29 @@ valid t = validInternal Root t
     validLeaf p h (L k _) | hash k == h = Valid
                           | otherwise   = Invalid (INV3_key_hash_mismatch k h) p
 
-    -- | TODO: check that keys are distinct
-    validCollision p h ary = validCollisionSize (A.length ary) <> A.foldMap (validLeaf p h) ary
+    validCollision p h ary = validCollisionSize <> A.foldMap (validLeaf p h) ary <> distinctKeys
       where
-        validCollisionSize n | n < 2     = Invalid (INV4_collision_size n) p
-                             | otherwise = Valid
+        n = A.length ary
+        validCollisionSize | n < 2     = Invalid (INV4_Collision_size n) p
+                           | otherwise = Valid
+        distinctKeys = A.foldMap (\(L k _) -> appearsOnce k) ary
+        appearsOnce k | A.foldMap (\(L k' _) -> if k' == k then Sum @Int 1 else Sum 0) ary == 1 = Valid
+                      | otherwise = Invalid (INV5_Collision_duplicate_key k h) p
 
     validBitmapIndexed p b ary = validArraySize <> validSubTrees p b ary
       where
         n = A.length ary
-        validArraySize | n < 1 || n >= maxChildren = Invalid (INV5_bad_BitmapIndexed_size n) p
+        validArraySize | n < 1 || n >= maxChildren = Invalid (INV6_bad_BitmapIndexed_size n) p
                        | popCount b == n           = Valid
-                       | otherwise                 = Invalid (INV6_bitmap_array_size_mismatch b n) p
+                       | otherwise                 = Invalid (INV7_bitmap_array_size_mismatch b n) p
 
     validSubTrees p b ary
       | A.length ary == 1
       , isLeafOrCollision (A.index ary 0)
-      = Invalid INV7_BitmapIndexed_invalid_only_subtree p
+      = Invalid INV8_BitmapIndexed_invalid_single_subtree p
       | otherwise = go b
       where
-        go 0 = Valid
+        go 0  = Valid
         go b' = validInternal (Cons (fromIntegral c) p) (A.index ary i) <> go b''
           where
             c = countTrailingZeros b'
@@ -2539,5 +2545,5 @@ valid t = validInternal Root t
     validFull p ary = validArraySize <> validSubTrees p fullBitmap ary
       where
         n = A.length ary
-        validArraySize | n == 32   = Valid
-                       | otherwise = Invalid (INV8_bad_Full_size n) p
+        validArraySize | n == maxChildren = Valid
+                       | otherwise        = Invalid (INV9_bad_Full_size n) p
