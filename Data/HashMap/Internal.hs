@@ -108,7 +108,7 @@ module Data.HashMap.Internal
     , fromListWith
     , fromListWithKey
 
-      -- * Validity
+      -- * Debugging
     , valid
     , Validity
     , Error
@@ -2467,7 +2467,7 @@ instance (Eq k, Hashable k) => Exts.IsList (HashMap k v) where
     toList   = toList
 
 ------------------------------------------------------------------------
--- Validity
+-- Debugging
 
 data Validity k = Invalid (Error k) SubHashPath | Valid
   deriving (Eq, Show)
