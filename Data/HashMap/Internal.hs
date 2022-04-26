@@ -110,6 +110,10 @@ module Data.HashMap.Internal
 
       -- * Validity
     , valid
+    , Validity
+    , Error
+    , SubHash
+    , SubHashPath
 
       -- ** Internals used by the strict version
     , Hash
