@@ -2478,6 +2478,7 @@ instance Semigroup (Validity k) where
 
 instance Monoid (Validity k) where
   mempty = Valid
+  mappend = (<>)
 
 data Error k
   = INV1_internal_Empty
