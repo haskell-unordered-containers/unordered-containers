@@ -2466,7 +2466,7 @@ instance (Eq k, Hashable k) => Exts.IsList (HashMap k v) where
 -- Validity
 
 data Validity k = Invalid (Error k) SubHashPath | Valid
-  deriving (Show)
+  deriving (Eq, Show)
 
 instance Semigroup (Validity k) where
   Valid <> y = y
@@ -2485,13 +2485,13 @@ data Error k
   | INV7_bitmap_array_size_mismatch !Bitmap !Int
   | INV8_BitmapIndexed_invalid_single_subtree
   | INV9_bad_Full_size !Int
-  deriving (Show)
+  deriving (Eq, Show)
 
 -- | A part of a 'Hash' with 'bitsPerSubkey' bits.
 type SubHash = Word
 
 data SubHashPath = Root | Cons !SubHash !SubHashPath
-  deriving (Show)
+  deriving (Eq, Show)
 
 valid :: Hashable k => HashMap k v -> Validity k
 valid Empty = Valid
