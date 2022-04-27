@@ -92,11 +92,11 @@ moreCollisions w = fromIntegral (w .&. mask)
 mask :: Int
 mask = sum [bit n | n <- [0, 3, 8, 14, 61]]
 
-instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
-  arbitrary = fmap (HM.fromList) arbitrary
-
 keyToInt :: Key -> Int
 keyToInt (K h x) = h * fromEnum x
+
+instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
+  arbitrary = fmap (HM.fromList) arbitrary
 
 ------------------------------------------------------------------------
 -- * Properties
