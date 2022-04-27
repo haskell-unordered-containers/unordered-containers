@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric    #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Util.Key where
+module Util.Key (Key(..), keyToInt, incKey) where
 
 import Data.Bits       (bit, (.&.))
 import Data.Hashable   (Hashable (hashWithSalt))
