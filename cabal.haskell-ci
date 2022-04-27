@@ -9,6 +9,3 @@ constraint-set debug
 
 installed: -containers
 installed: -binary
-
--- Avoid HVR's PPA due to outage on 2022-04-27
-ghcup-jobs: True
