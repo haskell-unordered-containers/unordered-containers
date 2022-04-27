@@ -9,8 +9,7 @@ import Data.Hashable                (Hashable)
 import Data.HashMap.Strict          (HashMap)
 import Data.Maybe                   (fromMaybe, isJust)
 import Test.ChasingBottoms.IsBottom
-import Test.QuickCheck              (Arbitrary (arbitrary), Property, (.&&.),
-                                     (===))
+import Test.QuickCheck              (Arbitrary (..), Property, (.&&.), (===))
 import Test.QuickCheck.Function
 import Test.QuickCheck.Poly         (A)
 import Test.Tasty                   (TestTree, testGroup)
@@ -20,9 +19,9 @@ import Util.Key                     (Key)
 
 import qualified Data.HashMap.Strict as HM
 
-instance (Arbitrary k, Arbitrary v, Eq k, Hashable k) =>
-         Arbitrary (HashMap k v) where
-    arbitrary = HM.fromList `fmap` arbitrary
+instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
+  arbitrary = HM.fromList <$> arbitrary
+  shrink = fmap HM.fromList . shrink . HM.toList
 
 ------------------------------------------------------------------------
 -- * Properties

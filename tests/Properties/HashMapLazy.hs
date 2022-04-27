@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP                        #-}
-{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
@@ -44,7 +43,8 @@ import qualified Data.Map.Lazy     as M
 #endif
 
 instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
-  arbitrary = fmap (HM.fromList) arbitrary
+  arbitrary = HM.fromList <$> arbitrary
+  shrink = fmap HM.fromList . shrink . HM.toList
 
 ------------------------------------------------------------------------
 -- * Properties
