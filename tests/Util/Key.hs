@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric    #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Util.Key (Key(..), keyToInt, incKey) where
+module Util.Key (Key(..), keyToInt, incKey, collisionAtHash) where
 
 import Data.Bits       (bit, (.&.))
 import Data.Hashable   (Hashable (hashWithSalt))
@@ -62,3 +62,7 @@ keyToInt (K h x) = h * fromEnum x
 
 incKey :: Key -> Key
 incKey (K h x) = K (h + 1) x
+
+-- | 4 colliding keys at a given hash.
+collisionAtHash :: Int -> (Key, Key, Key, Key)
+collisionAtHash h = (K h A, K h B, K h C, K h D)
