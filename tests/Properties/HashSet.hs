@@ -1,6 +1,3 @@
-{-# LANGUAGE CPP                        #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- | Tests for the 'Data.HashSet' module.  We test functions by
 -- comparing them to @Set@ from @containers@.
 
@@ -8,21 +5,15 @@ module Properties.HashSet (tests) where
 
 import Data.Hashable         (Hashable (hashWithSalt))
 import Data.Ord              (comparing)
-import Test.QuickCheck       (Arbitrary, Property, property, (===), (==>))
+import Test.QuickCheck       (Property, property, (===), (==>))
 import Test.Tasty            (TestTree, testGroup)
 import Test.Tasty.QuickCheck (testProperty)
+import Util.Key              (Key, incKey, keyToInt)
 
 import qualified Data.Foldable as Foldable
 import qualified Data.HashSet  as S
 import qualified Data.List     as List
 import qualified Data.Set      as Set
-
--- Key type that generates more hash collisions.
-newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Enum, Eq, Integral, Num, Ord, Read, Show, Real)
-
-instance Hashable Key where
-    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
 
 ------------------------------------------------------------------------
 -- * Properties
@@ -128,7 +119,7 @@ pUnion xs ys = Set.union (Set.fromList xs) `eq_`
 -- ** Transformations
 
 pMap :: [Key] -> Property
-pMap = Set.map (+ 1) `eq_` S.map (+ 1)
+pMap = Set.map incKey `eq_` S.map incKey
 
 ------------------------------------------------------------------------
 -- ** Folds
@@ -150,7 +141,9 @@ foldl'Set = Set.foldl'
 -- ** Filter
 
 pFilter :: [Key] -> Property
-pFilter = Set.filter odd `eq_` S.filter odd
+pFilter = Set.filter p `eq_` S.filter p
+  where
+    p = odd . keyToInt
 
 ------------------------------------------------------------------------
 -- ** Conversions

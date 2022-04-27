@@ -18,23 +18,20 @@ module MODULE_NAME (tests) where
 import Control.Applicative      (Const (..))
 import Control.Monad            (guard)
 import Data.Bifoldable
-import Data.Bits                (bit, (.&.))
 import Data.Function            (on)
 import Data.Functor.Identity    (Identity (..))
 import Data.Hashable            (Hashable (hashWithSalt))
 import Data.Ord                 (comparing)
-import Data.Word                (Word16)
-import GHC.Generics             (Generic)
-import Test.QuickCheck          (Arbitrary (..), Gen, Large, Property, elements,
-                                 forAll, property, (===), (==>))
+import Test.QuickCheck          (Arbitrary (..), Property, elements, forAll,
+                                 property, (===), (==>))
 import Test.QuickCheck.Function (Fun, apply)
 import Test.QuickCheck.Poly     (A, B)
 import Test.Tasty               (TestTree, testGroup)
 import Test.Tasty.QuickCheck    (testProperty)
+import Util.Key                 (Key, keyToInt)
 
-import qualified Data.Foldable   as Foldable
-import qualified Data.List       as List
-import qualified Test.QuickCheck as QC
+import qualified Data.Foldable as Foldable
+import qualified Data.List     as List
 
 #if defined(STRICT)
 import           Data.HashMap.Strict (HashMap)
@@ -45,55 +42,6 @@ import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map.Lazy     as M
 #endif
-
--- Key type that generates more hash collisions.
-data Key = K
-  { hash :: !Int
-    -- ^ The hash of the key
-  , _x :: !SmallSum
-    -- ^ Additional data, so we can have collisions for any hash
-  } deriving (Eq, Ord, Read, Show, Generic)
-
-instance Hashable Key where
-  hashWithSalt _ (K h _) = h
-
-data SmallSum = A | B | C | D
-  deriving (Eq, Ord, Read, Show, Generic, Enum, Bounded)
-
-instance Arbitrary SmallSum where
-  arbitrary = QC.arbitraryBoundedEnum
-  shrink = shrinkSmallSum
-
-shrinkSmallSum :: SmallSum -> [SmallSum]
-shrinkSmallSum A = []
-shrinkSmallSum B = [A]
-shrinkSmallSum C = [A, B]
-shrinkSmallSum D = [A, B, C]
-
-instance Arbitrary Key where
-  arbitrary = K <$> arbitraryHash <*> arbitrary
-  shrink = QC.genericShrink
-
-arbitraryHash :: Gen Int
-arbitraryHash = do
-  let gens =
-        [ (2, (fromIntegral . QC.getLarge) <$> arbitrary @(Large Word16))
-        , (1, QC.getSmall <$> arbitrary)
-        , (1, QC.getLarge <$> arbitrary)
-        ]
-  i <- QC.frequency gens
-  moreCollisions' <- QC.elements [moreCollisions, id]
-  pure (moreCollisions' i)
-
--- | Mask out most bits to produce more collisions
-moreCollisions :: Int -> Int
-moreCollisions w = fromIntegral (w .&. mask)
-
-mask :: Int
-mask = sum [bit n | n <- [0, 3, 8, 14, 61]]
-
-keyToInt :: Key -> Int
-keyToInt (K h x) = h * fromEnum x
 
 instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
   arbitrary = fmap (HM.fromList) arbitrary
