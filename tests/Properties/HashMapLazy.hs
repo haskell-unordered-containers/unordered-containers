@@ -14,24 +14,24 @@
 
 module MODULE_NAME (tests) where
 
-import Control.Applicative      (Const (..))
-import Control.Monad            (guard)
+import Control.Applicative         (Const (..))
+import Control.Monad               (guard)
 import Data.Bifoldable
-import Data.Function            (on)
-import Data.Functor.Identity    (Identity (..))
-import Data.Hashable            (Hashable (hashWithSalt))
-import Data.Ord                 (comparing)
-import Test.QuickCheck          (Arbitrary (..), Property, elements, forAll,
-                                 property, (===), (==>))
-import Test.QuickCheck.Function (Fun, apply)
-import Test.QuickCheck.Poly     (A, B)
-import Test.Tasty               (TestTree, testGroup)
-import Test.Tasty.QuickCheck    (testProperty)
-import Util.Key                 (Key, keyToInt)
+import Data.Function               (on)
+import Data.Functor.Identity       (Identity (..))
+import Data.Hashable               (Hashable (hashWithSalt))
+import Data.HashMap.Internal.Debug (Validity (..), valid)
+import Data.Ord                    (comparing)
+import Test.QuickCheck             (Arbitrary (..), Property, elements, forAll,
+                                    property, (===), (==>))
+import Test.QuickCheck.Function    (Fun, apply)
+import Test.QuickCheck.Poly        (A, B)
+import Test.Tasty                  (TestTree, testGroup)
+import Test.Tasty.QuickCheck       (testProperty)
+import Util.Key                    (Key, keyToInt)
 
-import qualified Data.Foldable         as Foldable
-import qualified Data.HashMap.Internal as HMI
-import qualified Data.List             as List
+import qualified Data.Foldable as Foldable
+import qualified Data.List     as List
 
 #if defined(STRICT)
 import           Data.HashMap.Strict (HashMap)
@@ -321,7 +321,7 @@ pIntersection xs ys =
     $ ys
 
 pIntersectionValid :: HashMap Key () -> HashMap Key () -> Property
-pIntersectionValid x y = HMI.valid (HM.intersection x y) === HMI.Valid
+pIntersectionValid x y = valid (HM.intersection x y) === Valid
 
 pIntersectionWith :: [(Key, Int)] -> [(Key, Int)] -> Property
 pIntersectionWith xs ys = M.intersectionWith (-) (M.fromList xs) `eq_`
