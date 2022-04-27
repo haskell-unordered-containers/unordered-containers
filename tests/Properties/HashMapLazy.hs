@@ -62,7 +62,13 @@ data SmallSum = A | B | C | D
 
 instance Arbitrary SmallSum where
   arbitrary = QC.arbitraryBoundedEnum
-  shrink = QC.genericShrink
+  shrink = shrinkSmallSum
+
+shrinkSmallSum :: SmallSum -> [SmallSum]
+shrinkSmallSum A = []
+shrinkSmallSum B = [A]
+shrinkSmallSum C = [A, B]
+shrinkSmallSum D = [A, B, C]
 
 instance Arbitrary Key where
   arbitrary = K <$> arbitraryHash <*> arbitrary
