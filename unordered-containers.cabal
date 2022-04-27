@@ -89,6 +89,7 @@ test-suite unordered-containers-tests
     Properties.HashSet
     Properties.List
     Strictness
+    Util.Key
 
   build-depends:
     base,

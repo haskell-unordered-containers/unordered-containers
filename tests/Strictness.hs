@@ -1,42 +1,27 @@
-{-# LANGUAGE CPP                        #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
 
 module Strictness (tests) where
 
 import Control.Arrow                (second)
 import Control.Monad                (guard)
 import Data.Foldable                (foldl')
-import Data.Hashable                (Hashable (hashWithSalt))
+import Data.Hashable                (Hashable)
 import Data.HashMap.Strict          (HashMap)
 import Data.Maybe                   (fromMaybe, isJust)
 import Test.ChasingBottoms.IsBottom
-import Test.QuickCheck              (Arbitrary (arbitrary), Property, (.&&.),
-                                     (===))
+import Test.QuickCheck              (Arbitrary (..), Property, (.&&.), (===))
 import Test.QuickCheck.Function
 import Test.QuickCheck.Poly         (A)
 import Test.Tasty                   (TestTree, testGroup)
 import Test.Tasty.QuickCheck        (testProperty)
+import Text.Show.Functions          ()
+import Util.Key                     (Key)
 
 import qualified Data.HashMap.Strict as HM
 
--- Key type that generates more hash collisions.
-newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Eq, Ord, Show)
-
-instance Hashable Key where
-    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
-
-instance (Arbitrary k, Arbitrary v, Eq k, Hashable k) =>
-         Arbitrary (HashMap k v) where
-    arbitrary = HM.fromList `fmap` arbitrary
-
-instance Show (Int -> Int) where
-    show _ = "<function>"
-
-instance Show (Int -> Int -> Int) where
-    show _ = "<function>"
+instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
+  arbitrary = HM.fromList <$> arbitrary
+  shrink = fmap HM.fromList . shrink . HM.toList
 
 ------------------------------------------------------------------------
 -- * Properties
@@ -84,8 +69,8 @@ pInsertWithValueStrict f k v m
 pFromListKeyStrict :: Bool
 pFromListKeyStrict = isBottom $ HM.fromList [(undefined :: Key, 1 :: Int)]
 
-pFromListValueStrict :: Bool
-pFromListValueStrict = isBottom $ HM.fromList [(K 1, undefined)]
+pFromListValueStrict :: Key -> Bool
+pFromListValueStrict k = isBottom $ HM.fromList [(k, undefined)]
 
 pFromListWithKeyStrict :: (Int -> Int -> Int) -> Bool
 pFromListWithKeyStrict f =

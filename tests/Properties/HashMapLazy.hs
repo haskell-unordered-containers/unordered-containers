@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
 
 -- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
@@ -26,6 +27,7 @@ import Test.QuickCheck.Function (Fun, apply)
 import Test.QuickCheck.Poly     (A, B)
 import Test.Tasty               (TestTree, testGroup)
 import Test.Tasty.QuickCheck    (testProperty)
+import Util.Key                 (Key, keyToInt)
 
 import qualified Data.Foldable as Foldable
 import qualified Data.List     as List
@@ -40,15 +42,9 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map.Lazy     as M
 #endif
 
--- Key type that generates more hash collisions.
-newtype Key = K { unK :: Int }
-            deriving (Arbitrary, Eq, Ord, Read, Show, Num)
-
-instance Hashable Key where
-    hashWithSalt salt k = hashWithSalt salt (unK k) `mod` 20
-
 instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
-  arbitrary = fmap (HM.fromList) arbitrary
+  arbitrary = HM.fromList <$> arbitrary
+  shrink = fmap HM.fromList . shrink . HM.toList
 
 ------------------------------------------------------------------------
 -- * Properties
@@ -284,7 +280,7 @@ pUnionWithKey xs ys = M.unionWithKey go (M.fromList xs) `eq_`
                              HM.unionWithKey go (HM.fromList xs) $ ys
   where
     go :: Key -> Int -> Int -> Int
-    go (K k) i1 i2 = k - i1 + i2
+    go k i1 i2 = keyToInt k - i1 + i2
 
 pUnions :: [[(Key, Int)]] -> Property
 pUnions xss = M.toAscList (M.unions (map M.fromList xss)) ===
@@ -332,7 +328,7 @@ pIntersectionWithKey xs ys = M.intersectionWithKey go (M.fromList xs) `eq_`
                              HM.intersectionWithKey go (HM.fromList xs) $ ys
   where
     go :: Key -> Int -> Int -> Int
-    go (K k) i1 i2 = k - i1 - i2
+    go k i1 i2 = keyToInt k - i1 - i2
 
 ------------------------------------------------------------------------
 -- ** Folds
@@ -394,7 +390,7 @@ pFoldr' = (List.sort . M.foldr' (:) []) `eq` (List.sort . HM.foldr' (:) [])
 
 pMapMaybeWithKey :: [(Key, Int)] -> Property
 pMapMaybeWithKey = M.mapMaybeWithKey f `eq_` HM.mapMaybeWithKey f
-  where f k v = guard (odd (unK k + v)) >> Just (v + 1)
+  where f k v = guard (odd (keyToInt k + v)) >> Just (v + 1)
 
 pMapMaybe :: [(Key, Int)] -> Property
 pMapMaybe = M.mapMaybe f `eq_` HM.mapMaybe f
@@ -405,7 +401,7 @@ pFilter = M.filter odd `eq_` HM.filter odd
 
 pFilterWithKey :: [(Key, Int)] -> Property
 pFilterWithKey = M.filterWithKey p `eq_` HM.filterWithKey p
-  where p k v = odd (unK k + v)
+  where p k v = odd (keyToInt k + v)
 
 ------------------------------------------------------------------------
 -- ** Conversions
@@ -433,7 +429,7 @@ pFromListWith kvs = (M.toAscList $ M.fromListWith Op kvsM) ===
 pFromListWithKey :: [(Key, Int)] -> Property
 pFromListWithKey kvs = (M.toAscList $ M.fromListWithKey combine kvsM) ===
                        (toAscList $ HM.fromListWithKey combine kvsM)
-  where kvsM = fmap (\(K k,v) -> (Leaf k, Leaf v)) kvs
+  where kvsM = fmap (\(k,v) -> (Leaf (keyToInt k), Leaf v)) kvs
         combine k v1 v2 = Op k (Op v1 v2)
 
 pToList :: [(Key, Int)] -> Property
