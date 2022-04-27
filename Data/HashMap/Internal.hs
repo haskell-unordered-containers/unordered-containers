@@ -8,7 +8,6 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
-{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE UnboxedSums           #-}
@@ -214,6 +213,7 @@ instance NFData2 Leaf where
 -- each key can map to at most one value.
 data HashMap k v
     = Empty
+    -- ^ Invariants
     | BitmapIndexed !Bitmap !(A.Array (HashMap k v))
     | Leaf !Hash !(Leaf k v)
     | Full !(A.Array (HashMap k v))
