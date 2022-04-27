@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns     #-}
+{-# LANGUAGE CPP              #-}
 {-# LANGUAGE TypeApplications #-}
 
 -- | = WARNING
@@ -35,6 +36,11 @@ import Data.HashMap.Internal (Bitmap, Hash, HashMap (..), Leaf (..),
 import Data.Semigroup        (Sum (..))
 
 import qualified Data.HashMap.Internal.Array as A
+
+
+#if !MIN_VERSION_base(4,11,0)
+import Data.Semigroup (Semigroup (..))
+#endif
 
 data Validity k = Invalid (Error k) SubHashPath | Valid
   deriving (Eq, Show)
