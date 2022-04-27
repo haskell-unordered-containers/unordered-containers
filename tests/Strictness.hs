@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Strictness (tests) where
@@ -16,6 +15,7 @@ import Test.QuickCheck.Function
 import Test.QuickCheck.Poly         (A)
 import Test.Tasty                   (TestTree, testGroup)
 import Test.Tasty.QuickCheck        (testProperty)
+import Text.Show.Functions          ()
 import Util.Key                     (Key)
 
 import qualified Data.HashMap.Strict as HM
@@ -23,12 +23,6 @@ import qualified Data.HashMap.Strict as HM
 instance (Arbitrary k, Arbitrary v, Eq k, Hashable k) =>
          Arbitrary (HashMap k v) where
     arbitrary = HM.fromList `fmap` arbitrary
-
-instance Show (Int -> Int) where
-    show _ = "<function>"
-
-instance Show (Int -> Int -> Int) where
-    show _ = "<function>"
 
 ------------------------------------------------------------------------
 -- * Properties
