@@ -55,14 +55,14 @@ instance Monoid (Validity k) where
 
 data Error k
   = INV1_internal_Empty
-  | INV2_misplaced_hash !Hash
-  | INV3_key_hash_mismatch k !Hash
-  | INV4_Collision_size !Int
-  | INV5_Collision_duplicate_key k !Hash
-  | INV6_bad_BitmapIndexed_size !Int
-  | INV7_bitmap_array_size_mismatch !Bitmap !Int
-  | INV8_BitmapIndexed_invalid_single_subtree
-  | INV9_bad_Full_size !Int
+  | INV2_bad_BitmapIndexed_size !Int
+  | INV3_bitmap_array_size_mismatch !Bitmap !Int
+  | INV4_BitmapIndexed_invalid_single_subtree
+  | INV5_misplaced_hash !Hash
+  | INV6_key_hash_mismatch k !Hash
+  | INV7_bad_Full_size !Int
+  | INV8_Collision_size !Int
+  | INV9_Collision_duplicate_key k !Hash
   deriving (Eq, Show)
 
 -- TODO: Name this 'Index'?!
@@ -86,31 +86,31 @@ valid t     = validInternal [] t
       where
         go [] !_ = Valid
         go (sh:p) h | h .&. subkeyMask == sh = go p (h `unsafeShiftR` bitsPerSubkey)
-                    | otherwise              = Invalid (INV2_misplaced_hash h0) p0
+                    | otherwise              = Invalid (INV5_misplaced_hash h0) p0
 
     validLeaf p h (L k _) | hash k == h = Valid
-                          | otherwise   = Invalid (INV3_key_hash_mismatch k h) p
+                          | otherwise   = Invalid (INV6_key_hash_mismatch k h) p
 
     validCollision p h ary = validCollisionSize <> A.foldMap (validLeaf p h) ary <> distinctKeys
       where
         n = A.length ary
-        validCollisionSize | n < 2     = Invalid (INV4_Collision_size n) p
+        validCollisionSize | n < 2     = Invalid (INV8_Collision_size n) p
                            | otherwise = Valid
         distinctKeys = A.foldMap (\(L k _) -> appearsOnce k) ary
         appearsOnce k | A.foldMap (\(L k' _) -> if k' == k then Sum @Int 1 else Sum 0) ary == 1 = Valid
-                      | otherwise = Invalid (INV5_Collision_duplicate_key k h) p
+                      | otherwise = Invalid (INV9_Collision_duplicate_key k h) p
 
     validBitmapIndexed p b ary = validArraySize <> validSubTrees p b ary
       where
         n = A.length ary
-        validArraySize | n < 1 || n >= maxChildren = Invalid (INV6_bad_BitmapIndexed_size n) p
+        validArraySize | n < 1 || n >= maxChildren = Invalid (INV2_bad_BitmapIndexed_size n) p
                        | popCount b == n           = Valid
-                       | otherwise                 = Invalid (INV7_bitmap_array_size_mismatch b n) p
+                       | otherwise                 = Invalid (INV3_bitmap_array_size_mismatch b n) p
 
     validSubTrees p b ary
       | A.length ary == 1
       , isLeafOrCollision (A.index ary 0)
-      = Invalid INV8_BitmapIndexed_invalid_single_subtree p
+      = Invalid INV4_BitmapIndexed_invalid_single_subtree p
       | otherwise = go b
       where
         go 0  = Valid
@@ -125,4 +125,4 @@ valid t     = validInternal [] t
       where
         n = A.length ary
         validArraySize | n == maxChildren = Valid
-                       | otherwise        = Invalid (INV9_bad_Full_size n) p
+                       | otherwise        = Invalid (INV7_bad_Full_size n) p

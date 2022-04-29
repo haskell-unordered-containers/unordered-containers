@@ -214,32 +214,34 @@ instance NFData2 Leaf where
 data HashMap k v
     = Empty
     -- ^ Invariants:
-    -- * 'Empty' is not a valid sub-node. It can only appear at the root.
+    -- * 'Empty' is not a valid sub-node. It can only appear at the root. (INV1)
     | BitmapIndexed !Bitmap !(A.Array (HashMap k v))
     -- ^ Invariants:
     -- * The array of a 'BitmapIndexed' node stores at least 1 and at most
-    --   @'maxChildren' - 1@ sub-nodes.
+    --   @'maxChildren' - 1@ sub-nodes. (INV2)
     -- * The number of sub-nodes is equal to the number of 1-bits in its
-    --   'Bitmap'.
+    --   'Bitmap'. (INV3)
     -- * If a 'BitmapIndexed' node has only one sub-node, this sub-node must
-    --   be a 'BitmapIndexed' or a 'Full' node.
+    --   be a 'BitmapIndexed' or a 'Full' node. (INV4)
     | Leaf !Hash !(Leaf k v)
     -- ^ Invariants:
     -- * The location of a 'Leaf' node in the tree must be compatible with its
-    --   'Hash'. See 'Data.HashMap.Internal.Debug.SubHashPath' for details. (TODO)
-    -- * The 'Hash' of a 'Leaf' node must be the 'hash' of its key.
+    --   'Hash'. (INV5)
+    --   (TODO: Document this properly (#425))
+    -- * The 'Hash' of a 'Leaf' node must be the 'hash' of its key. (INV6)
     | Full !(A.Array (HashMap k v))
     -- ^ Invariants:
-    -- * The array of a 'Full' node stores exactly 'maxChildren' sub-nodes.
+    -- * The array of a 'Full' node stores exactly 'maxChildren' sub-nodes. (INV7)
     | Collision !Hash !(A.Array (Leaf k v))
     -- ^ Invariants:
-    -- * The location of a 'Collision' node in the tree must be compatible with its
-    --   'Hash'. See 'Data.HashMap.Internal.Debug.SubHashPath' for details. (TODO)
-    -- * The array of a 'Collision' node must contain at least two sub-nodes.
+    -- * The location of a 'Leaf' node in the tree must be compatible with its
+    --   'Hash'. (INV5)
+    --   (TODO: Document this properly (#425))
+    -- * The array of a 'Collision' node must contain at least two sub-nodes. (INV8)
     -- * The 'hash' of each key in a 'Collision' node must be the one stored in
-    --   the node.
+    --   the node. (INV6)
     -- * No two keys stored in a 'Collision' can be equal according to their
-    --   'Eq' instance.
+    --   'Eq' instance. (INV9)
 
 type role HashMap nominal representational
 
