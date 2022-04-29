@@ -214,9 +214,11 @@ instance NFData2 Leaf where
 data HashMap k v
     = Empty
     -- ^ Invariants:
+    --
     -- * 'Empty' is not a valid sub-node. It can only appear at the root. (INV1)
     | BitmapIndexed !Bitmap !(A.Array (HashMap k v))
     -- ^ Invariants:
+    --
     -- * The array of a 'BitmapIndexed' node stores at least 1 and at most
     --   @'maxChildren' - 1@ sub-nodes. (INV2)
     -- * The number of sub-nodes is equal to the number of 1-bits in its
@@ -225,15 +227,18 @@ data HashMap k v
     --   be a 'BitmapIndexed' or a 'Full' node. (INV4)
     | Leaf !Hash !(Leaf k v)
     -- ^ Invariants:
+    --
     -- * The location of a 'Leaf' node in the tree must be compatible with its
     --   'Hash'. (INV5)
     --   (TODO: Document this properly (#425))
     -- * The 'Hash' of a 'Leaf' node must be the 'hash' of its key. (INV6)
     | Full !(A.Array (HashMap k v))
     -- ^ Invariants:
+    --
     -- * The array of a 'Full' node stores exactly 'maxChildren' sub-nodes. (INV7)
     | Collision !Hash !(A.Array (Leaf k v))
     -- ^ Invariants:
+    --
     -- * The location of a 'Leaf' node in the tree must be compatible with its
     --   'Hash'. (INV5)
     --   (TODO: Document this properly (#425))
