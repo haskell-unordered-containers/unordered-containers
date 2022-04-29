@@ -65,6 +65,8 @@ data Error k
   | INV9_bad_Full_size !Int
   deriving (Eq, Show)
 
+-- TODO: Name this 'Index'?!
+-- (https://github.com/haskell-unordered-containers/unordered-containers/issues/425)
 -- | A part of a 'Hash' with 'bitsPerSubkey' bits.
 type SubHash = Word
 

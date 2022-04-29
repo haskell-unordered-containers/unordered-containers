@@ -213,11 +213,33 @@ instance NFData2 Leaf where
 -- each key can map to at most one value.
 data HashMap k v
     = Empty
-    -- ^ Invariants
+    -- ^ Invariants:
+    -- * 'Empty' is not a valid sub-node. It can only appear at the root.
     | BitmapIndexed !Bitmap !(A.Array (HashMap k v))
+    -- ^ Invariants:
+    -- * The array of a 'BitmapIndexed' node stores at least 1 and at most
+    --   @'maxChildren' - 1@ sub-nodes.
+    -- * The number of sub-nodes is equal to the number of 1-bits in its
+    --   'Bitmap'.
+    -- * If a 'BitmapIndexed' node has only one sub-node, this sub-node must
+    --   be a 'BitmapIndexed' or a 'Full' node.
     | Leaf !Hash !(Leaf k v)
+    -- ^ Invariants:
+    -- * The location of a 'Leaf' node in the tree must be compatible with its
+    --   'Hash'. See 'Data.HashMap.Internal.Debug.SubHashPath' for details. (TODO)
+    -- * The 'Hash' of a 'Leaf' node must be the 'hash' of its key.
     | Full !(A.Array (HashMap k v))
+    -- ^ Invariants:
+    -- * The array of a 'Full' node stores exactly 'maxChildren' sub-nodes.
     | Collision !Hash !(A.Array (Leaf k v))
+    -- ^ Invariants:
+    -- * The location of a 'Collision' node in the tree must be compatible with its
+    --   'Hash'. See 'Data.HashMap.Internal.Debug.SubHashPath' for details. (TODO)
+    -- * The array of a 'Collision' node must contain at least two sub-nodes.
+    -- * The 'hash' of each key in a 'Collision' node must be the one stored in
+    --   the node.
+    -- * No two keys stored in a 'Collision' can be equal according to their
+    --   'Eq' instance.
 
 type role HashMap nominal representational
 
