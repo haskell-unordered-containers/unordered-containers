@@ -53,6 +53,9 @@ instance Monoid (Validity k) where
   mempty = Valid
   mappend = (<>)
 
+-- | An error corresponding to a broken invariant.
+--
+-- See 'HashMap' for the documentation of the invariants.
 data Error k
   = INV1_internal_Empty
   | INV2_bad_BitmapIndexed_size !Int
