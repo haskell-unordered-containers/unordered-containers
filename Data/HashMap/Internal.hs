@@ -228,8 +228,8 @@ data HashMap k v
     | Leaf !Hash !(Leaf k v)
     -- ^ Invariants:
     --
-    -- * The location of a 'Leaf' node in the tree must be compatible with its
-    --   'Hash'. (INV5)
+    -- * The location of a 'Leaf' or 'Collision' node in the tree must be
+    --   compatible with its 'Hash'. (INV5)
     --   (TODO: Document this properly (#425))
     -- * The 'Hash' of a 'Leaf' node must be the 'hash' of its key. (INV6)
     | Full !(A.Array (HashMap k v))
@@ -239,8 +239,8 @@ data HashMap k v
     | Collision !Hash !(A.Array (Leaf k v))
     -- ^ Invariants:
     --
-    -- * The location of a 'Leaf' node in the tree must be compatible with its
-    --   'Hash'. (INV5)
+    -- * The location of a 'Leaf' or 'Collision' node in the tree must be
+    --   compatible with its 'Hash'. (INV5)
     --   (TODO: Document this properly (#425))
     -- * The array of a 'Collision' node must contain at least two sub-nodes. (INV8)
     -- * The 'hash' of each key in a 'Collision' node must be the one stored in
