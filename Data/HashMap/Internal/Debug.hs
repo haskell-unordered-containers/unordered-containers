@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns     #-}
 {-# LANGUAGE CPP              #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -27,12 +26,11 @@ module Data.HashMap.Internal.Debug
     ) where
 
 import Data.Bits             (complement, countTrailingZeros, popCount,
-                              unsafeShiftL, unsafeShiftR, (.&.))
+                              unsafeShiftL, (.&.), (.|.))
 import Data.Hashable         (Hashable)
 import Data.HashMap.Internal (Bitmap, Hash, HashMap (..), Leaf (..),
                               bitsPerSubkey, fullBitmap, hash,
-                              isLeafOrCollision, maxChildren, sparseIndex,
-                              subkeyMask)
+                              isLeafOrCollision, maxChildren, sparseIndex)
 import Data.Semigroup        (Sum (..))
 
 import qualified Data.HashMap.Internal.Array as A
@@ -73,11 +71,24 @@ data Error k
 -- | A part of a 'Hash' with 'bitsPerSubkey' bits.
 type SubHash = Word
 
-type SubHashPath = [SubHash]
+data SubHashPath = SubHashPath
+  { partialHash :: !Word
+    -- ^ The bits we already know, starting from the lower bits.
+    -- The unknown upper bits are @0@.
+  , lengthInBits :: !Int
+    -- ^ The number of bits known. @>= 0 && <= finiteBitSize @Word 0@
+  } deriving (Eq, Show)
+
+initialSubHashPath :: SubHashPath
+initialSubHashPath = SubHashPath 0 0
+
+addSubHash :: SubHashPath -> SubHash -> SubHashPath
+addSubHash (SubHashPath ph l) sh =
+  SubHashPath (ph .|. (sh `unsafeShiftL` l)) (l + bitsPerSubkey)
 
 valid :: Hashable k => HashMap k v -> Validity k
 valid Empty = Valid
-valid t     = validInternal [] t
+valid t     = validInternal initialSubHashPath t
   where
     validInternal p Empty                 = Invalid INV1_internal_Empty p
     validInternal p (Leaf h l)            = validHash p h <> validLeaf p h l
@@ -85,11 +96,10 @@ valid t     = validInternal [] t
     validInternal p (BitmapIndexed b ary) = validBitmapIndexed p b ary
     validInternal p (Full ary)            = validFull p ary
 
-    validHash p0 h0 = go (reverse p0) h0
+    validHash p@(SubHashPath ph l) h | maskToLength h l == ph = Valid
+                                     | otherwise              = Invalid (INV5_misplaced_hash h) p
       where
-        go [] !_ = Valid
-        go (sh:p) h | h .&. subkeyMask == sh = go p (h `unsafeShiftR` bitsPerSubkey)
-                    | otherwise              = Invalid (INV5_misplaced_hash h0) p0
+        maskToLength h' l' = h' .&. complement (complement 0 `unsafeShiftL` l')
 
     validLeaf p h (L k _) | hash k == h = Valid
                           | otherwise   = Invalid (INV6_key_hash_mismatch k h) p
@@ -117,7 +127,7 @@ valid t     = validInternal [] t
       | otherwise = go b
       where
         go 0  = Valid
-        go b' = validInternal (fromIntegral c : p) (A.index ary i) <> go b''
+        go b' = validInternal (addSubHash p (fromIntegral c)) (A.index ary i) <> go b''
           where
             c = countTrailingZeros b'
             m = 1 `unsafeShiftL` c
