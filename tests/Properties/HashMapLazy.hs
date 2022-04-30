@@ -425,6 +425,9 @@ instance Hashable a => Hashable (Magma a) where
 pFromList :: [(Key, Int)] -> Property
 pFromList = id `eq_` id
 
+pFromListValid :: [(Key, ())] -> Property
+pFromListValid xs = valid (HM.fromList xs) === Valid
+
 pFromListWith :: [(Key, Int)] -> Property
 pFromListWith kvs = (M.toAscList $ M.fromListWith Op kvsM) ===
                     (toAscList $ HM.fromListWith Op kvsM)
@@ -549,6 +552,7 @@ tests =
       [ testProperty "elems" pElems
       , testProperty "keys" pKeys
       , testProperty "fromList" pFromList
+      , testProperty "fromList.valid" pFromListValid
       , testProperty "fromListWith" pFromListWith
       , testProperty "fromListWithKey" pFromListWithKey
       , testProperty "toList" pToList
