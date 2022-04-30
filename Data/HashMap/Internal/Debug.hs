@@ -25,7 +25,7 @@ module Data.HashMap.Internal.Debug
     , SubHashPath
     ) where
 
-import Data.Bits             (complement, countTrailingZeros, popCount,
+import Data.Bits             (complement, countTrailingZeros, popCount, shiftL,
                               unsafeShiftL, (.&.), (.|.))
 import Data.Hashable         (Hashable)
 import Data.HashMap.Internal (Bitmap, Hash, HashMap (..), Leaf (..),
@@ -76,7 +76,7 @@ data SubHashPath = SubHashPath
     -- ^ The bits we already know, starting from the lower bits.
     -- The unknown upper bits are @0@.
   , lengthInBits :: !Int
-    -- ^ The number of bits known. @>= 0 && <= finiteBitSize @Word 0@
+    -- ^ The number of bits known.
   } deriving (Eq, Show)
 
 initialSubHashPath :: SubHashPath
@@ -88,8 +88,10 @@ addSubHash (SubHashPath ph l) sh =
 
 hashMatchesSubHashPath :: SubHashPath -> Hash -> Bool
 hashMatchesSubHashPath (SubHashPath ph l) h = maskToLength h l == ph
-
-maskToLength h' l' = h' .&. complement (complement 0 `unsafeShiftL` l')
+  where
+    -- Note: This needs to use `shiftL` instead of `unsafeShiftL` because
+    -- @l'@ may be greater than 32/64 at the deepest level.
+    maskToLength h' l' = h' .&. complement (complement 0 `shiftL` l')
 
 valid :: Hashable k => HashMap k v -> Validity k
 valid Empty = Valid
