@@ -86,6 +86,11 @@ addSubHash :: SubHashPath -> SubHash -> SubHashPath
 addSubHash (SubHashPath ph l) sh =
   SubHashPath (ph .|. (sh `unsafeShiftL` l)) (l + bitsPerSubkey)
 
+hashMatchesSubHashPath :: SubHashPath -> Hash -> Bool
+hashMatchesSubHashPath (SubHashPath ph l) h = maskToLength h l == ph
+
+maskToLength h' l' = h' .&. complement (complement 0 `unsafeShiftL` l')
+
 valid :: Hashable k => HashMap k v -> Validity k
 valid Empty = Valid
 valid t     = validInternal initialSubHashPath t
@@ -96,10 +101,8 @@ valid t     = validInternal initialSubHashPath t
     validInternal p (BitmapIndexed b ary) = validBitmapIndexed p b ary
     validInternal p (Full ary)            = validFull p ary
 
-    validHash p@(SubHashPath ph l) h | maskToLength h l == ph = Valid
-                                     | otherwise              = Invalid (INV5_misplaced_hash h) p
-      where
-        maskToLength h' l' = h' .&. complement (complement 0 `unsafeShiftL` l')
+    validHash p h | hashMatchesSubHashPath p h = Valid
+                  | otherwise                  = Invalid (INV5_misplaced_hash h) p
 
     validLeaf p h (L k _) | hash k == h = Valid
                           | otherwise   = Invalid (INV6_key_hash_mismatch k h) p
