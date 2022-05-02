@@ -2413,7 +2413,7 @@ mask :: Hash -> Shift -> Bitmap
 mask w s = 1 `unsafeShiftL` index w s
 {-# INLINE mask #-}
 
--- | This array index is computed by counting the number of bits below the
+-- | This array index is computed by counting the number of 1-bits below the
 -- 'index' represented by the mask.
 --
 -- >>> sparseIndex 0b0110_0110 0b0010_0000
