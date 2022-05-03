@@ -177,9 +177,6 @@ import qualified Data.List                   as List
 import qualified GHC.Exts                    as Exts
 import qualified Language.Haskell.TH.Syntax  as TH
 
--- | A set of values.  A set cannot contain duplicate values.
-------------------------------------------------------------------------
-
 -- | Convenience function.  Compute a hash value for the given value.
 hash :: H.Hashable a => a -> Hash
 hash = fromIntegral . H.hash
