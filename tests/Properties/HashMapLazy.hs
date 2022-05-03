@@ -14,20 +14,21 @@
 
 module MODULE_NAME (tests) where
 
-import Control.Applicative      (Const (..))
-import Control.Monad            (guard)
+import Control.Applicative         (Const (..))
+import Control.Monad               (guard)
 import Data.Bifoldable
-import Data.Function            (on)
-import Data.Functor.Identity    (Identity (..))
-import Data.Hashable            (Hashable (hashWithSalt))
-import Data.Ord                 (comparing)
-import Test.QuickCheck          (Arbitrary (..), Property, elements, forAll,
-                                 property, (===), (==>))
-import Test.QuickCheck.Function (Fun, apply)
-import Test.QuickCheck.Poly     (A, B)
-import Test.Tasty               (TestTree, testGroup)
-import Test.Tasty.QuickCheck    (testProperty)
-import Util.Key                 (Key, keyToInt)
+import Data.Function               (on)
+import Data.Functor.Identity       (Identity (..))
+import Data.Hashable               (Hashable (hashWithSalt))
+import Data.HashMap.Internal.Debug (Validity (..), valid)
+import Data.Ord                    (comparing)
+import Test.QuickCheck             (Arbitrary (..), Property, elements, forAll,
+                                    property, (===), (==>))
+import Test.QuickCheck.Function    (Fun, apply)
+import Test.QuickCheck.Poly        (A, B)
+import Test.Tasty                  (TestTree, testGroup)
+import Test.Tasty.QuickCheck       (testProperty)
+import Util.Key                    (Key, keyToInt)
 
 import qualified Data.Foldable as Foldable
 import qualified Data.List     as List
@@ -319,6 +320,9 @@ pIntersection xs ys =
     `eq_` HM.intersection (HM.fromList xs)
     $ ys
 
+pIntersectionValid :: HashMap Key () -> HashMap Key () -> Property
+pIntersectionValid x y = valid (HM.intersection x y) === Valid
+
 pIntersectionWith :: [(Key, Int)] -> [(Key, Int)] -> Property
 pIntersectionWith xs ys = M.intersectionWith (-) (M.fromList xs) `eq_`
                           HM.intersectionWith (-) (HM.fromList xs) $ ys
@@ -420,6 +424,9 @@ instance Hashable a => Hashable (Magma a) where
 -- 'eq_' already calls fromList.
 pFromList :: [(Key, Int)] -> Property
 pFromList = id `eq_` id
+
+pFromListValid :: [(Key, ())] -> Property
+pFromListValid xs = valid (HM.fromList xs) === Valid
 
 pFromListWith :: [(Key, Int)] -> Property
 pFromListWith kvs = (M.toAscList $ M.fromListWith Op kvsM) ===
@@ -529,6 +536,7 @@ tests =
       [ testProperty "difference" pDifference
       , testProperty "differenceWith" pDifferenceWith
       , testProperty "intersection" pIntersection
+      , testProperty "intersection produces valid HashMap" pIntersectionValid
       , testProperty "intersectionWith" pIntersectionWith
       , testProperty "intersectionWithKey" pIntersectionWithKey
       ]
@@ -544,6 +552,7 @@ tests =
       [ testProperty "elems" pElems
       , testProperty "keys" pKeys
       , testProperty "fromList" pFromList
+      , testProperty "fromList.valid" pFromListValid
       , testProperty "fromListWith" pFromListWith
       , testProperty "fromListWithKey" pFromListWithKey
       , testProperty "toList" pToList
