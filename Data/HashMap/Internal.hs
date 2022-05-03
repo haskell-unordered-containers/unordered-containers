@@ -206,9 +206,6 @@ instance NFData k => NFData1 (Leaf k) where
 instance NFData2 Leaf where
     liftRnf2 rnf1 rnf2 (L k v) = rnf1 k `seq` rnf2 v
 
--- Invariant: The length of the 1st argument to 'Full' is
--- 2^bitsPerSubkey
-
 -- | A map from keys to values.  A map cannot contain duplicate keys;
 -- each key can map to at most one value.
 data HashMap k v
@@ -423,9 +420,6 @@ instance Eq k => Eq1 (HashMap k) where
 instance (Eq k, Eq v) => Eq (HashMap k v) where
     (==) = equal1 (==)
 
--- We rely on there being no Empty constructors in the tree!
--- This ensures that two equal HashMaps will have the same
--- shape, modulo the order of entries in Collisions.
 equal1 :: Eq k
        => (v -> v' -> Bool)
        -> HashMap k v -> HashMap k v' -> Bool
