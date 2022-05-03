@@ -177,9 +177,6 @@ import qualified Data.List                   as List
 import qualified GHC.Exts                    as Exts
 import qualified Language.Haskell.TH.Syntax  as TH
 
--- | A set of values.  A set cannot contain duplicate values.
-------------------------------------------------------------------------
-
 -- | Convenience function.  Compute a hash value for the given value.
 hash :: H.Hashable a => a -> Hash
 hash = fromIntegral . H.hash
@@ -400,7 +397,7 @@ instance Eq k => Eq1 (HashMap k) where
     liftEq = equal1
 
 -- | Note that, in the presence of hash collisions, equal @HashMap@s may
--- behave differently, i.e. substitutivity may be violated:
+-- behave differently, i.e. extensionality may be violated:
 --
 -- >>> data D = A | B deriving (Eq, Show)
 -- >>> instance Hashable D where hashWithSalt salt _d = salt
@@ -415,7 +412,7 @@ instance Eq k => Eq1 (HashMap k) where
 -- >>> toList y
 -- [(B,2),(A,1)]
 --
--- In general, the lack of substitutivity can be observed with any function
+-- In general, the lack of extensionality can be observed with any function
 -- that depends on the key ordering, such as folds and traversals.
 instance (Eq k, Eq v) => Eq (HashMap k v) where
     (==) = equal1 (==)

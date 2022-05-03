@@ -127,7 +127,7 @@ instance NFData1 HashSet where
     liftRnf rnf1 = liftRnf2 rnf1 rnf . asMap
 
 -- | Note that, in the presence of hash collisions, equal @HashSet@s may
--- behave differently, i.e. substitutivity may be violated:
+-- behave differently, i.e. extensionality may be violated:
 --
 -- >>> data D = A | B deriving (Eq, Show)
 -- >>> instance Hashable D where hashWithSalt salt _d = salt
@@ -142,7 +142,7 @@ instance NFData1 HashSet where
 -- >>> toList y
 -- [B,A]
 --
--- In general, the lack of substitutivity can be observed with any function
+-- In general, the lack of extensionality can be observed with any function
 -- that depends on the key ordering, such as folds and traversals.
 instance (Eq a) => Eq (HashSet a) where
     HashSet a == HashSet b = equalKeys a b
