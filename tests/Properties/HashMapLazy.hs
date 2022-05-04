@@ -30,8 +30,9 @@ import Test.QuickCheck.Function    (Fun, apply, applyFun2, applyFun3)
 import Test.QuickCheck.Poly        (A, B)
 import Test.Tasty                  (TestTree, testGroup)
 import Test.Tasty.QuickCheck       (testProperty)
-import Util.Key                    (Key, keyToInt)
+import Util.Key                    (Key, keyToInt, incKey)
 
+import qualified Test.QuickCheck as QC
 import qualified Data.Foldable as Foldable
 import qualified Data.List     as List
 
@@ -51,20 +52,6 @@ instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v)
 
 ------------------------------------------------------------------------
 -- * Properties
-
-------------------------------------------------------------------------
--- ** Transformations
-
-pMap :: [(Key, Int)] -> Property
-pMap = M.map (+ 1) `eq_` HM.map (+ 1)
-
-pTraverse :: [(Key, Int)] -> Property
-pTraverse xs =
-  List.sort (fmap (List.sort . M.toList) (M.traverseWithKey (\_ v -> [v + 1, v + 2]) (M.fromList (take 10 xs))))
-     === List.sort (fmap (List.sort . HM.toList) (HM.traverseWithKey (\_ v -> [v + 1, v + 2]) (HM.fromList (take 10 xs))))
-
-pMapKeys :: [(Int, Int)] -> Property
-pMapKeys = M.mapKeys (+1) `eq_` HM.mapKeys (+1)
 
 ------------------------------------------------------------------------
 -- ** Difference and intersection
@@ -393,9 +380,15 @@ tests =
     , testProperty "unions" $
       \(ms :: [HMKI]) -> toOrdMap (HM.unions ms) === M.unions (map toOrdMap ms)
     -- Transformations
-    , testProperty "map" pMap
-    , testProperty "traverse" pTraverse
-    , testProperty "mapKeys" pMapKeys
+    , testProperty "map" $
+      \(f :: Fun A B) (m :: HMK A) -> toOrdMap (HM.map (apply f) m) === M.map (apply f) (toOrdMap m) 
+    , testProperty "traverseWithKey" $ QC.mapSize (\s -> s `div` 8) $
+      \(x :: HMKI) ->
+        let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
+            y = HM.traverseWithKey f x
+        in  List.sort (fmap toOrdMap y) === List.sort (M.traverseWithKey f (toOrdMap x))
+    , testProperty "mapKeys" $
+      \(m :: HMKI) -> toOrdMap (HM.mapKeys incKey m) === M.mapKeys incKey (toOrdMap m)
     -- Folds
     , testGroup "folds"
       [ testProperty "foldr" pFoldr
