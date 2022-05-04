@@ -53,47 +53,6 @@ instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v)
 -- * Properties
 
 ------------------------------------------------------------------------
--- ** Basic interface
-
-pSubmap :: [(Key, Int)] -> [(Key, Int)] -> Property
-pSubmap xs ys = M.isSubmapOf (M.fromList xs) (M.fromList ys) ===
-                HM.isSubmapOf (HM.fromList xs) (HM.fromList ys)
-
-pSubmapReflexive :: HashMap Key Int -> Bool
-pSubmapReflexive m = HM.isSubmapOf m m
-
-pSubmapUnion :: HashMap Key Int -> HashMap Key Int -> Bool
-pSubmapUnion m1 m2 = HM.isSubmapOf m1 (HM.union m1 m2)
-
-pNotSubmapUnion :: HashMap Key Int -> HashMap Key Int -> Property
-pNotSubmapUnion m1 m2 = not (HM.isSubmapOf m1 m2) ==> HM.isSubmapOf m1 (HM.union m1 m2)
-
-pSubmapDifference :: HashMap Key Int -> HashMap Key Int -> Bool
-pSubmapDifference m1 m2 = HM.isSubmapOf (HM.difference m1 m2) m1
-
-pNotSubmapDifference :: HashMap Key Int -> HashMap Key Int -> Property
-pNotSubmapDifference m1 m2 =
-  not (HM.null (HM.intersection m1 m2)) ==>
-  not (HM.isSubmapOf m1 (HM.difference m1 m2))
-
-pSubmapDelete :: HashMap Key Int -> Property
-pSubmapDelete m = not (HM.null m) ==>
-  forAll (elements (HM.keys m)) $ \k ->
-  HM.isSubmapOf (HM.delete k m) m
-
-pNotSubmapDelete :: HashMap Key Int -> Property
-pNotSubmapDelete m =
-  not (HM.null m) ==>
-  forAll (elements (HM.keys m)) $ \k ->
-  not (HM.isSubmapOf m (HM.delete k m))
-
-pSubmapInsert :: Key -> Int -> HashMap Key Int -> Property
-pSubmapInsert k v m = not (HM.member k m) ==> HM.isSubmapOf m (HM.insert k v m)
-
-pNotSubmapInsert :: Key -> Int -> HashMap Key Int -> Property
-pNotSubmapInsert k v m = not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
-
-------------------------------------------------------------------------
 -- ** Combine
 
 pUnion :: [(Key, Int)] -> [(Key, Int)] -> Property
@@ -411,16 +370,34 @@ tests =
             in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
         ]
       , testGroup "isSubmapOf"
-        [ testProperty "container compatibility" pSubmap
-        , testProperty "m ⊆ m" pSubmapReflexive
-        , testProperty "m1 ⊆ m1 ∪ m2" pSubmapUnion
-        , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" pNotSubmapUnion
-        , testProperty "m1\\m2 ⊆ m1" pSubmapDifference
-        , testProperty "m1 ∩ m2 ≠ ∅  ⇒  m1 ⊈ m1\\m2 " pNotSubmapDifference
-        , testProperty "delete k m ⊆ m" pSubmapDelete
-        , testProperty "m ⊈ delete k m " pNotSubmapDelete
-        , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" pSubmapInsert
-        , testProperty "k ∉ m  ⇒  insert k v m ⊈ m" pNotSubmapInsert
+        [ testProperty "model" $
+          \(x :: HMKI) y -> HM.isSubmapOf x y === M.isSubmapOf (toOrdMap x) (toOrdMap y)
+        , testProperty "m ⊆ m" $
+          \(x :: HMKI) -> HM.isSubmapOf x x
+        , testProperty "m1 ⊆ m1 ∪ m2" $
+          \(x :: HMKI) y -> HM.isSubmapOf x (HM.union x y)
+        , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" $
+          \(m1 :: HMKI) m2 -> not (HM.isSubmapOf m1 m2) ==> HM.isSubmapOf m1 (HM.union m1 m2)
+        , testProperty "m1\\m2 ⊆ m1" $
+          \(m1 :: HMKI) (m2 :: HMKI) -> HM.isSubmapOf (HM.difference m1 m2) m1
+        , testProperty "m1 ∩ m2 ≠ ∅  ⇒  m1 ⊈ m1\\m2 " $
+          \(m1 :: HMKI) (m2 :: HMKI) ->
+            not (HM.null (HM.intersection m1 m2)) ==>
+            not (HM.isSubmapOf m1 (HM.difference m1 m2))
+        , testProperty "delete k m ⊆ m" $
+          \(m :: HMKI) ->
+            not (HM.null m) ==>
+            forAll (elements (HM.keys m)) $ \k ->
+            HM.isSubmapOf (HM.delete k m) m
+        , testProperty "m ⊈ delete k m " $
+          \(m :: HMKI) ->
+            not (HM.null m) ==>
+            forAll (elements (HM.keys m)) $ \k ->
+            not (HM.isSubmapOf m (HM.delete k m))
+        , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" $
+          \k v (m :: HMKI) -> not (HM.member k m) ==> HM.isSubmapOf m (HM.insert k v m)
+        , testProperty "k ∉ m  ⇒  insert k v m ⊈ m" $
+          \k v (m :: HMKI) -> not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
         ]
       ]
     -- Combine
