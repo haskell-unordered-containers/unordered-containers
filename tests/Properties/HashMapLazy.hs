@@ -540,7 +540,7 @@ type Model k v = M.Map k v
 -- one operating on a 'Model'.
 eq :: (Eq a, Eq k, Hashable k, Ord k, Show a, Show k)
    => (Model k v -> a)       -- ^ Function that modifies a 'Model'
-   -> (HM.HashMap k v -> a)  -- ^ Function that modified a 'HashMap' in the same
+   -> (HashMap k v -> a)     -- ^ Function that modified a 'HashMap' in the same
                              -- way
    -> [(k, v)]               -- ^ Initial content of the 'HashMap' and 'Model'
    -> Property
@@ -550,7 +550,7 @@ infix 4 `eq`
 
 eq_ :: (Eq k, Eq v, Hashable k, Ord k, Show k, Show v)
     => (Model k v -> Model k v)            -- ^ Function that modifies a 'Model'
-    -> (HM.HashMap k v -> HM.HashMap k v)  -- ^ Function that modified a
+    -> (HashMap k v -> HashMap k v)        -- ^ Function that modified a
                                            -- 'HashMap' in the same way
     -> [(k, v)]                            -- ^ Initial content of the 'HashMap'
                                            -- and 'Model'
@@ -562,13 +562,13 @@ infix 4 `eq_`
 ------------------------------------------------------------------------
 -- * Helpers
 
-type HMKI = HM.HashMap Key Int
+type HMKI = HashMap Key Int
 
 sortByKey :: Ord k => [(k, v)] -> [(k, v)]
 sortByKey = List.sortBy (compare `on` fst)
 
-toAscList :: Ord k => HM.HashMap k v -> [(k, v)]
+toAscList :: Ord k => HashMap k v -> [(k, v)]
 toAscList = List.sortBy (compare `on` fst) . HM.toList
 
-toOrdMap :: Ord k => HM.HashMap k v -> M.Map k v
+toOrdMap :: Ord k => HashMap k v -> M.Map k v
 toOrdMap = M.fromList . HM.toList
