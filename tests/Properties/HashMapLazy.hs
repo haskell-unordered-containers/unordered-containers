@@ -302,103 +302,101 @@ tests =
           in  x == y ==> hashWithSalt salt x === hashWithSalt salt y
       ]
     -- Basic interface
-    , testGroup "basic interface"
-      [ testProperty "size" $
-        \(x :: HMKI) -> HM.size x === M.size (toOrdMap x)
-      , testProperty "member" $
-        \(k :: Key) (m :: HMKI) -> HM.member k m === M.member k (toOrdMap m)
-      , testProperty "lookup" $
-        \(k :: Key) (m :: HMKI) -> HM.lookup k m === M.lookup k (toOrdMap m)
-      , testProperty "!?" $
-        \(k :: Key) (m :: HMKI) -> m HM.!? k === M.lookup k (toOrdMap m)
-      , testProperty "insert" $
-        \(k :: Key) (v :: Int) x ->
-          let y = HM.insert k v x
-          in  toOrdMap y === M.insert k v (toOrdMap x)
-      , testProperty "delete" $
-        \(k :: Key) (x :: HMKI) ->
-        let y = HM.delete k x
-        in  toOrdMap y === M.delete k (toOrdMap x)
-      , testProperty "insertWith" $
-        \f k v (x :: HMKI) ->
-          let y = HM.insertWith (applyFun2 f) k v x
-          in  toOrdMap y === M.insertWith (applyFun2 f) k v (toOrdMap x)
+    , testProperty "size" $
+      \(x :: HMKI) -> HM.size x === M.size (toOrdMap x)
+    , testProperty "member" $
+      \(k :: Key) (m :: HMKI) -> HM.member k m === M.member k (toOrdMap m)
+    , testProperty "lookup" $
+      \(k :: Key) (m :: HMKI) -> HM.lookup k m === M.lookup k (toOrdMap m)
+    , testProperty "!?" $
+      \(k :: Key) (m :: HMKI) -> m HM.!? k === M.lookup k (toOrdMap m)
+    , testProperty "insert" $
+      \(k :: Key) (v :: Int) x ->
+        let y = HM.insert k v x
+        in  toOrdMap y === M.insert k v (toOrdMap x)
+    , testProperty "delete" $
+      \(k :: Key) (x :: HMKI) ->
+      let y = HM.delete k x
+      in  toOrdMap y === M.delete k (toOrdMap x)
+    , testProperty "insertWith" $
+      \f k v (x :: HMKI) ->
+        let y = HM.insertWith (applyFun2 f) k v x
+        in  toOrdMap y === M.insertWith (applyFun2 f) k v (toOrdMap x)
+    , testProperty "adjust" $
+      \f k (x :: HMKI) ->
+        let y = HM.adjust (apply f) k x
+        in  toOrdMap y === M.adjust (apply f) k (toOrdMap x)
+    , testProperty "update" $
+      \f k (x :: HMKI) ->
+        let y = HM.update (apply f) k x
+        in  toOrdMap y === M.update (apply f) k (toOrdMap x)
+    , testProperty "alter" $
+      \f k (x :: HMKI) ->
+        let y = HM.alter (apply f) k x
+        in  toOrdMap y === M.alter (apply f) k (toOrdMap x)
+    , testGroup "alterF"
+      [ -- We choose the list functor here because we don't fuss with
+        -- it in alterF rules and because it has a sufficiently interesting
+        -- structure to have a good chance of breaking if something is wrong.
+        testProperty "[]" $
+        \(f :: Fun (Maybe A) [Maybe A]) k (x :: HMK A) ->
+          let ys = HM.alterF (apply f) k x
+          in  map toOrdMap ys === M.alterF (apply f) k (toOrdMap x)
       , testProperty "adjust" $
         \f k (x :: HMKI) ->
-          let y = HM.adjust (apply f) k x
-          in  toOrdMap y === M.adjust (apply f) k (toOrdMap x)
-      , testProperty "update" $
-        \f k (x :: HMKI) ->
-          let y = HM.update (apply f) k x
-          in  toOrdMap y === M.update (apply f) k (toOrdMap x)
-      , testProperty "alter" $
-        \f k (x :: HMKI) ->
-          let y = HM.alter (apply f) k x
-          in  toOrdMap y === M.alter (apply f) k (toOrdMap x)
-      , testGroup "alterF"
-        [ -- We choose the list functor here because we don't fuss with
-          -- it in alterF rules and because it has a sufficiently interesting
-          -- structure to have a good chance of breaking if something is wrong.
-          testProperty "[]" $
-          \(f :: Fun (Maybe A) [Maybe A]) k (x :: HMK A) ->
-            let ys = HM.alterF (apply f) k x
-            in  map toOrdMap ys === M.alterF (apply f) k (toOrdMap x)
-        , testProperty "adjust" $
-          \f k (x :: HMKI) ->
-            let g = Identity . fmap (apply f)
-                y = HM.alterF g k x
-            in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
-        , testProperty "insert" $
-          \v k (x :: HMKI) ->
-            let g = const . Identity . Just $ v
-                y = HM.alterF g k x
-            in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
-        , testProperty "insertWith" $
-          \f k v (x :: HMKI) ->
-            let g = Identity . Just . maybe v (apply f)
-                y = HM.alterF g k x
-            in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
-        , testProperty "delete" $
-          \k (x :: HMKI) ->
-            let f = const (Identity Nothing)
-                y = HM.alterF f k x
-            in  fmap toOrdMap y === M.alterF f k (toOrdMap x)
-        , testProperty "lookup" $
-          \(f :: Fun (Maybe A) B) k (x :: HMK A) ->
-            let g = Const . apply f
-                y = HM.alterF g k x
-            in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
-        ]
-      , testGroup "isSubmapOf"
-        [ testProperty "model" $
-          \(x :: HMKI) y -> HM.isSubmapOf x y === M.isSubmapOf (toOrdMap x) (toOrdMap y)
-        , testProperty "m ⊆ m" $
-          \(x :: HMKI) -> HM.isSubmapOf x x
-        , testProperty "m1 ⊆ m1 ∪ m2" $
-          \(x :: HMKI) y -> HM.isSubmapOf x (HM.union x y)
-        , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" $
-          \(m1 :: HMKI) m2 -> not (HM.isSubmapOf m1 m2) ==> HM.isSubmapOf m1 (HM.union m1 m2)
-        , testProperty "m1\\m2 ⊆ m1" $
-          \(m1 :: HMKI) (m2 :: HMKI) -> HM.isSubmapOf (HM.difference m1 m2) m1
-        , testProperty "m1 ∩ m2 ≠ ∅  ⇒  m1 ⊈ m1\\m2 " $
-          \(m1 :: HMKI) (m2 :: HMKI) ->
-            not (HM.null (HM.intersection m1 m2)) ==>
-            not (HM.isSubmapOf m1 (HM.difference m1 m2))
-        , testProperty "delete k m ⊆ m" $
-          \(m :: HMKI) ->
-            not (HM.null m) ==>
-            forAll (elements (HM.keys m)) $ \k ->
-            HM.isSubmapOf (HM.delete k m) m
-        , testProperty "m ⊈ delete k m " $
-          \(m :: HMKI) ->
-            not (HM.null m) ==>
-            forAll (elements (HM.keys m)) $ \k ->
-            not (HM.isSubmapOf m (HM.delete k m))
-        , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" $
-          \k v (m :: HMKI) -> not (HM.member k m) ==> HM.isSubmapOf m (HM.insert k v m)
-        , testProperty "k ∉ m  ⇒  insert k v m ⊈ m" $
-          \k v (m :: HMKI) -> not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
-        ]
+          let g = Identity . fmap (apply f)
+              y = HM.alterF g k x
+          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+      , testProperty "insert" $
+        \v k (x :: HMKI) ->
+          let g = const . Identity . Just $ v
+              y = HM.alterF g k x
+          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+      , testProperty "insertWith" $
+        \f k v (x :: HMKI) ->
+          let g = Identity . Just . maybe v (apply f)
+              y = HM.alterF g k x
+          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+      , testProperty "delete" $
+        \k (x :: HMKI) ->
+          let f = const (Identity Nothing)
+              y = HM.alterF f k x
+          in  fmap toOrdMap y === M.alterF f k (toOrdMap x)
+      , testProperty "lookup" $
+        \(f :: Fun (Maybe A) B) k (x :: HMK A) ->
+          let g = Const . apply f
+              y = HM.alterF g k x
+          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+      ]
+    , testGroup "isSubmapOf"
+      [ testProperty "model" $
+        \(x :: HMKI) y -> HM.isSubmapOf x y === M.isSubmapOf (toOrdMap x) (toOrdMap y)
+      , testProperty "m ⊆ m" $
+        \(x :: HMKI) -> HM.isSubmapOf x x
+      , testProperty "m1 ⊆ m1 ∪ m2" $
+        \(x :: HMKI) y -> HM.isSubmapOf x (HM.union x y)
+      , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" $
+        \(m1 :: HMKI) m2 -> not (HM.isSubmapOf m1 m2) ==> HM.isSubmapOf m1 (HM.union m1 m2)
+      , testProperty "m1\\m2 ⊆ m1" $
+        \(m1 :: HMKI) (m2 :: HMKI) -> HM.isSubmapOf (HM.difference m1 m2) m1
+      , testProperty "m1 ∩ m2 ≠ ∅  ⇒  m1 ⊈ m1\\m2 " $
+        \(m1 :: HMKI) (m2 :: HMKI) ->
+          not (HM.null (HM.intersection m1 m2)) ==>
+          not (HM.isSubmapOf m1 (HM.difference m1 m2))
+      , testProperty "delete k m ⊆ m" $
+        \(m :: HMKI) ->
+          not (HM.null m) ==>
+          forAll (elements (HM.keys m)) $ \k ->
+          HM.isSubmapOf (HM.delete k m) m
+      , testProperty "m ⊈ delete k m " $
+        \(m :: HMKI) ->
+          not (HM.null m) ==>
+          forAll (elements (HM.keys m)) $ \k ->
+          not (HM.isSubmapOf m (HM.delete k m))
+      , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" $
+        \k v (m :: HMKI) -> not (HM.member k m) ==> HM.isSubmapOf m (HM.insert k v m)
+      , testProperty "k ∉ m  ⇒  insert k v m ⊈ m" $
+        \k v (m :: HMKI) -> not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
       ]
     -- Combine
     , testProperty "union" pUnion
