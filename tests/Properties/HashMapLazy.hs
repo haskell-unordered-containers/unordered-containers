@@ -26,7 +26,7 @@ import Data.HashMap.Internal.Debug (Validity (..), valid)
 import Data.Ord                    (comparing)
 import Test.QuickCheck             (Arbitrary (..), Property, elements, forAll,
                                     property, (===), (==>))
-import Test.QuickCheck.Function    (Fun, apply)
+import Test.QuickCheck.Function    (Fun, apply, applyFun2)
 import Test.QuickCheck.Poly        (A, B)
 import Test.Tasty                  (TestTree, testGroup)
 import Test.Tasty.QuickCheck       (testProperty)
@@ -54,109 +54,6 @@ instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v)
 
 ------------------------------------------------------------------------
 -- ** Basic interface
-
-pSize :: [(Key, Int)] -> Property
-pSize = M.size `eq` HM.size
-
-pMember :: Key -> [(Key, Int)] -> Property
-pMember k = M.member k `eq` HM.member k
-
-pLookup :: Key -> [(Key, Int)] -> Property
-pLookup k = M.lookup k `eq` HM.lookup k
-
-pLookupOperator :: Key -> [(Key, Int)] -> Property
-pLookupOperator k = M.lookup k `eq` (HM.!? k)
-
-pInsert :: Key -> Int -> [(Key, Int)] -> Property
-pInsert k v = M.insert k v `eq_` HM.insert k v
-
-pDelete :: Key -> [(Key, Int)] -> Property
-pDelete k = M.delete k `eq_` HM.delete k
-
-newtype AlwaysCollide = AC Int
-    deriving (Arbitrary, Eq, Ord, Show)
-
-instance Hashable AlwaysCollide where
-    hashWithSalt _ _ = 1
-
--- White-box test that tests the case of deleting one of two keys from
--- a map, where the keys' hash values collide.
-pDeleteCollision :: AlwaysCollide -> AlwaysCollide -> AlwaysCollide -> Int
-                 -> Property
-pDeleteCollision k1 k2 k3 idx = (k1 /= k2) && (k2 /= k3) && (k1 /= k3) ==>
-                                HM.member toKeep $ HM.delete toDelete $
-                                HM.fromList [(k1, 1 :: Int), (k2, 2), (k3, 3)]
-  where
-    which = idx `mod` 3
-    toDelete
-        | which == 0 = k1
-        | which == 1 = k2
-        | which == 2 = k3
-        | otherwise = error "Impossible"
-    toKeep
-        | which == 0 = k2
-        | which == 1 = k3
-        | which == 2 = k1
-        | otherwise = error "Impossible"
-
-pInsertWith :: Key -> [(Key, Int)] -> Property
-pInsertWith k = M.insertWith (+) k 1 `eq_` HM.insertWith (+) k 1
-
-pAdjust :: Key -> [(Key, Int)] -> Property
-pAdjust k = M.adjust succ k `eq_` HM.adjust succ k
-
-pUpdateAdjust :: Key -> [(Key, Int)] -> Property
-pUpdateAdjust k = M.update (Just . succ) k `eq_` HM.update (Just . succ) k
-
-pUpdateDelete :: Key -> [(Key, Int)] -> Property
-pUpdateDelete k = M.update (const Nothing) k `eq_` HM.update (const Nothing) k
-
-pAlterAdjust :: Key -> [(Key, Int)] -> Property
-pAlterAdjust k = M.alter (fmap succ) k `eq_` HM.alter (fmap succ) k
-
-pAlterInsert :: Key -> [(Key, Int)] -> Property
-pAlterInsert k = M.alter (const $ Just 3) k `eq_` HM.alter (const $ Just 3) k
-
-pAlterDelete :: Key -> [(Key, Int)] -> Property
-pAlterDelete k = M.alter (const Nothing) k `eq_` HM.alter (const Nothing) k
-
-
--- We choose the list functor here because we don't fuss with
--- it in alterF rules and because it has a sufficiently interesting
--- structure to have a good chance of breaking if something is wrong.
-pAlterF :: Key -> Fun (Maybe A) [Maybe A] -> [(Key, A)] -> Property
-pAlterF k f xs =
-  fmap M.toAscList (M.alterF (apply f) k (M.fromList xs))
-  ===
-  fmap toAscList (HM.alterF (apply f) k (HM.fromList xs))
-
-pAlterFAdjust :: Key -> [(Key, Int)] -> Property
-pAlterFAdjust k =
-  runIdentity . M.alterF (Identity . fmap succ) k `eq_`
-  runIdentity . HM.alterF (Identity . fmap succ) k
-
-pAlterFInsert :: Key -> [(Key, Int)] -> Property
-pAlterFInsert k =
-  runIdentity . M.alterF (const . Identity . Just $ 3) k `eq_`
-  runIdentity . HM.alterF (const . Identity . Just $ 3) k
-
-pAlterFInsertWith :: Key -> Fun Int Int -> [(Key, Int)] -> Property
-pAlterFInsertWith k f =
-  runIdentity . M.alterF (Identity . Just . maybe 3 (apply f)) k `eq_`
-  runIdentity . HM.alterF (Identity . Just . maybe 3 (apply f)) k
-
-pAlterFDelete :: Key -> [(Key, Int)] -> Property
-pAlterFDelete k =
-  runIdentity . M.alterF (const (Identity Nothing)) k `eq_`
-  runIdentity . HM.alterF (const (Identity Nothing)) k
-
-pAlterFLookup :: Key
-              -> Fun (Maybe A) B
-              -> [(Key, A)] -> Property
-pAlterFLookup k f =
-  getConst . M.alterF (Const . apply f :: Maybe A -> Const B (Maybe A)) k
-  `eq`
-  getConst . HM.alterF (Const . apply f) k
 
 pSubmap :: [(Key, Int)] -> [(Key, Int)] -> Property
 pSubmap xs ys = M.isSubmapOf (M.fromList xs) (M.fromList ys) ===
@@ -447,26 +344,72 @@ tests =
       ]
     -- Basic interface
     , testGroup "basic interface"
-      [ testProperty "size" pSize
-      , testProperty "member" pMember
-      , testProperty "lookup" pLookup
-      , testProperty "!?" pLookupOperator
-      , testProperty "insert" pInsert
-      , testProperty "delete" pDelete
-      , testProperty "deleteCollision" pDeleteCollision
-      , testProperty "insertWith" pInsertWith
-      , testProperty "adjust" pAdjust
-      , testProperty "updateAdjust" pUpdateAdjust
-      , testProperty "updateDelete" pUpdateDelete
-      , testProperty "alterAdjust" pAlterAdjust
-      , testProperty "alterInsert" pAlterInsert
-      , testProperty "alterDelete" pAlterDelete
-      , testProperty "alterF" pAlterF
-      , testProperty "alterFAdjust" pAlterFAdjust
-      , testProperty "alterFInsert" pAlterFInsert
-      , testProperty "alterFInsertWith" pAlterFInsertWith
-      , testProperty "alterFDelete" pAlterFDelete
-      , testProperty "alterFLookup" pAlterFLookup
+      [ testProperty "size" $
+        \(x :: HMKI) -> HM.size x === M.size (toOrdMap x)
+      , testProperty "member" $
+        \(k :: Key) (m :: HMKI) -> HM.member k m === M.member k (toOrdMap m)
+      , testProperty "lookup" $
+        \(k :: Key) (m :: HMKI) -> HM.lookup k m === M.lookup k (toOrdMap m)
+      , testProperty "!?" $
+        \(k :: Key) (m :: HMKI) -> m HM.!? k === M.lookup k (toOrdMap m)
+      , testProperty "insert" $
+        \(k :: Key) (v :: Int) x ->
+          let y = HM.insert k v x
+          in  toOrdMap y === M.insert k v (toOrdMap x)
+      , testProperty "delete" $
+        \(k :: Key) (x :: HMKI) ->
+        let y = HM.delete k x
+        in  toOrdMap y === M.delete k (toOrdMap x)
+      , testProperty "insertWith" $
+        \f k v (x :: HMKI) ->
+          let y = HM.insertWith (applyFun2 f) k v x
+          in  toOrdMap y === M.insertWith (applyFun2 f) k v (toOrdMap x)
+      , testProperty "adjust" $
+        \f k (x :: HMKI) ->
+          let y = HM.adjust (apply f) k x
+          in  toOrdMap y === M.adjust (apply f) k (toOrdMap x)
+      , testProperty "update" $
+        \f k (x :: HMKI) ->
+          let y = HM.update (apply f) k x
+          in  toOrdMap y === M.update (apply f) k (toOrdMap x)
+      , testProperty "alter" $
+        \f k (x :: HMKI) ->
+          let y = HM.alter (apply f) k x
+          in  toOrdMap y === M.alter (apply f) k (toOrdMap x)
+      , testGroup "alterF"
+        [ -- We choose the list functor here because we don't fuss with
+          -- it in alterF rules and because it has a sufficiently interesting
+          -- structure to have a good chance of breaking if something is wrong.
+          testProperty "[]" $
+          \(f :: Fun (Maybe A) [Maybe A]) k (x :: HMK A) ->
+            let ys = HM.alterF (apply f) k x
+            in  map toOrdMap ys === M.alterF (apply f) k (toOrdMap x)
+        , testProperty "adjust" $
+          \f k (x :: HMKI) ->
+            let g = Identity . fmap (apply f)
+                y = HM.alterF g k x
+            in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+        , testProperty "insert" $
+          \v k (x :: HMKI) ->
+            let g = const . Identity . Just $ v
+                y = HM.alterF g k x
+            in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+        , testProperty "insertWith" $
+          \f k v (x :: HMKI) ->
+            let g = Identity . Just . maybe v (apply f)
+                y = HM.alterF g k x
+            in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+        , testProperty "delete" $
+          \k (x :: HMKI) ->
+            let f = const (Identity Nothing)
+                y = HM.alterF f k x
+            in  fmap toOrdMap y === M.alterF f k (toOrdMap x)
+        , testProperty "lookup" $
+          \(f :: Fun (Maybe A) B) k (x :: HMK A) ->
+            let g = Const . apply f
+                y = HM.alterF g k x
+            in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+        ]
       , testGroup "isSubmapOf"
         [ testProperty "container compatibility" pSubmap
         , testProperty "m ⊆ m" pSubmapReflexive
@@ -562,7 +505,8 @@ infix 4 `eq_`
 ------------------------------------------------------------------------
 -- * Helpers
 
-type HMKI = HashMap Key Int
+type HMK  = HashMap Key
+type HMKI = HMK Int
 
 sortByKey :: Ord k => [(k, v)] -> [(k, v)]
 sortByKey = List.sortBy (compare `on` fst)
