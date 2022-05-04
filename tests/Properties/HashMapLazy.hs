@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NoMonomorphismRestriction  #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
@@ -393,15 +394,15 @@ tests =
       testGroup "instances"
       [ testGroup "Eq"
         [ testProperty "==" $
-          \(xs :: [(Key, Int)]) -> (M.fromList xs ==) `eq` (HM.fromList xs ==)
+          \(x :: HMKI) y -> (x == y) === (toOrdMap x == toOrdMap y)
         , testProperty "/=" $
-          \(xs :: [(Key, Int)]) -> (M.fromList xs /=) `eq` (HM.fromList xs /=)
+          \(x :: HMKI) y -> (x == y) === (toOrdMap x == toOrdMap y)
         ]
       , testGroup "Ord"
         [ testProperty "compare reflexive" $
-          \(m :: HashMap Key Int) -> compare m m === EQ
+          \(m :: HMKI) -> compare m m === EQ
         , testProperty "compare transitive" $
-          \(x :: HashMap Key Int) y z -> case (compare x y, compare y z) of
+          \(x :: HMKI) y z -> case (compare x y, compare y z) of
             (EQ, o)  -> compare x z === o
             (o,  EQ) -> compare x z === o
             (LT, LT) -> compare x z === LT
@@ -409,37 +410,40 @@ tests =
             (LT, GT) -> property True -- ys greater than xs and zs.
             (GT, LT) -> property True
         , testProperty "compare antisymmetric" $
-          \(x :: HashMap Key Int) y -> case (compare x y, compare y x) of
+          \(x :: HMKI) y -> case (compare x y, compare y x) of
             (EQ, EQ) -> True
             (LT, GT) -> True
             (GT, LT) -> True
             _        -> False
         , testProperty "Ord => Eq" $
-          \(x :: HashMap Key Int) y -> case (compare x y, x == y) of
+          \(x :: HMKI) y -> case (compare x y, x == y) of
             (EQ, True)  -> True
             (LT, False) -> True
             (GT, False) -> True
             _           -> False
         ]
       , testProperty "Read/Show" $
-        \(x :: HashMap Key Int) -> x === read (show x)
+        \(x :: HMKI) -> x === read (show x)
       , testProperty "Functor" $
-        fmap @(_ Key) @Int (+ 1) `eq_` fmap (+ 1)
+        \(x :: HMKI) ->
+          let y = fmap (+1) x
+          in  toOrdMap y === fmap (+1) (toOrdMap x)
       , testProperty "Foldable" $
-        (List.sort @Int . Foldable.foldr @(_ Key) (:) []) `eq` (List.sort . Foldable.foldr (:) [])
+        \(x :: HMKI) ->
+          let f = List.sort . Foldable.foldr (:) []
+          in  f x === f (toOrdMap x)
       , testProperty "Hashable" $
         \(xs :: [(Key, Int)]) is salt ->
-          let
-            xs' = List.nubBy (\(k,_) (k',_) -> k == k') xs
-            -- Shuffle the list using indexes in the second
-            shuffle :: [Int] -> [a] -> [a]
-            shuffle idxs = List.map snd
-                         . List.sortBy (comparing fst)
-                         . List.zip (idxs ++ [List.maximum (0:is) + 1 ..])
-            ys = shuffle is xs'
-            x = HM.fromList xs'
-            y = HM.fromList ys
-          in x == y ==> hashWithSalt salt x === hashWithSalt salt y
+          let xs' = List.nubBy (\(k,_) (k',_) -> k == k') xs
+              -- Shuffle the list using indexes in the second
+              shuffle :: [Int] -> [a] -> [a]
+              shuffle idxs = List.map snd
+                           . List.sortBy (comparing fst)
+                           . List.zip (idxs ++ [List.maximum (0:is) + 1 ..])
+              ys = shuffle is xs'
+              x = HM.fromList xs'
+              y = HM.fromList ys
+          in  x == y ==> hashWithSalt salt x === hashWithSalt salt y
       ]
     -- Basic interface
     , testGroup "basic interface"
@@ -558,8 +562,13 @@ infix 4 `eq_`
 ------------------------------------------------------------------------
 -- * Helpers
 
+type HMKI = HM.HashMap Key Int
+
 sortByKey :: Ord k => [(k, v)] -> [(k, v)]
 sortByKey = List.sortBy (compare `on` fst)
 
 toAscList :: Ord k => HM.HashMap k v -> [(k, v)]
 toAscList = List.sortBy (compare `on` fst) . HM.toList
+
+toOrdMap :: Ord k => HM.HashMap k v -> M.Map k v
+toOrdMap = M.fromList . HM.toList
