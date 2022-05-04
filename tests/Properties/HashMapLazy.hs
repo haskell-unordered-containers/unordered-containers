@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
 
@@ -49,78 +50,6 @@ instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v)
 
 ------------------------------------------------------------------------
 -- * Properties
-
-------------------------------------------------------------------------
--- ** Instances
-
-pEq :: [(Key, Int)] -> [(Key, Int)] -> Property
-pEq xs = (M.fromList xs ==) `eq` (HM.fromList xs ==)
-
-pNeq :: [(Key, Int)] -> [(Key, Int)] -> Property
-pNeq xs = (M.fromList xs /=) `eq` (HM.fromList xs /=)
-
--- We cannot compare to `Data.Map` as ordering is different.
-pOrd1 :: [(Key, Int)] -> Property
-pOrd1 xs = compare x x === EQ
-  where
-    x = HM.fromList xs
-
-pOrd2 :: [(Key, Int)] -> [(Key, Int)] -> [(Key, Int)] -> Property
-pOrd2 xs ys zs = case (compare x y, compare y z) of
-    (EQ, o)  -> compare x z === o
-    (o,  EQ) -> compare x z === o
-    (LT, LT) -> compare x z === LT
-    (GT, GT) -> compare x z === GT
-    (LT, GT) -> property True -- ys greater than xs and zs.
-    (GT, LT) -> property True
-  where
-    x = HM.fromList xs
-    y = HM.fromList ys
-    z = HM.fromList zs
-
-pOrd3 :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pOrd3 xs ys = case (compare x y, compare y x) of
-    (EQ, EQ) -> True
-    (LT, GT) -> True
-    (GT, LT) -> True
-    _        -> False
-  where
-    x = HM.fromList xs
-    y = HM.fromList ys
-
-pOrdEq :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pOrdEq xs ys = case (compare x y, x == y) of
-    (EQ, True)  -> True
-    (LT, False) -> True
-    (GT, False) -> True
-    _           -> False
-  where
-    x = HM.fromList xs
-    y = HM.fromList ys
-
-pReadShow :: [(Key, Int)] -> Property
-pReadShow xs = M.fromList xs === read (show (M.fromList xs))
-
-pFunctor :: [(Key, Int)] -> Property
-pFunctor = fmap (+ 1) `eq_` fmap (+ 1)
-
-pFoldable :: [(Int, Int)] -> Property
-pFoldable = (List.sort . Foldable.foldr (:) []) `eq`
-            (List.sort . Foldable.foldr (:) [])
-
-pHashable :: [(Key, Int)] -> [Int] -> Int -> Property
-pHashable xs is salt =
-    x == y ==> hashWithSalt salt x === hashWithSalt salt y
-  where
-    xs' = List.nubBy (\(k,_) (k',_) -> k == k') xs
-    ys = shuffle is xs'
-    x = HM.fromList xs'
-    y = HM.fromList ys
-    -- Shuffle the list using indexes in the second
-    shuffle :: [Int] -> [a] -> [a]
-    shuffle idxs = List.map snd
-                 . List.sortBy (comparing fst)
-                 . List.zip (idxs ++ [List.maximum (0:is) + 1 ..])
 
 ------------------------------------------------------------------------
 -- ** Basic interface
@@ -462,16 +391,55 @@ tests =
     [
     -- Instances
       testGroup "instances"
-      [ testProperty "==" pEq
-      , testProperty "/=" pNeq
-      , testProperty "compare reflexive" pOrd1
-      , testProperty "compare transitive" pOrd2
-      , testProperty "compare antisymmetric" pOrd3
-      , testProperty "Ord => Eq" pOrdEq
-      , testProperty "Read/Show" pReadShow
-      , testProperty "Functor" pFunctor
-      , testProperty "Foldable" pFoldable
-      , testProperty "Hashable" pHashable
+      [ testGroup "Eq"
+        [ testProperty "==" $
+          \(xs :: [(Key, Int)]) -> (M.fromList xs ==) `eq` (HM.fromList xs ==)
+        , testProperty "/=" $
+          \(xs :: [(Key, Int)]) -> (M.fromList xs /=) `eq` (HM.fromList xs /=)
+        ]
+      , testGroup "Ord"
+        [ testProperty "compare reflexive" $
+          \(m :: HashMap Key Int) -> compare m m === EQ
+        , testProperty "compare transitive" $
+          \(x :: HashMap Key Int) y z -> case (compare x y, compare y z) of
+            (EQ, o)  -> compare x z === o
+            (o,  EQ) -> compare x z === o
+            (LT, LT) -> compare x z === LT
+            (GT, GT) -> compare x z === GT
+            (LT, GT) -> property True -- ys greater than xs and zs.
+            (GT, LT) -> property True
+        , testProperty "compare antisymmetric" $
+          \(x :: HashMap Key Int) y -> case (compare x y, compare y x) of
+            (EQ, EQ) -> True
+            (LT, GT) -> True
+            (GT, LT) -> True
+            _        -> False
+        , testProperty "Ord => Eq" $
+          \(x :: HashMap Key Int) y -> case (compare x y, x == y) of
+            (EQ, True)  -> True
+            (LT, False) -> True
+            (GT, False) -> True
+            _           -> False
+        ]
+      , testProperty "Read/Show" $
+        \(x :: HashMap Key Int) -> x === read (show x)
+      , testProperty "Functor" $
+        fmap @(_ Key) @Int (+ 1) `eq_` fmap (+ 1)
+      , testProperty "Foldable" $
+        (List.sort @Int . Foldable.foldr @(_ Key) (:) []) `eq` (List.sort . Foldable.foldr (:) [])
+      , testProperty "Hashable" $
+        \(xs :: [(Key, Int)]) is salt ->
+          let
+            xs' = List.nubBy (\(k,_) (k',_) -> k == k') xs
+            -- Shuffle the list using indexes in the second
+            shuffle :: [Int] -> [a] -> [a]
+            shuffle idxs = List.map snd
+                         . List.sortBy (comparing fst)
+                         . List.zip (idxs ++ [List.maximum (0:is) + 1 ..])
+            ys = shuffle is xs'
+            x = HM.fromList xs'
+            y = HM.fromList ys
+          in x == y ==> hashWithSalt salt x === hashWithSalt salt y
       ]
     -- Basic interface
     , testGroup "basic interface"
