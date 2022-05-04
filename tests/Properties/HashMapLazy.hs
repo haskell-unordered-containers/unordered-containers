@@ -425,9 +425,9 @@ tests =
       , testProperty "Read/Show" $
         \(x :: HMKI) -> x === read (show x)
       , testProperty "Functor" $
-        \(x :: HMKI) ->
-          let y = fmap (+1) x
-          in  toOrdMap y === fmap (+1) (toOrdMap x)
+        \(x :: HMKI) (f :: Fun Int Int) ->
+          let y = fmap (apply f) x
+          in  toOrdMap y === fmap (apply f) (toOrdMap x)
       , testProperty "Foldable" $
         \(x :: HMKI) ->
           let f = List.sort . Foldable.foldr (:) []
