@@ -26,7 +26,7 @@ import Data.HashMap.Internal.Debug (Validity (..), valid)
 import Data.Ord                    (comparing)
 import Test.QuickCheck             (Arbitrary (..), Property, elements, forAll,
                                     property, (===), (==>))
-import Test.QuickCheck.Function    (Fun, apply, applyFun2)
+import Test.QuickCheck.Function    (Fun, apply, applyFun2, applyFun3)
 import Test.QuickCheck.Poly        (A, B)
 import Test.Tasty                  (TestTree, testGroup)
 import Test.Tasty.QuickCheck       (testProperty)
@@ -51,27 +51,6 @@ instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v)
 
 ------------------------------------------------------------------------
 -- * Properties
-
-------------------------------------------------------------------------
--- ** Combine
-
-pUnion :: [(Key, Int)] -> [(Key, Int)] -> Property
-pUnion xs ys = M.union (M.fromList xs) `eq_` HM.union (HM.fromList xs) $ ys
-
-pUnionWith :: [(Key, Int)] -> [(Key, Int)] -> Property
-pUnionWith xs ys = M.unionWith (-) (M.fromList xs) `eq_`
-                   HM.unionWith (-) (HM.fromList xs) $ ys
-
-pUnionWithKey :: [(Key, Int)] -> [(Key, Int)] -> Property
-pUnionWithKey xs ys = M.unionWithKey go (M.fromList xs) `eq_`
-                             HM.unionWithKey go (HM.fromList xs) $ ys
-  where
-    go :: Key -> Int -> Int -> Int
-    go k i1 i2 = keyToInt k - i1 + i2
-
-pUnions :: [[(Key, Int)]] -> Property
-pUnions xss = M.toAscList (M.unions (map M.fromList xss)) ===
-              toAscList (HM.unions (map HM.fromList xss))
 
 ------------------------------------------------------------------------
 -- ** Transformations
@@ -399,10 +378,20 @@ tests =
         \k v (m :: HMKI) -> not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
       ]
     -- Combine
-    , testProperty "union" pUnion
-    , testProperty "unionWith" pUnionWith
-    , testProperty "unionWithKey" pUnionWithKey
-    , testProperty "unions" pUnions
+    , testProperty "union" $
+      \(x :: HMKI) y ->
+        let z = HM.union x y
+        in  toOrdMap z === M.union (toOrdMap x) (toOrdMap y)
+    , testProperty "unionWith" $
+      \f (x :: HMKI) y ->
+        let z = HM.unionWith (applyFun2 f) x y
+        in  toOrdMap z === M.unionWith (applyFun2 f) (toOrdMap x) (toOrdMap y)
+    , testProperty "unionWithKey" $
+      \f (x :: HMKI) y ->
+        let z = HM.unionWithKey (applyFun3 f) x y
+        in  toOrdMap z === M.unionWithKey (applyFun3 f) (toOrdMap x) (toOrdMap y)
+    , testProperty "unions" $
+      \(ms :: [HMKI]) -> toOrdMap (HM.unions ms) === M.unions (map toOrdMap ms)
     -- Transformations
     , testProperty "map" pMap
     , testProperty "traverse" pTraverse
