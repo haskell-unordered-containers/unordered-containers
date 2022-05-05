@@ -89,12 +89,6 @@ pIntersectionWithKey xs ys = M.intersectionWithKey go (M.fromList xs) `eq_`
 ------------------------------------------------------------------------
 -- ** Folds
 
-pFoldr :: [(Int, Int)] -> Property
-pFoldr = (List.sort . M.foldr (:) []) `eq` (List.sort . HM.foldr (:) [])
-
-pFoldl :: [(Int, Int)] -> Property
-pFoldl = (List.sort . M.foldl (flip (:)) []) `eq` (List.sort . HM.foldl (flip (:)) [])
-
 pBifoldMap :: [(Int, Int)] -> Property
 pBifoldMap xs = concatMap f (HM.toList m) === bifoldMap (:[]) (:[]) m
   where f (k, v) = [k, v]
@@ -109,37 +103,6 @@ pBifoldl :: [(Int, Int)] -> Property
 pBifoldl xs = reverse (concatMap f $ HM.toList m) === bifoldl (flip (:)) (flip (:)) [] m
   where f (k, v) = [k, v]
         m = HM.fromList xs
-
-pFoldrWithKey :: [(Int, Int)] -> Property
-pFoldrWithKey = (sortByKey . M.foldrWithKey f []) `eq`
-                (sortByKey . HM.foldrWithKey f [])
-  where f k v z = (k, v) : z
-
-pFoldMapWithKey :: [(Int, Int)] -> Property
-pFoldMapWithKey = (sortByKey . M.foldMapWithKey f) `eq`
-                  (sortByKey . HM.foldMapWithKey f)
-  where f k v = [(k, v)]
-
-pFoldrWithKey' :: [(Int, Int)] -> Property
-pFoldrWithKey' = (sortByKey . M.foldrWithKey' f []) `eq`
-                 (sortByKey . HM.foldrWithKey' f [])
-  where f k v z = (k, v) : z
-
-pFoldlWithKey :: [(Int, Int)] -> Property
-pFoldlWithKey = (sortByKey . M.foldlWithKey f []) `eq`
-                (sortByKey . HM.foldlWithKey f [])
-  where f z k v = (k, v) : z
-
-pFoldlWithKey' :: [(Int, Int)] -> Property
-pFoldlWithKey' = (sortByKey . M.foldlWithKey' f []) `eq`
-                 (sortByKey . HM.foldlWithKey' f [])
-  where f z k v = (k, v) : z
-
-pFoldl' :: [(Int, Int)] -> Property
-pFoldl' = (List.sort . M.foldl' (flip (:)) []) `eq` (List.sort . HM.foldl' (flip (:)) [])
-
-pFoldr' :: [(Int, Int)] -> Property
-pFoldr' = (List.sort . M.foldr' (:) []) `eq` (List.sort . HM.foldr' (:) [])
 
 ------------------------------------------------------------------------
 -- ** Filter
@@ -254,6 +217,11 @@ tests =
         \(x :: HMKI) ->
           let f = List.sort . Foldable.foldr (:) []
           in  f x === f (toOrdMap x)
+      , testGroup "Bifoldable"
+        [ testProperty "bifoldMap" pBifoldMap
+        , testProperty "bifoldr" pBifoldr
+        , testProperty "bifoldl" pBifoldl
+        ]
       , testProperty "Hashable" $
         \(xs :: [(Key, Int)]) is salt ->
           let xs' = List.nubBy (\(k,_) (k',_) -> k == k') xs
@@ -390,20 +358,36 @@ tests =
     , testProperty "mapKeys" $
       \(m :: HMKI) -> toOrdMap (HM.mapKeys incKey m) === M.mapKeys incKey (toOrdMap m)
     -- Folds
-    , testGroup "folds"
-      [ testProperty "foldr" pFoldr
-      , testProperty "foldl" pFoldl
-      , testProperty "bifoldMap" pBifoldMap
-      , testProperty "bifoldr" pBifoldr
-      , testProperty "bifoldl" pBifoldl
-      , testProperty "foldrWithKey" pFoldrWithKey
-      , testProperty "foldlWithKey" pFoldlWithKey
-      , testProperty "foldrWithKey'" pFoldrWithKey'
-      , testProperty "foldlWithKey'" pFoldlWithKey'
-      , testProperty "foldl'" pFoldl'
-      , testProperty "foldr'" pFoldr'
-      , testProperty "foldMapWithKey" pFoldMapWithKey
-      ]
+    , testProperty "foldr" $
+      \(m :: HMKI) -> List.sort (HM.foldr (:) [] m) === List.sort (M.foldr (:) [] (toOrdMap m))
+    , testProperty "foldl" $
+      \(m :: HMKI) ->
+        List.sort (HM.foldl (flip (:)) [] m) === List.sort (M.foldl (flip (:)) [] (toOrdMap m))
+    , testProperty "foldrWithKey" $
+      \(m :: HMKI) ->
+        let f k v z = (k, v) : z
+        in  sortByKey (HM.foldrWithKey f [] m) === sortByKey (M.foldrWithKey f [] (toOrdMap m))
+    , testProperty "foldlWithKey" $
+      \(m :: HMKI) ->
+        let f z k v = (k, v) : z
+        in  sortByKey (HM.foldlWithKey f [] m) === sortByKey (M.foldlWithKey f [] (toOrdMap m))
+    , testProperty "foldrWithKey'" $
+      \(m :: HMKI) ->
+        let f k v z = (k, v) : z
+        in  sortByKey (HM.foldrWithKey' f [] m) === sortByKey (M.foldrWithKey' f [] (toOrdMap m))
+    , testProperty "foldlWithKey'" $
+      \(m :: HMKI) ->
+        let f z k v = (k, v) : z
+        in  sortByKey (HM.foldlWithKey' f [] m) === sortByKey (M.foldlWithKey' f [] (toOrdMap m))
+    , testProperty "foldl'" $
+      \(m :: HMKI) ->
+        List.sort (HM.foldl' (flip (:)) [] m) === List.sort (M.foldl' (flip (:)) [] (toOrdMap m))
+    , testProperty "foldr'" $
+      \(m :: HMKI) -> List.sort (HM.foldr' (:) [] m) === List.sort (M.foldr' (:) [] (toOrdMap m))
+    , testProperty "foldMapWithKey" $
+      \(m :: HMKI) ->
+        let f k v = [(k, v)]
+        in  sortByKey (HM.foldMapWithKey f m) === sortByKey (M.foldMapWithKey f (toOrdMap m))
     , testGroup "difference and intersection"
       [ testProperty "difference" pDifference
       , testProperty "differenceWith" pDifferenceWith
