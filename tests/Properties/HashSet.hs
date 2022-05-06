@@ -2,26 +2,27 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of the Arbitrary instances
 
 -- | Tests for the 'Data.HashSet' module.  We test functions by
--- comparing them to @Set@ from @containers@.
+-- comparing them to @Set@ from @containers@. @Set@ is referred to as a
+-- /model/ for @HashSet@.
 
 module Properties.HashSet (tests) where
 
 import Data.Hashable         (Hashable (hashWithSalt))
+import Data.HashMap.Lazy     (HashMap)
+import Data.HashSet          (HashSet)
 import Data.Ord              (comparing)
-import Test.QuickCheck       (Property, property, (===), (==>))
+import Data.Set              (Set)
+import Test.QuickCheck       (Fun, (===), (==>))
 import Test.Tasty            (TestTree, testGroup)
-import Test.Tasty.QuickCheck (Arbitrary(..), testProperty)
-import Util.Key              (Key, incKey, keyToInt)
-import Data.HashSet (HashSet)
-import Data.HashMap.Lazy (HashMap)
-import Data.Set (Set)
+import Test.Tasty.QuickCheck (Arbitrary (..), testProperty)
+import Util.Key              (Key, keyToInt)
 
-import qualified Data.Foldable as Foldable
-import qualified Data.HashSet  as HS
-import qualified Data.List     as List
-import qualified Data.Set      as Set
-import qualified Data.Set      as S
+import qualified Data.Foldable     as Foldable
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet      as HS
+import qualified Data.List         as List
+import qualified Data.Set          as S
+import qualified Test.QuickCheck   as QC
 
 instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
   arbitrary = HM.fromList <$> arbitrary
@@ -32,53 +33,15 @@ instance (Eq a, Hashable a, Arbitrary a) => Arbitrary (HashSet a) where
   shrink = fmap HS.fromMap . shrink . HS.toMap
 
 ------------------------------------------------------------------------
--- * Properties
+-- Helpers
+
+type HSK = HashSet Key
+
+toOrdSet :: Ord a => HashSet a -> Set a
+toOrdSet = S.fromList . HS.toList
 
 ------------------------------------------------------------------------
--- ** Combine
-
-pUnion :: [Key] -> [Key] -> Property
-pUnion xs ys = Set.union (Set.fromList xs) `eq_`
-               HS.union (HS.fromList xs) $ ys
-
-------------------------------------------------------------------------
--- ** Transformations
-
-pMap :: [Key] -> Property
-pMap = Set.map incKey `eq_` HS.map incKey
-
-------------------------------------------------------------------------
--- ** Folds
-
-pFoldr :: [Int] -> Property
-pFoldr = (List.sort . foldrSet (:) []) `eq`
-         (List.sort . HS.foldr (:) [])
-
-foldrSet :: (a -> b -> b) -> b -> Set.Set a -> b
-foldrSet = Set.foldr
-
-pFoldl' :: Int -> [Int] -> Property
-pFoldl' z0 = foldl'Set (+) z0 `eq` HS.foldl' (+) z0
-
-foldl'Set :: (a -> b -> a) -> a -> Set.Set b -> a
-foldl'Set = Set.foldl'
-
-------------------------------------------------------------------------
--- ** Filter
-
-pFilter :: [Key] -> Property
-pFilter = Set.filter p `eq_` HS.filter p
-  where
-    p = odd . keyToInt
-
-------------------------------------------------------------------------
--- ** Conversions
-
-pToList :: [Key] -> Property
-pToList = Set.toAscList `eq` toAscList
-
-------------------------------------------------------------------------
--- * Test list
+-- Test list
 
 tests :: TestTree
 tests = testGroup "Data.HashSet"
@@ -107,8 +70,8 @@ tests = testGroup "Data.HashSet"
           (o,  EQ) -> compare x z === o
           (LT, LT) -> compare x z === LT
           (GT, GT) -> compare x z === GT
-          (LT, GT) -> property True -- ys greater than xs and zs.
-          (GT, LT) -> property True
+          (LT, GT) -> QC.property True -- ys greater than xs and zs.
+          (GT, LT) -> QC.property True
       , testProperty "compare antisymmetric" $
         \(x :: HSK) y -> case (compare x y, compare y x) of
           (EQ, EQ) -> True
@@ -141,67 +104,32 @@ tests = testGroup "Data.HashSet"
         in  x == y ==> hashWithSalt salt x === hashWithSalt salt y
     ]
   -- Basic interface
-  , testGroup "basic interface"
-    [ testProperty "size" $
-      \(x :: HSK) -> HS.size x === List.length (HS.toList x)
-    , testProperty "member" $
-      \e (s :: HSK) -> HS.member e s === S.member e (toOrdSet s)
-    , testProperty "insert" $
-      \e (s :: HSK) -> toOrdSet (HS.insert e s) === S.insert e (toOrdSet s)
-    , testProperty "delete" $
-      \e (s :: HSK) -> toOrdSet (HS.delete e s) === S.delete e (toOrdSet s)
-    ]
+  , testProperty "size" $
+    \(x :: HSK) -> HS.size x === List.length (HS.toList x)
+  , testProperty "member" $
+    \e (s :: HSK) -> HS.member e s === S.member e (toOrdSet s)
+  , testProperty "insert" $
+    \e (s :: HSK) -> toOrdSet (HS.insert e s) === S.insert e (toOrdSet s)
+  , testProperty "delete" $
+    \e (s :: HSK) -> toOrdSet (HS.delete e s) === S.delete e (toOrdSet s)
   -- Combine
-  , testProperty "union" pUnion
+  , testProperty "union" $
+    \(x :: HSK) y -> toOrdSet (HS.union x y) === S.union (toOrdSet x) (toOrdSet y)
   -- Transformations
-  , testProperty "map" pMap
+  , testProperty "map" $
+    \(f :: Fun Key Key) (s :: HSK) -> toOrdSet (HS.map (QC.applyFun f) s) === S.map (QC.applyFun f) (toOrdSet s)
   -- Folds
-  , testGroup "folds"
-    [ testProperty "foldr" pFoldr
-    , testProperty "foldl'" pFoldl'
-    ]
+  , testProperty "foldr" $
+    \(s :: HSK) ->
+      List.sort (HS.foldr (:) [] s) === List.sort (S.foldr (:) [] (toOrdSet s))
+  , testProperty "foldl'" $
+    \(s :: HSK) z0 ->
+      let f z k = keyToInt k + z
+      in  HS.foldl' f z0 s === S.foldl' f z0 (toOrdSet s)
   -- Filter
-  , testGroup "filter"
-    [ testProperty "filter" pFilter
-    ]
+  , testProperty "filter" $
+    \p (s :: HSK) -> toOrdSet (HS.filter (QC.applyFun p) s) === S.filter (QC.applyFun p) (toOrdSet s)
   -- Conversions
-  , testGroup "conversions"
-    [ testProperty "toList" pToList
-    ]
+  , testProperty "toList" $
+    \(xs :: [Key]) -> List.sort (HS.toList (HS.fromList xs)) === S.toAscList (S.fromList xs)
   ]
-
-------------------------------------------------------------------------
--- * Model
-
--- Invariant: the list is sorted in ascending order, by key.
-type Model a = Set.Set a
-
--- | Check that a function operating on a 'HashMap' is equivalent to
--- one operating on a 'Model'.
-eq :: (Eq a, Hashable a, Ord a, Show a, Eq b, Show b)
-   => (Model a -> b)      -- ^ Function that modifies a 'Model' in the same
-                          -- way
-   -> (HS.HashSet a -> b)  -- ^ Function that modified a 'HashSet'
-   -> [a]                 -- ^ Initial content of the 'HashSet' and 'Model'
-   -> Property
-eq f g xs = f (Set.fromList xs) === g (HS.fromList xs)
-
-eq_ :: (Eq a, Hashable a, Ord a, Show a)
-    => (Model a -> Model a)          -- ^ Function that modifies a 'Model'
-    -> (HS.HashSet a -> HS.HashSet a)  -- ^ Function that modified a
-                                     -- 'HashSet' in the same way
-    -> [a]                           -- ^ Initial content of the 'HashSet'
-                                     -- and 'Model'
-    -> Property
-eq_ f g = (Set.toAscList . f) `eq` (toAscList . g)
-
-------------------------------------------------------------------------
--- * Helpers
-
-type HSK = HashSet Key
-
-toAscList :: Ord a => HS.HashSet a -> [a]
-toAscList = List.sort . HS.toList
-
-toOrdSet :: Ord a => HashSet a -> Set a
-toOrdSet = S.fromList . HS.toList
