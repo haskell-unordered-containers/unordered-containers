@@ -84,33 +84,6 @@ instance Hashable a => Hashable (Magma a) where
   hashWithSalt s (Leaf a) = hashWithSalt s (hashWithSalt (1::Int) a)
   hashWithSalt s (Op m n) = hashWithSalt s (hashWithSalt (hashWithSalt (2::Int) m) n)
 
--- 'eq_' already calls fromList.
-pFromList :: [(Key, Int)] -> Property
-pFromList = id `eq_` id
-
-pFromListValid :: [(Key, ())] -> Property
-pFromListValid xs = valid (HM.fromList xs) === Valid
-
-pFromListWith :: [(Key, Int)] -> Property
-pFromListWith kvs = (M.toAscList $ M.fromListWith Op kvsM) ===
-                    (toAscList $ HM.fromListWith Op kvsM)
-  where kvsM = fmap (fmap Leaf) kvs
-
-pFromListWithKey :: [(Key, Int)] -> Property
-pFromListWithKey kvs = (M.toAscList $ M.fromListWithKey combine kvsM) ===
-                       (toAscList $ HM.fromListWithKey combine kvsM)
-  where kvsM = fmap (\(k,v) -> (Leaf (keyToInt k), Leaf v)) kvs
-        combine k v1 v2 = Op k (Op v1 v2)
-
-pToList :: [(Key, Int)] -> Property
-pToList = M.toAscList `eq` toAscList
-
-pElems :: [(Key, Int)] -> Property
-pElems = (List.sort . M.elems) `eq` (List.sort . HM.elems)
-
-pKeys :: [(Key, Int)] -> Property
-pKeys = (List.sort . M.keys) `eq` (List.sort . HM.keys)
-
 ------------------------------------------------------------------------
 -- * Test list
 
@@ -369,73 +342,29 @@ tests =
     , testProperty "mapMaybeWithKey" $
       \(f :: Fun (Key, A) (Maybe B)) (m :: HMK A) ->
         toOrdMap (HM.mapMaybeWithKey (applyFun2 f) m) === M.mapMaybeWithKey (applyFun2 f) (toOrdMap m)
-{-
--- 'eq_' already calls fromList.
-pFromList :: [(Key, Int)] -> Property
-pFromList = id `eq_` id
-
-pFromListValid :: [(Key, ())] -> Property
-pFromListValid xs = valid (HM.fromList xs) === Valid
-
-pFromListWith :: [(Key, Int)] -> Property
-pFromListWith kvs = (M.toAscList $ M.fromListWith Op kvsM) ===
-                    (toAscList $ HM.fromListWith Op kvsM)
-  where kvsM = fmap (fmap Leaf) kvs
-
-pFromListWithKey :: [(Key, Int)] -> Property
-pFromListWithKey kvs = (M.toAscList $ M.fromListWithKey combine kvsM) ===
-                       (toAscList $ HM.fromListWithKey combine kvsM)
-  where kvsM = fmap (\(k,v) -> (Leaf (keyToInt k), Leaf v)) kvs
-        combine k v1 v2 = Op k (Op v1 v2)
-
-pToList :: [(Key, Int)] -> Property
-pToList = M.toAscList `eq` toAscList
-
-pElems :: [(Key, Int)] -> Property
-pElems = (List.sort . M.elems) `eq` (List.sort . HM.elems)
-
-pKeys :: [(Key, Int)] -> Property
-pKeys = (List.sort . M.keys) `eq` (List.sort . HM.keys)
--}
     -- Conversions
-    , testGroup "conversions"
-      [ testProperty "elems" pElems
-      , testProperty "keys" pKeys
-      , testProperty "fromList" pFromList
-      , testProperty "fromList.valid" pFromListValid
-      , testProperty "fromListWith" pFromListWith
-      , testProperty "fromListWithKey" pFromListWithKey
-      , testProperty "toList" pToList
+    , testProperty "elems" $
+      \(m :: HMKI) -> List.sort (HM.elems m) === List.sort (M.elems (toOrdMap m))
+    , testProperty "keys" $
+      \(m :: HMKI) -> List.sort (HM.keys m) === List.sort (M.keys (toOrdMap m))
+    , testGroup "fromList"
+      [ testProperty "model" $
+        \(kvs :: [(Key, Int)]) -> toOrdMap (HM.fromList kvs) === M.fromList kvs
+      , testProperty "valid" $
+        \(kvs :: [(Key, Int)]) -> isValid (HM.fromList kvs)
       ]
+    , testProperty "fromListWith" $
+      \(kvs :: [(Key, Int)]) ->
+        let kvsM = map (fmap Leaf) kvs
+        in  toOrdMap (HM.fromListWith Op kvsM) === M.fromListWith Op kvsM
+    , testProperty "fromListWithKey" $
+      \(kvs :: [(Key, Int)]) ->
+        let kvsM = fmap (\(k,v) -> (Leaf (keyToInt k), Leaf v)) kvs
+            combine k v1 v2 = Op k (Op v1 v2)
+        in  toOrdMap (HM.fromListWithKey combine kvsM) === M.fromListWithKey combine kvsM
+    , testProperty "toList" $
+      \(m :: HMKI) -> List.sort (HM.toList m) === List.sort (M.toList (toOrdMap m))
     ]
-
-------------------------------------------------------------------------
--- * Model
-
-type Model k v = M.Map k v
-
--- | Check that a function operating on a 'HashMap' is equivalent to
--- one operating on a 'Model'.
-eq :: (Eq a, Eq k, Hashable k, Ord k, Show a, Show k)
-   => (Model k v -> a)       -- ^ Function that modifies a 'Model'
-   -> (HashMap k v -> a)     -- ^ Function that modified a 'HashMap' in the same
-                             -- way
-   -> [(k, v)]               -- ^ Initial content of the 'HashMap' and 'Model'
-   -> Property
-eq f g xs = f (M.fromList xs) === g (HM.fromList xs)
-
-infix 4 `eq`
-
-eq_ :: (Eq k, Eq v, Hashable k, Ord k, Show k, Show v)
-    => (Model k v -> Model k v)            -- ^ Function that modifies a 'Model'
-    -> (HashMap k v -> HashMap k v)        -- ^ Function that modified a
-                                           -- 'HashMap' in the same way
-    -> [(k, v)]                            -- ^ Initial content of the 'HashMap'
-                                           -- and 'Model'
-    -> Property
-eq_ f g = (M.toAscList . f) `eq` (toAscList . g)
-
-infix 4 `eq_`
 
 ------------------------------------------------------------------------
 -- * Helpers
@@ -445,9 +374,6 @@ type HMKI = HMK Int
 
 sortByKey :: Ord k => [(k, v)] -> [(k, v)]
 sortByKey = List.sortBy (compare `on` fst)
-
-toAscList :: Ord k => HashMap k v -> [(k, v)]
-toAscList = List.sortBy (compare `on` fst) . HM.toList
 
 toOrdMap :: Ord k => HashMap k v -> M.Map k v
 toOrdMap = M.fromList . HM.toList
