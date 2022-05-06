@@ -27,7 +27,7 @@ import Data.Ord                    (comparing)
 import Test.QuickCheck             (Arbitrary (..), Property, elements, forAll,
                                     property, (===), (==>))
 import Test.QuickCheck.Function    (Fun, apply, applyFun2, applyFun3)
-import Test.QuickCheck.Poly        (A, B)
+import Test.QuickCheck.Poly        (A, B, C)
 import Test.Tasty                  (TestTree, testGroup)
 import Test.Tasty.QuickCheck       (testProperty)
 import Util.Key                    (Key, keyToInt, incKey)
@@ -52,39 +52,6 @@ instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v)
 
 ------------------------------------------------------------------------
 -- * Properties
-
-------------------------------------------------------------------------
--- ** Difference and intersection
-
-pDifference :: [(Key, Int)] -> [(Key, Int)] -> Property
-pDifference xs ys = M.difference (M.fromList xs) `eq_`
-                    HM.difference (HM.fromList xs) $ ys
-
-pDifferenceWith :: [(Key, Int)] -> [(Key, Int)] -> Property
-pDifferenceWith xs ys = M.differenceWith f (M.fromList xs) `eq_`
-                        HM.differenceWith f (HM.fromList xs) $ ys
-  where
-    f x y = if x == 0 then Nothing else Just (x - y)
-
-pIntersection :: [(Key, Int)] -> [(Key, Int)] -> Property
-pIntersection xs ys = 
-  M.intersection (M.fromList xs)
-    `eq_` HM.intersection (HM.fromList xs)
-    $ ys
-
-pIntersectionValid :: HashMap Key () -> HashMap Key () -> Property
-pIntersectionValid x y = valid (HM.intersection x y) === Valid
-
-pIntersectionWith :: [(Key, Int)] -> [(Key, Int)] -> Property
-pIntersectionWith xs ys = M.intersectionWith (-) (M.fromList xs) `eq_`
-                          HM.intersectionWith (-) (HM.fromList xs) $ ys
-
-pIntersectionWithKey :: [(Key, Int)] -> [(Key, Int)] -> Property
-pIntersectionWithKey xs ys = M.intersectionWithKey go (M.fromList xs) `eq_`
-                             HM.intersectionWithKey go (HM.fromList xs) $ ys
-  where
-    go :: Key -> Int -> Int -> Int
-    go k i1 i2 = keyToInt k - i1 - i2
 
 ------------------------------------------------------------------------
 -- ** Folds
@@ -388,14 +355,26 @@ tests =
       \(m :: HMKI) ->
         let f k v = [(k, v)]
         in  sortByKey (HM.foldMapWithKey f m) === sortByKey (M.foldMapWithKey f (toOrdMap m))
-    , testGroup "difference and intersection"
-      [ testProperty "difference" pDifference
-      , testProperty "differenceWith" pDifferenceWith
-      , testProperty "intersection" pIntersection
-      , testProperty "intersection produces valid HashMap" pIntersectionValid
-      , testProperty "intersectionWith" pIntersectionWith
-      , testProperty "intersectionWithKey" pIntersectionWithKey
+    , testProperty "difference" $
+      \(x :: HMKI) (y :: HMKI) ->
+        toOrdMap (HM.difference x y) === M.difference (toOrdMap x) (toOrdMap y)
+    , testProperty "differenceWith" $
+      \f (x :: HMK A) (y :: HMK B) ->
+        toOrdMap (HM.differenceWith (applyFun2 f) x y) === M.differenceWith (applyFun2 f) (toOrdMap x) (toOrdMap y)
+    , testGroup "intersection"
+      [ testProperty "model" $
+        \(x :: HMKI) (y :: HMKI) ->
+          toOrdMap (HM.intersection x y) === M.intersection (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(x :: HMKI) (y :: HMKI) ->
+          isValid (HM.intersection x y)
       ]
+    , testProperty "intersectionWith" $
+      \(f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
+        toOrdMap (HM.intersectionWith (applyFun2 f) x y) === M.intersectionWith (applyFun2 f) (toOrdMap x) (toOrdMap y)
+    , testProperty "intersectionWithKey" $
+      \(f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
+        toOrdMap (HM.intersectionWithKey (applyFun3 f) x y) === M.intersectionWithKey (applyFun3 f) (toOrdMap x) (toOrdMap y)
     -- Filter
     , testGroup "filter"
       [ testProperty "filter" pFilter
@@ -457,3 +436,6 @@ toAscList = List.sortBy (compare `on` fst) . HM.toList
 
 toOrdMap :: Ord k => HashMap k v -> M.Map k v
 toOrdMap = M.fromList . HM.toList
+
+isValid :: (Eq k, Hashable k, Show k) => HashMap k v -> Property
+isValid m = valid m === Valid
