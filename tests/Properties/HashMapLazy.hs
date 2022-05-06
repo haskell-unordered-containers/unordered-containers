@@ -17,7 +17,6 @@
 module MODULE_NAME (tests) where
 
 import Control.Applicative         (Const (..))
-import Control.Monad               (guard)
 import Data.Bifoldable
 import Data.Function               (on)
 import Data.Functor.Identity       (Identity (..))
@@ -70,24 +69,6 @@ pBifoldl :: [(Int, Int)] -> Property
 pBifoldl xs = reverse (concatMap f $ HM.toList m) === bifoldl (flip (:)) (flip (:)) [] m
   where f (k, v) = [k, v]
         m = HM.fromList xs
-
-------------------------------------------------------------------------
--- ** Filter
-
-pMapMaybeWithKey :: [(Key, Int)] -> Property
-pMapMaybeWithKey = M.mapMaybeWithKey f `eq_` HM.mapMaybeWithKey f
-  where f k v = guard (odd (keyToInt k + v)) >> Just (v + 1)
-
-pMapMaybe :: [(Key, Int)] -> Property
-pMapMaybe = M.mapMaybe f `eq_` HM.mapMaybe f
-  where f v = guard (odd v) >> Just (v + 1)
-
-pFilter :: [(Key, Int)] -> Property
-pFilter = M.filter odd `eq_` HM.filter odd
-
-pFilterWithKey :: [(Key, Int)] -> Property
-pFilterWithKey = M.filterWithKey p `eq_` HM.filterWithKey p
-  where p k v = odd (keyToInt k + v)
 
 ------------------------------------------------------------------------
 -- ** Conversions
@@ -376,12 +357,46 @@ tests =
       \(f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
         toOrdMap (HM.intersectionWithKey (applyFun3 f) x y) === M.intersectionWithKey (applyFun3 f) (toOrdMap x) (toOrdMap y)
     -- Filter
-    , testGroup "filter"
-      [ testProperty "filter" pFilter
-      , testProperty "filterWithKey" pFilterWithKey
-      , testProperty "mapMaybe" pMapMaybe
-      , testProperty "mapMaybeWithKey" pMapMaybeWithKey
-      ]
+    , testProperty "filter" $
+      \p (m :: HMKI) ->
+        toOrdMap (HM.filter (apply p) m) === M.filter (apply p) (toOrdMap m)
+    , testProperty "filterWithKey" $
+      \p (m :: HMKI) ->
+        toOrdMap (HM.filterWithKey (applyFun2 p) m) === M.filterWithKey (applyFun2 p) (toOrdMap m)
+    , testProperty "mapMaybe" $
+      \(f :: Fun A (Maybe B)) (m :: HMK A) ->
+        toOrdMap (HM.mapMaybe (apply f) m) === M.mapMaybe (apply f) (toOrdMap m)
+    , testProperty "mapMaybeWithKey" $
+      \(f :: Fun (Key, A) (Maybe B)) (m :: HMK A) ->
+        toOrdMap (HM.mapMaybeWithKey (applyFun2 f) m) === M.mapMaybeWithKey (applyFun2 f) (toOrdMap m)
+{-
+-- 'eq_' already calls fromList.
+pFromList :: [(Key, Int)] -> Property
+pFromList = id `eq_` id
+
+pFromListValid :: [(Key, ())] -> Property
+pFromListValid xs = valid (HM.fromList xs) === Valid
+
+pFromListWith :: [(Key, Int)] -> Property
+pFromListWith kvs = (M.toAscList $ M.fromListWith Op kvsM) ===
+                    (toAscList $ HM.fromListWith Op kvsM)
+  where kvsM = fmap (fmap Leaf) kvs
+
+pFromListWithKey :: [(Key, Int)] -> Property
+pFromListWithKey kvs = (M.toAscList $ M.fromListWithKey combine kvsM) ===
+                       (toAscList $ HM.fromListWithKey combine kvsM)
+  where kvsM = fmap (\(k,v) -> (Leaf (keyToInt k), Leaf v)) kvs
+        combine k v1 v2 = Op k (Op v1 v2)
+
+pToList :: [(Key, Int)] -> Property
+pToList = M.toAscList `eq` toAscList
+
+pElems :: [(Key, Int)] -> Property
+pElems = (List.sort . M.elems) `eq` (List.sort . HM.elems)
+
+pKeys :: [(Key, Int)] -> Property
+pKeys = (List.sort . M.keys) `eq` (List.sort . HM.keys)
+-}
     -- Conversions
     , testGroup "conversions"
       [ testProperty "elems" pElems
