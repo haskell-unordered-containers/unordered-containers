@@ -50,10 +50,19 @@ instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v)
   shrink = fmap HM.fromList . shrink . HM.toList
 
 ------------------------------------------------------------------------
--- * Properties
+-- Helpers
 
-------------------------------------------------------------------------
--- ** Conversions
+type HMK  = HashMap Key
+type HMKI = HMK Int
+
+sortByKey :: Ord k => [(k, v)] -> [(k, v)]
+sortByKey = List.sortBy (compare `on` fst)
+
+toOrdMap :: Ord k => HashMap k v -> M.Map k v
+toOrdMap = M.fromList . HM.toList
+
+isValid :: (Eq k, Hashable k, Show k) => HashMap k v -> Property
+isValid m = valid m === Valid
 
 -- The free magma is used to test that operations are applied in the
 -- same order.
@@ -67,7 +76,7 @@ instance Hashable a => Hashable (Magma a) where
   hashWithSalt s (Op m n) = hashWithSalt s (hashWithSalt (hashWithSalt (2::Int) m) n)
 
 ------------------------------------------------------------------------
--- * Test list
+-- Test list
 
 tests :: TestTree
 tests =
@@ -353,18 +362,3 @@ tests =
     , testProperty "toList" $
       \(m :: HMKI) -> List.sort (HM.toList m) === List.sort (M.toList (toOrdMap m))
     ]
-
-------------------------------------------------------------------------
--- * Helpers
-
-type HMK  = HashMap Key
-type HMKI = HMK Int
-
-sortByKey :: Ord k => [(k, v)] -> [(k, v)]
-sortByKey = List.sortBy (compare `on` fst)
-
-toOrdMap :: Ord k => HashMap k v -> M.Map k v
-toOrdMap = M.fromList . HM.toList
-
-isValid :: (Eq k, Hashable k, Show k) => HashMap k v -> Property
-isValid m = valid m === Valid
