@@ -1,8 +1,6 @@
-{-# LANGUAGE CPP                        #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE NoMonomorphismRestriction  #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE CPP                       #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
 
 -- | Tests for "Data.HashMap.Lazy" and "Data.HashMap.Strict".  We test functions by

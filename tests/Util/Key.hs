@@ -43,7 +43,7 @@ instance Arbitrary Key where
 arbitraryHash :: Gen Int
 arbitraryHash = do
   let gens =
-        [ (2, (fromIntegral . QC.getLarge) <$> arbitrary @(Large Word16))
+        [ (2, fromIntegral . QC.getLarge <$> arbitrary @(Large Word16))
         , (1, QC.getSmall <$> arbitrary)
         , (1, QC.getLarge <$> arbitrary)
         ]
