@@ -23,17 +23,15 @@ import Data.Functor.Identity       (Identity (..))
 import Data.Hashable               (Hashable (hashWithSalt))
 import Data.HashMap.Internal.Debug (Validity (..), valid)
 import Data.Ord                    (comparing)
-import Test.QuickCheck             (Arbitrary (..), Property, elements, forAll,
-                                    property, (===), (==>))
-import Test.QuickCheck.Function    (Fun, apply, applyFun2, applyFun3)
+import Test.QuickCheck             (Arbitrary (..), Fun, Property, (===), (==>))
 import Test.QuickCheck.Poly        (A, B, C)
 import Test.Tasty                  (TestTree, testGroup)
 import Test.Tasty.QuickCheck       (testProperty)
-import Util.Key                    (Key, keyToInt, incKey)
+import Util.Key                    (Key, incKey, keyToInt)
 
+import qualified Data.Foldable   as Foldable
+import qualified Data.List       as List
 import qualified Test.QuickCheck as QC
-import qualified Data.Foldable as Foldable
-import qualified Data.List     as List
 
 #if defined(STRICT)
 import           Data.HashMap.Strict (HashMap)
@@ -104,8 +102,8 @@ tests =
             (o,  EQ) -> compare x z === o
             (LT, LT) -> compare x z === LT
             (GT, GT) -> compare x z === GT
-            (LT, GT) -> property True -- ys greater than xs and zs.
-            (GT, LT) -> property True
+            (LT, GT) -> QC.property True -- ys greater than xs and zs.
+            (GT, LT) -> QC.property True
         , testProperty "compare antisymmetric" $
           \(x :: HMKI) y -> case (compare x y, compare y x) of
             (EQ, EQ) -> True
@@ -123,8 +121,8 @@ tests =
         \(x :: HMKI) -> x === read (show x)
       , testProperty "Functor" $
         \(x :: HMKI) (f :: Fun Int Int) ->
-          let y = fmap (apply f) x
-          in  toOrdMap y === fmap (apply f) (toOrdMap x)
+          let y = fmap (QC.applyFun f) x
+          in  toOrdMap y === fmap (QC.applyFun f) (toOrdMap x)
       , testProperty "Foldable" $
         \(x :: HMKI) ->
           let f = List.sort . Foldable.foldr (:) []
@@ -172,31 +170,31 @@ tests =
       in  toOrdMap y === M.delete k (toOrdMap x)
     , testProperty "insertWith" $
       \f k v (x :: HMKI) ->
-        let y = HM.insertWith (applyFun2 f) k v x
-        in  toOrdMap y === M.insertWith (applyFun2 f) k v (toOrdMap x)
+        let y = HM.insertWith (QC.applyFun2 f) k v x
+        in  toOrdMap y === M.insertWith (QC.applyFun2 f) k v (toOrdMap x)
     , testProperty "adjust" $
       \f k (x :: HMKI) ->
-        let y = HM.adjust (apply f) k x
-        in  toOrdMap y === M.adjust (apply f) k (toOrdMap x)
+        let y = HM.adjust (QC.applyFun f) k x
+        in  toOrdMap y === M.adjust (QC.applyFun f) k (toOrdMap x)
     , testProperty "update" $
       \f k (x :: HMKI) ->
-        let y = HM.update (apply f) k x
-        in  toOrdMap y === M.update (apply f) k (toOrdMap x)
+        let y = HM.update (QC.applyFun f) k x
+        in  toOrdMap y === M.update (QC.applyFun f) k (toOrdMap x)
     , testProperty "alter" $
       \f k (x :: HMKI) ->
-        let y = HM.alter (apply f) k x
-        in  toOrdMap y === M.alter (apply f) k (toOrdMap x)
+        let y = HM.alter (QC.applyFun f) k x
+        in  toOrdMap y === M.alter (QC.applyFun f) k (toOrdMap x)
     , testGroup "alterF"
       [ -- We choose the list functor here because we don't fuss with
         -- it in alterF rules and because it has a sufficiently interesting
         -- structure to have a good chance of breaking if something is wrong.
         testProperty "[]" $
         \(f :: Fun (Maybe A) [Maybe A]) k (x :: HMK A) ->
-          let ys = HM.alterF (apply f) k x
-          in  map toOrdMap ys === M.alterF (apply f) k (toOrdMap x)
+          let ys = HM.alterF (QC.applyFun f) k x
+          in  map toOrdMap ys === M.alterF (QC.applyFun f) k (toOrdMap x)
       , testProperty "adjust" $
         \f k (x :: HMKI) ->
-          let g = Identity . fmap (apply f)
+          let g = Identity . fmap (QC.applyFun f)
               y = HM.alterF g k x
           in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
       , testProperty "insert" $
@@ -206,7 +204,7 @@ tests =
           in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
       , testProperty "insertWith" $
         \f k v (x :: HMKI) ->
-          let g = Identity . Just . maybe v (apply f)
+          let g = Identity . Just . maybe v (QC.applyFun f)
               y = HM.alterF g k x
           in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
       , testProperty "delete" $
@@ -216,7 +214,7 @@ tests =
           in  fmap toOrdMap y === M.alterF f k (toOrdMap x)
       , testProperty "lookup" $
         \(f :: Fun (Maybe A) B) k (x :: HMK A) ->
-          let g = Const . apply f
+          let g = Const . QC.applyFun f
               y = HM.alterF g k x
           in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
       ]
@@ -238,12 +236,12 @@ tests =
       , testProperty "delete k m ⊆ m" $
         \(m :: HMKI) ->
           not (HM.null m) ==>
-          forAll (elements (HM.keys m)) $ \k ->
+          QC.forAll (QC.elements (HM.keys m)) $ \k ->
           HM.isSubmapOf (HM.delete k m) m
       , testProperty "m ⊈ delete k m " $
         \(m :: HMKI) ->
           not (HM.null m) ==>
-          forAll (elements (HM.keys m)) $ \k ->
+          QC.forAll (QC.elements (HM.keys m)) $ \k ->
           not (HM.isSubmapOf m (HM.delete k m))
       , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" $
         \k v (m :: HMKI) -> not (HM.member k m) ==> HM.isSubmapOf m (HM.insert k v m)
@@ -257,12 +255,12 @@ tests =
         in  toOrdMap z === M.union (toOrdMap x) (toOrdMap y)
     , testProperty "unionWith" $
       \f (x :: HMKI) y ->
-        let z = HM.unionWith (applyFun2 f) x y
-        in  toOrdMap z === M.unionWith (applyFun2 f) (toOrdMap x) (toOrdMap y)
+        let z = HM.unionWith (QC.applyFun2 f) x y
+        in  toOrdMap z === M.unionWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
     , testProperty "unionWithKey" $
       \f (x :: HMKI) y ->
-        let z = HM.unionWithKey (applyFun3 f) x y
-        in  toOrdMap z === M.unionWithKey (applyFun3 f) (toOrdMap x) (toOrdMap y)
+        let z = HM.unionWithKey (QC.applyFun3 f) x y
+        in  toOrdMap z === M.unionWithKey (QC.applyFun3 f) (toOrdMap x) (toOrdMap y)
     , testProperty "unions" $
       \(ms :: [HMKI]) -> toOrdMap (HM.unions ms) === M.unions (map toOrdMap ms)
     , testProperty "difference" $
@@ -270,7 +268,7 @@ tests =
         toOrdMap (HM.difference x y) === M.difference (toOrdMap x) (toOrdMap y)
     , testProperty "differenceWith" $
       \f (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.differenceWith (applyFun2 f) x y) === M.differenceWith (applyFun2 f) (toOrdMap x) (toOrdMap y)
+        toOrdMap (HM.differenceWith (QC.applyFun2 f) x y) === M.differenceWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
     , testGroup "intersection"
       [ testProperty "model" $
         \(x :: HMKI) (y :: HMKI) ->
@@ -281,13 +279,13 @@ tests =
       ]
     , testProperty "intersectionWith" $
       \(f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.intersectionWith (applyFun2 f) x y) === M.intersectionWith (applyFun2 f) (toOrdMap x) (toOrdMap y)
+        toOrdMap (HM.intersectionWith (QC.applyFun2 f) x y) === M.intersectionWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
     , testProperty "intersectionWithKey" $
       \(f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.intersectionWithKey (applyFun3 f) x y) === M.intersectionWithKey (applyFun3 f) (toOrdMap x) (toOrdMap y)
+        toOrdMap (HM.intersectionWithKey (QC.applyFun3 f) x y) === M.intersectionWithKey (QC.applyFun3 f) (toOrdMap x) (toOrdMap y)
     -- Transformations
     , testProperty "map" $
-      \(f :: Fun A B) (m :: HMK A) -> toOrdMap (HM.map (apply f) m) === M.map (apply f) (toOrdMap m) 
+      \(f :: Fun A B) (m :: HMK A) -> toOrdMap (HM.map (QC.applyFun f) m) === M.map (QC.applyFun f) (toOrdMap m)
     , testProperty "traverseWithKey" $ QC.mapSize (\s -> s `div` 8) $
       \(x :: HMKI) ->
         let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
@@ -329,16 +327,16 @@ tests =
     -- Filter
     , testProperty "filter" $
       \p (m :: HMKI) ->
-        toOrdMap (HM.filter (apply p) m) === M.filter (apply p) (toOrdMap m)
+        toOrdMap (HM.filter (QC.applyFun p) m) === M.filter (QC.applyFun p) (toOrdMap m)
     , testProperty "filterWithKey" $
       \p (m :: HMKI) ->
-        toOrdMap (HM.filterWithKey (applyFun2 p) m) === M.filterWithKey (applyFun2 p) (toOrdMap m)
+        toOrdMap (HM.filterWithKey (QC.applyFun2 p) m) === M.filterWithKey (QC.applyFun2 p) (toOrdMap m)
     , testProperty "mapMaybe" $
       \(f :: Fun A (Maybe B)) (m :: HMK A) ->
-        toOrdMap (HM.mapMaybe (apply f) m) === M.mapMaybe (apply f) (toOrdMap m)
+        toOrdMap (HM.mapMaybe (QC.applyFun f) m) === M.mapMaybe (QC.applyFun f) (toOrdMap m)
     , testProperty "mapMaybeWithKey" $
       \(f :: Fun (Key, A) (Maybe B)) (m :: HMK A) ->
-        toOrdMap (HM.mapMaybeWithKey (applyFun2 f) m) === M.mapMaybeWithKey (applyFun2 f) (toOrdMap m)
+        toOrdMap (HM.mapMaybeWithKey (QC.applyFun2 f) m) === M.mapMaybeWithKey (QC.applyFun2 f) (toOrdMap m)
     -- Conversions
     , testProperty "elems" $
       \(m :: HMKI) -> List.sort (HM.elems m) === List.sort (M.elems (toOrdMap m))
