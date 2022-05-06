@@ -1731,9 +1731,6 @@ map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = mapWithKey (const f)
 {-# INLINE map #-}
 
--- TODO: We should be able to use mutation to create the new
--- 'HashMap'.
-
 -- | \(O(n)\) Perform an 'Applicative' action for each key-value pair
 -- in a 'HashMap' and produce a 'HashMap' of all the results.
 --
