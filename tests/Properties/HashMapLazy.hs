@@ -287,28 +287,52 @@ tests =
         \k v (m :: HMKI) -> not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
       ]
     -- Combine
-    , testProperty "union" $
-      \(x :: HMKI) y ->
-        let z = HM.union x y
-        in  toOrdMap z === M.union (toOrdMap x) (toOrdMap y)
-    , testProperty "unionWith" $
-      \f (x :: HMKI) y ->
-        let z = HM.unionWith (QC.applyFun2 f) x y
-        in  toOrdMap z === M.unionWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
-    , testProperty "unionWithKey" $
-      \f (x :: HMKI) y ->
-        let z = HM.unionWithKey (QC.applyFun3 f) x y
-        in  toOrdMap z === M.unionWithKey (QC.applyFun3 f) (toOrdMap x) (toOrdMap y)
-    , testProperty "unions" $
-      \(ms :: [HMKI]) -> toOrdMap (HM.unions ms) === M.unions (map toOrdMap ms)
-    , testProperty "difference" $
-      \(x :: HMKI) (y :: HMKI) ->
-        toOrdMap (HM.difference x y) === M.difference (toOrdMap x) (toOrdMap y)
-    , testProperty "differenceWith" $
-      \f (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.differenceWith (QC.applyFun2 f) x y)
-        ===
-        M.differenceWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
+    , testGroup "union"
+      [ testProperty "model" $
+        \(x :: HMKI) y ->
+          let z = HM.union x y
+          in  toOrdMap z === M.union (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(x :: HMKI) y -> isValid (HM.union x y)
+      ]
+    , testGroup "unionWith"
+      [ testProperty "model" $
+        \f (x :: HMKI) y ->
+          let z = HM.unionWith (QC.applyFun2 f) x y
+          in  toOrdMap z === M.unionWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \f (x :: HMKI) y -> isValid (HM.unionWith (QC.applyFun2 f) x y)
+      ]
+    , testGroup "unionWithKey"
+      [ testProperty "model" $
+        \f (x :: HMKI) y ->
+          let z = HM.unionWithKey (QC.applyFun3 f) x y
+          in  toOrdMap z === M.unionWithKey (QC.applyFun3 f) (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \f (x :: HMKI) y -> isValid (HM.unionWithKey (QC.applyFun3 f) x y)
+      ]
+    , testGroup "unions"
+      [ testProperty "model" $
+        \(ms :: [HMKI]) -> toOrdMap (HM.unions ms) === M.unions (map toOrdMap ms)
+      , testProperty "valid" $
+        \(ms :: [HMKI]) -> isValid (HM.unions ms)
+      ]
+    , testGroup "difference"
+      [ testProperty "model" $
+        \(x :: HMKI) (y :: HMKI) ->
+          toOrdMap (HM.difference x y) === M.difference (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(x :: HMKI) (y :: HMKI) -> isValid (HM.difference x y)
+      ]
+    , testGroup "differenceWith"
+      [ testProperty "model" $
+        \f (x :: HMK A) (y :: HMK B) ->
+          toOrdMap (HM.differenceWith (QC.applyFun2 f) x y)
+          ===
+          M.differenceWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \f (x :: HMK A) (y :: HMK B) -> isValid (HM.differenceWith (QC.applyFun2 f) x y)
+      ]
     , testGroup "intersection"
       [ testProperty "model" $
         \(x :: HMKI) (y :: HMKI) ->
@@ -317,16 +341,26 @@ tests =
         \(x :: HMKI) (y :: HMKI) ->
           isValid (HM.intersection x y)
       ]
-    , testProperty "intersectionWith" $
-      \(f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.intersectionWith (QC.applyFun2 f) x y)
-        ===
-        M.intersectionWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
-    , testProperty "intersectionWithKey" $
-      \(f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.intersectionWithKey (QC.applyFun3 f) x y)
-        ===
-        M.intersectionWithKey (QC.applyFun3 f) (toOrdMap x) (toOrdMap y)
+    , testGroup "intersectionWith"
+      [ testProperty "model" $
+        \(f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
+          toOrdMap (HM.intersectionWith (QC.applyFun2 f) x y)
+          ===
+          M.intersectionWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
+          isValid (HM.intersectionWith (QC.applyFun2 f) x y)
+      ]
+    , testGroup "intersectionWithKey"
+      [ testProperty "model" $
+        \(f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
+          toOrdMap (HM.intersectionWithKey (QC.applyFun3 f) x y)
+          ===
+          M.intersectionWithKey (QC.applyFun3 f) (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
+          isValid (HM.intersectionWithKey (QC.applyFun3 f) x y)
+      ]
     -- Transformations
     , testProperty "map" $
       \(f :: Fun A B) (m :: HMK A) -> toOrdMap (HM.map (QC.applyFun f) m) === M.map (QC.applyFun f) (toOrdMap m)
