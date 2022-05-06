@@ -35,26 +35,6 @@ instance (Eq a, Hashable a, Arbitrary a) => Arbitrary (HashSet a) where
 -- * Properties
 
 ------------------------------------------------------------------------
--- ** Instances
-
-
-
-------------------------------------------------------------------------
--- ** Basic interface
-
-pSize :: [Key] -> Property
-pSize = Set.size `eq` HS.size
-
-pMember :: Key -> [Key] -> Property
-pMember k = Set.member k `eq` HS.member k
-
-pInsert :: Key -> [Key] -> Property
-pInsert a = Set.insert a `eq_` HS.insert a
-
-pDelete :: Key -> [Key] -> Property
-pDelete a = Set.delete a `eq_` HS.delete a
-
-------------------------------------------------------------------------
 -- ** Combine
 
 pUnion :: [Key] -> [Key] -> Property
@@ -162,10 +142,14 @@ tests = testGroup "Data.HashSet"
     ]
   -- Basic interface
   , testGroup "basic interface"
-    [ testProperty "size" pSize
-    , testProperty "member" pMember
-    , testProperty "insert" pInsert
-    , testProperty "delete" pDelete
+    [ testProperty "size" $
+      \(x :: HSK) -> HS.size x === List.length (HS.toList x)
+    , testProperty "member" $
+      \e (s :: HSK) -> HS.member e s === S.member e (toOrdSet s)
+    , testProperty "insert" $
+      \e (s :: HSK) -> toOrdSet (HS.insert e s) === S.insert e (toOrdSet s)
+    , testProperty "delete" $
+      \e (s :: HSK) -> toOrdSet (HS.delete e s) === S.delete e (toOrdSet s)
     ]
   -- Combine
   , testProperty "union" pUnion
