@@ -1,7 +1,10 @@
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE PatternSynonyms           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
+
+{-# OPTIONS_GHC -fno-warn-orphans            #-} -- because of Arbitrary (HashMap k v)
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-} -- https://github.com/nick8325/quickcheck/issues/344
 
 -- | Tests for "Data.HashMap.Lazy" and "Data.HashMap.Strict".  We test functions by
 -- comparing them to @Map@ from @containers@. @Map@ is referred to as the /model/
@@ -22,7 +25,8 @@ import Data.Functor.Identity       (Identity (..))
 import Data.Hashable               (Hashable (hashWithSalt))
 import Data.HashMap.Internal.Debug (Validity (..), valid)
 import Data.Ord                    (comparing)
-import Test.QuickCheck             (Arbitrary (..), Fun, Property, (===), (==>))
+import Test.QuickCheck             (Arbitrary (..), Fun, Property, pattern Fn,
+                                    pattern Fn2, pattern Fn3, (===), (==>))
 import Test.QuickCheck.Poly        (A, B, C)
 import Test.Tasty                  (TestTree, testGroup)
 import Test.Tasty.QuickCheck       (testProperty)
@@ -119,9 +123,8 @@ tests =
       , testProperty "Read/Show" $
         \(x :: HMKI) -> x === read (show x)
       , testProperty "Functor" $
-        \(x :: HMKI) (f :: Fun Int Int) ->
-          let y = fmap (QC.applyFun f) x
-          in  toOrdMap y === fmap (QC.applyFun f) (toOrdMap x)
+        \(x :: HMKI) (Fn f :: Fun Int Int) ->
+          toOrdMap (fmap f x) === fmap f (toOrdMap x)
       , testProperty "Foldable" $
         \(x :: HMKI) ->
           let f = List.sort . Foldable.foldr (:) []
@@ -135,7 +138,9 @@ tests =
             bifoldr (:) (:) [] m === concatMap (\(k, v) -> [k, v]) (HM.toList m)
         , testProperty "bifoldl" $
           \(m :: HMK Key) ->
-            bifoldl (flip (:)) (flip (:)) [] m === reverse (concatMap (\(k, v) -> [k, v]) (HM.toList m))
+            bifoldl (flip (:)) (flip (:)) [] m
+            ===
+            reverse (concatMap (\(k, v) -> [k, v]) (HM.toList m))
         ]
       , testProperty "Hashable" $
         \(xs :: [(Key, Int)]) is salt ->
@@ -150,6 +155,15 @@ tests =
               y = HM.fromList ys
           in  x == y ==> hashWithSalt salt x === hashWithSalt salt y
       ]
+    -- Construction
+    , testGroup "empty"
+      [ testProperty "valid" $ QC.once $
+        isValid (HM.empty :: HMKI)
+      ]
+    , testGroup "singleton"
+      [ testProperty "valid" $
+        \(k :: Key) (v :: A) -> isValid (HM.singleton k v)
+      ]
     -- Basic interface
     , testProperty "size" $
       \(x :: HMKI) -> HM.size x === M.size (toOrdMap x)
@@ -159,63 +173,83 @@ tests =
       \(k :: Key) (m :: HMKI) -> HM.lookup k m === M.lookup k (toOrdMap m)
     , testProperty "!?" $
       \(k :: Key) (m :: HMKI) -> m HM.!? k === M.lookup k (toOrdMap m)
-    , testProperty "insert" $
-      \(k :: Key) (v :: Int) x ->
-        let y = HM.insert k v x
-        in  toOrdMap y === M.insert k v (toOrdMap x)
-    , testProperty "delete" $
-      \(k :: Key) (x :: HMKI) ->
-      let y = HM.delete k x
-      in  toOrdMap y === M.delete k (toOrdMap x)
-    , testProperty "insertWith" $
-      \f k v (x :: HMKI) ->
-        let y = HM.insertWith (QC.applyFun2 f) k v x
-        in  toOrdMap y === M.insertWith (QC.applyFun2 f) k v (toOrdMap x)
-    , testProperty "adjust" $
-      \f k (x :: HMKI) ->
-        let y = HM.adjust (QC.applyFun f) k x
-        in  toOrdMap y === M.adjust (QC.applyFun f) k (toOrdMap x)
-    , testProperty "update" $
-      \f k (x :: HMKI) ->
-        let y = HM.update (QC.applyFun f) k x
-        in  toOrdMap y === M.update (QC.applyFun f) k (toOrdMap x)
-    , testProperty "alter" $
-      \f k (x :: HMKI) ->
-        let y = HM.alter (QC.applyFun f) k x
-        in  toOrdMap y === M.alter (QC.applyFun f) k (toOrdMap x)
+    , testGroup "insert"
+      [ testProperty "model" $
+        \(k :: Key) (v :: Int) x ->
+          let y = HM.insert k v x
+          in  toOrdMap y === M.insert k v (toOrdMap x)
+      , testProperty "valid" $
+        \(k :: Key) (v :: Int) x -> isValid (HM.insert k v x)
+      ]
+    , testGroup "insertWith"
+      [ testProperty "insertWith" $
+        \(Fn2 f) k v (x :: HMKI) ->
+          toOrdMap (HM.insertWith f k v x) === M.insertWith f k v (toOrdMap x)
+      , testProperty "valid" $
+        \(Fn2 f) k v (x :: HMKI) -> isValid (HM.insertWith f k v x)
+      ]
+    , testGroup "delete"
+      [ testProperty "model" $
+        \(k :: Key) (x :: HMKI) ->
+          let y = HM.delete k x
+          in  toOrdMap y === M.delete k (toOrdMap x)
+      , testProperty "valid" $
+        \(k :: Key) (x :: HMKI) -> isValid (HM.delete k x)
+      ]
+    , testGroup "adjust" 
+      [ testProperty "model" $
+        \(Fn f) k (x :: HMKI) ->
+          toOrdMap (HM.adjust f k x) === M.adjust f k (toOrdMap x)
+      , testProperty "valid" $
+        \(Fn f) k (x :: HMKI) -> isValid (HM.adjust f k x)
+      ]
+    , testGroup "update" 
+      [ testProperty "model" $
+        \(Fn f) k (x :: HMKI) ->
+          toOrdMap (HM.update f k x) === M.update f k (toOrdMap x)
+      , testProperty "valid" $
+        \(Fn f) k (x :: HMKI) -> isValid (HM.update f k x)
+      ]
+    , testGroup "alter"
+      [ testProperty "model" $
+        \(Fn f) k (x :: HMKI) ->
+          toOrdMap (HM.alter f k x) === M.alter f k (toOrdMap x)
+      , testProperty "valid" $
+        \(Fn f) k (x :: HMKI) -> isValid (HM.alter f k x)
+      ]
     , testGroup "alterF"
-      [ -- We choose the list functor here because we don't fuss with
-        -- it in alterF rules and because it has a sufficiently interesting
-        -- structure to have a good chance of breaking if something is wrong.
-        testProperty "[]" $
-        \(f :: Fun (Maybe A) [Maybe A]) k (x :: HMK A) ->
-          let ys = HM.alterF (QC.applyFun f) k x
-          in  map toOrdMap ys === M.alterF (QC.applyFun f) k (toOrdMap x)
-      , testProperty "adjust" $
-        \f k (x :: HMKI) ->
-          let g = Identity . fmap (QC.applyFun f)
-              y = HM.alterF g k x
-          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
-      , testProperty "insert" $
-        \v k (x :: HMKI) ->
-          let g = const . Identity . Just $ v
-              y = HM.alterF g k x
-          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
-      , testProperty "insertWith" $
-        \f k v (x :: HMKI) ->
-          let g = Identity . Just . maybe v (QC.applyFun f)
-              y = HM.alterF g k x
-          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
-      , testProperty "delete" $
-        \k (x :: HMKI) ->
-          let f = const (Identity Nothing)
-              y = HM.alterF f k x
-          in  fmap toOrdMap y === M.alterF f k (toOrdMap x)
-      , testProperty "lookup" $
-        \(f :: Fun (Maybe A) B) k (x :: HMK A) ->
-          let g = Const . QC.applyFun f
-              y = HM.alterF g k x
-          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+      [ testGroup "model"
+        [ -- We choose the list functor here because we don't fuss with
+          -- it in alterF rules and because it has a sufficiently interesting
+          -- structure to have a good chance of breaking if something is wrong.
+          testProperty "[]" $
+          \(Fn f :: Fun (Maybe A) [Maybe A]) k (x :: HMK A) ->
+            map toOrdMap (HM.alterF f k x) === M.alterF f k (toOrdMap x)
+        , testProperty "adjust" $
+          \(Fn f) k (x :: HMKI) ->
+            let g = Identity . fmap f
+            in  fmap toOrdMap (HM.alterF g k x) === M.alterF g k (toOrdMap x)
+        , testProperty "insert" $
+          \v k (x :: HMKI) ->
+            let g = const . Identity . Just $ v
+            in  fmap toOrdMap (HM.alterF g k x) === M.alterF g k (toOrdMap x)
+        , testProperty "insertWith" $
+          \(Fn f) k v (x :: HMKI) ->
+            let g = Identity . Just . maybe v f
+            in  fmap toOrdMap (HM.alterF g k x) === M.alterF g k (toOrdMap x)
+        , testProperty "delete" $
+          \k (x :: HMKI) ->
+            let f = const (Identity Nothing)
+            in  fmap toOrdMap (HM.alterF f k x) === M.alterF f k (toOrdMap x)
+        , testProperty "lookup" $
+          \(Fn f :: Fun (Maybe A) B) k (x :: HMK A) ->
+            let g = Const . f
+            in  fmap toOrdMap (HM.alterF g k x) === M.alterF g k (toOrdMap x)
+        ]
+      , testProperty "valid" $
+        \(Fn f :: Fun (Maybe A) [Maybe A]) k (x :: HMK A) ->
+          let ys = HM.alterF f k x
+          in  map valid ys === (Valid <$ ys)
       ]
     , testGroup "isSubmapOf"
       [ testProperty "model" $
@@ -248,28 +282,48 @@ tests =
         \k v (m :: HMKI) -> not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
       ]
     -- Combine
-    , testProperty "union" $
-      \(x :: HMKI) y ->
-        let z = HM.union x y
-        in  toOrdMap z === M.union (toOrdMap x) (toOrdMap y)
-    , testProperty "unionWith" $
-      \f (x :: HMKI) y ->
-        let z = HM.unionWith (QC.applyFun2 f) x y
-        in  toOrdMap z === M.unionWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
-    , testProperty "unionWithKey" $
-      \f (x :: HMKI) y ->
-        let z = HM.unionWithKey (QC.applyFun3 f) x y
-        in  toOrdMap z === M.unionWithKey (QC.applyFun3 f) (toOrdMap x) (toOrdMap y)
-    , testProperty "unions" $
-      \(ms :: [HMKI]) -> toOrdMap (HM.unions ms) === M.unions (map toOrdMap ms)
-    , testProperty "difference" $
-      \(x :: HMKI) (y :: HMKI) ->
-        toOrdMap (HM.difference x y) === M.difference (toOrdMap x) (toOrdMap y)
-    , testProperty "differenceWith" $
-      \f (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.differenceWith (QC.applyFun2 f) x y)
-        ===
-        M.differenceWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
+    , testGroup "union"
+      [ testProperty "model" $
+        \(x :: HMKI) y ->
+          let z = HM.union x y
+          in  toOrdMap z === M.union (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(x :: HMKI) y -> isValid (HM.union x y)
+      ]
+    , testGroup "unionWith"
+      [ testProperty "model" $
+        \(Fn2 f) (x :: HMKI) y ->
+          toOrdMap (HM.unionWith f x y) === M.unionWith f (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(Fn2 f) (x :: HMKI) y -> isValid (HM.unionWith f x y)
+      ]
+    , testGroup "unionWithKey"
+      [ testProperty "model" $
+        \(Fn3 f) (x :: HMKI) y ->
+          toOrdMap (HM.unionWithKey f x y) === M.unionWithKey f (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(Fn3 f) (x :: HMKI) y -> isValid (HM.unionWithKey f x y)
+      ]
+    , testGroup "unions"
+      [ testProperty "model" $
+        \(ms :: [HMKI]) -> toOrdMap (HM.unions ms) === M.unions (map toOrdMap ms)
+      , testProperty "valid" $
+        \(ms :: [HMKI]) -> isValid (HM.unions ms)
+      ]
+    , testGroup "difference"
+      [ testProperty "model" $
+        \(x :: HMKI) (y :: HMKI) ->
+          toOrdMap (HM.difference x y) === M.difference (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(x :: HMKI) (y :: HMKI) -> isValid (HM.difference x y)
+      ]
+    , testGroup "differenceWith"
+      [ testProperty "model" $
+        \(Fn2 f) (x :: HMK A) (y :: HMK B) ->
+          toOrdMap (HM.differenceWith f x y) === M.differenceWith f (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(Fn2 f) (x :: HMK A) (y :: HMK B) -> isValid (HM.differenceWith f x y)
+      ]
     , testGroup "intersection"
       [ testProperty "model" $
         \(x :: HMKI) (y :: HMKI) ->
@@ -278,26 +332,53 @@ tests =
         \(x :: HMKI) (y :: HMKI) ->
           isValid (HM.intersection x y)
       ]
-    , testProperty "intersectionWith" $
-      \(f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.intersectionWith (QC.applyFun2 f) x y)
-        ===
-        M.intersectionWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
-    , testProperty "intersectionWithKey" $
-      \(f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.intersectionWithKey (QC.applyFun3 f) x y)
-        ===
-        M.intersectionWithKey (QC.applyFun3 f) (toOrdMap x) (toOrdMap y)
+    , testGroup "intersectionWith"
+      [ testProperty "model" $
+        \(Fn2 f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
+          toOrdMap (HM.intersectionWith f x y) === M.intersectionWith f (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(Fn2 f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
+          isValid (HM.intersectionWith f x y)
+      ]
+    , testGroup "intersectionWithKey"
+      [ testProperty "model" $
+        \(Fn3 f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
+          toOrdMap (HM.intersectionWithKey f x y)
+          ===
+          M.intersectionWithKey f (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(Fn3 f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
+          isValid (HM.intersectionWithKey f x y)
+      ]
+    , testGroup "compose"
+      [ testProperty "valid" $
+        \(x :: HMK Int) (y :: HMK Key) -> isValid (HM.compose x y)
+      ]
     -- Transformations
-    , testProperty "map" $
-      \(f :: Fun A B) (m :: HMK A) -> toOrdMap (HM.map (QC.applyFun f) m) === M.map (QC.applyFun f) (toOrdMap m)
-    , testProperty "traverseWithKey" $ QC.mapSize (\s -> s `div` 8) $
-      \(x :: HMKI) ->
-        let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
-            y = HM.traverseWithKey f x
-        in  List.sort (fmap toOrdMap y) === List.sort (M.traverseWithKey f (toOrdMap x))
-    , testProperty "mapKeys" $
-      \(m :: HMKI) -> toOrdMap (HM.mapKeys incKey m) === M.mapKeys incKey (toOrdMap m)
+    , testGroup "map"
+      [ testProperty "model" $
+        \(Fn f :: Fun A B) (m :: HMK A) -> toOrdMap (HM.map f m) === M.map f (toOrdMap m)
+      , testProperty "valid" $
+        \(Fn f :: Fun A B) (m :: HMK A) -> isValid (HM.map f m)
+      ]
+    , testGroup "traverseWithKey"
+      [ testProperty "model" $ QC.mapSize (\s -> s `div` 8) $
+        \(x :: HMKI) ->
+          let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
+              ys = HM.traverseWithKey f x
+          in  List.sort (fmap toOrdMap ys) === List.sort (M.traverseWithKey f (toOrdMap x))
+      , testProperty "valid" $ QC.mapSize (\s -> s `div` 8) $
+        \(x :: HMKI) ->
+          let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
+              ys = HM.traverseWithKey f x
+          in  fmap valid ys === (Valid <$ ys)
+      ]
+    , testGroup "mapKeys"
+      [ testProperty "model" $
+        \(m :: HMKI) -> toOrdMap (HM.mapKeys incKey m) === M.mapKeys incKey (toOrdMap m)
+      , testProperty "valid" $
+        \(Fn f :: Fun Key Key) (m :: HMKI) -> isValid (HM.mapKeys f m)
+      ]
     -- Folds
     , testProperty "foldr" $
       \(m :: HMKI) -> List.sort (HM.foldr (:) [] m) === List.sort (M.foldr (:) [] (toOrdMap m))
@@ -330,18 +411,34 @@ tests =
         let f k v = [(k, v)]
         in  sortByKey (HM.foldMapWithKey f m) === sortByKey (M.foldMapWithKey f (toOrdMap m))
     -- Filter
-    , testProperty "filter" $
-      \p (m :: HMKI) ->
-        toOrdMap (HM.filter (QC.applyFun p) m) === M.filter (QC.applyFun p) (toOrdMap m)
-    , testProperty "filterWithKey" $
-      \p (m :: HMKI) ->
-        toOrdMap (HM.filterWithKey (QC.applyFun2 p) m) === M.filterWithKey (QC.applyFun2 p) (toOrdMap m)
-    , testProperty "mapMaybe" $
-      \(f :: Fun A (Maybe B)) (m :: HMK A) ->
-        toOrdMap (HM.mapMaybe (QC.applyFun f) m) === M.mapMaybe (QC.applyFun f) (toOrdMap m)
-    , testProperty "mapMaybeWithKey" $
-      \(f :: Fun (Key, A) (Maybe B)) (m :: HMK A) ->
-        toOrdMap (HM.mapMaybeWithKey (QC.applyFun2 f) m) === M.mapMaybeWithKey (QC.applyFun2 f) (toOrdMap m)
+    , testGroup "filter"
+      [ testProperty "model" $
+        \(Fn p) (m :: HMKI) -> toOrdMap (HM.filter p m) === M.filter p (toOrdMap m)
+      , testProperty "valid" $
+        \(Fn p) (m :: HMKI) -> isValid (HM.filter p m)
+      ]
+    , testGroup "filterWithKey"
+      [ testProperty "model" $
+        \(Fn2 p) (m :: HMKI) ->
+          toOrdMap (HM.filterWithKey p m) === M.filterWithKey p (toOrdMap m)
+      , testProperty "valid" $
+        \(Fn2 p) (m :: HMKI) -> isValid (HM.filterWithKey p m)
+      ]
+    , testGroup "mapMaybe"
+      [ testProperty "model" $
+        \(Fn f :: Fun A (Maybe B)) (m :: HMK A) ->
+          toOrdMap (HM.mapMaybe f m) === M.mapMaybe f (toOrdMap m)
+      , testProperty "valid" $
+        \(Fn f :: Fun A (Maybe B)) (m :: HMK A) -> isValid (HM.mapMaybe f m)
+      ]
+    , testGroup "mapMaybeWithKey"
+      [ testProperty "model" $
+        \(Fn2 f :: Fun (Key, A) (Maybe B)) (m :: HMK A) ->
+          toOrdMap (HM.mapMaybeWithKey f m) === M.mapMaybeWithKey f (toOrdMap m)
+      , testProperty "valid" $
+        \(Fn2 f :: Fun (Key, A) (Maybe B)) (m :: HMK A) ->
+          isValid (HM.mapMaybeWithKey f m)
+      ]
     -- Conversions
     , testProperty "elems" $
       \(m :: HMKI) -> List.sort (HM.elems m) === List.sort (M.elems (toOrdMap m))
@@ -353,15 +450,23 @@ tests =
       , testProperty "valid" $
         \(kvs :: [(Key, Int)]) -> isValid (HM.fromList kvs)
       ]
-    , testProperty "fromListWith" $
-      \(kvs :: [(Key, Int)]) ->
-        let kvsM = map (fmap Leaf) kvs
-        in  toOrdMap (HM.fromListWith Op kvsM) === M.fromListWith Op kvsM
-    , testProperty "fromListWithKey" $
-      \(kvs :: [(Key, Int)]) ->
-        let kvsM = fmap (\(k,v) -> (Leaf (keyToInt k), Leaf v)) kvs
-            combine k v1 v2 = Op k (Op v1 v2)
-        in  toOrdMap (HM.fromListWithKey combine kvsM) === M.fromListWithKey combine kvsM
+    , testGroup "fromListWith"
+      [ testProperty "model" $
+        \(kvs :: [(Key, Int)]) ->
+          let kvsM = map (fmap Leaf) kvs
+          in  toOrdMap (HM.fromListWith Op kvsM) === M.fromListWith Op kvsM
+      , testProperty "valid" $
+        \(Fn2 f) (kvs :: [(Key, A)]) -> isValid (HM.fromListWith f kvs)
+      ]
+    , testGroup "fromListWithKey"
+      [ testProperty "model" $
+        \(kvs :: [(Key, Int)]) ->
+          let kvsM = fmap (\(k,v) -> (Leaf (keyToInt k), Leaf v)) kvs
+              combine k v1 v2 = Op k (Op v1 v2)
+          in  toOrdMap (HM.fromListWithKey combine kvsM) === M.fromListWithKey combine kvsM
+      , testProperty "valid" $
+        \(Fn3 f) (kvs :: [(Key, A)]) -> isValid (HM.fromListWithKey f kvs)
+      ]
     , testProperty "toList" $
       \(m :: HMKI) -> List.sort (HM.toList m) === List.sort (M.toList (toOrdMap m))
     ]
