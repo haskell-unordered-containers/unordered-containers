@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeApplications           #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
 
--- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
+-- | Tests for "Data.HashMap.Lazy" and "Data.HashMap.Strict".  We test functions by
 -- comparing them to @Map@ from @containers@.
 
 #if defined(STRICT)
