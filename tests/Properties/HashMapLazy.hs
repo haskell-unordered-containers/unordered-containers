@@ -265,6 +265,26 @@ tests =
         in  toOrdMap z === M.unionWithKey (applyFun3 f) (toOrdMap x) (toOrdMap y)
     , testProperty "unions" $
       \(ms :: [HMKI]) -> toOrdMap (HM.unions ms) === M.unions (map toOrdMap ms)
+    , testProperty "difference" $
+      \(x :: HMKI) (y :: HMKI) ->
+        toOrdMap (HM.difference x y) === M.difference (toOrdMap x) (toOrdMap y)
+    , testProperty "differenceWith" $
+      \f (x :: HMK A) (y :: HMK B) ->
+        toOrdMap (HM.differenceWith (applyFun2 f) x y) === M.differenceWith (applyFun2 f) (toOrdMap x) (toOrdMap y)
+    , testGroup "intersection"
+      [ testProperty "model" $
+        \(x :: HMKI) (y :: HMKI) ->
+          toOrdMap (HM.intersection x y) === M.intersection (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(x :: HMKI) (y :: HMKI) ->
+          isValid (HM.intersection x y)
+      ]
+    , testProperty "intersectionWith" $
+      \(f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
+        toOrdMap (HM.intersectionWith (applyFun2 f) x y) === M.intersectionWith (applyFun2 f) (toOrdMap x) (toOrdMap y)
+    , testProperty "intersectionWithKey" $
+      \(f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
+        toOrdMap (HM.intersectionWithKey (applyFun3 f) x y) === M.intersectionWithKey (applyFun3 f) (toOrdMap x) (toOrdMap y)
     -- Transformations
     , testProperty "map" $
       \(f :: Fun A B) (m :: HMK A) -> toOrdMap (HM.map (apply f) m) === M.map (apply f) (toOrdMap m) 
@@ -306,26 +326,6 @@ tests =
       \(m :: HMKI) ->
         let f k v = [(k, v)]
         in  sortByKey (HM.foldMapWithKey f m) === sortByKey (M.foldMapWithKey f (toOrdMap m))
-    , testProperty "difference" $
-      \(x :: HMKI) (y :: HMKI) ->
-        toOrdMap (HM.difference x y) === M.difference (toOrdMap x) (toOrdMap y)
-    , testProperty "differenceWith" $
-      \f (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.differenceWith (applyFun2 f) x y) === M.differenceWith (applyFun2 f) (toOrdMap x) (toOrdMap y)
-    , testGroup "intersection"
-      [ testProperty "model" $
-        \(x :: HMKI) (y :: HMKI) ->
-          toOrdMap (HM.intersection x y) === M.intersection (toOrdMap x) (toOrdMap y)
-      , testProperty "valid" $
-        \(x :: HMKI) (y :: HMKI) ->
-          isValid (HM.intersection x y)
-      ]
-    , testProperty "intersectionWith" $
-      \(f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.intersectionWith (applyFun2 f) x y) === M.intersectionWith (applyFun2 f) (toOrdMap x) (toOrdMap y)
-    , testProperty "intersectionWithKey" $
-      \(f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.intersectionWithKey (applyFun3 f) x y) === M.intersectionWithKey (applyFun3 f) (toOrdMap x) (toOrdMap y)
     -- Filter
     , testProperty "filter" $
       \p (m :: HMKI) ->
