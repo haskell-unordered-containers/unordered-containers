@@ -1,10 +1,11 @@
-{-# LANGUAGE CPP                        #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE CPP                       #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- because of Arbitrary (HashMap k v)
 
--- | Tests for the 'Data.HashMap.Lazy' module.  We test functions by
--- comparing them to @Map@ from @containers@.
+-- | Tests for "Data.HashMap.Lazy" and "Data.HashMap.Strict".  We test functions by
+-- comparing them to @Map@ from @containers@. @Map@ is referred to as the /model/
+-- for 'HashMap'
 
 #if defined(STRICT)
 #define MODULE_NAME Properties.HashMapStrict
@@ -15,23 +16,21 @@
 module MODULE_NAME (tests) where
 
 import Control.Applicative         (Const (..))
-import Control.Monad               (guard)
 import Data.Bifoldable
 import Data.Function               (on)
 import Data.Functor.Identity       (Identity (..))
 import Data.Hashable               (Hashable (hashWithSalt))
 import Data.HashMap.Internal.Debug (Validity (..), valid)
 import Data.Ord                    (comparing)
-import Test.QuickCheck             (Arbitrary (..), Property, elements, forAll,
-                                    property, (===), (==>))
-import Test.QuickCheck.Function    (Fun, apply)
-import Test.QuickCheck.Poly        (A, B)
+import Test.QuickCheck             (Arbitrary (..), Fun, Property, (===), (==>))
+import Test.QuickCheck.Poly        (A, B, C)
 import Test.Tasty                  (TestTree, testGroup)
 import Test.Tasty.QuickCheck       (testProperty)
-import Util.Key                    (Key, keyToInt)
+import Util.Key                    (Key, incKey, keyToInt)
 
-import qualified Data.Foldable as Foldable
-import qualified Data.List     as List
+import qualified Data.Foldable   as Foldable
+import qualified Data.List       as List
+import qualified Test.QuickCheck as QC
 
 #if defined(STRICT)
 import           Data.HashMap.Strict (HashMap)
@@ -48,367 +47,19 @@ instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v)
   shrink = fmap HM.fromList . shrink . HM.toList
 
 ------------------------------------------------------------------------
--- * Properties
+-- Helpers
 
-------------------------------------------------------------------------
--- ** Instances
+type HMK  = HashMap Key
+type HMKI = HMK Int
 
-pEq :: [(Key, Int)] -> [(Key, Int)] -> Property
-pEq xs = (M.fromList xs ==) `eq` (HM.fromList xs ==)
+sortByKey :: Ord k => [(k, v)] -> [(k, v)]
+sortByKey = List.sortBy (compare `on` fst)
 
-pNeq :: [(Key, Int)] -> [(Key, Int)] -> Property
-pNeq xs = (M.fromList xs /=) `eq` (HM.fromList xs /=)
+toOrdMap :: Ord k => HashMap k v -> M.Map k v
+toOrdMap = M.fromList . HM.toList
 
--- We cannot compare to `Data.Map` as ordering is different.
-pOrd1 :: [(Key, Int)] -> Property
-pOrd1 xs = compare x x === EQ
-  where
-    x = HM.fromList xs
-
-pOrd2 :: [(Key, Int)] -> [(Key, Int)] -> [(Key, Int)] -> Property
-pOrd2 xs ys zs = case (compare x y, compare y z) of
-    (EQ, o)  -> compare x z === o
-    (o,  EQ) -> compare x z === o
-    (LT, LT) -> compare x z === LT
-    (GT, GT) -> compare x z === GT
-    (LT, GT) -> property True -- ys greater than xs and zs.
-    (GT, LT) -> property True
-  where
-    x = HM.fromList xs
-    y = HM.fromList ys
-    z = HM.fromList zs
-
-pOrd3 :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pOrd3 xs ys = case (compare x y, compare y x) of
-    (EQ, EQ) -> True
-    (LT, GT) -> True
-    (GT, LT) -> True
-    _        -> False
-  where
-    x = HM.fromList xs
-    y = HM.fromList ys
-
-pOrdEq :: [(Key, Int)] -> [(Key, Int)] -> Bool
-pOrdEq xs ys = case (compare x y, x == y) of
-    (EQ, True)  -> True
-    (LT, False) -> True
-    (GT, False) -> True
-    _           -> False
-  where
-    x = HM.fromList xs
-    y = HM.fromList ys
-
-pReadShow :: [(Key, Int)] -> Property
-pReadShow xs = M.fromList xs === read (show (M.fromList xs))
-
-pFunctor :: [(Key, Int)] -> Property
-pFunctor = fmap (+ 1) `eq_` fmap (+ 1)
-
-pFoldable :: [(Int, Int)] -> Property
-pFoldable = (List.sort . Foldable.foldr (:) []) `eq`
-            (List.sort . Foldable.foldr (:) [])
-
-pHashable :: [(Key, Int)] -> [Int] -> Int -> Property
-pHashable xs is salt =
-    x == y ==> hashWithSalt salt x === hashWithSalt salt y
-  where
-    xs' = List.nubBy (\(k,_) (k',_) -> k == k') xs
-    ys = shuffle is xs'
-    x = HM.fromList xs'
-    y = HM.fromList ys
-    -- Shuffle the list using indexes in the second
-    shuffle :: [Int] -> [a] -> [a]
-    shuffle idxs = List.map snd
-                 . List.sortBy (comparing fst)
-                 . List.zip (idxs ++ [List.maximum (0:is) + 1 ..])
-
-------------------------------------------------------------------------
--- ** Basic interface
-
-pSize :: [(Key, Int)] -> Property
-pSize = M.size `eq` HM.size
-
-pMember :: Key -> [(Key, Int)] -> Property
-pMember k = M.member k `eq` HM.member k
-
-pLookup :: Key -> [(Key, Int)] -> Property
-pLookup k = M.lookup k `eq` HM.lookup k
-
-pLookupOperator :: Key -> [(Key, Int)] -> Property
-pLookupOperator k = M.lookup k `eq` (HM.!? k)
-
-pInsert :: Key -> Int -> [(Key, Int)] -> Property
-pInsert k v = M.insert k v `eq_` HM.insert k v
-
-pDelete :: Key -> [(Key, Int)] -> Property
-pDelete k = M.delete k `eq_` HM.delete k
-
-newtype AlwaysCollide = AC Int
-    deriving (Arbitrary, Eq, Ord, Show)
-
-instance Hashable AlwaysCollide where
-    hashWithSalt _ _ = 1
-
--- White-box test that tests the case of deleting one of two keys from
--- a map, where the keys' hash values collide.
-pDeleteCollision :: AlwaysCollide -> AlwaysCollide -> AlwaysCollide -> Int
-                 -> Property
-pDeleteCollision k1 k2 k3 idx = (k1 /= k2) && (k2 /= k3) && (k1 /= k3) ==>
-                                HM.member toKeep $ HM.delete toDelete $
-                                HM.fromList [(k1, 1 :: Int), (k2, 2), (k3, 3)]
-  where
-    which = idx `mod` 3
-    toDelete
-        | which == 0 = k1
-        | which == 1 = k2
-        | which == 2 = k3
-        | otherwise = error "Impossible"
-    toKeep
-        | which == 0 = k2
-        | which == 1 = k3
-        | which == 2 = k1
-        | otherwise = error "Impossible"
-
-pInsertWith :: Key -> [(Key, Int)] -> Property
-pInsertWith k = M.insertWith (+) k 1 `eq_` HM.insertWith (+) k 1
-
-pAdjust :: Key -> [(Key, Int)] -> Property
-pAdjust k = M.adjust succ k `eq_` HM.adjust succ k
-
-pUpdateAdjust :: Key -> [(Key, Int)] -> Property
-pUpdateAdjust k = M.update (Just . succ) k `eq_` HM.update (Just . succ) k
-
-pUpdateDelete :: Key -> [(Key, Int)] -> Property
-pUpdateDelete k = M.update (const Nothing) k `eq_` HM.update (const Nothing) k
-
-pAlterAdjust :: Key -> [(Key, Int)] -> Property
-pAlterAdjust k = M.alter (fmap succ) k `eq_` HM.alter (fmap succ) k
-
-pAlterInsert :: Key -> [(Key, Int)] -> Property
-pAlterInsert k = M.alter (const $ Just 3) k `eq_` HM.alter (const $ Just 3) k
-
-pAlterDelete :: Key -> [(Key, Int)] -> Property
-pAlterDelete k = M.alter (const Nothing) k `eq_` HM.alter (const Nothing) k
-
-
--- We choose the list functor here because we don't fuss with
--- it in alterF rules and because it has a sufficiently interesting
--- structure to have a good chance of breaking if something is wrong.
-pAlterF :: Key -> Fun (Maybe A) [Maybe A] -> [(Key, A)] -> Property
-pAlterF k f xs =
-  fmap M.toAscList (M.alterF (apply f) k (M.fromList xs))
-  ===
-  fmap toAscList (HM.alterF (apply f) k (HM.fromList xs))
-
-pAlterFAdjust :: Key -> [(Key, Int)] -> Property
-pAlterFAdjust k =
-  runIdentity . M.alterF (Identity . fmap succ) k `eq_`
-  runIdentity . HM.alterF (Identity . fmap succ) k
-
-pAlterFInsert :: Key -> [(Key, Int)] -> Property
-pAlterFInsert k =
-  runIdentity . M.alterF (const . Identity . Just $ 3) k `eq_`
-  runIdentity . HM.alterF (const . Identity . Just $ 3) k
-
-pAlterFInsertWith :: Key -> Fun Int Int -> [(Key, Int)] -> Property
-pAlterFInsertWith k f =
-  runIdentity . M.alterF (Identity . Just . maybe 3 (apply f)) k `eq_`
-  runIdentity . HM.alterF (Identity . Just . maybe 3 (apply f)) k
-
-pAlterFDelete :: Key -> [(Key, Int)] -> Property
-pAlterFDelete k =
-  runIdentity . M.alterF (const (Identity Nothing)) k `eq_`
-  runIdentity . HM.alterF (const (Identity Nothing)) k
-
-pAlterFLookup :: Key
-              -> Fun (Maybe A) B
-              -> [(Key, A)] -> Property
-pAlterFLookup k f =
-  getConst . M.alterF (Const . apply f :: Maybe A -> Const B (Maybe A)) k
-  `eq`
-  getConst . HM.alterF (Const . apply f) k
-
-pSubmap :: [(Key, Int)] -> [(Key, Int)] -> Property
-pSubmap xs ys = M.isSubmapOf (M.fromList xs) (M.fromList ys) ===
-                HM.isSubmapOf (HM.fromList xs) (HM.fromList ys)
-
-pSubmapReflexive :: HashMap Key Int -> Bool
-pSubmapReflexive m = HM.isSubmapOf m m
-
-pSubmapUnion :: HashMap Key Int -> HashMap Key Int -> Bool
-pSubmapUnion m1 m2 = HM.isSubmapOf m1 (HM.union m1 m2)
-
-pNotSubmapUnion :: HashMap Key Int -> HashMap Key Int -> Property
-pNotSubmapUnion m1 m2 = not (HM.isSubmapOf m1 m2) ==> HM.isSubmapOf m1 (HM.union m1 m2)
-
-pSubmapDifference :: HashMap Key Int -> HashMap Key Int -> Bool
-pSubmapDifference m1 m2 = HM.isSubmapOf (HM.difference m1 m2) m1
-
-pNotSubmapDifference :: HashMap Key Int -> HashMap Key Int -> Property
-pNotSubmapDifference m1 m2 =
-  not (HM.null (HM.intersection m1 m2)) ==>
-  not (HM.isSubmapOf m1 (HM.difference m1 m2))
-
-pSubmapDelete :: HashMap Key Int -> Property
-pSubmapDelete m = not (HM.null m) ==>
-  forAll (elements (HM.keys m)) $ \k ->
-  HM.isSubmapOf (HM.delete k m) m
-
-pNotSubmapDelete :: HashMap Key Int -> Property
-pNotSubmapDelete m =
-  not (HM.null m) ==>
-  forAll (elements (HM.keys m)) $ \k ->
-  not (HM.isSubmapOf m (HM.delete k m))
-
-pSubmapInsert :: Key -> Int -> HashMap Key Int -> Property
-pSubmapInsert k v m = not (HM.member k m) ==> HM.isSubmapOf m (HM.insert k v m)
-
-pNotSubmapInsert :: Key -> Int -> HashMap Key Int -> Property
-pNotSubmapInsert k v m = not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
-
-------------------------------------------------------------------------
--- ** Combine
-
-pUnion :: [(Key, Int)] -> [(Key, Int)] -> Property
-pUnion xs ys = M.union (M.fromList xs) `eq_` HM.union (HM.fromList xs) $ ys
-
-pUnionWith :: [(Key, Int)] -> [(Key, Int)] -> Property
-pUnionWith xs ys = M.unionWith (-) (M.fromList xs) `eq_`
-                   HM.unionWith (-) (HM.fromList xs) $ ys
-
-pUnionWithKey :: [(Key, Int)] -> [(Key, Int)] -> Property
-pUnionWithKey xs ys = M.unionWithKey go (M.fromList xs) `eq_`
-                             HM.unionWithKey go (HM.fromList xs) $ ys
-  where
-    go :: Key -> Int -> Int -> Int
-    go k i1 i2 = keyToInt k - i1 + i2
-
-pUnions :: [[(Key, Int)]] -> Property
-pUnions xss = M.toAscList (M.unions (map M.fromList xss)) ===
-              toAscList (HM.unions (map HM.fromList xss))
-
-------------------------------------------------------------------------
--- ** Transformations
-
-pMap :: [(Key, Int)] -> Property
-pMap = M.map (+ 1) `eq_` HM.map (+ 1)
-
-pTraverse :: [(Key, Int)] -> Property
-pTraverse xs =
-  List.sort (fmap (List.sort . M.toList) (M.traverseWithKey (\_ v -> [v + 1, v + 2]) (M.fromList (take 10 xs))))
-     === List.sort (fmap (List.sort . HM.toList) (HM.traverseWithKey (\_ v -> [v + 1, v + 2]) (HM.fromList (take 10 xs))))
-
-pMapKeys :: [(Int, Int)] -> Property
-pMapKeys = M.mapKeys (+1) `eq_` HM.mapKeys (+1)
-
-------------------------------------------------------------------------
--- ** Difference and intersection
-
-pDifference :: [(Key, Int)] -> [(Key, Int)] -> Property
-pDifference xs ys = M.difference (M.fromList xs) `eq_`
-                    HM.difference (HM.fromList xs) $ ys
-
-pDifferenceWith :: [(Key, Int)] -> [(Key, Int)] -> Property
-pDifferenceWith xs ys = M.differenceWith f (M.fromList xs) `eq_`
-                        HM.differenceWith f (HM.fromList xs) $ ys
-  where
-    f x y = if x == 0 then Nothing else Just (x - y)
-
-pIntersection :: [(Key, Int)] -> [(Key, Int)] -> Property
-pIntersection xs ys = 
-  M.intersection (M.fromList xs)
-    `eq_` HM.intersection (HM.fromList xs)
-    $ ys
-
-pIntersectionValid :: HashMap Key () -> HashMap Key () -> Property
-pIntersectionValid x y = valid (HM.intersection x y) === Valid
-
-pIntersectionWith :: [(Key, Int)] -> [(Key, Int)] -> Property
-pIntersectionWith xs ys = M.intersectionWith (-) (M.fromList xs) `eq_`
-                          HM.intersectionWith (-) (HM.fromList xs) $ ys
-
-pIntersectionWithKey :: [(Key, Int)] -> [(Key, Int)] -> Property
-pIntersectionWithKey xs ys = M.intersectionWithKey go (M.fromList xs) `eq_`
-                             HM.intersectionWithKey go (HM.fromList xs) $ ys
-  where
-    go :: Key -> Int -> Int -> Int
-    go k i1 i2 = keyToInt k - i1 - i2
-
-------------------------------------------------------------------------
--- ** Folds
-
-pFoldr :: [(Int, Int)] -> Property
-pFoldr = (List.sort . M.foldr (:) []) `eq` (List.sort . HM.foldr (:) [])
-
-pFoldl :: [(Int, Int)] -> Property
-pFoldl = (List.sort . M.foldl (flip (:)) []) `eq` (List.sort . HM.foldl (flip (:)) [])
-
-pBifoldMap :: [(Int, Int)] -> Property
-pBifoldMap xs = concatMap f (HM.toList m) === bifoldMap (:[]) (:[]) m
-  where f (k, v) = [k, v]
-        m = HM.fromList xs
-
-pBifoldr :: [(Int, Int)] -> Property
-pBifoldr xs = concatMap f (HM.toList m) === bifoldr (:) (:) [] m
-  where f (k, v) = [k, v]
-        m = HM.fromList xs
-
-pBifoldl :: [(Int, Int)] -> Property
-pBifoldl xs = reverse (concatMap f $ HM.toList m) === bifoldl (flip (:)) (flip (:)) [] m
-  where f (k, v) = [k, v]
-        m = HM.fromList xs
-
-pFoldrWithKey :: [(Int, Int)] -> Property
-pFoldrWithKey = (sortByKey . M.foldrWithKey f []) `eq`
-                (sortByKey . HM.foldrWithKey f [])
-  where f k v z = (k, v) : z
-
-pFoldMapWithKey :: [(Int, Int)] -> Property
-pFoldMapWithKey = (sortByKey . M.foldMapWithKey f) `eq`
-                  (sortByKey . HM.foldMapWithKey f)
-  where f k v = [(k, v)]
-
-pFoldrWithKey' :: [(Int, Int)] -> Property
-pFoldrWithKey' = (sortByKey . M.foldrWithKey' f []) `eq`
-                 (sortByKey . HM.foldrWithKey' f [])
-  where f k v z = (k, v) : z
-
-pFoldlWithKey :: [(Int, Int)] -> Property
-pFoldlWithKey = (sortByKey . M.foldlWithKey f []) `eq`
-                (sortByKey . HM.foldlWithKey f [])
-  where f z k v = (k, v) : z
-
-pFoldlWithKey' :: [(Int, Int)] -> Property
-pFoldlWithKey' = (sortByKey . M.foldlWithKey' f []) `eq`
-                 (sortByKey . HM.foldlWithKey' f [])
-  where f z k v = (k, v) : z
-
-pFoldl' :: [(Int, Int)] -> Property
-pFoldl' = (List.sort . M.foldl' (flip (:)) []) `eq` (List.sort . HM.foldl' (flip (:)) [])
-
-pFoldr' :: [(Int, Int)] -> Property
-pFoldr' = (List.sort . M.foldr' (:) []) `eq` (List.sort . HM.foldr' (:) [])
-
-------------------------------------------------------------------------
--- ** Filter
-
-pMapMaybeWithKey :: [(Key, Int)] -> Property
-pMapMaybeWithKey = M.mapMaybeWithKey f `eq_` HM.mapMaybeWithKey f
-  where f k v = guard (odd (keyToInt k + v)) >> Just (v + 1)
-
-pMapMaybe :: [(Key, Int)] -> Property
-pMapMaybe = M.mapMaybe f `eq_` HM.mapMaybe f
-  where f v = guard (odd v) >> Just (v + 1)
-
-pFilter :: [(Key, Int)] -> Property
-pFilter = M.filter odd `eq_` HM.filter odd
-
-pFilterWithKey :: [(Key, Int)] -> Property
-pFilterWithKey = M.filterWithKey p `eq_` HM.filterWithKey p
-  where p k v = odd (keyToInt k + v)
-
-------------------------------------------------------------------------
--- ** Conversions
+isValid :: (Eq k, Hashable k, Show k) => HashMap k v -> Property
+isValid m = valid m === Valid
 
 -- The free magma is used to test that operations are applied in the
 -- same order.
@@ -421,35 +72,8 @@ instance Hashable a => Hashable (Magma a) where
   hashWithSalt s (Leaf a) = hashWithSalt s (hashWithSalt (1::Int) a)
   hashWithSalt s (Op m n) = hashWithSalt s (hashWithSalt (hashWithSalt (2::Int) m) n)
 
--- 'eq_' already calls fromList.
-pFromList :: [(Key, Int)] -> Property
-pFromList = id `eq_` id
-
-pFromListValid :: [(Key, ())] -> Property
-pFromListValid xs = valid (HM.fromList xs) === Valid
-
-pFromListWith :: [(Key, Int)] -> Property
-pFromListWith kvs = (M.toAscList $ M.fromListWith Op kvsM) ===
-                    (toAscList $ HM.fromListWith Op kvsM)
-  where kvsM = fmap (fmap Leaf) kvs
-
-pFromListWithKey :: [(Key, Int)] -> Property
-pFromListWithKey kvs = (M.toAscList $ M.fromListWithKey combine kvsM) ===
-                       (toAscList $ HM.fromListWithKey combine kvsM)
-  where kvsM = fmap (\(k,v) -> (Leaf (keyToInt k), Leaf v)) kvs
-        combine k v1 v2 = Op k (Op v1 v2)
-
-pToList :: [(Key, Int)] -> Property
-pToList = M.toAscList `eq` toAscList
-
-pElems :: [(Key, Int)] -> Property
-pElems = (List.sort . M.elems) `eq` (List.sort . HM.elems)
-
-pKeys :: [(Key, Int)] -> Property
-pKeys = (List.sort . M.keys) `eq` (List.sort . HM.keys)
-
 ------------------------------------------------------------------------
--- * Test list
+-- Test list
 
 tests :: TestTree
 tests =
@@ -462,136 +86,282 @@ tests =
     [
     -- Instances
       testGroup "instances"
-      [ testProperty "==" pEq
-      , testProperty "/=" pNeq
-      , testProperty "compare reflexive" pOrd1
-      , testProperty "compare transitive" pOrd2
-      , testProperty "compare antisymmetric" pOrd3
-      , testProperty "Ord => Eq" pOrdEq
-      , testProperty "Read/Show" pReadShow
-      , testProperty "Functor" pFunctor
-      , testProperty "Foldable" pFoldable
-      , testProperty "Hashable" pHashable
+      [ testGroup "Eq"
+        [ testProperty "==" $
+          \(x :: HMKI) y -> (x == y) === (toOrdMap x == toOrdMap y)
+        , testProperty "/=" $
+          \(x :: HMKI) y -> (x == y) === (toOrdMap x == toOrdMap y)
+        ]
+      , testGroup "Ord"
+        [ testProperty "compare reflexive" $
+          \(m :: HMKI) -> compare m m === EQ
+        , testProperty "compare transitive" $
+          \(x :: HMKI) y z -> case (compare x y, compare y z) of
+            (EQ, o)  -> compare x z === o
+            (o,  EQ) -> compare x z === o
+            (LT, LT) -> compare x z === LT
+            (GT, GT) -> compare x z === GT
+            (LT, GT) -> QC.property True -- ys greater than xs and zs.
+            (GT, LT) -> QC.property True
+        , testProperty "compare antisymmetric" $
+          \(x :: HMKI) y -> case (compare x y, compare y x) of
+            (EQ, EQ) -> True
+            (LT, GT) -> True
+            (GT, LT) -> True
+            _        -> False
+        , testProperty "Ord => Eq" $
+          \(x :: HMKI) y -> case (compare x y, x == y) of
+            (EQ, True)  -> True
+            (LT, False) -> True
+            (GT, False) -> True
+            _           -> False
+        ]
+      , testProperty "Read/Show" $
+        \(x :: HMKI) -> x === read (show x)
+      , testProperty "Functor" $
+        \(x :: HMKI) (f :: Fun Int Int) ->
+          let y = fmap (QC.applyFun f) x
+          in  toOrdMap y === fmap (QC.applyFun f) (toOrdMap x)
+      , testProperty "Foldable" $
+        \(x :: HMKI) ->
+          let f = List.sort . Foldable.foldr (:) []
+          in  f x === f (toOrdMap x)
+      , testGroup "Bifoldable"
+        [ testProperty "bifoldMap" $
+          \(m :: HMK Key) ->
+            bifoldMap (:[]) (:[]) m === concatMap (\(k, v) -> [k, v]) (HM.toList m)
+        , testProperty "bifoldr" $
+          \(m :: HMK Key) ->
+            bifoldr (:) (:) [] m === concatMap (\(k, v) -> [k, v]) (HM.toList m)
+        , testProperty "bifoldl" $
+          \(m :: HMK Key) ->
+            bifoldl (flip (:)) (flip (:)) [] m === reverse (concatMap (\(k, v) -> [k, v]) (HM.toList m))
+        ]
+      , testProperty "Hashable" $
+        \(xs :: [(Key, Int)]) is salt ->
+          let xs' = List.nubBy (\(k,_) (k',_) -> k == k') xs
+              -- Shuffle the list using indexes in the second
+              shuffle :: [Int] -> [a] -> [a]
+              shuffle idxs = List.map snd
+                           . List.sortBy (comparing fst)
+                           . List.zip (idxs ++ [List.maximum (0:is) + 1 ..])
+              ys = shuffle is xs'
+              x = HM.fromList xs'
+              y = HM.fromList ys
+          in  x == y ==> hashWithSalt salt x === hashWithSalt salt y
       ]
     -- Basic interface
-    , testGroup "basic interface"
-      [ testProperty "size" pSize
-      , testProperty "member" pMember
-      , testProperty "lookup" pLookup
-      , testProperty "!?" pLookupOperator
-      , testProperty "insert" pInsert
-      , testProperty "delete" pDelete
-      , testProperty "deleteCollision" pDeleteCollision
-      , testProperty "insertWith" pInsertWith
-      , testProperty "adjust" pAdjust
-      , testProperty "updateAdjust" pUpdateAdjust
-      , testProperty "updateDelete" pUpdateDelete
-      , testProperty "alterAdjust" pAlterAdjust
-      , testProperty "alterInsert" pAlterInsert
-      , testProperty "alterDelete" pAlterDelete
-      , testProperty "alterF" pAlterF
-      , testProperty "alterFAdjust" pAlterFAdjust
-      , testProperty "alterFInsert" pAlterFInsert
-      , testProperty "alterFInsertWith" pAlterFInsertWith
-      , testProperty "alterFDelete" pAlterFDelete
-      , testProperty "alterFLookup" pAlterFLookup
-      , testGroup "isSubmapOf"
-        [ testProperty "container compatibility" pSubmap
-        , testProperty "m ⊆ m" pSubmapReflexive
-        , testProperty "m1 ⊆ m1 ∪ m2" pSubmapUnion
-        , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" pNotSubmapUnion
-        , testProperty "m1\\m2 ⊆ m1" pSubmapDifference
-        , testProperty "m1 ∩ m2 ≠ ∅  ⇒  m1 ⊈ m1\\m2 " pNotSubmapDifference
-        , testProperty "delete k m ⊆ m" pSubmapDelete
-        , testProperty "m ⊈ delete k m " pNotSubmapDelete
-        , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" pSubmapInsert
-        , testProperty "k ∉ m  ⇒  insert k v m ⊈ m" pNotSubmapInsert
-        ]
+    , testProperty "size" $
+      \(x :: HMKI) -> HM.size x === M.size (toOrdMap x)
+    , testProperty "member" $
+      \(k :: Key) (m :: HMKI) -> HM.member k m === M.member k (toOrdMap m)
+    , testProperty "lookup" $
+      \(k :: Key) (m :: HMKI) -> HM.lookup k m === M.lookup k (toOrdMap m)
+    , testProperty "!?" $
+      \(k :: Key) (m :: HMKI) -> m HM.!? k === M.lookup k (toOrdMap m)
+    , testProperty "insert" $
+      \(k :: Key) (v :: Int) x ->
+        let y = HM.insert k v x
+        in  toOrdMap y === M.insert k v (toOrdMap x)
+    , testProperty "delete" $
+      \(k :: Key) (x :: HMKI) ->
+      let y = HM.delete k x
+      in  toOrdMap y === M.delete k (toOrdMap x)
+    , testProperty "insertWith" $
+      \f k v (x :: HMKI) ->
+        let y = HM.insertWith (QC.applyFun2 f) k v x
+        in  toOrdMap y === M.insertWith (QC.applyFun2 f) k v (toOrdMap x)
+    , testProperty "adjust" $
+      \f k (x :: HMKI) ->
+        let y = HM.adjust (QC.applyFun f) k x
+        in  toOrdMap y === M.adjust (QC.applyFun f) k (toOrdMap x)
+    , testProperty "update" $
+      \f k (x :: HMKI) ->
+        let y = HM.update (QC.applyFun f) k x
+        in  toOrdMap y === M.update (QC.applyFun f) k (toOrdMap x)
+    , testProperty "alter" $
+      \f k (x :: HMKI) ->
+        let y = HM.alter (QC.applyFun f) k x
+        in  toOrdMap y === M.alter (QC.applyFun f) k (toOrdMap x)
+    , testGroup "alterF"
+      [ -- We choose the list functor here because we don't fuss with
+        -- it in alterF rules and because it has a sufficiently interesting
+        -- structure to have a good chance of breaking if something is wrong.
+        testProperty "[]" $
+        \(f :: Fun (Maybe A) [Maybe A]) k (x :: HMK A) ->
+          let ys = HM.alterF (QC.applyFun f) k x
+          in  map toOrdMap ys === M.alterF (QC.applyFun f) k (toOrdMap x)
+      , testProperty "adjust" $
+        \f k (x :: HMKI) ->
+          let g = Identity . fmap (QC.applyFun f)
+              y = HM.alterF g k x
+          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+      , testProperty "insert" $
+        \v k (x :: HMKI) ->
+          let g = const . Identity . Just $ v
+              y = HM.alterF g k x
+          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+      , testProperty "insertWith" $
+        \f k v (x :: HMKI) ->
+          let g = Identity . Just . maybe v (QC.applyFun f)
+              y = HM.alterF g k x
+          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+      , testProperty "delete" $
+        \k (x :: HMKI) ->
+          let f = const (Identity Nothing)
+              y = HM.alterF f k x
+          in  fmap toOrdMap y === M.alterF f k (toOrdMap x)
+      , testProperty "lookup" $
+        \(f :: Fun (Maybe A) B) k (x :: HMK A) ->
+          let g = Const . QC.applyFun f
+              y = HM.alterF g k x
+          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+      ]
+    , testGroup "isSubmapOf"
+      [ testProperty "model" $
+        \(x :: HMKI) y -> HM.isSubmapOf x y === M.isSubmapOf (toOrdMap x) (toOrdMap y)
+      , testProperty "m ⊆ m" $
+        \(x :: HMKI) -> HM.isSubmapOf x x
+      , testProperty "m1 ⊆ m1 ∪ m2" $
+        \(x :: HMKI) y -> HM.isSubmapOf x (HM.union x y)
+      , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" $
+        \(m1 :: HMKI) m2 -> not (HM.isSubmapOf m1 m2) ==> HM.isSubmapOf m1 (HM.union m1 m2)
+      , testProperty "m1\\m2 ⊆ m1" $
+        \(m1 :: HMKI) (m2 :: HMKI) -> HM.isSubmapOf (HM.difference m1 m2) m1
+      , testProperty "m1 ∩ m2 ≠ ∅  ⇒  m1 ⊈ m1\\m2 " $
+        \(m1 :: HMKI) (m2 :: HMKI) ->
+          not (HM.null (HM.intersection m1 m2)) ==>
+          not (HM.isSubmapOf m1 (HM.difference m1 m2))
+      , testProperty "delete k m ⊆ m" $
+        \(m :: HMKI) ->
+          not (HM.null m) ==>
+          QC.forAll (QC.elements (HM.keys m)) $ \k ->
+          HM.isSubmapOf (HM.delete k m) m
+      , testProperty "m ⊈ delete k m " $
+        \(m :: HMKI) ->
+          not (HM.null m) ==>
+          QC.forAll (QC.elements (HM.keys m)) $ \k ->
+          not (HM.isSubmapOf m (HM.delete k m))
+      , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" $
+        \k v (m :: HMKI) -> not (HM.member k m) ==> HM.isSubmapOf m (HM.insert k v m)
+      , testProperty "k ∉ m  ⇒  insert k v m ⊈ m" $
+        \k v (m :: HMKI) -> not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
       ]
     -- Combine
-    , testProperty "union" pUnion
-    , testProperty "unionWith" pUnionWith
-    , testProperty "unionWithKey" pUnionWithKey
-    , testProperty "unions" pUnions
+    , testProperty "union" $
+      \(x :: HMKI) y ->
+        let z = HM.union x y
+        in  toOrdMap z === M.union (toOrdMap x) (toOrdMap y)
+    , testProperty "unionWith" $
+      \f (x :: HMKI) y ->
+        let z = HM.unionWith (QC.applyFun2 f) x y
+        in  toOrdMap z === M.unionWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
+    , testProperty "unionWithKey" $
+      \f (x :: HMKI) y ->
+        let z = HM.unionWithKey (QC.applyFun3 f) x y
+        in  toOrdMap z === M.unionWithKey (QC.applyFun3 f) (toOrdMap x) (toOrdMap y)
+    , testProperty "unions" $
+      \(ms :: [HMKI]) -> toOrdMap (HM.unions ms) === M.unions (map toOrdMap ms)
+    , testProperty "difference" $
+      \(x :: HMKI) (y :: HMKI) ->
+        toOrdMap (HM.difference x y) === M.difference (toOrdMap x) (toOrdMap y)
+    , testProperty "differenceWith" $
+      \f (x :: HMK A) (y :: HMK B) ->
+        toOrdMap (HM.differenceWith (QC.applyFun2 f) x y)
+        ===
+        M.differenceWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
+    , testGroup "intersection"
+      [ testProperty "model" $
+        \(x :: HMKI) (y :: HMKI) ->
+          toOrdMap (HM.intersection x y) === M.intersection (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(x :: HMKI) (y :: HMKI) ->
+          isValid (HM.intersection x y)
+      ]
+    , testProperty "intersectionWith" $
+      \(f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
+        toOrdMap (HM.intersectionWith (QC.applyFun2 f) x y)
+        ===
+        M.intersectionWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
+    , testProperty "intersectionWithKey" $
+      \(f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
+        toOrdMap (HM.intersectionWithKey (QC.applyFun3 f) x y)
+        ===
+        M.intersectionWithKey (QC.applyFun3 f) (toOrdMap x) (toOrdMap y)
     -- Transformations
-    , testProperty "map" pMap
-    , testProperty "traverse" pTraverse
-    , testProperty "mapKeys" pMapKeys
+    , testProperty "map" $
+      \(f :: Fun A B) (m :: HMK A) -> toOrdMap (HM.map (QC.applyFun f) m) === M.map (QC.applyFun f) (toOrdMap m)
+    , testProperty "traverseWithKey" $ QC.mapSize (\s -> s `div` 8) $
+      \(x :: HMKI) ->
+        let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
+            y = HM.traverseWithKey f x
+        in  List.sort (fmap toOrdMap y) === List.sort (M.traverseWithKey f (toOrdMap x))
+    , testProperty "mapKeys" $
+      \(m :: HMKI) -> toOrdMap (HM.mapKeys incKey m) === M.mapKeys incKey (toOrdMap m)
     -- Folds
-    , testGroup "folds"
-      [ testProperty "foldr" pFoldr
-      , testProperty "foldl" pFoldl
-      , testProperty "bifoldMap" pBifoldMap
-      , testProperty "bifoldr" pBifoldr
-      , testProperty "bifoldl" pBifoldl
-      , testProperty "foldrWithKey" pFoldrWithKey
-      , testProperty "foldlWithKey" pFoldlWithKey
-      , testProperty "foldrWithKey'" pFoldrWithKey'
-      , testProperty "foldlWithKey'" pFoldlWithKey'
-      , testProperty "foldl'" pFoldl'
-      , testProperty "foldr'" pFoldr'
-      , testProperty "foldMapWithKey" pFoldMapWithKey
-      ]
-    , testGroup "difference and intersection"
-      [ testProperty "difference" pDifference
-      , testProperty "differenceWith" pDifferenceWith
-      , testProperty "intersection" pIntersection
-      , testProperty "intersection produces valid HashMap" pIntersectionValid
-      , testProperty "intersectionWith" pIntersectionWith
-      , testProperty "intersectionWithKey" pIntersectionWithKey
-      ]
+    , testProperty "foldr" $
+      \(m :: HMKI) -> List.sort (HM.foldr (:) [] m) === List.sort (M.foldr (:) [] (toOrdMap m))
+    , testProperty "foldl" $
+      \(m :: HMKI) ->
+        List.sort (HM.foldl (flip (:)) [] m) === List.sort (M.foldl (flip (:)) [] (toOrdMap m))
+    , testProperty "foldrWithKey" $
+      \(m :: HMKI) ->
+        let f k v z = (k, v) : z
+        in  sortByKey (HM.foldrWithKey f [] m) === sortByKey (M.foldrWithKey f [] (toOrdMap m))
+    , testProperty "foldlWithKey" $
+      \(m :: HMKI) ->
+        let f z k v = (k, v) : z
+        in  sortByKey (HM.foldlWithKey f [] m) === sortByKey (M.foldlWithKey f [] (toOrdMap m))
+    , testProperty "foldrWithKey'" $
+      \(m :: HMKI) ->
+        let f k v z = (k, v) : z
+        in  sortByKey (HM.foldrWithKey' f [] m) === sortByKey (M.foldrWithKey' f [] (toOrdMap m))
+    , testProperty "foldlWithKey'" $
+      \(m :: HMKI) ->
+        let f z k v = (k, v) : z
+        in  sortByKey (HM.foldlWithKey' f [] m) === sortByKey (M.foldlWithKey' f [] (toOrdMap m))
+    , testProperty "foldl'" $
+      \(m :: HMKI) ->
+        List.sort (HM.foldl' (flip (:)) [] m) === List.sort (M.foldl' (flip (:)) [] (toOrdMap m))
+    , testProperty "foldr'" $
+      \(m :: HMKI) -> List.sort (HM.foldr' (:) [] m) === List.sort (M.foldr' (:) [] (toOrdMap m))
+    , testProperty "foldMapWithKey" $
+      \(m :: HMKI) ->
+        let f k v = [(k, v)]
+        in  sortByKey (HM.foldMapWithKey f m) === sortByKey (M.foldMapWithKey f (toOrdMap m))
     -- Filter
-    , testGroup "filter"
-      [ testProperty "filter" pFilter
-      , testProperty "filterWithKey" pFilterWithKey
-      , testProperty "mapMaybe" pMapMaybe
-      , testProperty "mapMaybeWithKey" pMapMaybeWithKey
-      ]
+    , testProperty "filter" $
+      \p (m :: HMKI) ->
+        toOrdMap (HM.filter (QC.applyFun p) m) === M.filter (QC.applyFun p) (toOrdMap m)
+    , testProperty "filterWithKey" $
+      \p (m :: HMKI) ->
+        toOrdMap (HM.filterWithKey (QC.applyFun2 p) m) === M.filterWithKey (QC.applyFun2 p) (toOrdMap m)
+    , testProperty "mapMaybe" $
+      \(f :: Fun A (Maybe B)) (m :: HMK A) ->
+        toOrdMap (HM.mapMaybe (QC.applyFun f) m) === M.mapMaybe (QC.applyFun f) (toOrdMap m)
+    , testProperty "mapMaybeWithKey" $
+      \(f :: Fun (Key, A) (Maybe B)) (m :: HMK A) ->
+        toOrdMap (HM.mapMaybeWithKey (QC.applyFun2 f) m) === M.mapMaybeWithKey (QC.applyFun2 f) (toOrdMap m)
     -- Conversions
-    , testGroup "conversions"
-      [ testProperty "elems" pElems
-      , testProperty "keys" pKeys
-      , testProperty "fromList" pFromList
-      , testProperty "fromList.valid" pFromListValid
-      , testProperty "fromListWith" pFromListWith
-      , testProperty "fromListWithKey" pFromListWithKey
-      , testProperty "toList" pToList
+    , testProperty "elems" $
+      \(m :: HMKI) -> List.sort (HM.elems m) === List.sort (M.elems (toOrdMap m))
+    , testProperty "keys" $
+      \(m :: HMKI) -> List.sort (HM.keys m) === List.sort (M.keys (toOrdMap m))
+    , testGroup "fromList"
+      [ testProperty "model" $
+        \(kvs :: [(Key, Int)]) -> toOrdMap (HM.fromList kvs) === M.fromList kvs
+      , testProperty "valid" $
+        \(kvs :: [(Key, Int)]) -> isValid (HM.fromList kvs)
       ]
+    , testProperty "fromListWith" $
+      \(kvs :: [(Key, Int)]) ->
+        let kvsM = map (fmap Leaf) kvs
+        in  toOrdMap (HM.fromListWith Op kvsM) === M.fromListWith Op kvsM
+    , testProperty "fromListWithKey" $
+      \(kvs :: [(Key, Int)]) ->
+        let kvsM = fmap (\(k,v) -> (Leaf (keyToInt k), Leaf v)) kvs
+            combine k v1 v2 = Op k (Op v1 v2)
+        in  toOrdMap (HM.fromListWithKey combine kvsM) === M.fromListWithKey combine kvsM
+    , testProperty "toList" $
+      \(m :: HMKI) -> List.sort (HM.toList m) === List.sort (M.toList (toOrdMap m))
     ]
-
-------------------------------------------------------------------------
--- * Model
-
-type Model k v = M.Map k v
-
--- | Check that a function operating on a 'HashMap' is equivalent to
--- one operating on a 'Model'.
-eq :: (Eq a, Eq k, Hashable k, Ord k, Show a, Show k)
-   => (Model k v -> a)       -- ^ Function that modifies a 'Model'
-   -> (HM.HashMap k v -> a)  -- ^ Function that modified a 'HashMap' in the same
-                             -- way
-   -> [(k, v)]               -- ^ Initial content of the 'HashMap' and 'Model'
-   -> Property
-eq f g xs = f (M.fromList xs) === g (HM.fromList xs)
-
-infix 4 `eq`
-
-eq_ :: (Eq k, Eq v, Hashable k, Ord k, Show k, Show v)
-    => (Model k v -> Model k v)            -- ^ Function that modifies a 'Model'
-    -> (HM.HashMap k v -> HM.HashMap k v)  -- ^ Function that modified a
-                                           -- 'HashMap' in the same way
-    -> [(k, v)]                            -- ^ Initial content of the 'HashMap'
-                                           -- and 'Model'
-    -> Property
-eq_ f g = (M.toAscList . f) `eq` (toAscList . g)
-
-infix 4 `eq_`
-
-------------------------------------------------------------------------
--- * Helpers
-
-sortByKey :: Ord k => [(k, v)] -> [(k, v)]
-sortByKey = List.sortBy (compare `on` fst)
-
-toAscList :: Ord k => HM.HashMap k v -> [(k, v)]
-toAscList = List.sortBy (compare `on` fst) . HM.toList

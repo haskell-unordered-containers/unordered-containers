@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass   #-}
 {-# LANGUAGE DeriveGeneric    #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -7,7 +8,7 @@ import Data.Bits       (bit, (.&.))
 import Data.Hashable   (Hashable (hashWithSalt))
 import Data.Word       (Word16)
 import GHC.Generics    (Generic)
-import Test.QuickCheck (Arbitrary (..), Gen, Large)
+import Test.QuickCheck (Arbitrary (..), CoArbitrary (..), Function, Gen, Large)
 
 import qualified Test.QuickCheck as QC
 
@@ -17,13 +18,13 @@ data Key = K
     -- ^ The hash of the key
   , _x :: !SmallSum
     -- ^ Additional data, so we can have collisions for any hash
-  } deriving (Eq, Ord, Read, Show, Generic)
+  } deriving (Eq, Ord, Read, Show, Generic, Function, CoArbitrary)
 
 instance Hashable Key where
   hashWithSalt _ (K h _) = h
 
 data SmallSum = A | B | C | D
-  deriving (Eq, Ord, Read, Show, Generic, Enum, Bounded)
+  deriving (Eq, Ord, Read, Show, Generic, Enum, Bounded, Function, CoArbitrary)
 
 instance Arbitrary SmallSum where
   arbitrary = QC.arbitraryBoundedEnum
@@ -42,7 +43,7 @@ instance Arbitrary Key where
 arbitraryHash :: Gen Int
 arbitraryHash = do
   let gens =
-        [ (2, (fromIntegral . QC.getLarge) <$> arbitrary @(Large Word16))
+        [ (2, fromIntegral . QC.getLarge <$> arbitrary @(Large Word16))
         , (1, QC.getSmall <$> arbitrary)
         , (1, QC.getLarge <$> arbitrary)
         ]
