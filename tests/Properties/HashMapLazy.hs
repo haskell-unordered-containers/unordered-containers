@@ -268,7 +268,9 @@ tests =
         toOrdMap (HM.difference x y) === M.difference (toOrdMap x) (toOrdMap y)
     , testProperty "differenceWith" $
       \f (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.differenceWith (QC.applyFun2 f) x y) === M.differenceWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
+        toOrdMap (HM.differenceWith (QC.applyFun2 f) x y)
+        ===
+        M.differenceWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
     , testGroup "intersection"
       [ testProperty "model" $
         \(x :: HMKI) (y :: HMKI) ->
@@ -279,10 +281,14 @@ tests =
       ]
     , testProperty "intersectionWith" $
       \(f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.intersectionWith (QC.applyFun2 f) x y) === M.intersectionWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
+        toOrdMap (HM.intersectionWith (QC.applyFun2 f) x y)
+        ===
+        M.intersectionWith (QC.applyFun2 f) (toOrdMap x) (toOrdMap y)
     , testProperty "intersectionWithKey" $
       \(f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
-        toOrdMap (HM.intersectionWithKey (QC.applyFun3 f) x y) === M.intersectionWithKey (QC.applyFun3 f) (toOrdMap x) (toOrdMap y)
+        toOrdMap (HM.intersectionWithKey (QC.applyFun3 f) x y)
+        ===
+        M.intersectionWithKey (QC.applyFun3 f) (toOrdMap x) (toOrdMap y)
     -- Transformations
     , testProperty "map" $
       \(f :: Fun A B) (m :: HMK A) -> toOrdMap (HM.map (QC.applyFun f) m) === M.map (QC.applyFun f) (toOrdMap m)
