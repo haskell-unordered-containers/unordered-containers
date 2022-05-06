@@ -53,24 +53,6 @@ instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v)
 -- * Properties
 
 ------------------------------------------------------------------------
--- ** Folds
-
-pBifoldMap :: [(Int, Int)] -> Property
-pBifoldMap xs = concatMap f (HM.toList m) === bifoldMap (:[]) (:[]) m
-  where f (k, v) = [k, v]
-        m = HM.fromList xs
-
-pBifoldr :: [(Int, Int)] -> Property
-pBifoldr xs = concatMap f (HM.toList m) === bifoldr (:) (:) [] m
-  where f (k, v) = [k, v]
-        m = HM.fromList xs
-
-pBifoldl :: [(Int, Int)] -> Property
-pBifoldl xs = reverse (concatMap f $ HM.toList m) === bifoldl (flip (:)) (flip (:)) [] m
-  where f (k, v) = [k, v]
-        m = HM.fromList xs
-
-------------------------------------------------------------------------
 -- ** Conversions
 
 -- The free magma is used to test that operations are applied in the
@@ -139,9 +121,15 @@ tests =
           let f = List.sort . Foldable.foldr (:) []
           in  f x === f (toOrdMap x)
       , testGroup "Bifoldable"
-        [ testProperty "bifoldMap" pBifoldMap
-        , testProperty "bifoldr" pBifoldr
-        , testProperty "bifoldl" pBifoldl
+        [ testProperty "bifoldMap" $
+          \(m :: HMK Key) ->
+            bifoldMap (:[]) (:[]) m === concatMap (\(k, v) -> [k, v]) (HM.toList m)
+        , testProperty "bifoldr" $
+          \(m :: HMK Key) ->
+            bifoldr (:) (:) [] m === concatMap (\(k, v) -> [k, v]) (HM.toList m)
+        , testProperty "bifoldl" $
+          \(m :: HMK Key) ->
+            bifoldl (flip (:)) (flip (:)) [] m === reverse (concatMap (\(k, v) -> [k, v]) (HM.toList m))
         ]
       , testProperty "Hashable" $
         \(xs :: [(Key, Int)]) is salt ->
