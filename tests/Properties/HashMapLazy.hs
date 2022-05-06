@@ -150,6 +150,15 @@ tests =
               y = HM.fromList ys
           in  x == y ==> hashWithSalt salt x === hashWithSalt salt y
       ]
+    -- Construction
+    , testGroup "empty"
+      [ testProperty "valid" $ QC.once $
+        isValid (HM.empty :: HMKI)
+      ]
+    , testGroup "singleton"
+      [ testProperty "valid" $
+        \(k :: Key) (v :: A) -> isValid (HM.singleton k v)
+      ]
     -- Basic interface
     , testProperty "size" $
       \(x :: HMKI) -> HM.size x === M.size (toOrdMap x)
@@ -159,63 +168,93 @@ tests =
       \(k :: Key) (m :: HMKI) -> HM.lookup k m === M.lookup k (toOrdMap m)
     , testProperty "!?" $
       \(k :: Key) (m :: HMKI) -> m HM.!? k === M.lookup k (toOrdMap m)
-    , testProperty "insert" $
-      \(k :: Key) (v :: Int) x ->
-        let y = HM.insert k v x
-        in  toOrdMap y === M.insert k v (toOrdMap x)
-    , testProperty "delete" $
-      \(k :: Key) (x :: HMKI) ->
-      let y = HM.delete k x
-      in  toOrdMap y === M.delete k (toOrdMap x)
-    , testProperty "insertWith" $
-      \f k v (x :: HMKI) ->
-        let y = HM.insertWith (QC.applyFun2 f) k v x
-        in  toOrdMap y === M.insertWith (QC.applyFun2 f) k v (toOrdMap x)
-    , testProperty "adjust" $
-      \f k (x :: HMKI) ->
-        let y = HM.adjust (QC.applyFun f) k x
-        in  toOrdMap y === M.adjust (QC.applyFun f) k (toOrdMap x)
-    , testProperty "update" $
-      \f k (x :: HMKI) ->
-        let y = HM.update (QC.applyFun f) k x
-        in  toOrdMap y === M.update (QC.applyFun f) k (toOrdMap x)
-    , testProperty "alter" $
-      \f k (x :: HMKI) ->
-        let y = HM.alter (QC.applyFun f) k x
-        in  toOrdMap y === M.alter (QC.applyFun f) k (toOrdMap x)
+    , testGroup "insert"
+      [ testProperty "model" $
+        \(k :: Key) (v :: Int) x ->
+          let y = HM.insert k v x
+          in  toOrdMap y === M.insert k v (toOrdMap x)
+      , testProperty "valid" $
+        \(k :: Key) (v :: Int) x -> isValid (HM.insert k v x)
+      ]
+    , testGroup "insertWith"
+      [ testProperty "insertWith" $
+        \f k v (x :: HMKI) ->
+          let y = HM.insertWith (QC.applyFun2 f) k v x
+          in  toOrdMap y === M.insertWith (QC.applyFun2 f) k v (toOrdMap x)
+      , testProperty "valid" $
+        \f k v (x :: HMKI) -> isValid (HM.insertWith (QC.applyFun2 f) k v x)
+      ]
+    , testGroup "delete"
+      [ testProperty "model" $
+        \(k :: Key) (x :: HMKI) ->
+          let y = HM.delete k x
+          in  toOrdMap y === M.delete k (toOrdMap x)
+      , testProperty "valid" $
+        \(k :: Key) (x :: HMKI) -> isValid (HM.delete k x)
+      ]
+    , testGroup "adjust" 
+      [ testProperty "model" $
+        \f k (x :: HMKI) ->
+          let y = HM.adjust (QC.applyFun f) k x
+          in  toOrdMap y === M.adjust (QC.applyFun f) k (toOrdMap x)
+      , testProperty "valid" $
+        \f k (x :: HMKI) -> isValid (HM.adjust (QC.applyFun f) k x)
+      ]
+    , testGroup "update" 
+      [ testProperty "model" $
+        \f k (x :: HMKI) ->
+          let y = HM.update (QC.applyFun f) k x
+          in  toOrdMap y === M.update (QC.applyFun f) k (toOrdMap x)
+      , testProperty "valid" $
+        \f k (x :: HMKI) -> isValid (HM.update (QC.applyFun f) k x)
+      ]
+    , testGroup "alter"
+      [ testProperty "model" $
+        \f k (x :: HMKI) ->
+          let y = HM.alter (QC.applyFun f) k x
+          in  toOrdMap y === M.alter (QC.applyFun f) k (toOrdMap x)
+      , testProperty "valid" $
+        \f k (x :: HMKI) -> isValid (HM.alter (QC.applyFun f) k x)
+      ]
     , testGroup "alterF"
-      [ -- We choose the list functor here because we don't fuss with
-        -- it in alterF rules and because it has a sufficiently interesting
-        -- structure to have a good chance of breaking if something is wrong.
-        testProperty "[]" $
+      [ testGroup "model"
+        [ -- We choose the list functor here because we don't fuss with
+          -- it in alterF rules and because it has a sufficiently interesting
+          -- structure to have a good chance of breaking if something is wrong.
+          testProperty "[]" $
+          \(f :: Fun (Maybe A) [Maybe A]) k (x :: HMK A) ->
+            let ys = HM.alterF (QC.applyFun f) k x
+            in  map toOrdMap ys === M.alterF (QC.applyFun f) k (toOrdMap x)
+        , testProperty "adjust" $
+          \f k (x :: HMKI) ->
+            let g = Identity . fmap (QC.applyFun f)
+                y = HM.alterF g k x
+            in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+        , testProperty "insert" $
+          \v k (x :: HMKI) ->
+            let g = const . Identity . Just $ v
+                y = HM.alterF g k x
+            in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+        , testProperty "insertWith" $
+          \f k v (x :: HMKI) ->
+            let g = Identity . Just . maybe v (QC.applyFun f)
+                y = HM.alterF g k x
+            in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+        , testProperty "delete" $
+          \k (x :: HMKI) ->
+            let f = const (Identity Nothing)
+                y = HM.alterF f k x
+            in  fmap toOrdMap y === M.alterF f k (toOrdMap x)
+        , testProperty "lookup" $
+          \(f :: Fun (Maybe A) B) k (x :: HMK A) ->
+            let g = Const . QC.applyFun f
+                y = HM.alterF g k x
+            in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+        ]
+      , testProperty "valid" $
         \(f :: Fun (Maybe A) [Maybe A]) k (x :: HMK A) ->
           let ys = HM.alterF (QC.applyFun f) k x
-          in  map toOrdMap ys === M.alterF (QC.applyFun f) k (toOrdMap x)
-      , testProperty "adjust" $
-        \f k (x :: HMKI) ->
-          let g = Identity . fmap (QC.applyFun f)
-              y = HM.alterF g k x
-          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
-      , testProperty "insert" $
-        \v k (x :: HMKI) ->
-          let g = const . Identity . Just $ v
-              y = HM.alterF g k x
-          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
-      , testProperty "insertWith" $
-        \f k v (x :: HMKI) ->
-          let g = Identity . Just . maybe v (QC.applyFun f)
-              y = HM.alterF g k x
-          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
-      , testProperty "delete" $
-        \k (x :: HMKI) ->
-          let f = const (Identity Nothing)
-              y = HM.alterF f k x
-          in  fmap toOrdMap y === M.alterF f k (toOrdMap x)
-      , testProperty "lookup" $
-        \(f :: Fun (Maybe A) B) k (x :: HMK A) ->
-          let g = Const . QC.applyFun f
-              y = HM.alterF g k x
-          in  fmap toOrdMap y === M.alterF g k (toOrdMap x)
+          in  map valid ys === (Valid <$ ys)
       ]
     , testGroup "isSubmapOf"
       [ testProperty "model" $
