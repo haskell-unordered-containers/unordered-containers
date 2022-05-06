@@ -156,45 +156,44 @@ pToList = Set.toAscList `eq` toAscList
 
 tests :: TestTree
 tests = testGroup "Data.HashSet"
-    [
-    -- Instances
-      testGroup "instances"
-      [ testProperty "==" pEq
-      , testProperty "Permutation ==" pPermutationEq
-      , testProperty "/=" pNeq
-      , testProperty "compare reflexive" pOrd1
-      , testProperty "compare transitive" pOrd2
-      , testProperty "compare antisymmetric" pOrd3
-      , testProperty "Ord => Eq" pOrdEq
-      , testProperty "Read/Show" pReadShow
-      , testProperty "Foldable" pFoldable
-      , testProperty "Hashable" pHashable
-      ]
-    -- Basic interface
-    , testGroup "basic interface"
-      [ testProperty "size" pSize
-      , testProperty "member" pMember
-      , testProperty "insert" pInsert
-      , testProperty "delete" pDelete
-      ]
-    -- Combine
-    , testProperty "union" pUnion
-    -- Transformations
-    , testProperty "map" pMap
-    -- Folds
-    , testGroup "folds"
-      [ testProperty "foldr" pFoldr
-      , testProperty "foldl'" pFoldl'
-      ]
-    -- Filter
-    , testGroup "filter"
-      [ testProperty "filter" pFilter
-      ]
-    -- Conversions
-    , testGroup "conversions"
-      [ testProperty "toList" pToList
-      ]
+  [ -- Instances
+    testGroup "instances"
+    [ testProperty "==" pEq
+    , testProperty "Permutation ==" pPermutationEq
+    , testProperty "/=" pNeq
+    , testProperty "compare reflexive" pOrd1
+    , testProperty "compare transitive" pOrd2
+    , testProperty "compare antisymmetric" pOrd3
+    , testProperty "Ord => Eq" pOrdEq
+    , testProperty "Read/Show" pReadShow
+    , testProperty "Foldable" pFoldable
+    , testProperty "Hashable" pHashable
     ]
+  -- Basic interface
+  , testGroup "basic interface"
+    [ testProperty "size" pSize
+    , testProperty "member" pMember
+    , testProperty "insert" pInsert
+    , testProperty "delete" pDelete
+    ]
+  -- Combine
+  , testProperty "union" pUnion
+  -- Transformations
+  , testProperty "map" pMap
+  -- Folds
+  , testGroup "folds"
+    [ testProperty "foldr" pFoldr
+    , testProperty "foldl'" pFoldl'
+    ]
+  -- Filter
+  , testGroup "filter"
+    [ testProperty "filter" pFilter
+    ]
+  -- Conversions
+  , testGroup "conversions"
+    [ testProperty "toList" pToList
+    ]
+  ]
 
 ------------------------------------------------------------------------
 -- * Model
