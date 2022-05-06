@@ -1,5 +1,8 @@
+{-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-} -- because of the Arbitrary instances
+
+{-# OPTIONS_GHC -fno-warn-orphans            #-} -- because of the Arbitrary instances
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-} -- https://github.com/nick8325/quickcheck/issues/344
 
 -- | Tests for the 'Data.HashSet' module.  We test functions by
 -- comparing them to @Set@ from @containers@. @Set@ is referred to as a
@@ -12,7 +15,7 @@ import Data.HashMap.Lazy     (HashMap)
 import Data.HashSet          (HashSet)
 import Data.Ord              (comparing)
 import Data.Set              (Set)
-import Test.QuickCheck       (Fun, (===), (==>))
+import Test.QuickCheck       (Fun, pattern Fn, (===), (==>))
 import Test.Tasty            (TestTree, testGroup)
 import Test.Tasty.QuickCheck (Arbitrary (..), testProperty)
 import Util.Key              (Key, keyToInt)
@@ -117,7 +120,7 @@ tests = testGroup "Data.HashSet"
     \(x :: HSK) y -> toOrdSet (HS.union x y) === S.union (toOrdSet x) (toOrdSet y)
   -- Transformations
   , testProperty "map" $
-    \(f :: Fun Key Key) (s :: HSK) -> toOrdSet (HS.map (QC.applyFun f) s) === S.map (QC.applyFun f) (toOrdSet s)
+    \(Fn f :: Fun Key Key) (s :: HSK) -> toOrdSet (HS.map f s) === S.map f (toOrdSet s)
   -- Folds
   , testProperty "foldr" $
     \(s :: HSK) ->
@@ -128,7 +131,7 @@ tests = testGroup "Data.HashSet"
       in  HS.foldl' f z0 s === S.foldl' f z0 (toOrdSet s)
   -- Filter
   , testProperty "filter" $
-    \p (s :: HSK) -> toOrdSet (HS.filter (QC.applyFun p) s) === S.filter (QC.applyFun p) (toOrdSet s)
+    \(Fn p) (s :: HSK) -> toOrdSet (HS.filter p s) === S.filter p (toOrdSet s)
   -- Conversions
   , testProperty "toList" $
     \(xs :: [Key]) -> List.sort (HS.toList (HS.fromList xs)) === S.toAscList (S.fromList xs)
