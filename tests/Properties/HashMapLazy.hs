@@ -135,7 +135,9 @@ tests =
             bifoldr (:) (:) [] m === concatMap (\(k, v) -> [k, v]) (HM.toList m)
         , testProperty "bifoldl" $
           \(m :: HMK Key) ->
-            bifoldl (flip (:)) (flip (:)) [] m === reverse (concatMap (\(k, v) -> [k, v]) (HM.toList m))
+            bifoldl (flip (:)) (flip (:)) [] m
+            ===
+            reverse (concatMap (\(k, v) -> [k, v]) (HM.toList m))
         ]
       , testProperty "Hashable" $
         \(xs :: [(Key, Int)]) is salt ->
@@ -368,7 +370,8 @@ tests =
     -- Transformations
     , testGroup "map"
       [ testProperty "model" $
-        \(f :: Fun A B) (m :: HMK A) -> toOrdMap (HM.map (QC.applyFun f) m) === M.map (QC.applyFun f) (toOrdMap m)
+        \(f :: Fun A B) (m :: HMK A) ->
+          toOrdMap (HM.map (QC.applyFun f) m) === M.map (QC.applyFun f) (toOrdMap m)
       , testProperty "valid" $
         \(f :: Fun A B) (m :: HMK A) -> isValid (HM.map (QC.applyFun f) m)
       ]
@@ -432,7 +435,9 @@ tests =
     , testGroup "filterWithKey"
       [ testProperty "model" $
         \p (m :: HMKI) ->
-          toOrdMap (HM.filterWithKey (QC.applyFun2 p) m) === M.filterWithKey (QC.applyFun2 p) (toOrdMap m)
+          toOrdMap (HM.filterWithKey (QC.applyFun2 p) m)
+          ===
+          M.filterWithKey (QC.applyFun2 p) (toOrdMap m)
       , testProperty "valid" $
         \p (m :: HMKI) -> isValid (HM.filterWithKey (QC.applyFun2 p) m)
       ]
@@ -446,9 +451,12 @@ tests =
     , testGroup "mapMaybeWithKey"
       [ testProperty "model" $
         \(f :: Fun (Key, A) (Maybe B)) (m :: HMK A) ->
-          toOrdMap (HM.mapMaybeWithKey (QC.applyFun2 f) m) === M.mapMaybeWithKey (QC.applyFun2 f) (toOrdMap m)
+          toOrdMap (HM.mapMaybeWithKey (QC.applyFun2 f) m)
+          ===
+          M.mapMaybeWithKey (QC.applyFun2 f) (toOrdMap m)
       , testProperty "valid" $
-        \(f :: Fun (Key, A) (Maybe B)) (m :: HMK A) -> isValid (HM.mapMaybeWithKey (QC.applyFun2 f) m)
+        \(f :: Fun (Key, A) (Maybe B)) (m :: HMK A) ->
+          isValid (HM.mapMaybeWithKey (QC.applyFun2 f) m)
       ]
     -- Conversions
     , testProperty "elems" $
