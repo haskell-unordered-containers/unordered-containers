@@ -877,25 +877,27 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
 -- We can skip the key equality check on a Leaf because we know the leaf must be
 -- for this key.
 insertKeyExists :: Int -> Hash -> k -> v -> HashMap k v -> HashMap k v
-insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 0 m0
+insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
   where
-    go !_collPos !h !k x !_s (Leaf _hy _kx)
+    go !_collPos !h !k x (Leaf _hy _kx)
         = Leaf h (L k x)
-    go collPos h k x s (BitmapIndexed b ary) =
+    go collPos h k x (BitmapIndexed b ary) =
         let !st  = A.index ary i
-            !st' = go collPos h k x (nextShift s) st
+            !st' = go collPos (shiftHash h) k x st
         in BitmapIndexed b (A.update ary i st')
-      where m = mask h s
+      where m = mask h 0
             i = sparseIndex b m
-    go collPos h k x s (Full ary) =
+    go collPos h k x (Full ary) =
         let !st  = A.index ary i
-            !st' = go collPos h k x (nextShift s) st
+            !st' = go collPos (shiftHash h) k x st
         in Full (update32 ary i st')
-      where i = index h s
-    go collPos h k x _s (Collision _hy v)
+      where i = index h 0
+    go collPos h k x (Collision _hy v)
         | collPos >= 0 = Collision h (setAtPosition collPos k x v)
         | otherwise = Empty -- error "Internal error: go {collPos negative}"
-    go _ _ _ _ _ Empty = Empty -- error "Internal error: go Empty"
+    go _ _ _ _ Empty = Empty -- error "Internal error: go Empty"
+
+    shiftHash h = h `unsafeShiftR` bitsPerSubkey
 
 {-# NOINLINE insertKeyExists #-}
 
@@ -1158,13 +1160,13 @@ delete' h0 k0 m0 = go h0 k0 0 m0
 -- We can skip:
 --  - the key equality check on the leaf, if we reach a leaf it must be the key
 deleteKeyExists :: Int -> Hash -> k -> HashMap k v -> HashMap k v
-deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 0 m0
+deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
   where
-    go :: Int -> Hash -> k -> Int -> HashMap k v -> HashMap k v
-    go !_collPos !_h !_k !_s (Leaf _ _) = Empty
-    go collPos h k s (BitmapIndexed b ary) =
+    go :: Int -> Hash -> k -> HashMap k v -> HashMap k v
+    go !_collPos !_h !_k (Leaf _ _) = Empty
+    go collPos h k (BitmapIndexed b ary) =
             let !st = A.index ary i
-                !st' = go collPos h k (nextShift s) st
+                !st' = go collPos (shiftHash h) k st
             in case st' of
                 Empty | A.length ary == 1 -> Empty
                       | A.length ary == 2 ->
@@ -1177,25 +1179,27 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 0 m0
                       bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
                 l | isLeafOrCollision l && A.length ary == 1 -> l
                 _ -> BitmapIndexed b (A.update ary i st')
-      where m = mask h s
+      where m = mask h 0
             i = sparseIndex b m
-    go collPos h k s (Full ary) =
+    go collPos h k (Full ary) =
         let !st   = A.index ary i
-            !st' = go collPos h k (nextShift s) st
+            !st' = go collPos (shiftHash h) k st
         in case st' of
             Empty ->
                 let ary' = A.delete ary i
                     bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
                 in BitmapIndexed bm ary'
             _ -> Full (A.update ary i st')
-      where i = index h s
-    go collPos h _ _ (Collision _hy v)
+      where i = index h 0
+    go collPos h _ (Collision _hy v)
       | A.length v == 2
       = if collPos == 0
         then Leaf h (A.index v 1)
         else Leaf h (A.index v 0)
       | otherwise = Collision h (A.delete v collPos)
-    go !_ !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
+    go !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
+
+    shiftHash h = h `unsafeShiftR` bitsPerSubkey
 {-# NOINLINE deleteKeyExists #-}
 
 -- | \(O(\log n)\) Adjust the value tied to a given key in this map only
