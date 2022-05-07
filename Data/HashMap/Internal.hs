@@ -879,8 +879,8 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
 insertKeyExists :: Int -> Hash -> k -> v -> HashMap k v -> HashMap k v
 insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
   where
-    go !_collPos !h !k x (Leaf _hy _kx)
-        = Leaf h (L k x)
+    go !_collPos !_h !k x (Leaf hy _kx)
+        = Leaf hy (L k x)
     go collPos h k x (BitmapIndexed b ary) =
         let !st  = A.index ary i
             !st' = go collPos (shiftHash h) k x st
@@ -892,8 +892,8 @@ insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
             !st' = go collPos (shiftHash h) k x st
         in Full (update32 ary i st')
       where i = index h 0
-    go collPos h k x (Collision _hy v)
-        | collPos >= 0 = Collision h (setAtPosition collPos k x v)
+    go collPos _h k x (Collision hy v)
+        | collPos >= 0 = Collision hy (setAtPosition collPos k x v)
         | otherwise = Empty -- error "Internal error: go {collPos negative}"
     go _ _ _ _ Empty = Empty -- error "Internal error: go Empty"
 
@@ -1191,12 +1191,12 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
                 in BitmapIndexed bm ary'
             _ -> Full (A.update ary i st')
       where i = index h 0
-    go collPos h _ (Collision hy v)
+    go collPos _h _k (Collision hy v)
       | A.length v == 2
       = if collPos == 0
         then Leaf hy (A.index v 1)
         else Leaf hy (A.index v 0)
-      | otherwise = Collision h (A.delete v collPos)
+      | otherwise = Collision hy (A.delete v collPos)
     go !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
 
     shiftHash h = h `unsafeShiftR` bitsPerSubkey
