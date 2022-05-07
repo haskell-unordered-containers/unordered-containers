@@ -882,9 +882,7 @@ insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 0 m0
     go !_collPos !h !k x !_s (Leaf _hy _kx)
         = Leaf h (L k x)
     go collPos h k x s (BitmapIndexed b ary)
-        | b .&. m == 0 =
-            let !ary' = A.insert ary i $ Leaf h (L k x)
-            in bitmapIndexedOrFull (b .|. m) ary'
+        | b .&. m == 0 = Empty -- error "insertKeyExists: key not found"
         | otherwise =
             let !st  = A.index ary i
                 !st' = go collPos h k x (nextShift s) st
