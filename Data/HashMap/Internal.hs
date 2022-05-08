@@ -881,14 +881,10 @@ insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 0 m0
   where
     go !_collPos !h !k x !_s (Leaf _hy _kx)
         = Leaf h (L k x)
-    go collPos h k x s (BitmapIndexed b ary)
-        | b .&. m == 0 =
-            let !ary' = A.insert ary i $ Leaf h (L k x)
-            in bitmapIndexedOrFull (b .|. m) ary'
-        | otherwise =
-            let !st  = A.index ary i
-                !st' = go collPos h k x (nextShift s) st
-            in BitmapIndexed b (A.update ary i st')
+    go collPos h k x s (BitmapIndexed b ary) =
+        let !st  = A.index ary i
+            !st' = go collPos h k x (nextShift s) st
+        in BitmapIndexed b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
     go collPos h k x s (Full ary) =
