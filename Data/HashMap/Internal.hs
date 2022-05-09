@@ -1191,11 +1191,11 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
                 in BitmapIndexed bm ary'
             _ -> Full (A.update ary i st')
       where i = index h 0
-    go collPos h _ (Collision hy v)
+    go collPos h _ (Collision _hy v)
       | A.length v == 2
       = if collPos == 0
-        then Leaf hy (A.index v 1)
-        else Leaf hy (A.index v 0)
+        then Leaf h (A.index v 1)
+        else Leaf h (A.index v 0)
       | otherwise = Collision h (A.delete v collPos)
     go !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
 
