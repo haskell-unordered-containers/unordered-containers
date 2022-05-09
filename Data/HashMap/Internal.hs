@@ -906,12 +906,15 @@ insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
     -- Customized version of 'index' that doesn't require a 'Shift'.
     index' :: Hash -> Int
     index' w = fromIntegral $ w .&. subkeyMask
+    {-# INLINE index' #-}
 
     -- Customized version of 'mask' that doesn't require a 'Shift'.
     mask' :: Word -> Bitmap
     mask' w = 1 `unsafeShiftL` index' w
+    {-# INLINE mask' #-}
 
     shiftHash h = h `unsafeShiftR` bitsPerSubkey
+    {-# INLINE shiftHash #-}
 
 {-# NOINLINE insertKeyExists #-}
 
@@ -1216,12 +1219,16 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
     -- Customized version of 'index' that doesn't require a 'Shift'.
     index' :: Hash -> Int
     index' w = fromIntegral $ w .&. subkeyMask
+    {-# INLINE index' #-}
 
     -- Customized version of 'mask' that doesn't require a 'Shift'.
     mask' :: Word -> Bitmap
     mask' w = 1 `unsafeShiftL` index' w
+    {-# INLINE mask' #-}
 
     shiftHash h = h `unsafeShiftR` bitsPerSubkey
+    {-# INLINE shiftHash #-}
+
 {-# NOINLINE deleteKeyExists #-}
 
 -- | \(O(\log n)\) Adjust the value tied to a given key in this map only
