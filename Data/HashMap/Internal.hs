@@ -891,17 +891,25 @@ insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
         let !st  = A.index ary i
             !st' = go collPos (shiftHash shiftedHash) k x st
         in BitmapIndexed b (A.update ary i st')
-      where m = mask shiftedHash 0
+      where m = mask' shiftedHash
             i = sparseIndex b m
     go collPos shiftedHash k x (Full ary) =
         let !st  = A.index ary i
             !st' = go collPos (shiftHash shiftedHash) k x st
         in Full (update32 ary i st')
-      where i = index shiftedHash 0
+      where i = index' shiftedHash
     go collPos _shiftedHash k x (Collision h v)
         | collPos >= 0 = Collision h (setAtPosition collPos k x v)
         | otherwise = Empty -- error "Internal error: go {collPos negative}"
     go _ _ _ _ Empty = Empty -- error "Internal error: go Empty"
+
+    -- Customized version of 'index' that doesn't require a 'Shift'.
+    index' :: Hash -> Int
+    index' w = fromIntegral $ w .&. subkeyMask
+
+    -- Customized version of 'mask' that doesn't require a 'Shift'.
+    mask' :: Word -> Bitmap
+    mask' w = 1 `unsafeShiftL` index' w
 
     shiftHash h = h `unsafeShiftR` bitsPerSubkey
 
@@ -1185,7 +1193,7 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
                       bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
                 l | isLeafOrCollision l && A.length ary == 1 -> l
                 _ -> BitmapIndexed b (A.update ary i st')
-      where m = mask shiftedHash 0
+      where m = mask' shiftedHash
             i = sparseIndex b m
     go collPos shiftedHash k (Full ary) =
         let !st   = A.index ary i
@@ -1196,7 +1204,7 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
                     bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
                 in BitmapIndexed bm ary'
             _ -> Full (A.update ary i st')
-      where i = index shiftedHash 0
+      where i = index' shiftedHash
     go collPos _shiftedHash _k (Collision h v)
       | A.length v == 2
       = if collPos == 0
@@ -1204,6 +1212,14 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
         else Leaf h (A.index v 0)
       | otherwise = Collision h (A.delete v collPos)
     go !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
+
+    -- Customized version of 'index' that doesn't require a 'Shift'.
+    index' :: Hash -> Int
+    index' w = fromIntegral $ w .&. subkeyMask
+
+    -- Customized version of 'mask' that doesn't require a 'Shift'.
+    mask' :: Word -> Bitmap
+    mask' w = 1 `unsafeShiftL` index' w
 
     shiftHash h = h `unsafeShiftR` bitsPerSubkey
 {-# NOINLINE deleteKeyExists #-}
