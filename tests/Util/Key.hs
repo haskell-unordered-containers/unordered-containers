@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveGeneric    #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Util.Key (Key(..), keyToInt, incKey, collisionAtHash) where
+module Util.Key (Key(..), keyToInt, incKey, collisionAtHash, SmallSum(..)) where
 
 import Data.Bits       (bit, (.&.))
 import Data.Hashable   (Hashable (hashWithSalt))
