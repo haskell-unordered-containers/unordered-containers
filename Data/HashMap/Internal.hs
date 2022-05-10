@@ -877,7 +877,7 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
 --
 -- It is only valid to call this when the key exists in the map and you know the
 -- hash collision position if there was one. This information can be obtained
--- from 'lookupRecordCollision'. If there is no collision pass (-1) as collPos
+-- from 'lookupRecordCollision'. If there is no collision, pass (-1) as collPos
 -- (first argument).
 insertKeyExists :: Int -> Hash -> k -> v -> HashMap k v -> HashMap k v
 insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
@@ -1169,7 +1169,7 @@ delete' h0 k0 m0 = go h0 k0 0 m0
 --
 -- It is only valid to call this when the key exists in the map and you know the
 -- hash collision position if there was one. This information can be obtained
--- from 'lookupRecordCollision'. If there is no collision pass (-1) as collPos.
+-- from 'lookupRecordCollision'. If there is no collision, pass (-1) as collPos.
 deleteKeyExists :: Int -> Hash -> k -> HashMap k v -> HashMap k v
 deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
   where
