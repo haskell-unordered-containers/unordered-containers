@@ -659,6 +659,7 @@ data LookupRes a = Absent | Present a !Int
 lookupResToMaybe :: LookupRes a -> Maybe a
 lookupResToMaybe Absent        = Nothing
 lookupResToMaybe (Present x _) = Just x
+{-# INLINE lookupResToMaybe #-}
 
 -- Internal helper for lookup. This version takes the precomputed hash so
 -- that functions that make multiple calls to lookup and related functions
