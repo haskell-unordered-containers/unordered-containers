@@ -1426,9 +1426,7 @@ alterFEager f !k m = (<$> f mv) $ \case
 
   where !h = hash k
         !lookupRes = lookupRecordCollision h k m
-        !mv = case lookupRes of
-           Absent -> Nothing
-           Present v _ -> Just v
+        !mv = lookupResToMaybe lookupRes
 {-# INLINABLE alterFEager #-}
 
 -- | \(O(n \log m)\) Inclusion of maps. A map is included in another map if the keys

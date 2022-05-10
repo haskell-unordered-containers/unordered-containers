@@ -438,9 +438,7 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
 
   where !h = hash k
         !lookupRes = HM.lookupRecordCollision h k m
-        !mv = case lookupRes of
-          Absent -> Nothing
-          Present v _ -> Just v
+        !mv = HM.lookupResToMaybe lookupRes
 {-# INLINABLE alterFEager #-}
 
 ------------------------------------------------------------------------
