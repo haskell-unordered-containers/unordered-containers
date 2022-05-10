@@ -314,7 +314,7 @@ alter f k m =
             Present _ collPos -> HM.deleteKeyExists collPos h k m
         Just !v' -> case lookupRes of
             Absent             -> HM.insertNewKey h k v' m
-            Present !v collPos ->
+            Present v collPos ->
                 if v `ptrEq` v'
                     then m
                     else HM.insertKeyExists collPos h k v' m
