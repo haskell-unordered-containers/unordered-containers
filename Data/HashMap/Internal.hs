@@ -879,9 +879,6 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
 -- hash collision position if there was one. This information can be obtained
 -- from 'lookupRecordCollision'. If there is no collision pass (-1) as collPos
 -- (first argument).
---
--- We can skip the key equality check on a Leaf because we know the leaf must be
--- for this key.
 insertKeyExists :: Int -> Hash -> k -> v -> HashMap k v -> HashMap k v
 insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
   where
@@ -1173,9 +1170,6 @@ delete' h0 k0 m0 = go h0 k0 0 m0
 -- It is only valid to call this when the key exists in the map and you know the
 -- hash collision position if there was one. This information can be obtained
 -- from 'lookupRecordCollision'. If there is no collision pass (-1) as collPos.
---
--- We can skip:
---  - the key equality check on the leaf, if we reach a leaf it must be the key
 deleteKeyExists :: Int -> Hash -> k -> HashMap k v -> HashMap k v
 deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
   where
