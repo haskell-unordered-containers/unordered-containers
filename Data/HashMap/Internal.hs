@@ -2512,7 +2512,7 @@ pattern NoChange <- (# (# #) | #)
 
 pattern Changed :: a -> Change a
 pattern Changed a <- (# | a #) where
-  Changed a = (# | a #)
+  Changed !a = (# | a #)
 
 {-# COMPLETE NoChange, Changed #-}
 
