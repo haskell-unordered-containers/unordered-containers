@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MagicHash             #-}
 {-# LANGUAGE PatternGuards         #-}
+{-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE RoleAnnotations       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE StandaloneDeriving    #-}
@@ -803,37 +804,38 @@ insert k v m = insert' (hash k) k v m
 {-# INLINABLE insert #-}
 
 insert' :: Eq k => Hash -> k -> v -> HashMap k v -> HashMap k v
-insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
+insert' h0 k0 v0 m0 =
+    case go h0 k0 v0 0 m0 of
+      NoChange  -> m0
+      Changed m -> m
   where
-    go !h !k x !_ Empty = Leaf h (L k x)
+    go !h !k x !_ Empty = Changed (Leaf h (L k x))
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then if x `ptrEq` y
-                         then t
-                         else Leaf h (L k x)
-                    else collision h l (L k x)
-        | otherwise = runST (two s h k x hy t)
-    go h k x s t@(BitmapIndexed b ary)
+                         then NoChange
+                         else Changed (Leaf h (L k x))
+                    else Changed $ collision h l (L k x)
+        | otherwise = Changed $ runST (two s h k x hy t)
+    go h k x s (BitmapIndexed b ary)
         | b .&. m == 0 =
             let !ary' = A.insert ary i $! Leaf h (L k x)
-            in bitmapIndexedOrFull (b .|. m) ary'
+            in Changed $ bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             let !st  = A.index ary i
-                !st' = go h k x (nextShift s) st
-            in if st' `ptrEq` st
-               then t
-               else BitmapIndexed b (A.update ary i st')
+            in case go h k x (nextShift s) st of
+                 NoChange -> NoChange
+                 Changed st' -> Changed $ BitmapIndexed b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
-    go h k x s t@(Full ary) =
+    go h k x s (Full ary) =
         let !st  = A.index ary i
-            !st' = go h k x (nextShift s) st
-        in if st' `ptrEq` st
-            then t
-            else Full (update32 ary i st')
+        in case go h k x (nextShift s) st of
+             NoChange -> NoChange
+             Changed st' -> Changed $ Full (update32 ary i st')
       where i = index h s
     go h k x s t@(Collision hy v)
-        | h == hy   = Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
+        | h == hy   = Changed $ Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v) -- TODO: Improve
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE insert' #-}
 
@@ -2501,6 +2503,18 @@ nextShift s = s + bitsPerSubkey
 ptrEq :: a -> a -> Bool
 ptrEq x y = Exts.isTrue# (Exts.reallyUnsafePtrEquality# x y ==# 1#)
 {-# INLINE ptrEq #-}
+
+type Change a = (# (# #) | a #)
+
+pattern NoChange :: Change a
+pattern NoChange <- (# (# #) | #)
+  where NoChange = (# (# #) | #)
+
+pattern Changed :: a -> Change a
+pattern Changed a <- (# | a #) where
+  Changed a = (# | a #)
+
+{-# COMPLETE NoChange, Changed #-}
 
 ------------------------------------------------------------------------
 -- IsList instance
