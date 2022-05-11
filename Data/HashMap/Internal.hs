@@ -824,15 +824,15 @@ insert' h0 k0 v0 m0 =
         | otherwise =
             let !st  = A.index ary i
             in case go h k x (nextShift s) st of
-                 NoChange -> NoChange
                  Changed st' -> Changed $ BitmapIndexed b (A.update ary i st')
+                 noChange    -> noChange
       where m = mask h s
             i = sparseIndex b m
     go h k x s (Full ary) =
         let !st  = A.index ary i
         in case go h k x (nextShift s) st of
-             NoChange -> NoChange
              Changed st' -> Changed $ Full (update32 ary i st')
+             noChange    -> noChange
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Changed $ Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v) -- TODO: Improve
