@@ -982,8 +982,15 @@ two = go
       where
         bp1  = mask h1 s
         bp2  = mask h2 s
-        idx2 | index h1 s < index h2 s = 1
-             | otherwise               = 0
+        !(I# i1) = index h1 s
+        !(I# i2) = index h2 s
+        idx2 = I# (i1 Exts.<# i2)
+        -- This way of computing idx2 saves us a branch compared to the previous approach:
+        --
+        -- idx2 | index h1 s < index h2 s = 1
+        --      | otherwise               = 0
+        --
+        -- See https://github.com/haskell-unordered-containers/unordered-containers/issues/75#issuecomment-1128419337
 {-# INLINE two #-}
 
 -- | \(O(\log n)\) Associate the value with the key in this map.  If
