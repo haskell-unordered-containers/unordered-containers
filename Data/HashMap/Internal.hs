@@ -971,14 +971,14 @@ two = go
   where
     go s h1 k1 v1 h2 t2
         | bp1 == bp2 = do
-            st <- go (nextShift s) h1 k1 v1 h2 t2
+            !st <- go (nextShift s) h1 k1 v1 h2 t2
             ary <- A.singletonM st
-            return $ BitmapIndexed bp1 ary
+            return $! BitmapIndexed bp1 ary
         | otherwise  = do
             mary <- A.new 2 $! Leaf h1 (L k1 v1)
             A.write mary idx2 t2
             ary <- A.unsafeFreeze mary
-            return $ BitmapIndexed (bp1 .|. bp2) ary
+            return $! BitmapIndexed (bp1 .|. bp2) ary
       where
         bp1  = mask h1 s
         bp2  = mask h2 s
