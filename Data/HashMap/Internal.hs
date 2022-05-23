@@ -960,7 +960,7 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 
 -- | Create a map from two key-value pairs which hashes don't collide.
 --
--- Note: We don't need to force the HashMap argument
+-- Note: We don't need to force the HashMap argument (TODO: argument*s*?!)
 -- because it's already in WHNF (having just been matched) and we
 -- just put it directly in an array.
 two :: Shift -> Hash -> HashMap k v -> Hash -> HashMap k v -> ST s (HashMap k v)
