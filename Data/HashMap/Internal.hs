@@ -1606,16 +1606,16 @@ unionWithKey f = go 0
         | h1 == h2  = if k1 == k2
                       then Leaf h1 (L k1 (f k1 v1 v2))
                       else collision h1 l1 l2
-        | otherwise = goDifferentHash s h1 h2 t1 t2
+        | otherwise = runST (two s h1 t1 h2 t2)
     go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
         | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k a b #)) k1 v1 ls2)
-        | otherwise = goDifferentHash s h1 h2 t1 t2
+        | otherwise = runST (two s h1 t1 h2 t2)
     go s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
         | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k b a #)) k2 v2 ls1)
-        | otherwise = goDifferentHash s h1 h2 t1 t2
+        | otherwise = runST (two s h1 t1 h2 t2)
     go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
         | h1 == h2  = Collision h1 (updateOrConcatWithKey (\k a b -> (# f k a b #)) ls1 ls2)
-        | otherwise = goDifferentHash s h1 h2 t1 t2
+        | otherwise = runST (two s h1 t1 h2 t2)
     -- branch vs. branch
     go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
         let b'   = b1 .|. b2
@@ -1668,14 +1668,6 @@ unionWithKey f = go 0
     leafHashCode (Leaf h _) = h
     leafHashCode (Collision h _) = h
     leafHashCode _ = error "leafHashCode"
-
-    goDifferentHash s h1 h2 t1 t2
-        | m1 == m2  = BitmapIndexed m1 (A.singleton $! goDifferentHash (nextShift s) h1 h2 t1 t2)
-        | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
-        | otherwise = BitmapIndexed (m1 .|. m2) (A.pair t2 t1)
-      where
-        m1 = mask h1 s
-        m2 = mask h2 s
 {-# INLINE unionWithKey #-}
 
 -- | Strict in the result of @f@.
