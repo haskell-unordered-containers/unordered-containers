@@ -964,11 +964,11 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 -- because it's already in WHNF (having just been matched) and we
 -- just put it directly in an array.
 two :: Shift -> Hash -> HashMap k v -> Hash -> HashMap k v -> ST s (HashMap k v)
-two = go
+two s h1 t1' h2 t2' = go (h1 `unsafeShiftR` s) t1' (h2 `unsafeShiftR` s) t2'
   where
-    go s h1 t1 h2 t2
-        | bp1 == bp2 = do
-            st <- go (nextShift s) h1 t1 h2 t2
+    go shiftedHash1 t1 shiftedHash2 t2
+        | i1 == i2 = do
+            st <- go (shiftHash shiftedHash1) t1 (shiftHash shiftedHash2) t2
             ary <- A.singletonM st
             return $ BitmapIndexed bp1 ary
         | otherwise  = do
@@ -977,17 +977,25 @@ two = go
             ary <- A.unsafeFreeze mary
             return $ BitmapIndexed (bp1 .|. bp2) ary
       where
-        bp1  = mask h1 s
-        bp2  = mask h2 s
-        !(I# i1) = index h1 s
-        !(I# i2) = index h2 s
-        idx2 = I# (i1 Exts.<# i2)
+        bp1  = 1 `unsafeShiftL` i1
+        bp2  = 1 `unsafeShiftL` i2
+        !i1@(I# i1#) = index' shiftedHash1
+        !i2@(I# i2#) = index' shiftedHash2
+        idx2 = I# (i1# Exts.<# i2#)
         -- This way of computing idx2 saves us a branch compared to the previous approach:
         --
         -- idx2 | index h1 s < index h2 s = 1
         --      | otherwise               = 0
         --
         -- See https://github.com/haskell-unordered-containers/unordered-containers/issues/75#issuecomment-1128419337
+
+        -- Customized version of 'index' that doesn't require a 'Shift'.
+        index' :: Hash -> Int
+        index' w = fromIntegral $ w .&. subkeyMask
+        {-# INLINE index' #-}
+
+        shiftHash h = h `unsafeShiftR` bitsPerSubkey
+        {-# INLINE shiftHash #-}
 {-# INLINE two #-}
 
 -- | \(O(\log n)\) Associate the value with the key in this map.  If
