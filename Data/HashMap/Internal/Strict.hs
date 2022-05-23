@@ -196,7 +196,7 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
         | hy == h = if ky == k
                     then leaf h k (f x y)
                     else x `seq` HM.collision h l (L k x)
-        | otherwise = x `seq` runST (HM.two s h k x hy t)
+        | otherwise = x `seq` runST (HM.two s h (Leaf h (L k x)) hy t)
     go h k x s (BitmapIndexed b ary)
         | b .&. m == 0 =
             let ary' = A.insert ary i $! leaf h k x
@@ -237,7 +237,7 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
                     else do
                         let l' = x `seq` L k x
                         return $! HM.collision h l l'
-        | otherwise = x `seq` HM.two s h k x hy t
+        | otherwise = x `seq` HM.two s h (Leaf h (L k x)) hy t
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
             ary' <- A.insertM ary i $! leaf h k x
