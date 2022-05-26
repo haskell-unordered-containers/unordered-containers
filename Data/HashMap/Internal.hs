@@ -835,7 +835,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = runST $ two s h k x hy t
 {-# INLINABLE insert' #-}
 
 -- | Insert optimized for the case when we know the key is not in the map.
@@ -1260,10 +1260,9 @@ adjust# f k0 m0 = go h0 k0 0 m0
 -- | \(O(\log n)\)  The expression @('update' f k map)@ updates the value @x@ at @k@
 -- (if it is in the map). If @(f x)@ is 'Nothing', the element is deleted.
 -- If it is @('Just' y)@, the key @k@ is bound to the new value @y@.
-update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
-update f = alter (>>= f)
+update :: (Eq k, Hashable k, Show k, Show a) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
+update f = Exts.inline alter (>>= f)
 {-# INLINABLE update #-}
-
 
 -- | \(O(\log n)\)  The expression @('alter' f k map)@ alters the value @x@ at @k@, or
 -- absence thereof.
@@ -1273,27 +1272,89 @@ update f = alter (>>= f)
 -- @
 -- 'lookup' k ('alter' f k m) = f ('lookup' k m)
 -- @
-alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
-alter f k m =
-    let !h = hash k
-        !lookupRes = lookupRecordCollision h k m
-    in case f (lookupResToMaybe lookupRes) of
-        Nothing -> case lookupRes of
-            Absent            -> m
-            Present _ collPos -> deleteKeyExists collPos h k m
-        Just v' -> case lookupRes of
-            Absent            -> insertNewKey h k v' m
-            Present v collPos ->
-                if v `ptrEq` v'
-                    then m
-                    else insertKeyExists collPos h k v' m
-{-# INLINABLE alter #-}
+alter :: (Eq k, Hashable k, Show k, Show v) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
+alter f k = alter' f (hash k) k
+{-# INLINEABLE alter #-}
 
--- | \(O(\log n)\)  The expression @('alterF' f k map)@ alters the value @x@ at
--- @k@, or absence thereof.
---
---  'alterF' can be used to insert, delete, or update a value in a map.
---
+alter' :: (Eq k, Show v) => (Maybe v -> Maybe v) -> Hash -> k -> HashMap k v -> HashMap k v
+alter' f h0 k0 m0 = go h0 k0 0 m0
+  where
+    go !h !k !_ Empty = case f Nothing of
+      Nothing -> Empty
+      Just v -> Leaf h $ L k v
+    go h k s t@(Leaf hy l@(L ky v))
+      | hy == h =
+          if ky == k
+            then case f $ Just v of
+              Nothing -> Empty
+              Just v'
+                | v `ptrEq` v' -> t
+                | otherwise -> Leaf h $ L k v'
+            else do
+              case f Nothing of
+                Nothing -> t
+                Just v' -> collision h l $ L k v'
+      | otherwise = case f Nothing of
+          Nothing -> t
+          Just v' -> runST $ two s h k v' hy t
+    go h k s t@(BitmapIndexed b ary)
+      | b .&. m == 0 = case f Nothing of
+          Nothing -> t
+          Just v' -> bitmapIndexedOrFull (b .|. m) $! A.insert ary i $! Leaf h $! L k v'
+      | otherwise = do
+          let !st = A.index ary i
+              !st' = go h k (nextShift s) st
+          if st' `ptrEq` st
+            then t
+            else case st' of
+              Empty
+                | A.length ary == 1 -> Empty
+                | A.length ary == 2 ->
+                    case (i, A.index ary 0, A.index ary 1) of
+                      (0, _, l) | isLeafOrCollision l -> l
+                      (1, l, _) | isLeafOrCollision l -> l
+                      _ -> bIndexed
+                | otherwise -> bIndexed
+                where
+                  bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
+              l | isLeafOrCollision l && A.length ary == 1 -> l
+              _ -> BitmapIndexed b (A.update ary i st')
+      where
+        m = mask h s
+        i = sparseIndex b m
+    go h k s t@(Full ary) = do
+      let !st = A.index ary i
+          !st' = go h k (nextShift s) st
+      if st' `ptrEq` st
+        then t
+        else case st' of
+          Empty ->
+            let ary' = A.delete ary i
+                bm = fullBitmap .&. complement (1 `unsafeShiftL` i)
+             in BitmapIndexed bm ary'
+          _ -> Full (A.update ary i st')
+      where
+        i = index h s
+    go h k s t@(Collision hy ls)
+      | h == hy = case indexOf k ls of
+          Just i -> do
+            let (# L _ v #) = A.index# ls i
+            case f $ Just v of
+              Nothing
+                | A.length ls == 2 ->
+                    if i == 0
+                      then Leaf h (A.index ls 1)
+                      else Leaf h (A.index ls 0)
+                | otherwise -> Collision hy (A.delete ls i)
+              Just v' -> Collision hy $ A.update ls i $ L k v'
+          Nothing -> case f Nothing of
+            Nothing -> t
+            Just v' -> Collision hy $ A.snoc ls $ L k v'
+      | otherwise = case f Nothing of
+          Nothing -> t
+          Just v' -> runST $ two s h k v' hy t
+{-# INLINE alter' #-}
+
 -- Note: 'alterF' is a flipped version of the 'at' combinator from
 -- <https://hackage.haskell.org/package/lens/docs/Control-Lens-At.html#v:at Control.Lens.At>.
 --
