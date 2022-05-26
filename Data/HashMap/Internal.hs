@@ -1260,7 +1260,7 @@ adjust# f k0 m0 = go h0 k0 0 m0
 -- | \(O(\log n)\)  The expression @('update' f k map)@ updates the value @x@ at @k@
 -- (if it is in the map). If @(f x)@ is 'Nothing', the element is deleted.
 -- If it is @('Just' y)@, the key @k@ is bound to the new value @y@.
-update :: (Eq k, Hashable k, Show k, Show a) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
+update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
 update f = Exts.inline alter (>>= f)
 {-# INLINABLE update #-}
 
@@ -1272,11 +1272,11 @@ update f = Exts.inline alter (>>= f)
 -- @
 -- 'lookup' k ('alter' f k m) = f ('lookup' k m)
 -- @
-alter :: (Eq k, Hashable k, Show k, Show v) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
+alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
 alter f k = alter' f (hash k) k
 {-# INLINEABLE alter #-}
 
-alter' :: (Eq k, Show v) => (Maybe v -> Maybe v) -> Hash -> k -> HashMap k v -> HashMap k v
+alter' :: Eq k => (Maybe v -> Maybe v) -> Hash -> k -> HashMap k v -> HashMap k v
 alter' f h0 k0 m0 = go h0 k0 0 m0
   where
     go !h !k !_ Empty = case f Nothing of
