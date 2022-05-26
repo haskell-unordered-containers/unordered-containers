@@ -134,6 +134,7 @@ module Data.HashMap.Internal
     , equalKeys1
     , lookupRecordCollision
     , LookupRes(..)
+    , lookupResToMaybe
     , insert'
     , delete'
     , lookup'
@@ -655,6 +656,11 @@ lookup' h k m = case lookupRecordCollision# h k m of
 -- If a collision did not occur then it will have the Int value (-1).
 data LookupRes a = Absent | Present a !Int
 
+lookupResToMaybe :: LookupRes a -> Maybe a
+lookupResToMaybe Absent        = Nothing
+lookupResToMaybe (Present x _) = Just x
+{-# INLINE lookupResToMaybe #-}
+
 -- Internal helper for lookup. This version takes the precomputed hash so
 -- that functions that make multiple calls to lookup and related functions
 -- (insert, delete) only need to calculate the hash once.
@@ -871,35 +877,41 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
 --
 -- It is only valid to call this when the key exists in the map and you know the
 -- hash collision position if there was one. This information can be obtained
--- from 'lookupRecordCollision'. If there is no collision pass (-1) as collPos
+-- from 'lookupRecordCollision'. If there is no collision, pass (-1) as collPos
 -- (first argument).
---
--- We can skip the key equality check on a Leaf because we know the leaf must be
--- for this key.
 insertKeyExists :: Int -> Hash -> k -> v -> HashMap k v -> HashMap k v
-insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 0 m0
+insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
   where
-    go !_collPos !h !k x !_s (Leaf _hy _kx)
+    go !_collPos !_shiftedHash !k x (Leaf h _kx)
         = Leaf h (L k x)
-    go collPos h k x s (BitmapIndexed b ary)
-        | b .&. m == 0 =
-            let !ary' = A.insert ary i $ Leaf h (L k x)
-            in bitmapIndexedOrFull (b .|. m) ary'
-        | otherwise =
-            let !st  = A.index ary i
-                !st' = go collPos h k x (nextShift s) st
-            in BitmapIndexed b (A.update ary i st')
-      where m = mask h s
-            i = sparseIndex b m
-    go collPos h k x s (Full ary) =
+    go collPos shiftedHash k x (BitmapIndexed b ary) =
         let !st  = A.index ary i
-            !st' = go collPos h k x (nextShift s) st
+            !st' = go collPos (shiftHash shiftedHash) k x st
+        in BitmapIndexed b (A.update ary i st')
+      where m = mask' shiftedHash
+            i = sparseIndex b m
+    go collPos shiftedHash k x (Full ary) =
+        let !st  = A.index ary i
+            !st' = go collPos (shiftHash shiftedHash) k x st
         in Full (update32 ary i st')
-      where i = index h s
-    go collPos h k x _s (Collision _hy v)
+      where i = index' shiftedHash
+    go collPos _shiftedHash k x (Collision h v)
         | collPos >= 0 = Collision h (setAtPosition collPos k x v)
         | otherwise = Empty -- error "Internal error: go {collPos negative}"
-    go _ _ _ _ _ Empty = Empty -- error "Internal error: go Empty"
+    go _ _ _ _ Empty = Empty -- error "Internal error: go Empty"
+
+    -- Customized version of 'index' that doesn't require a 'Shift'.
+    index' :: Hash -> Int
+    index' w = fromIntegral $ w .&. subkeyMask
+    {-# INLINE index' #-}
+
+    -- Customized version of 'mask' that doesn't require a 'Shift'.
+    mask' :: Word -> Bitmap
+    mask' w = 1 `unsafeShiftL` index' w
+    {-# INLINE mask' #-}
+
+    shiftHash h = h `unsafeShiftR` bitsPerSubkey
+    {-# INLINE shiftHash #-}
 
 {-# NOINLINE insertKeyExists #-}
 
@@ -970,8 +982,15 @@ two = go
       where
         bp1  = mask h1 s
         bp2  = mask h2 s
-        idx2 | index h1 s < index h2 s = 1
-             | otherwise               = 0
+        !(I# i1) = index h1 s
+        !(I# i2) = index h2 s
+        idx2 = I# (i1 Exts.<# i2)
+        -- This way of computing idx2 saves us a branch compared to the previous approach:
+        --
+        -- idx2 | index h1 s < index h2 s = 1
+        --      | otherwise               = 0
+        --
+        -- See https://github.com/haskell-unordered-containers/unordered-containers/issues/75#issuecomment-1128419337
 {-# INLINE two #-}
 
 -- | \(O(\log n)\) Associate the value with the key in this map.  If
@@ -1157,18 +1176,15 @@ delete' h0 k0 m0 = go h0 k0 0 m0
 --
 -- It is only valid to call this when the key exists in the map and you know the
 -- hash collision position if there was one. This information can be obtained
--- from 'lookupRecordCollision'. If there is no collision pass (-1) as collPos.
---
--- We can skip:
---  - the key equality check on the leaf, if we reach a leaf it must be the key
+-- from 'lookupRecordCollision'. If there is no collision, pass (-1) as collPos.
 deleteKeyExists :: Int -> Hash -> k -> HashMap k v -> HashMap k v
-deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 0 m0
+deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
   where
-    go :: Int -> Hash -> k -> Int -> HashMap k v -> HashMap k v
-    go !_collPos !_h !_k !_s (Leaf _ _) = Empty
-    go collPos h k s (BitmapIndexed b ary) =
+    go :: Int -> Word -> k -> HashMap k v -> HashMap k v
+    go !_collPos !_shiftedHash !_k (Leaf _ _) = Empty
+    go collPos shiftedHash k (BitmapIndexed b ary) =
             let !st = A.index ary i
-                !st' = go collPos h k (nextShift s) st
+                !st' = go collPos (shiftHash shiftedHash) k st
             in case st' of
                 Empty | A.length ary == 1 -> Empty
                       | A.length ary == 2 ->
@@ -1181,25 +1197,39 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 0 m0
                       bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
                 l | isLeafOrCollision l && A.length ary == 1 -> l
                 _ -> BitmapIndexed b (A.update ary i st')
-      where m = mask h s
+      where m = mask' shiftedHash
             i = sparseIndex b m
-    go collPos h k s (Full ary) =
+    go collPos shiftedHash k (Full ary) =
         let !st   = A.index ary i
-            !st' = go collPos h k (nextShift s) st
+            !st' = go collPos (shiftHash shiftedHash) k st
         in case st' of
             Empty ->
                 let ary' = A.delete ary i
                     bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
                 in BitmapIndexed bm ary'
             _ -> Full (A.update ary i st')
-      where i = index h s
-    go collPos h _ _ (Collision _hy v)
+      where i = index' shiftedHash
+    go collPos _shiftedHash _k (Collision h v)
       | A.length v == 2
       = if collPos == 0
         then Leaf h (A.index v 1)
         else Leaf h (A.index v 0)
       | otherwise = Collision h (A.delete v collPos)
-    go !_ !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
+    go !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
+
+    -- Customized version of 'index' that doesn't require a 'Shift'.
+    index' :: Hash -> Int
+    index' w = fromIntegral $ w .&. subkeyMask
+    {-# INLINE index' #-}
+
+    -- Customized version of 'mask' that doesn't require a 'Shift'.
+    mask' :: Word -> Bitmap
+    mask' w = 1 `unsafeShiftL` index' w
+    {-# INLINE mask' #-}
+
+    shiftHash h = h `unsafeShiftR` bitsPerSubkey
+    {-# INLINE shiftHash #-}
+
 {-# NOINLINE deleteKeyExists #-}
 
 -- | \(O(\log n)\) Adjust the value tied to a given key in this map only
@@ -1485,9 +1515,7 @@ alterFEager f !k m = (<$> f mv) $ \case
 
   where !h = hash k
         !lookupRes = lookupRecordCollision h k m
-        !mv = case lookupRes of
-           Absent -> Nothing
-           Present v _ -> Just v
+        !mv = lookupResToMaybe lookupRes
 {-# INLINABLE alterFEager #-}
 
 -- | \(O(n \log m)\) Inclusion of maps. A map is included in another map if the keys
@@ -1799,9 +1827,6 @@ mapWithKey f = go
 map :: (v1 -> v2) -> HashMap k v1 -> HashMap k v2
 map f = mapWithKey (const f)
 {-# INLINE map #-}
-
--- TODO: We should be able to use mutation to create the new
--- 'HashMap'.
 
 -- | \(O(n)\) Perform an 'Applicative' action for each key-value pair
 -- in a 'HashMap' and produce a 'HashMap' of all the results.

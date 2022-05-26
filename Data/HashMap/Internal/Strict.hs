@@ -306,9 +306,18 @@ update f = alter (>>= f)
 -- @
 alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
 alter f k m =
-  case f (HM.lookup k m) of
-    Nothing -> HM.delete k m
-    Just v  -> insert k v m
+    let !h = hash k
+        !lookupRes = HM.lookupRecordCollision h k m
+    in case f (HM.lookupResToMaybe lookupRes) of
+        Nothing -> case lookupRes of
+            Absent            -> m
+            Present _ collPos -> HM.deleteKeyExists collPos h k m
+        Just !v' -> case lookupRes of
+            Absent             -> HM.insertNewKey h k v' m
+            Present v collPos ->
+                if v `ptrEq` v'
+                    then m
+                    else HM.insertKeyExists collPos h k v' m
 {-# INLINABLE alter #-}
 
 -- | \(O(\log n)\)  The expression (@'alterF' f k map@) alters the value @x@ at
@@ -429,9 +438,7 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
 
   where !h = hash k
         !lookupRes = HM.lookupRecordCollision h k m
-        !mv = case lookupRes of
-          Absent -> Nothing
-          Present v _ -> Just v
+        !mv = HM.lookupResToMaybe lookupRes
 {-# INLINABLE alterFEager #-}
 
 ------------------------------------------------------------------------

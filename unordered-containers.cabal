@@ -111,7 +111,7 @@ test-suite unordered-containers-tests
       nothunks >= 0.1.3
 
   default-language: Haskell2010
-  ghc-options: -Wall
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   cpp-options: -DASSERTS
 
 benchmark benchmarks
