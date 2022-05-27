@@ -668,7 +668,7 @@ fromList = List.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) HM.empty
 -- > = fromList [('a', [3, 1]), ('b', [2])]
 --
 -- Note that the lists in the resulting map contain elements in reverse order
--- from their occurences in the original list.
+-- from their occurrences in the original list.
 --
 -- More generally, duplicate entries are accumulated as follows;
 -- this matters when @f@ is not commutative or not associative.

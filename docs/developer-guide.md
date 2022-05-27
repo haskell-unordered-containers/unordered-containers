@@ -17,7 +17,7 @@ would be no reason for it to exist, given that its functionality is a strict
 subset of ordered containers. This might seem obvious, but the author has
 rejected several proposals in the past (e.g. to switch to higher quality but
 slower hash functions) that would have made unordered-containers too slow to
-motivate its existance.
+motivate its existence.
 
 ## A note on hash functions
 
@@ -87,7 +87,7 @@ data HashMap k v
     | Collision !Hash !(A.Array (Leaf k v))
 ```
 
-Here's a quick overview in order of simplicty:
+Here's a quick overview in order of simplicity:
 
  * `Empty` -- The empty map.
  * `Leaf` -- A key-value pair.

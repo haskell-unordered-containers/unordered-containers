@@ -32,7 +32,7 @@ import Data.Maybe (fromMaybe)
 import Data.Semigroup ((<>))
 #endif
 
--- Note: previous implemenation isPermutation = null (as // bs)
+-- Note: previous implementation isPermutation = null (as // bs)
 -- was O(n^2) too.
 --
 -- This assumes lists are of equal length

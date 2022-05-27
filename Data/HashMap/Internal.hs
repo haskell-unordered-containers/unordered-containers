@@ -652,7 +652,7 @@ lookup' h k m = case lookupRecordCollision# h k m of
   (# | (# a, _i #) #) -> Just a
 {-# INLINE lookup' #-}
 
--- The result of a lookup, keeping track of if a hash collision occured.
+-- The result of a lookup, keeping track of if a hash collision occurred.
 -- If a collision did not occur then it will have the Int value (-1).
 data LookupRes a = Absent | Present a !Int
 
@@ -2258,7 +2258,7 @@ fromList = List.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 -- > = fromList [('a', [3, 1]), ('b', [2])]
 --
 -- Note that the lists in the resulting map contain elements in reverse order
--- from their occurences in the original list.
+-- from their occurrences in the original list.
 --
 -- More generally, duplicate entries are accumulated as follows;
 -- this matters when @f@ is not commutative or not associative.
