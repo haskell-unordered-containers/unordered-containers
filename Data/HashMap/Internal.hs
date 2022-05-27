@@ -1299,7 +1299,7 @@ update f = Exts.inline alter (>>= f)
 -- @
 alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
 alter f k = alter' f (hash k) k
-{-# INLINEABLE alter #-}
+{-# INLINABLE alter #-}
 
 alter' :: Eq k => (Maybe v -> Maybe v) -> Hash -> k -> HashMap k v -> HashMap k v
 alter' f h0 k0 m0 = go h0 k0 0 m0
