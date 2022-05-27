@@ -98,7 +98,7 @@ pFromListWithKeyStrict f =
 -- argument, just the first argument, just the second argument,
 -- or both arguments are bottom. It would be quite tempting to
 -- just use Maybe A -> Maybe A -> Maybe A, but that would not
--- necessarily be continous.
+-- necessarily be continuous.
 pFromListWithValueResultStrict :: [(Key, Maybe A)]
                                -> Fun (Maybe A, Maybe A) A
                                -> Fun (Maybe A, Maybe A) Bool

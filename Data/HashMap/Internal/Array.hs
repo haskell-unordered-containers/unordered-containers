@@ -351,7 +351,7 @@ updateM ary idx b =
   where !count = length ary
 {-# INLINE updateM #-}
 
--- | \(O(n)\) Update the element at the given positio in this array, by
+-- | \(O(n)\) Update the element at the given position in this array, by
 -- applying a function to it.  Evaluates the element to WHNF before
 -- inserting it into the array.
 updateWith' :: Array e -> Int -> (e -> e) -> Array e
