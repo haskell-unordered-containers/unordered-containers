@@ -69,8 +69,8 @@ library
     MagicHash,
     BangPatterns
 
-  -- ghc-options: -Wall -O2 -fwarn-tabs -ferror-spans
-  ghc-options: -Wall -fwarn-tabs -ferror-spans
+  ghc-options: -Wall -O2 -fwarn-tabs -ferror-spans
+  -- ghc-options: -Wall -fwarn-tabs -ferror-spans
 
   -- For dumping the generated code:
   -- ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -ddump-asm -ddump-to-file
