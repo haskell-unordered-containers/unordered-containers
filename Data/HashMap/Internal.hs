@@ -1338,7 +1338,7 @@ alter' f h0 k0 m0 = go h0 k0 0 m0
     go h k s t@(Collision hy ls)
       | h == hy = case indexOf k ls of
           Just i -> do
-            let (# L _ v #) = A.index# ls i
+            let !(L _ v) = A.index ls i
             case f $ Just v of
               Nothing
                 | A.length ls == 2 ->
