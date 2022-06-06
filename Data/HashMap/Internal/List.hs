@@ -53,7 +53,7 @@ isPermutationBy f = go
 
 -- The idea:
 --
--- Homogeonous version
+-- Homogenous version
 --
 -- uc :: (a -> a -> Ordering) -> [a] -> [a] -> Ordering
 -- uc c as bs = compare (sortBy c as) (sortBy c bs)
