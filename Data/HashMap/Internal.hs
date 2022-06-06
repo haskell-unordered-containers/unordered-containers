@@ -835,7 +835,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
-        | otherwise = runST $ two s h k x hy t
+        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE insert' #-}
 
 -- | Insert optimized for the case when we know the key is not in the map.
