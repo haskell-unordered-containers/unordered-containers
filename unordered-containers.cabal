@@ -29,7 +29,8 @@ cabal-version:  >=1.10
 extra-source-files: CHANGES.md
 
 tested-with:
-  GHC ==9.2.1
+  GHC ==9.4.1
+   || ==9.2.4
    || ==9.0.2
    || ==8.10.7
    || ==8.8.4
