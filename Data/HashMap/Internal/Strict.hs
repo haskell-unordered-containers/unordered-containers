@@ -446,14 +446,14 @@ alterFEager f !k !m = (<$> f mv) $ \fres ->
 
 -- | \(O(n+m)\) The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the result.
-unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> HashMap k v -> HashMap k v
+unionWith :: Eq k => (v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
 unionWith f = unionWithKey (const f)
 {-# INLINE unionWith #-}
 
 -- | \(O(n+m)\) The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the result.
-unionWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
+unionWithKey :: Eq k => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
 unionWithKey f = go 0
   where
@@ -622,7 +622,7 @@ differenceWith f a b = HM.foldlWithKey' go HM.empty a
 -- | \(O(n+m)\) Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
-intersectionWith :: (Eq k, Hashable k) => (v1 -> v2 -> v3) -> HashMap k v1
+intersectionWith :: Eq k => (v1 -> v2 -> v3) -> HashMap k v1
                  -> HashMap k v2 -> HashMap k v3
 intersectionWith f = Exts.inline intersectionWithKey $ const f
 {-# INLINABLE intersectionWith #-}
@@ -630,7 +630,7 @@ intersectionWith f = Exts.inline intersectionWithKey $ const f
 -- | \(O(n+m)\) Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
 -- maps.
-intersectionWithKey :: (Eq k, Hashable k) => (k -> v1 -> v2 -> v3)
+intersectionWithKey :: Eq k => (k -> v1 -> v2 -> v3)
                     -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
 intersectionWithKey f = HM.intersectionWithKey# $ \k v1 v2 -> let !v3 = f k v1 v2 in (# v3 #)
 {-# INLINABLE intersectionWithKey #-}
