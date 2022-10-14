@@ -306,14 +306,14 @@ isSubsetOf s1 s2 = H.isSubmapOfBy (\_ _ -> True) (asMap s1) (asMap s2)
 --
 -- >>> union (fromList [1,2]) (fromList [2,3])
 -- fromList [1,2,3]
-union :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
+union :: Eq a => HashSet a -> HashSet a -> HashSet a
 union s1 s2 = HashSet $ H.union (asMap s1) (asMap s2)
 {-# INLINE union #-}
 
 -- TODO: Figure out the time complexity of 'unions'.
 
 -- | Construct a set containing all elements from a list of sets.
-unions :: (Eq a, Hashable a) => [HashSet a] -> HashSet a
+unions :: Eq a => [HashSet a] -> HashSet a
 unions = List.foldl' union empty
 {-# INLINE unions #-}
 
@@ -391,7 +391,7 @@ difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
 --
 -- >>> HashSet.intersection (HashSet.fromList [1,2,3]) (HashSet.fromList [2,3,4])
 -- fromList [2,3]
-intersection :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
+intersection :: Eq a => HashSet a -> HashSet a -> HashSet a
 intersection (HashSet a) (HashSet b) = HashSet (H.intersection a b)
 {-# INLINABLE intersection #-}
 
