@@ -446,8 +446,8 @@ equal2 eqk eqv t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 []
       | k1 == k2 &&
         leafEq l1 l2
       = go tl1 tl2
-    go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
-      | k1 == k2 &&
+    go (Collision h1 ary1 : tl1) (Collision h2 ary2 : tl2)
+      | h1 == h2 &&
         A.length ary1 == A.length ary2 &&
         isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
       = go tl1 tl2
@@ -476,8 +476,8 @@ cmp cmpk cmpv t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
       = compare k1 k2 `mappend`
         leafCompare l1 l2 `mappend`
         go tl1 tl2
-    go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
-      = compare k1 k2 `mappend`
+    go (Collision h1 ary1 : tl1) (Collision h2 ary2 : tl2)
+      = compare h1 h2 `mappend`
         compare (A.length ary1) (A.length ary2) `mappend`
         unorderedCompare leafCompare (A.toList ary1) (A.toList ary2) `mappend`
         go tl1 tl2
@@ -497,8 +497,8 @@ equalKeys1 eq t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
       | k1 == k2 && leafEq l1 l2
       = go tl1 tl2
-    go (Collision k1 ary1 : tl1) (Collision k2 ary2 : tl2)
-      | k1 == k2 && A.length ary1 == A.length ary2 &&
+    go (Collision h1 ary1 : tl1) (Collision h2 ary2 : tl2)
+      | h1 == h2 && A.length ary1 == A.length ary2 &&
         isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
       = go tl1 tl2
     go [] [] = True
