@@ -6,6 +6,7 @@ import qualified Properties.HashMapLazy
 import qualified Properties.HashMapStrict
 import qualified Properties.HashSet
 import qualified Properties.List
+import qualified Properties.Size
 
 tests :: TestTree
 tests = testGroup "Properties"
@@ -13,4 +14,5 @@ tests = testGroup "Properties"
   , Properties.HashMapStrict.tests
   , Properties.HashSet.tests
   , Properties.List.tests
+  , Properties.Size.tests
   ]
