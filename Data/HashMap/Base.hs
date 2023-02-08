@@ -774,7 +774,7 @@ unions :: (Eq k, Hashable k) => [HashMap k v] -> HashMap k v
 unions = L.foldl' union empty
 {-# INLINE unions #-}
 
--- | Construct a set containing all elements from a list of sets.
+-- | Construct a map containing all elements from a list of maps.
 -- If a key occurs in both maps, the provided function (first argument) will be
 -- used to compute the result.
 unionsWith :: (Eq k, Hashable k) => (v -> v -> v) -> [HashMap k v] -> HashMap k v
