@@ -164,8 +164,8 @@ import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
 import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
 import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
 import GHC.Stack                  (HasCallStack)
-import Prelude                    hiding (filter, foldl, foldr, lookup, map,
-                                   null, pred)
+import Prelude                    hiding (Foldable(..), filter, lookup, map,
+                                   pred)
 import Text.Read                  hiding (step)
 
 import qualified Data.Data                   as Data

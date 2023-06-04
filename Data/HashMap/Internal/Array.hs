@@ -94,7 +94,7 @@ import GHC.Exts            (Int (..), SmallArray#, SmallMutableArray#,
                             unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                             writeSmallArray#)
 import GHC.ST              (ST (..))
-import Prelude             hiding (all, filter, foldMap, foldl, foldr, length,
+import Prelude             hiding (Foldable(..), all, filter,
                             map, read, traverse)
 
 import qualified GHC.Exts                   as Exts
