@@ -98,7 +98,7 @@ import Data.Hashable.Lifted  (Hashable1 (..), Hashable2 (..))
 import Data.HashMap.Internal (HashMap, equalKeys, equalKeys1, foldMapWithKey,
                               foldlWithKey, foldrWithKey)
 import Data.Semigroup        (Semigroup (..), stimesIdempotentMonoid)
-import Prelude               hiding (filter, foldl, foldr, map, null)
+import Prelude               hiding (Foldable(..), filter, map)
 import Text.Read
 
 import qualified Data.Data                  as Data
