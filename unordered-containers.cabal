@@ -41,6 +41,7 @@ tested-with:
 flag debug
   description:  Enable debug support
   default:      False
+  manual:       True
 
 library
   exposed-modules:
