@@ -42,6 +42,14 @@ flag debug
   description:  Enable debug support
   default:      False
 
+flag sse42
+  description: Instruct GHC to use -msse4.2. Disable this to allow
+               older architectures to use unordered-containers. Only relevant
+               for x86; expect performance regressions on newer architectures
+               when disabled.
+  default:     True
+  manual:      True
+
 library
   exposed-modules:
     Data.HashMap.Internal
@@ -70,6 +78,9 @@ library
     BangPatterns
 
   ghc-options: -Wall -O2 -fwarn-tabs -ferror-spans
+  if flag(sse42) && arch(x86_64)
+    -- only enable flag on x86
+    ghc-options: -msse4.2
 
   -- For dumping the generated code:
   -- ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -ddump-asm -ddump-to-file
