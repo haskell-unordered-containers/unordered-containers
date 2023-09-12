@@ -1,3 +1,9 @@
+## [0.2.19.2] – September 2023
+
+    * [By default pass `-msse4.2` on x86 architectures](https://github.com/haskell-unordered-containers/unordered-containers/pull/483)
+
+[0.2.19.2]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.19.1...v0.2.19.2
+
 ## [0.2.19.1] – April 2022
 
 * [Fix bug in `intersection[With[Key]]`](https://github.com/haskell-unordered-containers/unordered-containers/pull/427)
