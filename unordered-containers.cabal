@@ -29,8 +29,10 @@ cabal-version:  >=1.10
 extra-source-files: CHANGES.md
 
 tested-with:
-  GHC ==9.4.1
-   || ==9.2.4
+  GHC ==9.8.1
+   || ==9.6.3
+   || ==9.4.7
+   || ==9.2.8
    || ==9.0.2
    || ==8.10.7
    || ==8.8.4
@@ -58,7 +60,7 @@ library
     base >= 4.10 && < 5,
     deepseq >= 1.4.3,
     hashable >= 1.2.5 && < 1.5,
-    template-haskell < 2.20
+    template-haskell < 2.22
 
   default-language: Haskell2010
 
