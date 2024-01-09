@@ -1,3 +1,30 @@
+## [0.2.20] - January 2024
+
+* [Allow `template-haskell-2.21`](https://github.com/haskell-unordered-containers/unordered-containers/pull/484)
+
+* [Rename confusing variables](https://github.com/haskell-unordered-containers/unordered-containers/pull/479)
+
+* [Deal with introduction of `Prelude.foldl'`](https://github.com/haskell-unordered-containers/unordered-containers/pull/480)
+
+* [Remove redundant `Hashable` constraints](https://github.com/haskell-unordered-containers/unordered-containers/pull/478)
+  from `intersection.*` and `union.*`.
+
+* Various optimizations and cleanups:
+  [#458](https://github.com/haskell-unordered-containers/unordered-containers/pull/458),
+  [#469](https://github.com/haskell-unordered-containers/unordered-containers/pull/469),
+  [#404](https://github.com/haskell-unordered-containers/unordered-containers/pull/404),
+  [#460](https://github.com/haskell-unordered-containers/unordered-containers/pull/460),
+  [#456](https://github.com/haskell-unordered-containers/unordered-containers/pull/456),
+  [#433](https://github.com/haskell-unordered-containers/unordered-containers/pull/433)
+
+* Add invariant tests:
+  [#444](https://github.com/haskell-unordered-containers/unordered-containers/pull/444),
+  [#455](https://github.com/haskell-unordered-containers/unordered-containers/pull/455)
+
+* [Improve test case generation](https://github.com/haskell-unordered-containers/unordered-containers/pull/442)
+
+* [Improve test failure reporting](https://github.com/haskell-unordered-containers/unordered-containers/pull/440)
+
 ## [0.2.19.1] – April 2022
 
 * [Fix bug in `intersection[With[Key]]`](https://github.com/haskell-unordered-containers/unordered-containers/pull/427)
