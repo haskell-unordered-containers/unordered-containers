@@ -28,7 +28,7 @@ module Data.HashMap.Internal.Debug
 import Data.Bits             (complement, countTrailingZeros, popCount, shiftL,
                               unsafeShiftL, (.&.), (.|.))
 import Data.Hashable         (Hashable)
-import Data.HashMap.Internal (Bitmap, Hash, HashMap (..), Leaf (..),
+import Data.HashMap.Internal (Bitmap, Hash, HashMap (..), Leaf (..), Tree (..),
                               bitsPerSubkey, fullBitmap, hash,
                               isLeafOrCollision, maxChildren, sparseIndex)
 import Data.Semigroup        (Sum (..))
@@ -65,6 +65,7 @@ data Error k
   | INV8_bad_Full_size !Int
   | INV9_Collision_size !Int
   | INV10_Collision_duplicate_key k !Hash
+  | INV11_Negative_HM_Size !Int
   deriving (Eq, Show)
 
 -- TODO: Name this 'Index'?!
@@ -95,55 +96,60 @@ hashMatchesSubHashPath (SubHashPath ph l) h = maskToLength h l == ph
     maskToLength h' l' = h' .&. complement (complement 0 `shiftL` l')
 
 valid :: Hashable k => HashMap k v -> Validity k
-valid Empty = Valid
-valid t     = validInternal initialSubHashPath t
+valid (HashMap sz hm) = if sz >= 0
+    then valid' hm
+    else Invalid (INV11_Negative_HM_Size $ A.unSize sz) initialSubHashPath
   where
-    validInternal p Empty                 = Invalid INV1_internal_Empty p
-    validInternal p (Leaf h l)            = validHash p h <> validLeaf p h l
-    validInternal p (Collision h ary)     = validHash p h <> validCollision p h ary
-    validInternal p (BitmapIndexed b ary) = validBitmapIndexed p b ary
-    validInternal p (Full ary)            = validFull p ary
-
-    validHash p h | hashMatchesSubHashPath p h = Valid
-                  | otherwise                  = Invalid (INV6_misplaced_hash h) p
-
-    validLeaf p h (L k _) | hash k == h = Valid
-                          | otherwise   = Invalid (INV7_key_hash_mismatch k h) p
-
-    validCollision p h ary = validCollisionSize <> A.foldMap (validLeaf p h) ary <> distinctKeys
+    valid' :: Hashable k => Tree k v -> Validity k
+    valid' Empty = Valid
+    valid' t     = validInternal initialSubHashPath t
       where
-        n = A.length ary
-        validCollisionSize | n < 2     = Invalid (INV9_Collision_size n) p
-                           | otherwise = Valid
-        distinctKeys = A.foldMap (\(L k _) -> appearsOnce k) ary
-        appearsOnce k | A.foldMap (\(L k' _) -> if k' == k then Sum @Int 1 else Sum 0) ary == 1 = Valid
-                      | otherwise = Invalid (INV10_Collision_duplicate_key k h) p
+        validInternal p Empty                 = Invalid INV1_internal_Empty p
+        validInternal p (Leaf h l)            = validHash p h <> validLeaf p h l
+        validInternal p (Collision h ary)     = validHash p h <> validCollision p h ary
+        validInternal p (BitmapIndexed b ary) = validBitmapIndexed p b ary
+        validInternal p (Full ary)            = validFull p ary
 
-    validBitmapIndexed p b ary = validBitmap <> validArraySize <> validSubTrees p b ary
-      where
-        validBitmap | b .&. complement fullBitmap == 0 = Valid
-                    | otherwise                        = Invalid (INV2_Bitmap_unexpected_1_bits b) p
-        n = A.length ary
-        validArraySize | n < 1 || n >= maxChildren = Invalid (INV3_bad_BitmapIndexed_size n) p
-                       | popCount b == n           = Valid
-                       | otherwise                 = Invalid (INV4_bitmap_array_size_mismatch b n) p
+        validHash p h | hashMatchesSubHashPath p h = Valid
+                      | otherwise                  = Invalid (INV6_misplaced_hash h) p
 
-    validSubTrees p b ary
-      | A.length ary == 1
-      , isLeafOrCollision (A.index ary 0)
-      = Invalid INV5_BitmapIndexed_invalid_single_subtree p
-      | otherwise = go b
-      where
-        go 0  = Valid
-        go b' = validInternal (addSubHash p (fromIntegral c)) (A.index ary i) <> go b''
+        validLeaf p h (L k _) | hash k == h = Valid
+                              | otherwise   = Invalid (INV7_key_hash_mismatch k h) p
+
+        validCollision p h ary = validCollisionSize <> A.foldMap (validLeaf p h) ary <> distinctKeys
           where
-            c = countTrailingZeros b'
-            m = 1 `unsafeShiftL` c
-            i = sparseIndex b m
-            b'' = b' .&. complement m
+            n = A.length ary
+            validCollisionSize | n < 2     = Invalid (INV9_Collision_size n) p
+                               | otherwise = Valid
+            distinctKeys = A.foldMap (\(L k _) -> appearsOnce k) ary
+            appearsOnce k | A.foldMap (\(L k' _) -> if k' == k then Sum @Int 1 else Sum 0) ary == 1 = Valid
+                          | otherwise = Invalid (INV10_Collision_duplicate_key k h) p
 
-    validFull p ary = validArraySize <> validSubTrees p fullBitmap ary
-      where
-        n = A.length ary
-        validArraySize | n == maxChildren = Valid
-                       | otherwise        = Invalid (INV8_bad_Full_size n) p
+        validBitmapIndexed p b ary = validBitmap <> validArraySize <> validSubTrees p b ary
+          where
+            validBitmap | b .&. complement fullBitmap == 0 = Valid
+                        | otherwise                        = Invalid (INV2_Bitmap_unexpected_1_bits b) p
+            n = A.length ary
+            validArraySize | n < 1 || n >= maxChildren = Invalid (INV3_bad_BitmapIndexed_size n) p
+                           | popCount b == n           = Valid
+                           | otherwise                 = Invalid (INV4_bitmap_array_size_mismatch b n) p
+
+        validSubTrees p b ary
+          | A.length ary == 1
+          , isLeafOrCollision (A.index ary 0)
+          = Invalid INV5_BitmapIndexed_invalid_single_subtree p
+          | otherwise = go b
+          where
+            go 0  = Valid
+            go b' = validInternal (addSubHash p (fromIntegral c)) (A.index ary i) <> go b''
+              where
+                c = countTrailingZeros b'
+                m = 1 `unsafeShiftL` c
+                i = sparseIndex b m
+                b'' = b' .&. complement m
+
+        validFull p ary = validArraySize <> validSubTrees p fullBitmap ary
+          where
+            n = A.length ary
+            validArraySize | n == maxChildren = Valid
+                           | otherwise        = Invalid (INV8_bad_Full_size n) p
