@@ -1,3 +1,4 @@
+cabal-version:  3.4
 name:           unordered-containers
 version:        0.2.20
 synopsis:       Efficient hashing-based container types
@@ -15,7 +16,7 @@ description:
   such as HashDoS.
   Users who need to store input from untrusted sources are advised to use
   @Data.Map@ or @Data.Set@ from the @containers@ package instead.
-license:        BSD3
+license:        BSD-3-Clause
 license-file:   LICENSE
 author:         Johan Tibell
 maintainer:     simon.jakobi@gmail.com, David.Feuer@gmail.com
@@ -25,12 +26,12 @@ copyright:      2010-2014 Johan Tibell
                 2010 Edward Z. Yang
 category:       Data
 build-type:     Simple
-cabal-version:  >=1.10
 extra-source-files: CHANGES.md
 
 tested-with:
-  GHC ==9.8.1
-   || ==9.6.3
+  GHC ==9.10.1
+   || ==9.8.2
+   || ==9.6.5
    || ==9.4.7
    || ==9.2.8
    || ==9.0.2
@@ -60,7 +61,7 @@ library
     base >= 4.10 && < 5,
     deepseq >= 1.4.3,
     hashable >= 1.2.5 && < 1.5,
-    template-haskell < 2.22
+    template-haskell < 2.23
 
   default-language: Haskell2010
 
