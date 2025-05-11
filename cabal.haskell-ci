@@ -10,9 +10,6 @@ constraint-set debug
 installed: -containers
 installed: -binary
 
--- Avoid HVR's PPA due to outage on 2022-04-27
-ghcup-jobs: True
-
 -- With GHC < 9, haddock fails due to a parse error in the benchmarks.
 -- https://github.com/haskell-CI/haskell-ci/issues/605
 haddock: >= 9
