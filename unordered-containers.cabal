@@ -94,6 +94,7 @@ test-suite unordered-containers-tests
     Properties.HashMapStrict
     Properties.HashSet
     Properties.List
+    Properties.Size
     Strictness
     Util.Key
 
@@ -134,6 +135,7 @@ benchmark benchmarks
     containers,
     deepseq,
     hashable,
+    vector,
     hashmap,
     mtl,
     random,
