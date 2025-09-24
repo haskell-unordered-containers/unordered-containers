@@ -46,6 +46,9 @@ arbitraryHash = do
         [ (2, fromIntegral . QC.getLarge <$> arbitrary @(Large Word16))
         , (1, QC.getSmall <$> arbitrary)
         , (1, QC.getLarge <$> arbitrary)
+          -- Hashes where the lowest `maxChildren` bits are set are interesting
+          -- edge cases. See #491.
+        , (1, QC.elements [-1, 0xFF, 0xFFF])
         ]
   i <- QC.frequency gens
   moreCollisions' <- QC.elements [moreCollisions, id]
