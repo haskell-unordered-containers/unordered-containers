@@ -1,6 +1,7 @@
 {-# LANGUAGE BinaryLiterals      #-}
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE NumericUnderscores  #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE UnboxedTuples       #-}
@@ -20,7 +21,7 @@ import System.Mem.Weak       (deRefWeak, mkWeakPtr)
 import System.Random         (randomIO)
 import Test.HUnit            (Assertion, assert)
 import Test.QuickCheck
-import Test.Tasty            (TestTree, testGroup)
+import Test.Tasty            (TestTree, localOption, mkTimeout, testGroup)
 import Test.Tasty.HUnit      (testCase)
 import Test.Tasty.QuickCheck (testProperty)
 
@@ -267,7 +268,7 @@ issue420 = do
 -- Issue 491
 
 issue491 :: TestTree
-issue491 = testGroup "issue491" $
+issue491 = localOption (mkTimeout 1_000_000) $ testGroup "issue491" $
     [ testCase "1" $ assert $ m [0, -1] `HML.isSubmapOf` m [0, -1]
     , testCase "2" $ assert $ m [1, 0b11111] `HML.isSubmapOf` m [1, 0b11111]
     , testCase "3" $ assert $ m [1, 0b11111] `HML.isSubmapOf` m [1, 0b11111, 42]
