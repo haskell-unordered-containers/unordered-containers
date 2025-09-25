@@ -273,15 +273,15 @@ tests =
           not (HM.isSubmapOf m1 (HM.difference m1 m2))
       , testProperty "delete k m ⊆ m" $
         \(m :: HMKI) ->
-          QC.within 1000000 $
           not (HM.null m) ==>
           QC.forAll (QC.elements (HM.keys m)) $ \k ->
+          QC.within 1000000 $
           HM.isSubmapOf (HM.delete k m) m
       , testProperty "m ⊈ delete k m " $
         \(m :: HMKI) ->
-          QC.within 1000000 $
           not (HM.null m) ==>
           QC.forAll (QC.elements (HM.keys m)) $ \k ->
+          QC.within 1000000 $
           not (HM.isSubmapOf m (HM.delete k m))
       , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" $
         \k v (m :: HMKI) ->
