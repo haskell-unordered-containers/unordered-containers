@@ -56,10 +56,11 @@ arbitraryHash = do
 
 -- | Mask out most bits to produce more collisions
 moreCollisions :: Int -> Int
-moreCollisions w = fromIntegral (w .&. mask)
+moreCollisions w = fromIntegral (w .&. moreCollisionsMask)
 
-mask :: Int
-mask = sum [bit n | n <- [0, 3, 8, 14, 61]]
+-- | Bitmask for @moreCollisions@
+moreCollisionsMask :: Int
+moreCollisionsMask = sum [bit n | n <- [0, 3, 8, 14, 61]]
 
 keyToInt :: Key -> Int
 keyToInt (K h x) = h * fromEnum x
