@@ -1,3 +1,6 @@
+# This config is mostly copied from
+# https://github.com/haskell/bytestring/blob/master/.github/workflows/ci.yml
+
 name: 32bit-ci
 on:
   push:
