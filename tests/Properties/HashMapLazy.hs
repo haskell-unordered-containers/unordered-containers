@@ -258,10 +258,6 @@ tests =
         \(x :: HMKI) -> QC.within 1000000 $ HM.isSubmapOf x x
       , testProperty "m1 ⊆ m1 ∪ m2" $
         \(x :: HMKI) y -> QC.within 1000000 $ HM.isSubmapOf x (HM.union x y)
-      , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" $
-        \(m1 :: HMKI) m2 ->
-          QC.within 1000000 $
-          not (HM.isSubmapOf m1 m2) ==> HM.isSubmapOf m1 (HM.union m1 m2)
       , testProperty "m1\\m2 ⊆ m1" $
         \(m1 :: HMKI) (m2 :: HMKI) ->
           QC.within 1000000 $
