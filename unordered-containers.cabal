@@ -75,9 +75,6 @@ library
 
   ghc-options: -Wall -O2 -fwarn-tabs -ferror-spans
 
-  -- Make tight non-allocating loops interruptible for debugging
-  ghc-options: -fno-omit-yields
-
   -- For dumping the generated code:
   -- ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -ddump-asm -ddump-to-file
   -- ghc-options: -dsuppress-coercions -dsuppress-unfoldings -dsuppress-module-prefixes
@@ -118,8 +115,7 @@ test-suite unordered-containers-tests
       nothunks >= 0.1.3
 
   default-language: Haskell2010
-  ghc-options: -Wall -threaded
-  --  -rtsopts -with-rtsopts=-N -- not sure why this is causing problems on 32bit Debian
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   cpp-options: -DASSERTS
 
 benchmark benchmarks
