@@ -258,8 +258,6 @@ tests =
         \(x :: HMKI) -> HM.isSubmapOf x x
       , testProperty "m1 ⊆ m1 ∪ m2" $
         \(x :: HMKI) y -> HM.isSubmapOf x (HM.union x y)
-      , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" $
-        \(m1 :: HMKI) m2 -> not (HM.isSubmapOf m1 m2) ==> HM.isSubmapOf m1 (HM.union m1 m2)
       , testProperty "m1\\m2 ⊆ m1" $
         \(m1 :: HMKI) (m2 :: HMKI) -> HM.isSubmapOf (HM.difference m1 m2) m1
       , testProperty "m1 ∩ m2 ≠ ∅  ⇒  m1 ⊈ m1\\m2 " $
