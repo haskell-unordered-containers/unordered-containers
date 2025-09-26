@@ -15,6 +15,8 @@
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
+#include "MachDeps.h"
+
 -- | = WARNING
 --
 -- This module is considered __internal__.
