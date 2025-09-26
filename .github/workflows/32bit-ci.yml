@@ -29,3 +29,4 @@ jobs:
         source ~/.ghcup/env
         cabal update
         cabal test
+        # TODO: Consider testing with -fdebug
