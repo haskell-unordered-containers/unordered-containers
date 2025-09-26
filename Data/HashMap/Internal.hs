@@ -4,12 +4,12 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MagicHash             #-}
 {-# LANGUAGE PatternGuards         #-}
+{-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE RoleAnnotations       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE UnboxedSums           #-}
 {-# LANGUAGE UnboxedTuples         #-}
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
@@ -166,7 +166,7 @@ import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
 import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
 import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
 import GHC.Stack                  (HasCallStack)
-import Prelude                    hiding (Foldable(..), filter, lookup, map,
+import Prelude                    hiding (Foldable (..), filter, lookup, map,
                                    pred)
 import Text.Read                  hiding (step)
 
@@ -1948,13 +1948,14 @@ intersectionArrayBy f !b1 !b2 !ary1 !ary2
 intersectionCollisions :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> Hash -> Hash -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> HashMap k v3
 intersectionCollisions f h1 h2 ary1 ary2
   | h1 == h2 = runST $ do
-    mary2 <- A.thaw ary2 0 $ A.length ary2
-    mary <- A.new_ $ min (A.length ary1) (A.length ary2)
+    let !n2 = A.length ary2
+    mary2 <- A.thaw ary2 0 n2
+    mary <- A.new_ $ min (A.length ary1) n2
     let go i j
-          | i >= A.length ary1 || j >= A.lengthM mary2 = pure j
+          | i >= A.length ary1 || j >= n2 = pure j
           | otherwise = do
             L k1 v1 <- A.indexM ary1 i
-            searchSwap k1 j mary2 >>= \case
+            searchSwap mary2 n2 k1 j >>= \case
               Just (L _k2 v2) -> do
                 let !(# v3 #) = f k1 v1 v2
                 A.write mary j $ L k1 v3
@@ -1978,18 +1979,18 @@ intersectionCollisions f h1 h2 ary1 ary2
 -- undefined 2 1 4
 -- @
 -- We don't actually need to write undefined, we just have to make sure that the next search starts 1 after the current one.
-searchSwap :: Eq k => k -> Int -> A.MArray s (Leaf k v) -> ST s (Maybe (Leaf k v))
-searchSwap toFind start = go start toFind start
+searchSwap :: Eq k => A.MArray s (Leaf k v) -> Int -> k -> Int -> ST s (Maybe (Leaf k v))
+searchSwap mary n toFind start = go start toFind start
   where
-    go i0 k i mary
-      | i >= A.lengthM mary = pure Nothing
+    go i0 k i
+      | i >= n = pure Nothing
       | otherwise = do
         l@(L k' _v) <- A.read mary i
         if k == k'
           then do
             A.write mary i =<< A.read mary i0
             pure $ Just l
-          else go i0 k (i + 1) mary
+          else go i0 k (i + 1)
 {-# INLINE searchSwap #-}
 
 ------------------------------------------------------------------------
