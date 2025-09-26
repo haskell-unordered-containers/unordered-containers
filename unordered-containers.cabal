@@ -76,7 +76,6 @@ library
   ghc-options: -Wall -O2 -fwarn-tabs -ferror-spans
 
   -- Make tight non-allocating loops interruptible for debugging
-  -- FIXME: Remove this once #491 is fixed!
   ghc-options: -fno-omit-yields
 
   -- For dumping the generated code:
