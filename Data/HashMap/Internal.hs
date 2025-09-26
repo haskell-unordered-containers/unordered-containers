@@ -2229,7 +2229,7 @@ toList :: HashMap k v -> [(k, v)]
 toList t = Exts.build (\ c z -> foldrWithKey (curry c) z t)
 {-# INLINE toList #-}
 
--- | \(O(n)\) Construct a map with the supplied mappings.  If the list
+-- | \(O(n \log n)\) Construct a map with the supplied mappings.  If the list
 -- contains duplicate mappings, the later mappings take precedence.
 fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
 fromList = List.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
