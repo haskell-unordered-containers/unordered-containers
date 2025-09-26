@@ -10,50 +10,7 @@ defaults:
     shell: bash
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ubuntu-latest]
-        ghc: ['9.12']
-    steps:
-    - uses: actions/checkout@v4
-    - uses: haskell-actions/setup@v2
-      id: setup-haskell-cabal
-      with:
-        ghc-version: ${{ matrix.ghc }}
-    - name: Update cabal package database
-      run: cabal update
-    - uses: actions/cache@v3
-      name: Cache cabal stuff
-      with:
-        path: |
-          ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
-          dist-newstyle
-        key: ${{ runner.os }}-${{ matrix.ghc }}
-    - name: Test
-      run: |
-        cabal sdist -z -o .
-        cabal get unordered-containers-*.tar.gz
-        cd unordered-containers-*/
-        cabal build unordered-containers:tests --enable-tests --enable-benchmarks
-        cabal test --enable-tests --enable-benchmarks --test-show-details=direct all
-    - name: Bench
-      run: |
-        cd unordered-containers-*/
-        cabal bench --enable-tests --enable-benchmarks --benchmark-option=-l all
-    - name: Haddock
-      run: |
-        cd unordered-containers-*/
-        cabal haddock all
-    - name: Cabal check
-      run: |
-        cd unordered-containers-*/
-        cabal check
-
   i386:
-    needs: build
     runs-on: ubuntu-latest
     container:
       image: i386/ubuntu:bionic
