@@ -255,38 +255,29 @@ tests =
       [ testProperty "model" $
         \(x :: HMKI) y -> HM.isSubmapOf x y === M.isSubmapOf (toOrdMap x) (toOrdMap y)
       , testProperty "m ⊆ m" $
-        \(x :: HMKI) -> QC.within 1000000 $ HM.isSubmapOf x x
+        \(x :: HMKI) -> HM.isSubmapOf x x
       , testProperty "m1 ⊆ m1 ∪ m2" $
-        \(x :: HMKI) y -> QC.within 1000000 $ HM.isSubmapOf x (HM.union x y)
+        \(x :: HMKI) y -> HM.isSubmapOf x (HM.union x y)
       , testProperty "m1\\m2 ⊆ m1" $
-        \(m1 :: HMKI) (m2 :: HMKI) ->
-          QC.within 1000000 $
-          HM.isSubmapOf (HM.difference m1 m2) m1
+        \(m1 :: HMKI) (m2 :: HMKI) -> HM.isSubmapOf (HM.difference m1 m2) m1
       , testProperty "m1 ∩ m2 ≠ ∅  ⇒  m1 ⊈ m1\\m2 " $
         \(m1 :: HMKI) (m2 :: HMKI) ->
-          QC.within 1000000 $
           not (HM.null (HM.intersection m1 m2)) ==>
           not (HM.isSubmapOf m1 (HM.difference m1 m2))
       , testProperty "delete k m ⊆ m" $
         \(m :: HMKI) ->
           not (HM.null m) ==>
           QC.forAll (QC.elements (HM.keys m)) $ \k ->
-          QC.within 1000000 $
           HM.isSubmapOf (HM.delete k m) m
       , testProperty "m ⊈ delete k m " $
         \(m :: HMKI) ->
           not (HM.null m) ==>
           QC.forAll (QC.elements (HM.keys m)) $ \k ->
-          QC.within 1000000 $
           not (HM.isSubmapOf m (HM.delete k m))
       , testProperty "k ∉ m  ⇒  m ⊆ insert k v m" $
-        \k v (m :: HMKI) ->
-          QC.within 1000000 $
-          not (HM.member k m) ==> HM.isSubmapOf m (HM.insert k v m)
+        \k v (m :: HMKI) -> not (HM.member k m) ==> HM.isSubmapOf m (HM.insert k v m)
       , testProperty "k ∉ m  ⇒  insert k v m ⊈ m" $
-        \k v (m :: HMKI) ->
-          QC.within 1000000 $
-          not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
+        \k v (m :: HMKI) -> not (HM.member k m) ==> not (HM.isSubmapOf (HM.insert k v m) m)
       ]
     -- Combine
     , testGroup "union"
