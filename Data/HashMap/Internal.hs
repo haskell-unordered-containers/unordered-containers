@@ -1556,6 +1556,12 @@ submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .
     go !i !j !m
       | m > b1Orb2 = True
 
+#if (WORD_SIZE_IN_BITS == 32)
+      -- m can overflow to 0 on 32-bit platforms.
+      -- See #491.
+      | m == 0 = True
+#endif
+
       -- In case a key is both in ary1 and ary2, check ary1[i] <= ary2[j] and
       -- increment the indices i and j.
       | b1Andb2 .&. m /= 0 = comp (A.index ary1 i) (A.index ary2 j) &&
