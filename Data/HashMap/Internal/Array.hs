@@ -89,7 +89,7 @@ import GHC.Exts            (Int (..), SmallArray#, SmallMutableArray#,
                             copySmallMutableArray#, indexSmallArray#,
                             newSmallArray#, readSmallArray#,
                             reallyUnsafePtrEquality#, sizeofSmallArray#,
-                            sizeofSmallMutableArray#, tagToEnum#,
+                            getSizeofSmallMutableArray#, tagToEnum#,
                             thawSmallArray#, unsafeCoerce#,
                             unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                             writeSmallArray#)
@@ -159,7 +159,7 @@ data MArray s a = MArray {
     }
 
 lengthM :: MArray s a -> Int
-lengthM mary = I# (sizeofSmallMutableArray# (unMArray mary))
+lengthM mary = I# (getSizeofSmallMutableArray# (unMArray mary))
 {-# INLINE lengthM #-}
 
 ------------------------------------------------------------------------

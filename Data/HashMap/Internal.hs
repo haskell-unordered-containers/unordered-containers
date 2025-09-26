@@ -4,12 +4,12 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MagicHash             #-}
 {-# LANGUAGE PatternGuards         #-}
+{-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE RoleAnnotations       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeInType            #-}
 {-# LANGUAGE UnboxedSums           #-}
 {-# LANGUAGE UnboxedTuples         #-}
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
@@ -164,7 +164,7 @@ import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
 import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
 import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
 import GHC.Stack                  (HasCallStack)
-import Prelude                    hiding (Foldable(..), filter, lookup, map,
+import Prelude                    hiding (Foldable (..), filter, lookup, map,
                                    pred)
 import Text.Read                  hiding (step)
 
