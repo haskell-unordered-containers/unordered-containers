@@ -1556,7 +1556,7 @@ submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .
     go !i !j !m
       | m > b1Orb2 = True
 
-#if (WORD_SIZE_IN_BITS == 32)
+#if WORD_SIZE_IN_BITS == 32
       -- m can overflow to 0 on 32-bit platforms.
       -- See #491.
       | m == 0 = True
