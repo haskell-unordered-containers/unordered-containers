@@ -1556,6 +1556,9 @@ submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .
   where
     go :: Int -> Int -> Bitmap -> Bool
     go !i !j !m
+
+      -- Note: m can overflow to 0 when maxChildren == WORD_SIZE_IN_BITS. See
+      -- #491. In that case there needs to be a check '| m == 0 = True'
       | m > b1Orb2 = True
 
       -- In case a key is both in ary1 and ary2, check ary1[i] <= ary2[j] and
