@@ -439,7 +439,8 @@ filter p = HashSet . H.filterWithKey q . asMap
 {-# INLINE filter #-}
 
 -- | \(O(n)\) Return a list of this set's elements.  The list is
--- produced lazily.
+-- produced lazily. The order of its elements is unspecified, and it may
+-- change from version to version of either this package or of @hashable@.
 toList :: HashSet a -> [a]
 toList t = Exts.build (\ c z -> foldrWithKey (const . c) z (asMap t))
 {-# INLINE toList #-}
