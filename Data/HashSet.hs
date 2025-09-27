@@ -87,7 +87,7 @@ especially when value comparisons are expensive, as in the case of
 strings.
 
 Many operations have a average-case complexity of \(O(\log n)\).  The
-implementation uses a large base (i.e. 16) so in practice these
+implementation uses a large base (i.e. 16 or 32) so in practice these
 operations are constant time.
 -}
 

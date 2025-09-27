@@ -103,7 +103,8 @@ Here's a quick overview in order of simplicity:
    it contains *2^B* elements.
 
 The number of bits of the hash value to use at each level of the tree, *B*, is a
-compile time constant, currently 5. In general a larger *B* improves lookup
+compile time constant, currently 5 on 64-bit platforms, and 4 on platforms with
+a smaller word size. In general a larger *B* improves lookup
 performance (shallower tree) but hurts modification (large nodes to copy when
 updating the spine of the tree).
 
