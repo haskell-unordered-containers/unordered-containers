@@ -1,3 +1,4 @@
+{-# LANGUAGE BinaryLiterals      #-}
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -26,6 +27,7 @@ import Test.Tasty.QuickCheck (testProperty)
 import qualified Data.HashMap.Lazy   as HML
 import qualified Data.HashMap.Strict as HMS
 import qualified Data.HashSet        as HS
+import qualified Test.Tasty          as Tasty
 
 #if MIN_VERSION_base(4,12,0)
 -- nothunks requires base >= 4.12
@@ -263,6 +265,17 @@ issue420 = do
   assert $ k2 `HS.member` s1
 
 ------------------------------------------------------------------------
+-- Issue 491
+
+issue491 :: TestTree
+issue491 = Tasty.localOption (Tasty.mkTimeout 1000000) $ testGroup "issue491" $
+    [ testCase "1" $ assert $ m [0, -1] `HML.isSubmapOf` m [0, -1]
+    , testCase "2" $ assert $ m [1, 0b11111] `HML.isSubmapOf` m [1, 0b11111]
+    , testCase "3" $ assert $ m [0, 1] `HML.isSubmapOf` m [0, 1, 0b11111]
+    ]
+  where m = HS.toMap . HS.fromList @Int
+
+------------------------------------------------------------------------
 -- * Test list
 
 tests :: TestTree
@@ -292,4 +305,5 @@ tests = testGroup "Regression tests"
     , testCase "issue383" issue383
 #endif
     , testCase "issue420" issue420
+    , issue491
     ]

@@ -15,6 +15,8 @@
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
+#include "MachDeps.h"
+
 -- | = WARNING
 --
 -- This module is considered __internal__.
@@ -125,9 +127,9 @@ module Data.HashMap.Internal
     , sparseIndex
     , two
     , unionArrayBy
-    , update32
-    , update32M
-    , update32With'
+    , updateFullArray
+    , updateFullArrayM
+    , updateFullArrayWith'
     , updateOrConcatWithKey
     , filterMapAux
     , equalKeys
@@ -830,7 +832,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
             !st' = go h k x (nextShift s) st
         in if st' `ptrEq` st
             then t
-            else Full (update32 ary i st')
+            else Full (updateFullArray ary i st')
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
@@ -864,7 +866,7 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
     go h k x s (Full ary) =
         let !st  = A.index ary i
             !st' = go h k x (nextShift s) st
-        in Full (update32 ary i st')
+        in Full (updateFullArray ary i st')
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (A.snoc v (L k x))
@@ -893,7 +895,7 @@ insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
     go collPos shiftedHash k x (Full ary) =
         let !st  = A.index ary i
             !st' = go collPos (shiftHash shiftedHash) k x st
-        in Full (update32 ary i st')
+        in Full (updateFullArray ary i st')
       where i = index' shiftedHash
     go collPos _shiftedHash k x (Collision h v)
         | collPos >= 0 = Collision h (setAtPosition collPos k x v)
@@ -1041,7 +1043,7 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
     go h k s t@(Full ary) =
         let !st   = A.index ary i
             !st'  = go h k (nextShift s) st
-            ary' = update32 ary i $! st'
+            ary' = updateFullArray ary i $! st'
         in if ptrEq st st'
            then t
            else Full ary'
@@ -1270,7 +1272,7 @@ adjust# f k0 m0 = go h0 k0 0 m0
         let i    = index h s
             !st   = A.index ary i
             !st'  = go h k (nextShift s) st
-            ary' = update32 ary i $! st'
+            ary' = updateFullArray ary i $! st'
         in if ptrEq st st'
            then t
            else Full ary'
@@ -1554,6 +1556,9 @@ submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .
   where
     go :: Int -> Int -> Bitmap -> Bool
     go !i !j !m
+
+      -- Note: m can overflow to 0 when maxChildren == WORD_SIZE_IN_BITS. See
+      -- #491. In that case there needs to be a check '| m == 0 = True'
       | m > b1Orb2 = True
 
       -- In case a key is both in ary1 and ary2, check ary1[i] <= ary2[j] and
@@ -1660,12 +1665,12 @@ unionWithKey f = go 0
     go s (Full ary1) t2 =
         let h2   = leafHashCode t2
             i    = index h2 s
-            ary' = update32With' ary1 i $ \st1 -> go (nextShift s) st1 t2
+            ary' = updateFullArrayWith' ary1 i $ \st1 -> go (nextShift s) st1 t2
         in Full ary'
     go s t1 (Full ary2) =
         let h1   = leafHashCode t1
             i    = index h1 s
-            ary' = update32With' ary2 i $ \st2 -> go (nextShift s) t1 st2
+            ary' = updateFullArrayWith' ary2 i $ \st2 -> go (nextShift s) t1 st2
         in Full ary'
 
     leafHashCode (Leaf h _) = h
@@ -2406,24 +2411,24 @@ subsetArray cmpV ary1 ary2 = A.length ary1 <= A.length ary2 && A.all inAry2 ary1
 -- Manually unrolled loops
 
 -- | \(O(n)\) Update the element at the given position in this array.
-update32 :: A.Array e -> Int -> e -> A.Array e
-update32 ary idx b = runST (update32M ary idx b)
-{-# INLINE update32 #-}
+updateFullArray :: A.Array e -> Int -> e -> A.Array e
+updateFullArray ary idx b = runST (updateFullArrayM ary idx b)
+{-# INLINE updateFullArray #-}
 
 -- | \(O(n)\) Update the element at the given position in this array.
-update32M :: A.Array e -> Int -> e -> ST s (A.Array e)
-update32M ary idx b = do
+updateFullArrayM :: A.Array e -> Int -> e -> ST s (A.Array e)
+updateFullArrayM ary idx b = do
     mary <- clone ary
     A.write mary idx b
     A.unsafeFreeze mary
-{-# INLINE update32M #-}
+{-# INLINE updateFullArrayM #-}
 
 -- | \(O(n)\) Update the element at the given position in this array, by applying a function to it.
-update32With' :: A.Array e -> Int -> (e -> e) -> A.Array e
-update32With' ary idx f
+updateFullArrayWith' :: A.Array e -> Int -> (e -> e) -> A.Array e
+updateFullArrayWith' ary idx f
   | (# x #) <- A.index# ary idx
-  = update32 ary idx $! f x
-{-# INLINE update32With' #-}
+  = updateFullArray ary idx $! f x
+{-# INLINE updateFullArrayWith' #-}
 
 -- | Unsafely clone an array of (2^bitsPerSubkey) elements.  The length of the input
 -- array is not checked.
@@ -2440,8 +2445,16 @@ clone ary =
 -- | Number of bits that are inspected at each level of the hash tree.
 --
 -- This constant is named /t/ in the original /Ideal Hash Trees/ paper.
+--
+-- Note that this constant is platform-dependent. On 32-bit platforms we use
+-- '4', because bitmaps using '2^5' bits turned out to be prone to integer
+-- overflow bugs. See #491 for instance.
 bitsPerSubkey :: Int
+#if WORD_SIZE_IN_BITS < 64
+bitsPerSubkey = 4
+#else
 bitsPerSubkey = 5
+#endif
 
 -- | The size of a 'Full' node, i.e. @2 ^ 'bitsPerSubkey'@.
 maxChildren :: Int
