@@ -466,7 +466,7 @@ instance Ord k => Ord1 (HashMap k) where
 
 -- | The ordering is total and consistent with the `Eq` instance. However,
 -- nothing else about the ordering is specified, and it may change from
--- version to version of either this package or of hashable.
+-- version to version of either this package or of @hashable@.
 instance (Ord k, Ord v) => Ord (HashMap k v) where
     compare = cmp compare compare
 
@@ -2228,7 +2228,8 @@ elems = List.map snd . toList
 -- ** Lists
 
 -- | \(O(n)\) Return a list of this map's elements.  The list is
--- produced lazily. The order of its elements is unspecified.
+-- produced lazily. The order of its elements is unspecified, and it may
+-- change from version to version of either this package or of @hashable@.
 toList :: HashMap k v -> [(k, v)]
 toList t = Exts.build (\ c z -> foldrWithKey (curry c) z t)
 {-# INLINE toList #-}
