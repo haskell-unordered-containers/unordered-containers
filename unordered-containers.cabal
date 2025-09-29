@@ -128,7 +128,6 @@ benchmark benchmarks
     deepseq,
     hashable,
     hashmap,
-    mtl,
     random,
     tasty-bench >= 0.3.1,
     unordered-containers
