@@ -37,10 +37,6 @@ tested-with:
    || ==9.2.8
    || ==9.0.2
    || ==8.10.7
-   || ==8.8.4
-   || ==8.6.5
-   || ==8.4.4
-   || ==8.2.2
 
 flag debug
   description:  Enable debug support
@@ -59,10 +55,10 @@ library
     Data.HashSet.Internal
 
   build-depends:
-    base >= 4.10 && < 5,
+    base >= 4.14 && < 5,
     deepseq >= 1.4.3,
     hashable >= 1.4 && < 1.6,
-    template-haskell < 2.24
+    template-haskell >= 2.16 && < 2.24
 
   default-language: Haskell2010
 
