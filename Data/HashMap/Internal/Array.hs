@@ -89,7 +89,7 @@ import GHC.Exts            (Int (..), SmallArray#, SmallMutableArray#,
                             copySmallMutableArray#, indexSmallArray#,
                             newSmallArray#, readSmallArray#,
                             reallyUnsafePtrEquality#, sizeofSmallArray#,
-                            sizeofSmallMutableArray#, tagToEnum#,
+                            getSizeofSmallMutableArray#, tagToEnum#,
                             thawSmallArray#, unsafeCoerce#,
                             unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                             writeSmallArray#)
@@ -158,8 +158,11 @@ data MArray s a = MArray {
       unMArray :: !(SmallMutableArray# s a)
     }
 
-lengthM :: MArray s a -> Int
-lengthM mary = I# (sizeofSmallMutableArray# (unMArray mary))
+lengthM :: MArray s a -> ST s Int
+lengthM (MArray ary) =
+    ST $ \s ->
+        case getSizeofSmallMutableArray# ary s of
+            (# s', n #) -> (# s', I# n #)
 {-# INLINE lengthM #-}
 
 ------------------------------------------------------------------------
