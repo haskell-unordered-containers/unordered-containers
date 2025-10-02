@@ -192,11 +192,7 @@ instance (NFData k, NFData v) => NFData (Leaf k v) where
 
 -- | @since 0.2.17.0
 instance (TH.Lift k, TH.Lift v) => TH.Lift (Leaf k v) where
-#if MIN_VERSION_template_haskell(2,16,0)
   liftTyped (L k v) = [|| L k $! v ||]
-#else
-  lift (L k v) = [| L k $! v |]
-#endif
 
 -- | @since 0.2.14.0
 instance NFData k => NFData1 (Leaf k) where

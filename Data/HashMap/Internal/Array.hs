@@ -207,18 +207,13 @@ new _n@(I# n#) b =
 new_ :: Int -> ST s (MArray s a)
 new_ n = new n undefinedElem
 
--- | When 'Exts.shrinkSmallMutableArray#' is available, the returned array is the same as the array given, as it is shrunk in place.
--- Otherwise a copy is made.
+-- | The returned array is the same as the array given, as it is shrunk in place.
 shrink :: MArray s a -> Int -> ST s (MArray s a)
-#if __GLASGOW_HASKELL__ >= 810
 shrink mary _n@(I# n#) =
   CHECK_GT("shrink", _n, (0 :: Int))
   CHECK_LE("shrink", _n, (lengthM mary))
   ST $ \s -> case Exts.shrinkSmallMutableArray# (unMArray mary) n# s of
     s' -> (# s', mary #)
-#else
-shrink mary n = cloneM mary 0 n
-#endif 
 {-# INLINE shrink #-}
 
 singleton :: a -> Array a
@@ -516,11 +511,7 @@ fromList' n xs0 =
 
 -- | @since 0.2.17.0
 instance TH.Lift a => TH.Lift (Array a) where
-#if MIN_VERSION_template_haskell(2,16,0)
   liftTyped ar = [|| fromList' arlen arlist ||]
-#else
-  lift ar = [| fromList' arlen arlist |]
-#endif
     where
       arlen = length ar
       arlist = toList ar
