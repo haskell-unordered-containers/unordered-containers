@@ -15,7 +15,7 @@
 
 * [Remove bad `isSubmapOf` testcase](https://github.com/haskell-unordered-containers/unordered-containers/pull/504)
 
-
+[0.2.20.1]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.20...v0.2.20.1
 
 ## [0.2.20] - January 2024
 
@@ -43,6 +43,8 @@
 * [Improve test case generation](https://github.com/haskell-unordered-containers/unordered-containers/pull/442)
 
 * [Improve test failure reporting](https://github.com/haskell-unordered-containers/unordered-containers/pull/440)
+
+[0.2.20]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.19.1...v0.2.20
 
 ## [0.2.19.1] – April 2022
 
