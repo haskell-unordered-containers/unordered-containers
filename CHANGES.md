@@ -1,3 +1,22 @@
+## [0.2.20.1] - October 2025
+
+* [Fix infinite loop in `isSubmapOf[By]` / `isSubsetOf` on 32-bit platforms](https://github.com/haskell-unordered-containers/unordered-containers/pull/501).
+  To fix this bug and potentially other similar bugs, we return to a branching factor of 16 on 32-bit platforms.
+
+* [Relax bounds for GHC 9.12](https://github.com/haskell-unordered-containers/unordered-containers/pull/499)
+
+* [Require `hashable >= 1.4`](https://github.com/haskell-unordered-containers/unordered-containers/pull/506)
+
+* Documentation changes:
+  * [Fix documentation about branching factor in `Data.HashMap.Strict`](https://github.com/haskell-unordered-containers/unordered-containers/pull/494)
+  * [Improve documentation for `Data.HashMap.compose`](https://github.com/haskell-unordered-containers/unordered-containers/pull/500)
+  * [Fixes docs of `Data.HashMap.Lazy.fromList`: it takes O(n * log(n))](https://github.com/haskell-unordered-containers/unordered-containers/pull/498)
+  * [Add disclaimer to `Data.HashSet.toList`](https://github.com/haskell-unordered-containers/unordered-containers/pull/507)
+
+* [Remove bad `isSubmapOf` testcase](https://github.com/haskell-unordered-containers/unordered-containers/pull/504)
+
+
+
 ## [0.2.20] - January 2024
 
 * [Allow `template-haskell-2.21`](https://github.com/haskell-unordered-containers/unordered-containers/pull/484)
