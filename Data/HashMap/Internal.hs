@@ -164,7 +164,7 @@ import Data.Hashable              (Hashable)
 import Data.Hashable.Lifted       (Hashable1, Hashable2)
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
 import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
-import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
+import GHC.Exts                   (Int (..), Int#, TYPE, Word (..), (==#))
 import GHC.Stack                  (HasCallStack)
 import Prelude                    hiding (Foldable (..), filter, lookup, map,
                                    pred)
@@ -978,11 +978,9 @@ two = go
             ary <- A.unsafeFreeze mary
             return $ BitmapIndexed (bp1 .|. bp2) ary
       where
-        bp1  = mask h1 s
-        bp2  = mask h2 s
-        !(I# i1) = index h1 s
-        !(I# i2) = index h2 s
-        idx2 = I# (i1 Exts.<# i2)
+        !bp1@(W# bp1#)  = mask h1 s
+        !bp2@(W# bp2#)  = mask h2 s
+        idx2 = I# (bp1# `Exts.ltWord#` bp2#)
         -- This way of computing idx2 saves us a branch compared to the previous approach:
         --
         -- idx2 | index h1 s < index h2 s = 1
