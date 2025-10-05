@@ -260,7 +260,7 @@ tests =
         \(x :: HMKI) y -> HM.isSubmapOf x (HM.union x y)
       , testProperty "m1\\m2 ⊆ m1" $
         \(m1 :: HMKI) (m2 :: HMKI) -> HM.isSubmapOf (HM.difference m1 m2) m1
-      , testProperty "m1 ∩ m2 ≠ ∅  ⇒  m1 ⊈ m1\\m2 " $
+      , testProperty "m1 ∩ m2 ≠ ∅  ⇒  m1 ⊈ m1\\m2 " $ QC.withMaxSize 200 $
         \(m1 :: HMKI) (m2 :: HMKI) ->
           not (HM.null (HM.intersection m1 m2)) ==>
           not (HM.isSubmapOf m1 (HM.difference m1 m2))
@@ -303,9 +303,9 @@ tests =
         \(Fn3 f) (x :: HMKI) y -> isValid (HM.unionWithKey f x y)
       ]
     , testGroup "unions"
-      [ testProperty "model" $
+      [ testProperty "model" $ QC.withMaxSize 200 $
         \(ms :: [HMKI]) -> toOrdMap (HM.unions ms) === M.unions (map toOrdMap ms)
-      , testProperty "valid" $
+      , testProperty "valid" $ QC.withMaxSize 200 $
         \(ms :: [HMKI]) -> isValid (HM.unions ms)
       ]
     , testGroup "difference"
@@ -323,28 +323,28 @@ tests =
         \(Fn2 f) (x :: HMK A) (y :: HMK B) -> isValid (HM.differenceWith f x y)
       ]
     , testGroup "intersection"
-      [ testProperty "model" $
+      [ testProperty "model" $ QC.withMaxSize 200 $
         \(x :: HMKI) (y :: HMKI) ->
           toOrdMap (HM.intersection x y) === M.intersection (toOrdMap x) (toOrdMap y)
-      , testProperty "valid" $
+      , testProperty "valid" $ QC.withMaxSize 200 $
         \(x :: HMKI) (y :: HMKI) ->
           isValid (HM.intersection x y)
       ]
     , testGroup "intersectionWith"
-      [ testProperty "model" $
+      [ testProperty "model" $ QC.withMaxSize 200 $
         \(Fn2 f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
           toOrdMap (HM.intersectionWith f x y) === M.intersectionWith f (toOrdMap x) (toOrdMap y)
-      , testProperty "valid" $
+      , testProperty "valid" $ QC.withMaxSize 200 $
         \(Fn2 f :: Fun (A, B) C) (x :: HMK A) (y :: HMK B) ->
           isValid (HM.intersectionWith f x y)
       ]
     , testGroup "intersectionWithKey"
-      [ testProperty "model" $
+      [ testProperty "model" $ QC.withMaxSize 200 $
         \(Fn3 f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
           toOrdMap (HM.intersectionWithKey f x y)
           ===
           M.intersectionWithKey f (toOrdMap x) (toOrdMap y)
-      , testProperty "valid" $
+      , testProperty "valid" $ QC.withMaxSize 200 $
         \(Fn3 f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
           isValid (HM.intersectionWithKey f x y)
       ]
@@ -360,12 +360,12 @@ tests =
         \(Fn f :: Fun A B) (m :: HMK A) -> isValid (HM.map f m)
       ]
     , testGroup "traverseWithKey"
-      [ testProperty "model" $ QC.mapSize (\s -> s `div` 8) $
+      [ testProperty "model" $ QC.withMaxSize 22 $
         \(x :: HMKI) ->
           let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
               ys = HM.traverseWithKey f x
           in  List.sort (fmap toOrdMap ys) === List.sort (M.traverseWithKey f (toOrdMap x))
-      , testProperty "valid" $ QC.mapSize (\s -> s `div` 8) $
+      , testProperty "valid" $ QC.withMaxSize 22 $
         \(x :: HMKI) ->
           let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
               ys = HM.traverseWithKey f x
