@@ -216,7 +216,7 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith f k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = x `seq` runST (HM.two s h k x hy t)
 {-# INLINABLE insertWith #-}
 
 -- | In-place update version of insertWith
@@ -257,7 +257,7 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWithKey f k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = x `seq` HM.two s h k x hy t
 {-# INLINABLE unsafeInsertWithKey #-}
 
 -- | \(O(\log n)\) Adjust the value tied to a given key in this map only

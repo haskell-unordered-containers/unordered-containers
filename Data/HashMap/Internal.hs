@@ -832,7 +832,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = runST (two s h k x hy t)
 {-# INLINABLE insert' #-}
 
 -- | Insert optimized for the case when we know the key is not in the map.
@@ -866,8 +866,7 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (A.snoc v (L k x))
-        | otherwise =
-            go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = runST (two s h k x hy t)
 {-# NOINLINE insertNewKey #-}
 
 
@@ -953,7 +952,7 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = two s h k x hy t
 {-# INLINABLE unsafeInsert #-}
 
 -- | Create a map from two key-value pairs which hashes don't collide. To
@@ -1107,7 +1106,7 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWithKey f k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = two s h k x hy t
 {-# INLINABLE unsafeInsertWithKey #-}
 
 -- | \(O(\log n)\) Remove the mapping for the specified key from this map
