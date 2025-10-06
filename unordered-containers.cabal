@@ -120,6 +120,7 @@ benchmark benchmarks
     Util.ByteString
     Util.String
     Util.Int
+    Key.SlowInt
 
   build-depends:
     base >= 4.8.0,

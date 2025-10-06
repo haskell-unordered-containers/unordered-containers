@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP             #-}
+{-# LANGUAGE NumericUnderscores             #-}
 {-# LANGUAGE DeriveAnyClass  #-}
 {-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE GADTs           #-}
@@ -8,7 +9,7 @@
 module Main where
 
 import Control.DeepSeq       (NFData (..))
-import Data.Bits             ((.&.))
+import Data.Bits             ((.&.), shiftR, rotateR)
 import Data.Functor.Identity (Identity (..))
 import Data.Hashable         (Hashable, hash)
 import Data.List             (foldl')
@@ -25,6 +26,26 @@ import qualified Data.Map               as M
 import qualified Util.ByteString        as UBS
 import qualified Util.Int               as UI
 import qualified Util.String            as US
+import Key.SlowInt (SlowInt(..))
+
+main :: IO ()
+main = defaultMain
+  [ bgroup "SlowInt"
+    [ bgroup "hash"
+      [ bench "-1" $ whnf hash (Slow (-1))
+      , bench "200" $ whnf hash (Slow 100)
+      , bench "baseline: hash (replicate 50 'a')" $
+          whnf (\n -> hash (replicate n 'a')) 50
+      ]
+    , bgroup "(==)"
+      [ bench "-1 == -1" $ whnf (\s -> s == s) (Slow (-1))
+      , bench "baseline: let x = replicate 50 'a' in x == x" $
+          whnf (\n -> let x = replicate n 'a' in x == x) 50
+      ]
+    ]
+  ]
+
+{-
 
 data B where
     B :: NFData a => a -> B
@@ -519,3 +540,5 @@ insertIM xs m0 = foldl' (\m (k, v) -> IM.insert k v m) m0 xs
 deleteIM :: [Int] -> IM.IntMap Int -> IM.IntMap Int
 deleteIM xs m0 = foldl' (\m k -> IM.delete k m) m0 xs
 #endif
+
+-}
