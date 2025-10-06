@@ -1967,30 +1967,32 @@ intersectionCollisions f h1 h2 ary1 ary2
       1 -> Leaf h1 <$> A.read mary 0
       _ -> Collision h1 <$> (A.unsafeFreeze =<< A.shrink mary len)
   | otherwise = Empty
+  where
+    -- Say we have
+    -- @
+    -- 1 2 3 4
+    -- @
+    -- and we search for @3@. Then we can mutate the array to
+    -- @
+    -- undefined 2 1 4
+    -- @
+    -- We don't actually need to write undefined, we just have to make sure that
+    -- the next search starts 1 after the current one.
+    searchSwap :: Eq k => k -> Int -> A.MArray s (Leaf k v) -> ST s (Maybe (Leaf k v))
+    searchSwap toFind start = go start toFind start
+      where
+        go i0 k i mary
+          | i >= A.lengthM mary = pure Nothing
+          | otherwise = do
+            l@(L k' _v) <- A.read mary i
+            if k == k'
+              then do
+                A.write mary i =<< A.read mary i0
+                pure $ Just l
+              else go i0 k (i + 1) mary
+    {-# INLINE searchSwap #-}
 {-# INLINE intersectionCollisions #-}
 
--- | Say we have
--- @
--- 1 2 3 4
--- @
--- and we search for @3@. Then we can mutate the array to
--- @
--- undefined 2 1 4
--- @
--- We don't actually need to write undefined, we just have to make sure that the next search starts 1 after the current one.
-searchSwap :: Eq k => k -> Int -> A.MArray s (Leaf k v) -> ST s (Maybe (Leaf k v))
-searchSwap toFind start = go start toFind start
-  where
-    go i0 k i mary
-      | i >= A.lengthM mary = pure Nothing
-      | otherwise = do
-        l@(L k' _v) <- A.read mary i
-        if k == k'
-          then do
-            A.write mary i =<< A.read mary i0
-            pure $ Just l
-          else go i0 k (i + 1) mary
-{-# INLINE searchSwap #-}
 
 ------------------------------------------------------------------------
 -- * Folds
@@ -2367,33 +2369,50 @@ updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
 
 updateOrConcatWithKey :: Eq k => (k -> v -> v -> (# v #)) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
 updateOrConcatWithKey f ary1 ary2 = A.run $ do
-    -- TODO: instead of mapping and then folding, should we traverse?
-    -- We'll have to be careful to avoid allocating pairs or similar.
-
-    -- first: look up the position of each element of ary2 in ary1
-    let indices = A.map' (\(L k _) -> indexOf k ary1) ary2
-    -- that tells us how large the overlap is:
-    -- count number of Nothing constructors
-    let nOnly2 = A.foldl' (\n -> maybe (n+1) (const n)) 0 indices
     let n1 = A.length ary1
     let n2 = A.length ary2
-    -- copy over all elements from ary1
-    mary <- A.new_ (n1 + nOnly2)
-    A.copy ary1 0 mary 0 n1
+    -- initialize output array with first element of ary1
+    mary <- A.new (n1 + n2) (A.index ary1 0)
+    -- copy over remaining elements from ary1
+    A.copy ary1 1 mary 1 (n1-1)
     -- append or update all elements from ary2
-    let go !iEnd !i2
-          | i2 >= n2 = return ()
-          | otherwise = case A.index indices i2 of
-               Just i1 -> do -- key occurs in both arrays, store combination in position i1
-                             L k v1 <- A.indexM ary1 i1
-                             L _ v2 <- A.indexM ary2 i2
-                             case f k v1 v2 of (# v3 #) -> A.write mary i1 (L k v3)
-                             go iEnd (i2+1)
-               Nothing -> do -- key is only in ary2, append to end
-                             A.write mary iEnd =<< A.indexM ary2 i2
-                             go (iEnd+1) (i2+1)
-    go n1 0
-    return mary
+    let go !iEnd !i2 !iMut
+          | i2 >= n2 = return iEnd
+          | otherwise = do
+              l@(L k v2) <- A.indexM ary2 i2
+              res <- searchSwap k iMut n1 mary
+              case res of
+                  Just (L _ v1) -> do -- key occurs in both arrays, store combination in position iMut
+                      case f k v1 v2 of (# v3 #) -> A.write mary iMut (L k v3)
+                      go iEnd (i2+1) (iMut+1)
+                  Nothing -> do -- key is only in ary2, append to end
+                      A.write mary iEnd l
+                      go (iEnd+1) (i2+1) iMut
+    n <- go n1 0 0
+    A.shrink mary n
+  where
+    -- Say we have
+    -- @
+    -- 1 2 3 4
+    -- @
+    -- and we search for @3@. Then we can mutate the array to
+    -- @
+    -- 3 2 1 4
+    -- @
+    searchSwap :: Eq k => k -> Int -> Int -> A.MArray s (Leaf k v) -> ST s (Maybe (Leaf k v))
+    searchSwap toFind start end = go start toFind start
+      where
+        go i0 k i mary
+          | i >= end = pure Nothing
+          | otherwise = do
+            l@(L k' _v) <- A.read mary i
+            if k == k'
+              then do
+                A.write mary i =<< A.read mary i0
+                A.write mary i0 l
+                pure $ Just l
+              else go i0 k (i + 1) mary
+    {-# INLINE searchSwap #-}
 {-# INLINABLE updateOrConcatWithKey #-}
 
 -- | \(O(n*m)\) Check if the first array is a subset of the second array.
