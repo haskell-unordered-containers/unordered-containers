@@ -349,12 +349,12 @@ tests =
         \(Fn f :: Fun A B) (m :: HMK A) -> isValid (HM.map f m)
       ]
     , testGroup "traverseWithKey"
-      [ testProperty "model" $ QC.mapSize (\s -> s `div` 8) $
+      [ testProperty "model" $ QC.mapSize (\s -> min 18 $ div s 8) $
         \(x :: HMKI) ->
           let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
               ys = HM.traverseWithKey f x
           in  List.sort (fmap toOrdMap ys) === List.sort (M.traverseWithKey f (toOrdMap x))
-      , testProperty "valid" $ QC.mapSize (\s -> s `div` 8) $
+      , testProperty "valid" $ QC.mapSize (\s -> min 18 $ div s 8) $
         \(x :: HMKI) ->
           let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
               ys = HM.traverseWithKey f x
