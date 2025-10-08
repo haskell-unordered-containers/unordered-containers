@@ -16,6 +16,7 @@ import Data.List             (foldl')
 import Data.Maybe            (fromMaybe)
 import GHC.Generics          (Generic)
 import Prelude               hiding (lookup)
+import Test.Tasty            (testGroup)
 import Test.Tasty.Bench      (bench, bgroup, defaultMain, env, nf, whnf)
 
 import qualified Data.ByteString        as BS
@@ -41,6 +42,16 @@ main = defaultMain
       [ bench "-1 == -1" $ whnf (\s -> s == s) (Slow (-1))
       , bench "baseline: let x = replicate 50 'a' in x == x" $
           whnf (\n -> let x = replicate n 'a' in x == x) 50
+      ]
+    , testGroup "number of collisions"
+      [ -- Use HM.I.leavesAndCollisions to count the number of keys in Collisions.
+        -- We don't want more than, say, 1%.
+        -- QuickCheck has some tools for this
+        let m = genHashMap @SlowInt @Int 100_000 defaultSeed
+        let lcs = leavesAndCollisions m
+        assert $ nElems >= 99_990
+        assert $ nCollisionElems <= 500
+        assert $ maxCollisionSize == 5
       ]
     ]
   ]

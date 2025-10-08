@@ -130,6 +130,7 @@ benchmark benchmarks
     hashable,
     hashmap,
     random,
+    tasty,
     tasty-bench >= 0.3.1,
     unordered-containers
 
