@@ -1,7 +1,7 @@
 module Main (main) where
 
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
-import Test.Tasty (defaultMain, testGroup)
+import Test.Tasty      (defaultMain, testGroup)
 
 import qualified Properties
 import qualified Regressions
