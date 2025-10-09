@@ -80,26 +80,28 @@ module Data.HashMap.Internal.Array
     , shrink
     ) where
 
-import Control.Applicative (liftA2)
+import Control.Applicative (Applicative (..))
 import Control.DeepSeq     (NFData (..), NFData1 (..))
 import Control.Monad       ((>=>))
 import Control.Monad.ST    (runST, stToIO)
 import GHC.Exts            (Int (..), SmallArray#, SmallMutableArray#,
                             cloneSmallMutableArray#, copySmallArray#,
-                            copySmallMutableArray#, indexSmallArray#,
-                            newSmallArray#, readSmallArray#,
+                            copySmallMutableArray#, getSizeofSmallMutableArray#,
+                            indexSmallArray#, newSmallArray#, readSmallArray#,
                             reallyUnsafePtrEquality#, sizeofSmallArray#,
-                            sizeofSmallMutableArray#, tagToEnum#,
-                            thawSmallArray#, unsafeCoerce#,
+                            tagToEnum#, thawSmallArray#, unsafeCoerce#,
                             unsafeFreezeSmallArray#, unsafeThawSmallArray#,
                             writeSmallArray#)
 import GHC.ST              (ST (..))
-import Prelude             hiding (Foldable(..), all, filter,
+import Prelude             hiding (Applicative (..), Foldable (..), all, filter,
                             map, read, traverse)
 
 import qualified GHC.Exts                   as Exts
 import qualified Language.Haskell.TH.Syntax as TH
+
 #if defined(ASSERTS)
+import GHC.Exts (sizeofSmallMutableArray#)
+
 import qualified Prelude
 #endif
 
@@ -158,9 +160,18 @@ data MArray s a = MArray {
       unMArray :: !(SmallMutableArray# s a)
     }
 
-lengthM :: MArray s a -> Int
-lengthM mary = I# (sizeofSmallMutableArray# (unMArray mary))
+lengthM :: MArray s a -> ST s Int
+lengthM (MArray ary) = ST $ \s ->
+  case getSizeofSmallMutableArray# ary s of
+    (# s', n #) -> (# s', I# n #)
 {-# INLINE lengthM #-}
+
+#if defined(ASSERTS)
+-- | Unsafe. Only for use in the @CHECK_*@ pragmas.
+unsafeLengthM :: MArray s a -> Int
+unsafeLengthM mary = I# (sizeofSmallMutableArray# (unMArray mary))
+{-# INLINE unsafeLengthM #-}
+#endif
 
 ------------------------------------------------------------------------
 
@@ -211,7 +222,7 @@ new_ n = new n undefinedElem
 shrink :: MArray s a -> Int -> ST s (MArray s a)
 shrink mary _n@(I# n#) =
   CHECK_GT("shrink", _n, (0 :: Int))
-  CHECK_LE("shrink", _n, (lengthM mary))
+  CHECK_LE("shrink", _n, (unsafeLengthM mary))
   ST $ \s -> case Exts.shrinkSmallMutableArray# (unMArray mary) n# s of
     s' -> (# s', mary #)
 {-# INLINE shrink #-}
@@ -242,13 +253,13 @@ pair x y = run $ do
 
 read :: MArray s a -> Int -> ST s a
 read ary _i@(I# i#) = ST $ \ s ->
-    CHECK_BOUNDS("read", lengthM ary, _i)
+    CHECK_BOUNDS("read", unsafeLengthM ary, _i)
         readSmallArray# (unMArray ary) i# s
 {-# INLINE read #-}
 
 write :: MArray s a -> Int -> a -> ST s ()
 write ary _i@(I# i#) b = ST $ \ s ->
-    CHECK_BOUNDS("write", lengthM ary, _i)
+    CHECK_BOUNDS("write", unsafeLengthM ary, _i)
         case writeSmallArray# (unMArray ary) i# b s of
             s' -> (# s' , () #)
 {-# INLINE write #-}
@@ -291,7 +302,7 @@ run act = runST $ act >>= unsafeFreeze
 copy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
 copy !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
     CHECK_LE("copy", _sidx + _n, length src)
-    CHECK_LE("copy", _didx + _n, lengthM dst)
+    CHECK_LE("copy", _didx + _n, unsafeLengthM dst)
         ST $ \ s# ->
         case copySmallArray# (unArray src) sidx# (unMArray dst) didx# n# s# of
             s2 -> (# s2, () #)
@@ -299,16 +310,16 @@ copy !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
 copyM :: MArray s e -> Int -> MArray s e -> Int -> Int -> ST s ()
 copyM !src !_sidx@(I# sidx#) !dst !_didx@(I# didx#) _n@(I# n#) =
-    CHECK_BOUNDS("copyM: src", lengthM src, _sidx + _n - 1)
-    CHECK_BOUNDS("copyM: dst", lengthM dst, _didx + _n - 1)
+    CHECK_BOUNDS("copyM: src", unsafeLengthM src, _sidx + _n - 1)
+    CHECK_BOUNDS("copyM: dst", unsafeLengthM dst, _didx + _n - 1)
     ST $ \ s# ->
     case copySmallMutableArray# (unMArray src) sidx# (unMArray dst) didx# n# s# of
         s2 -> (# s2, () #)
 
 cloneM :: MArray s a -> Int -> Int -> ST s (MArray s a)
 cloneM _mary@(MArray mary#) _off@(I# off#) _len@(I# len#) =
-    CHECK_BOUNDS("cloneM_off", lengthM _mary, _off)
-    CHECK_BOUNDS("cloneM_end", lengthM _mary, _off + _len - 1)
+    CHECK_BOUNDS("cloneM_off", unsafeLengthM _mary, _off)
+    CHECK_BOUNDS("cloneM_end", unsafeLengthM _mary, _off + _len - 1)
     ST $ \ s ->
     case cloneSmallMutableArray# mary# off# len# s of
       (# s', mary'# #) -> (# s', MArray mary'# #)

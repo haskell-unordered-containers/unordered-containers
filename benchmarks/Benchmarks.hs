@@ -9,12 +9,12 @@ module Main where
 
 import Control.DeepSeq       (NFData (..))
 import Data.Bits             ((.&.))
+import Data.Foldable         (Foldable (..))
 import Data.Functor.Identity (Identity (..))
 import Data.Hashable         (Hashable, hash)
-import Data.List             (foldl')
 import Data.Maybe            (fromMaybe)
 import GHC.Generics          (Generic)
-import Prelude               hiding (lookup)
+import Prelude               hiding (Foldable (..), lookup)
 import Test.Tasty.Bench      (bench, bgroup, defaultMain, env, nf, whnf)
 
 import qualified Data.ByteString        as BS

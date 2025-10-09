@@ -4,7 +4,7 @@ module Strictness (tests) where
 
 import Control.Arrow                (second)
 import Control.Monad                (guard)
-import Data.Foldable                (foldl')
+import Data.Foldable                (Foldable (..))
 import Data.Hashable                (Hashable)
 import Data.HashMap.Strict          (HashMap)
 import Data.Maybe                   (fromMaybe, isJust)
@@ -16,6 +16,8 @@ import Test.Tasty                   (TestTree, testGroup)
 import Test.Tasty.QuickCheck        (testProperty)
 import Text.Show.Functions          ()
 import Util.Key                     (Key)
+
+import Prelude hiding (Foldable (..))
 
 import qualified Data.HashMap.Strict as HM
 

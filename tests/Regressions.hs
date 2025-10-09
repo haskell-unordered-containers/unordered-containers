@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE UnboxedTuples       #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 module Regressions (tests) where
 
 import Control.Exception     (evaluate)
