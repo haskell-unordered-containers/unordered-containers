@@ -488,7 +488,7 @@ cmp cmpk cmpv t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
 
     leafCompare (L k v) (L k' v') = cmpk k k' `mappend` cmpv v v'
 
--- Same as 'equal2' but doesn't compare the values.
+-- | Same as 'equal2' but doesn't compare the values.
 equalKeys1 :: (k -> k' -> Bool) -> HashMap k v -> HashMap k' v' -> Bool
 equalKeys1 eq t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
   where
@@ -504,7 +504,7 @@ equalKeys1 eq t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
 
     leafEq (L k _) (L k' _) = eq k k'
 
--- Same as 'equal1' but doesn't compare the values.
+-- | Same as 'equal1' but doesn't compare the values.
 equalKeys :: Eq k => HashMap k v -> HashMap k v' -> Bool
 equalKeys = go
   where
@@ -650,7 +650,7 @@ lookup' h k m = case lookupRecordCollision# h k m of
   (# | (# a, _i #) #) -> Just a
 {-# INLINE lookup' #-}
 
--- The result of a lookup, keeping track of if a hash collision occurred.
+-- | The result of a lookup, keeping track of if a hash collision occurred.
 -- If a collision did not occur then it will have the Int value (-1).
 data LookupRes a = Absent | Present a !Int
 
@@ -659,7 +659,7 @@ lookupResToMaybe Absent        = Nothing
 lookupResToMaybe (Present x _) = Just x
 {-# INLINE lookupResToMaybe #-}
 
--- Internal helper for lookup. This version takes the precomputed hash so
+-- | Internal helper for lookup. This version takes the precomputed hash so
 -- that functions that make multiple calls to lookup and related functions
 -- (insert, delete) only need to calculate the hash once.
 --
@@ -678,7 +678,7 @@ lookupRecordCollision h k m = case lookupRecordCollision# h k m of
   (# | (# a, i #) #) -> Present a (I# i) -- GHC will eliminate the I#
 {-# INLINE lookupRecordCollision #-}
 
--- Why do we produce an Int# instead of an Int? Unfortunately, GHC is not
+-- | Why do we produce an Int# instead of an Int? Unfortunately, GHC is not
 -- yet any good at unboxing things *inside* products, let alone sums. That
 -- may be changing in GHC 8.6 or so (there is some work in progress), but
 -- for now we use Int# explicitly here. We don't need to push the Int#
@@ -689,7 +689,7 @@ lookupRecordCollision# h k m =
 -- INLINABLE to specialize to the Eq instance.
 {-# INLINABLE lookupRecordCollision# #-}
 
--- A two-continuation version of lookupRecordCollision. This lets us
+-- | A two-continuation version of lookupRecordCollision. This lets us
 -- share source code between lookup and lookupRecordCollision without
 -- risking any performance degradation.
 --
@@ -835,7 +835,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE insert' #-}
 
--- Insert optimized for the case when we know the key is not in the map.
+-- | Insert optimized for the case when we know the key is not in the map.
 --
 -- It is only valid to call this when the key does not exist in the map.
 --
@@ -871,7 +871,7 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
 {-# NOINLINE insertNewKey #-}
 
 
--- Insert optimized for the case when we know the key is in the map.
+-- | Insert optimized for the case when we know the key is in the map.
 --
 -- It is only valid to call this when the key exists in the map and you know the
 -- hash collision position if there was one. This information can be obtained
@@ -913,7 +913,7 @@ insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
 
 {-# NOINLINE insertKeyExists #-}
 
--- Replace the ith Leaf with Leaf k v.
+-- | Replace the ith Leaf with Leaf k v.
 --
 -- This does not check that @i@ is within bounds of the array.
 setAtPosition :: Int -> k -> v -> A.Array (Leaf k v) -> A.Array (Leaf k v)
@@ -1053,7 +1053,7 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
         | otherwise = go h k s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE insertModifying #-}
 
--- Like insertModifying for arrays; used to implement insertModifying
+-- | Like insertModifying for arrays; used to implement insertModifying
 insertModifyingArr :: Eq k => v -> (v -> (# v #)) -> k -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
 insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
@@ -1341,12 +1341,12 @@ alterF f = \ !k !m ->
 -- rule from firing.
 {-# INLINABLE [0] alterF #-}
 
--- This is just a bottom value. See the comment on the "alterFWeird"
+-- | This is just a bottom value. See the comment on the "alterFWeird"
 -- rule.
 test_bottom :: a
 test_bottom = error "Data.HashMap.alterF internal error: hit test_bottom"
 
--- We use this as an error result in RULES to ensure we don't get
+-- | We use this as an error result in RULES to ensure we don't get
 -- any useless CallStack nonsense.
 bogus# :: (# #) -> (# a #)
 bogus# _ = error "Data.HashMap.alterF internal error: hit bogus#"
@@ -1403,7 +1403,7 @@ bogus# _ = error "Data.HashMap.alterF internal error: hit bogus#"
   alterFWeird _ign1 _ign2 f = \ !k !m -> Const (getConst (f (lookup k m)))
  #-}
 
--- This is a very unsafe version of alterF used for RULES. When calling
+-- | This is a very unsafe version of alterF used for RULES. When calling
 -- alterFWeird x y f, the following *must* hold:
 --
 -- x = f Nothing
