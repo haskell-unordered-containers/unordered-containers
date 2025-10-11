@@ -447,7 +447,7 @@ toList t = Exts.build (\ c z -> foldrWithKey (const . c) z (asMap t))
 
 -- | \(O(n \min(W, n))\) Construct a set from a list of elements.
 fromList :: (Eq a, Hashable a) => [a] -> HashSet a
-fromList = HashSet . List.foldl' (\ m k -> H.insert k () m) H.empty
+fromList = HashSet . List.foldl' (\ m k -> H.unsafeInsert k () m) H.empty
 {-# INLINE fromList #-}
 
 instance (Eq a, Hashable a) => Exts.IsList (HashSet a) where
