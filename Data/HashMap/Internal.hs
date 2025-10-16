@@ -126,6 +126,7 @@ module Data.HashMap.Internal
     , nextShift
     , sparseIndex
     , two
+    , two'
     , unionArrayBy
     , updateFullArray
     , updateFullArrayM
@@ -164,7 +165,7 @@ import Data.Hashable              (Hashable)
 import Data.Hashable.Lifted       (Hashable1, Hashable2)
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
 import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
-import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
+import GHC.Exts                   (Int (..), Int#, TYPE, Word (..), (==#))
 import GHC.Stack                  (HasCallStack)
 import Prelude                    hiding (Foldable (..), filter, lookup, map,
                                    pred)
@@ -832,7 +833,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = runST (two s h k x hy t)
 {-# INLINABLE insert' #-}
 
 -- | Insert optimized for the case when we know the key is not in the map.
@@ -866,8 +867,7 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (A.snoc v (L k x))
-        | otherwise =
-            go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = runST (two s h k x hy t)
 {-# NOINLINE insertNewKey #-}
 
 
@@ -953,43 +953,53 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = two s h k x hy t
 {-# INLINABLE unsafeInsert #-}
 
--- | Create a map from two key-value pairs which hashes don't collide. To
--- enhance sharing, the second key-value pair is represented by the hash of its
--- key and a singleton HashMap pairing its key with its value.
+-- | Create a map from a key-value pair and a 'Leaf' or 'Collision' node with a
+-- different hash.
 --
--- Note: to avoid silly thunks, this function must be strict in the
--- key. See issue #232. We don't need to force the HashMap argument
--- because it's already in WHNF (having just been matched) and we
--- just put it directly in an array.
+-- It is the caller's responsibility to ensure that the HashMap argument is in
+-- WHNF.
 two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
-two = go
+two s h1 k1 v1 = two' s h1 (Leaf h1 (L k1 v1))
+{-# INLINE two #-}
+
+-- | Create a map from two 'Leaf' or 'Collision' nodes whose hashes are
+-- distinct.
+--
+-- It is the caller's responsibility to ensure that both HashMap arguments are
+-- in WHNF.
+two' :: Shift -> Hash -> HashMap k v -> Hash -> HashMap k v -> ST s (HashMap k v)
+two' s h1 lc1 h2 lc2 = go (shiftHash h1 s) lc1 (shiftHash h2 s) lc2
   where
-    go s h1 k1 v1 h2 t2
+    go !sh1 t1 !sh2 t2
         | bp1 == bp2 = do
-            st <- go (nextShift s) h1 k1 v1 h2 t2
+            st <- go (shiftHash sh1 bitsPerSubkey) t1 (shiftHash sh2 bitsPerSubkey) t2
             ary <- A.singletonM st
             return $ BitmapIndexed bp1 ary
         | otherwise  = do
-            mary <- A.new 2 $! Leaf h1 (L k1 v1)
+            mary <- A.new 2 t1
             A.write mary idx2 t2
             ary <- A.unsafeFreeze mary
             return $ BitmapIndexed (bp1 .|. bp2) ary
       where
-        bp1  = mask h1 s
-        bp2  = mask h2 s
-        !(I# i1) = index h1 s
-        !(I# i2) = index h2 s
-        idx2 = I# (i1 Exts.<# i2)
+        !bp1@(W# bp1#) = mask' sh1
+        !bp2@(W# bp2#) = mask' sh2
+        idx2 = I# (bp1# `Exts.ltWord#` bp2#)
         -- This way of computing idx2 saves us a branch compared to the previous approach:
         --
         -- idx2 | index h1 s < index h2 s = 1
         --      | otherwise               = 0
         --
         -- See https://github.com/haskell-unordered-containers/unordered-containers/issues/75#issuecomment-1128419337
-{-# INLINE two #-}
+
+    shiftHash :: Hash -> Shift -> Word -- type ShiftedHash
+    shiftHash h n = h `unsafeShiftR` n
+
+    mask' :: Word -> Bitmap
+    mask' w = 1 `unsafeShiftL` fromIntegral (w .&. subkeyMask)
+{-# INLINE two' #-} -- Really?!
 
 -- | \(O(\log n)\) Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
@@ -1109,7 +1119,7 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWithKey f k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = two s h k x hy t
 {-# INLINABLE unsafeInsertWithKey #-}
 
 -- | \(O(\log n)\) Remove the mapping for the specified key from this map
@@ -1610,16 +1620,16 @@ unionWithKey f = go 0
         | h1 == h2  = if k1 == k2
                       then Leaf h1 (L k1 (f k1 v1 v2))
                       else collision h1 l1 l2
-        | otherwise = goDifferentHash s h1 h2 t1 t2
+        | otherwise = runST (two' s h1 t1 h2 t2)
     go s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
         | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k a b #)) k1 v1 ls2)
-        | otherwise = goDifferentHash s h1 h2 t1 t2
+        | otherwise = runST (two' s h1 t1 h2 t2)
     go s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
         | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k b a #)) k2 v2 ls1)
-        | otherwise = goDifferentHash s h1 h2 t1 t2
+        | otherwise = runST (two' s h1 t1 h2 t2)
     go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
         | h1 == h2  = Collision h1 (updateOrConcatWithKey (\k a b -> (# f k a b #)) ls1 ls2)
-        | otherwise = goDifferentHash s h1 h2 t1 t2
+        | otherwise = runST (two' s h1 t1 h2 t2)
     -- branch vs. branch
     go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
         let b'   = b1 .|. b2
@@ -1672,14 +1682,6 @@ unionWithKey f = go 0
     leafHashCode (Leaf h _) = h
     leafHashCode (Collision h _) = h
     leafHashCode _ = error "leafHashCode"
-
-    goDifferentHash s h1 h2 t1 t2
-        | m1 == m2  = BitmapIndexed m1 (A.singleton $! goDifferentHash (nextShift s) h1 h2 t1 t2)
-        | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
-        | otherwise = BitmapIndexed (m1 .|. m2) (A.pair t2 t1)
-      where
-        m1 = mask h1 s
-        m2 = mask h2 s
 {-# INLINE unionWithKey #-}
 
 -- | Strict in the result of @f@.
