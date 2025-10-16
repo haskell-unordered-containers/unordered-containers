@@ -920,6 +920,34 @@ setAtPosition :: Int -> k -> v -> A.Array (Leaf k v) -> A.Array (Leaf k v)
 setAtPosition i k x ary = A.update ary i (L k x)
 {-# INLINE setAtPosition #-}
 
+unsafeInsertNewLeaf :: Hash -> HashMap k v -> HashMap k v -> HashMap k v
+unsafeInsertNewLeaf h0 l0 m0 = runST (go h0 l0 0 m0)
+  where
+    go !_ !l !_ Empty = return l
+    go h l@(Leaf _ lx) s t@(Leaf hy ly)
+        | hy == h = return $! collision h lx ly
+        | otherwise = two' s h l hy t
+    go h l s t@(BitmapIndexed b ary)
+        | b .&. m == 0 = do
+            ary' <- A.insertM ary i l
+            return $! bitmapIndexedOrFull (b .|. m) ary'
+        | otherwise = do
+            st <- A.indexM ary i
+            st' <- go h l (nextShift s) st
+            A.unsafeUpdateM ary i st'
+            return t
+      where m = mask h s
+            i = sparseIndex b m
+    go h l s t@(Full ary) = do
+        st <- A.indexM ary i
+        st' <- go h l (nextShift s) st
+        A.unsafeUpdateM ary i st'
+        return t
+      where i = index h s
+    go h l@(Leaf _ lx) s t@(Collision hy v)
+        | h == hy   = return $! Collision h (A.snoc v lx)
+        | otherwise = go h l s $ BitmapIndexed (mask hy s) (A.singleton t)
+    go _ _ _ _ = error "unsafeInsertNewLeaf"
 
 -- | In-place update version of insert
 unsafeInsert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
@@ -990,6 +1018,27 @@ two = go
         --
         -- See https://github.com/haskell-unordered-containers/unordered-containers/issues/75#issuecomment-1128419337
 {-# INLINE two #-}
+
+two' :: Shift -> Hash -> HashMap k v -> Hash -> HashMap k v -> ST s (HashMap k v)
+two' = go
+  where
+    go s h1 t1 h2 t2
+        | bp1 == bp2 = do
+            st <- go (nextShift s) h1 t1 h2 t2
+            ary <- A.singletonM st
+            return $ BitmapIndexed bp1 ary
+        | otherwise  = do
+            mary <- A.new 2 t1
+            A.write mary idx2 t2
+            ary <- A.unsafeFreeze mary
+            return $ BitmapIndexed (bp1 .|. bp2) ary
+      where
+        bp1  = mask h1 s
+        bp2  = mask h2 s
+        !(I# i1) = index h1 s
+        !(I# i2) = index h2 s
+        idx2 = I# (i1 Exts.<# i2)
+{-# INLINE two' #-}
 
 -- | \(O(\log n)\) Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
@@ -1809,13 +1858,26 @@ mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 ------------------------------------------------------------------------
 -- * Difference and intersection
 
+-- | A helper function to increase sharing of 'Leaf' nodes.
+--
+-- All 'HashMap' nodes supplied to accumulating function are 'Leaf' nodes.
+-- 'Collision's are handled by creating a 'Leaf' node for each element.
+foldlLeaves' :: (a -> Hash -> Leaf k v -> HashMap k v -> a) -> a -> HashMap k v -> a
+foldlLeaves' f = go
+  where
+    go !z Empty                = z
+    go z m@(Leaf h l)          = f z h l m
+    go z (BitmapIndexed _ ary) = A.foldl' go z ary
+    go z (Full ary)            = A.foldl' go z ary
+    go z (Collision h ary)     = A.foldl' (\ z' l -> f z' h l (Leaf h l)) z ary
+
 -- | \(O(n \log m)\) Difference of two maps. Return elements of the first map
 -- not existing in the second.
 difference :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
-difference a b = foldlWithKey' go empty a
+difference a b = foldlLeaves' go empty a
   where
-    go m k v = case lookup k b of
-                 Nothing -> unsafeInsert k v m
+    go m h (L k _) l = case lookup' h k b of
+                 Nothing -> unsafeInsertNewLeaf h l m
                  _       -> m
 {-# INLINABLE difference #-}
 
@@ -1824,11 +1886,11 @@ difference a b = foldlWithKey' go empty a
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
 differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
-differenceWith f a b = foldlWithKey' go empty a
+differenceWith f a b = foldlLeaves' go empty a
   where
-    go m k v = case lookup k b of
-                 Nothing -> unsafeInsert k v m
-                 Just w  -> maybe m (\y -> unsafeInsert k y m) (f v w)
+    go m h (L k v) l = case lookup' h k b of
+                 Nothing -> unsafeInsertNewLeaf h l m
+                 Just w  -> maybe m (\y -> unsafeInsertNewLeaf h (Leaf h (L k y)) m) (f v w)
 {-# INLINABLE differenceWith #-}
 
 -- | \(O(n \log m)\) Intersection of two maps. Return elements of the first
