@@ -965,21 +965,25 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 -- because it's already in WHNF (having just been matched) and we
 -- just put it directly in an array.
 two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
-two = go
+two s h1 k1 v1 = two' s h1 (Leaf h1 (L k1 v1))
+{-# INLINE two #-}
+
+two' :: Shift -> Hash -> HashMap k v -> Hash -> HashMap k v -> ST s (HashMap k v)
+two' s h1 lc1 h2 lc2 = go (shiftHash h1 s) lc1 (shiftHash h2 s) lc2
   where
-    go s h1 k1 v1 h2 t2
+    go !sh1 t1 !sh2 t2
         | bp1 == bp2 = do
-            st <- go (nextShift s) h1 k1 v1 h2 t2
+            st <- go (shiftHash sh1 bitsPerSubkey) t1 (shiftHash sh2 bitsPerSubkey) t2
             ary <- A.singletonM st
             return $ BitmapIndexed bp1 ary
         | otherwise  = do
-            mary <- A.new 2 $! Leaf h1 (L k1 v1)
+            mary <- A.new 2 t1
             A.write mary idx2 t2
             ary <- A.unsafeFreeze mary
             return $ BitmapIndexed (bp1 .|. bp2) ary
       where
-        !bp1@(W# bp1#)  = mask h1 s
-        !bp2@(W# bp2#)  = mask h2 s
+        !bp1@(W# bp1#) = mask' sh1
+        !bp2@(W# bp2#) = mask' sh2
         idx2 = I# (bp1# `Exts.ltWord#` bp2#)
         -- This way of computing idx2 saves us a branch compared to the previous approach:
         --
@@ -987,7 +991,13 @@ two = go
         --      | otherwise               = 0
         --
         -- See https://github.com/haskell-unordered-containers/unordered-containers/issues/75#issuecomment-1128419337
-{-# INLINE two #-}
+
+    shiftHash :: Hash -> Shift -> Word -- type ShiftedHash
+    shiftHash h n = h `unsafeShiftR` n
+
+    mask' :: Word -> Bitmap
+    mask' w = 1 `unsafeShiftL` fromIntegral (w .&. subkeyMask)
+{-# INLINE two' #-} -- Really?!
 
 -- | \(O(\log n)\) Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
