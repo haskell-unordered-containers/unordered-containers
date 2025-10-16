@@ -1873,7 +1873,7 @@ foldlLeaves' f = go
 
 -- | \(O(n \log m)\) Difference of two maps. Return elements of the first map
 -- not existing in the second.
-difference :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
+difference :: Eq k => HashMap k v -> HashMap k w -> HashMap k v
 difference a b = foldlLeaves' go empty a
   where
     go m h (L k _) l = case lookup' h k b of
@@ -1885,7 +1885,7 @@ difference a b = foldlLeaves' go empty a
 -- encountered, the combining function is applied to the values of these keys.
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
-differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
+differenceWith :: Eq k => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
 differenceWith f a b = foldlLeaves' go empty a
   where
     go m h (L k v) l = case lookup' h k b of
