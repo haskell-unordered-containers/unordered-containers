@@ -955,18 +955,20 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = two s h k x hy t
 {-# INLINABLE unsafeInsert #-}
 
--- | Create a map from two key-value pairs which hashes don't collide. To
--- enhance sharing, the second key-value pair is represented by the hash of its
--- key and a singleton HashMap pairing its key with its value.
+-- | Create a map from a key-value pair and a 'Leaf' or 'Collision' node with a
+-- different hash.
 --
--- Note: to avoid silly thunks, this function must be strict in the
--- key. See issue #232. We don't need to force the HashMap argument
--- because it's already in WHNF (having just been matched) and we
--- just put it directly in an array.
+-- It is the caller's responsibility to ensure that the HashMap argument is in
+-- WHNF.
 two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
 two s h1 k1 v1 = two' s h1 (Leaf h1 (L k1 v1))
 {-# INLINE two #-}
 
+-- | Create a map from two 'Leaf' or 'Collision' nodes whose hashes are
+-- distinct.
+--
+-- It is the caller's responsibility to ensure that both HashMap arguments are
+-- in WHNF.
 two' :: Shift -> Hash -> HashMap k v -> Hash -> HashMap k v -> ST s (HashMap k v)
 two' s h1 lc1 h2 lc2 = go (shiftHash h1 s) lc1 (shiftHash h2 s) lc2
   where
