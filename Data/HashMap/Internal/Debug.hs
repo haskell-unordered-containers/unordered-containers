@@ -23,6 +23,7 @@ module Data.HashMap.Internal.Debug
     , Error(..)
     , SubHash
     , SubHashPath
+    , toArray
     ) where
 
 import Data.Bits             (complement, countTrailingZeros, popCount, shiftL,
@@ -142,3 +143,10 @@ valid t     = validInternal initialSubHashPath t
         n = A.length ary
         validArraySize | n == maxChildren = Valid
                        | otherwise        = Invalid (INV8_bad_Full_size n) p
+
+toArray :: HashMap k v -> A.Array (HashMap k v)
+toArray Empty = A.fromList 0 []
+toArray Leaf{} = A.fromList 0 []
+toArray (BitmapIndexed _ ary) = ary
+toArray (Full ary) = ary
+toArray Collision{} = A.fromList 0 []
