@@ -85,8 +85,27 @@ bUnionDisjoint =
       let (trues, falses) = Data.List.partition (flip testBit (31 :: Int)) ints
       return (HM.fromList (map (,()) trues), HM.fromList (map (,()) falses))
 
+-- TODO: Separate benchmarks for overlap with pointer eq?!
 bUnionOverlap :: [Benchmark]
-bUnionOverlap = undefined
+bUnionOverlap =
+  [ -- bgroup "Bytes" [env (bytesEnv s) (bench' s) | s <- defaultSizes],
+    bgroup "Int" [env (intsEnv s) (bench' s) | s <- defaultSizes]
+  ]
+  where
+    bench' s tup = bench (show s) $ whnf (\(as, bs) -> HM.union as bs) tup
+    bytesEnv s = do
+      g <- newIOGenM defaultGen
+      undefined
+    intsEnv s = do
+      g <- newIOGenM defaultGen
+      let s_overlap = s `div` 2
+      let s_a_sep = (s - s_overlap) `div` 2
+      let s_b_sep = s - s_overlap - s_a_sep
+      overlap <- genInts s_overlap g
+      a_sep <- genInts s_a_sep g
+      b_sep <- genInts s_b_sep g
+      let toMap = HM.fromList . map (,())
+      return (toMap overlap `HM.union` toMap a_sep, toMap overlap `HM.union` toMap b_sep)
 
 genInts ::
   (StatefulGen g m) =>
