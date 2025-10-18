@@ -8,7 +8,9 @@
 module Main where
 
 import Control.Monad (replicateM)
+import Data.Bits (testBit)
 import qualified Data.HashMap.Strict as HM
+import Data.List
 import Key.Bytes
 import System.Random.Stateful
 import Test.Tasty.Bench
@@ -17,9 +19,9 @@ import Prelude hiding (Foldable (..), lookup)
 main :: IO ()
 main =
   defaultMain
-    [ bFromList
-    -- bgroup "insert" bInsert
-    , bUnion
+    [ bFromList,
+      -- bgroup "insert" bInsert
+      bUnion
     ]
 
 defaultGen :: StdGen
@@ -64,17 +66,24 @@ bUnion :: Benchmark
 bUnion =
   bgroup
     "union"
-    [ bgroup "disjoint" bUnionDisjoint, bgroup "overlap" [], bgroup "same" [] ]
+    [bgroup "disjoint" bUnionDisjoint, bgroup "overlap" [], bgroup "same" []]
 
 bUnionDisjoint :: [Benchmark]
-bUnionDisjoint = [bgroup "Bytes" [env (bytesEnv s) (bytesB s) | s <- defaultSizes], bgroup "Int" []]
+bUnionDisjoint =
+  [ bgroup "Bytes" [env (bytesEnv s) (bench' s) | s <- defaultSizes],
+    bgroup "Int" [env (intsEnv s) (bench' s) | s <- defaultSizes]
+  ]
   where
-    bytesB s tup = bench (show s) $ whnf (\ ~(as, bs) -> HM.union as bs) tup
+    bench' s tup = bench (show s) $ whnf (\(as, bs) -> HM.union as bs) tup
     bytesEnv s = do
       g <- newIOGenM defaultGen
       (trues, falses) <- Key.Bytes.genDisjoint s bytesLength g
       return (HM.fromList (map (,()) trues), HM.fromList (map (,()) falses))
-      
+    intsEnv s = do
+      g <- newIOGenM defaultGen
+      ints <- genInts s g
+      let (trues, falses) = Data.List.partition (flip testBit (31 :: Int)) ints
+      return (HM.fromList (map (,()) trues), HM.fromList (map (,()) falses))
 
 genInts ::
   (StatefulGen g m) =>
