@@ -26,5 +26,14 @@ genNBytes ::
   m [Bytes]
 genNBytes n len = replicateM n . genBytes len
 
+genDisjoint ::
+  (StatefulGen g m) =>
+  Int ->
+  Int ->
+  g ->
+  m ([Bytes], [Bytes])
+genDisjoint n len = undefined
+{-
 instance Uniform Bytes where
   uniformM = genBytes 32 
+-}
