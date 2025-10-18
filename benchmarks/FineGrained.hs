@@ -7,6 +7,7 @@
 
 module Main where
 
+import Control.DeepSeq (NFData)
 import Control.Monad (replicateM)
 import Data.Bits (testBit)
 import Data.HashMap.Strict (HashMap)
@@ -31,43 +32,46 @@ main =
       bgroup "HashSet" [bSetFromList]
     ]
 
-defaultGen :: StdGen
-defaultGen = mkStdGen 42
-
 defaultSizes :: [Int]
 defaultSizes = [0, 1, 10, 100, 1000, 10_000, 100_000]
 
+-- | Length of a 'Bytes' key in bytes.
+--
+-- For comparison: A SHA256 hash is 32 bytes long.
 bytesLength :: Int
 bytesLength = 32
+
+-- | Pseudo-random generator for keys etc.
+--
+-- Change the seed to generate different random elements.
+defaultGen :: StdGen
+defaultGen = mkStdGen 42
+
+env' ::
+  (NFData a) =>
+  Int ->
+  (Int -> IOGenM StdGen -> IO a) ->
+  (a -> Benchmarkable) ->
+  Benchmark
+env' size setup run =
+  env
+    ( do
+        gen <- newIOGenM defaultGen
+        setup size gen
+    )
+    (\x -> bench (show size) (run x))
 
 bFromList :: Benchmark
 bFromList =
   bgroup
     "fromList"
-    [ bgroup
-        "Bytes"
-        [ env
-            ( do
-                g <- newIOGenM defaultGen
-                genNBytes s bytesLength g
-            )
-            $ \keys ->
-              bench (show s) $ whnf (HM.fromList . map (,())) keys
-        | s <- sizes
-        ],
-      bgroup
-        "Int"
-        [ env
-            ( do
-                g <- newIOGenM defaultGen
-                genInts s g
-            )
-            $ \keys -> bench (show s) $ whnf (HM.fromList . map (,())) keys
-        | s <- sizes
-        ]
+    [ bgroup "Bytes" [env' s setupBytes run | s <- defaultSizes],
+      bgroup "Int" [env' s genInts run | s <- defaultSizes]
     ]
   where
-    sizes = defaultSizes
+    setupBytes s = genNBytes s bytesLength
+    run :: (Hashable a) => [a] -> Benchmarkable
+    run = whnf (HM.fromList . map (,()))
 
 bUnion :: Benchmark
 bUnion =
