@@ -67,13 +67,13 @@ bUnion =
     [ bgroup "disjoint" bUnionDisjoint, bgroup "overlap" [], bgroup "same" [] ]
 
 bUnionDisjoint :: [Benchmark]
-bUnionDisjoint = [bgroup "Bytes" [], bgroup "Int" []]
+bUnionDisjoint = [bgroup "Bytes" [env (bytesEnv s) (bytesB s) | s <- defaultSizes], bgroup "Int" []]
   where
+    bytesB s tup = bench (show s) $ whnf (\ ~(as, bs) -> HM.union as bs) tup
     bytesEnv s = do
       g <- newIOGenM defaultGen
-      trues <- undefined s
-      falses <- undefined s
-      return (map (,()) trues, map (,()) falses)
+      (trues, falses) <- Key.Bytes.genDisjoint s bytesLength g
+      return (HM.fromList (map (,()) trues), HM.fromList (map (,()) falses))
       
 
 genInts ::
