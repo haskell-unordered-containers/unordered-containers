@@ -2,6 +2,7 @@
 
 module Key.Bytes where
 
+import Data.List
 import Control.Monad (replicateM)
 import Data.ByteString.Short
 import Data.Hashable
@@ -26,13 +27,16 @@ genNBytes ::
   m [Bytes]
 genNBytes n len = replicateM n . genBytes len
 
+-- | @genDisjoint n len gen@ generates @n@ 'Bytes' in total. The returned lists
+-- each contain roughly half of the total.
 genDisjoint ::
   (StatefulGen g m) =>
   Int ->
-  Int ->
+  Int -> -- ^ Must be positive
   g ->
   m ([Bytes], [Bytes])
-genDisjoint n len = undefined
+genDisjoint n len gen = Data.List.partition predicate <$> genNBytes n len gen
+  where predicate (Bytes sbs) = even (Data.ByteString.Short.head sbs)
 {-
 instance Uniform Bytes where
   uniformM = genBytes 32 
