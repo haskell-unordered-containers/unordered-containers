@@ -9,7 +9,9 @@ module Main where
 
 import Control.Monad (replicateM)
 import Data.Bits (testBit)
+import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
+import Data.Hashable
 import Data.List
 import Key.Bytes
 import System.Random.Stateful
@@ -66,7 +68,26 @@ bUnion :: Benchmark
 bUnion =
   bgroup
     "union"
-    [bgroup "disjoint" bUnionDisjoint, bgroup "overlap" bUnionOverlap, bgroup "same" []]
+    [ bgroup "disjoint" bUnionDisjoint,
+      bgroup "overlap" bUnionOverlap,
+      bgroup "equal" bUnionEqual
+    ]
+
+bUnionEqual :: [Benchmark]
+bUnionEqual =
+  [ bgroup "Bytes" [env (bytesEnv s) (bench' s) | s <- defaultSizes],
+    bgroup "Int" [env (intsEnv s) (bench' s) | s <- defaultSizes]
+  ]
+  where
+    bench' s = bench (show s) . whnf (\m -> HM.union m m)
+    bytesEnv s = do
+      g <- newIOGenM defaultGen
+      ks <- Key.Bytes.genNBytes s bytesLength g
+      return (toMap ks)
+    intsEnv s = do
+      g <- newIOGenM defaultGen
+      ks <- genInts s g
+      return (toMap ks)
 
 bUnionDisjoint :: [Benchmark]
 bUnionDisjoint =
@@ -88,14 +109,16 @@ bUnionDisjoint =
 -- TODO: Separate benchmarks for overlap with pointer eq?!
 bUnionOverlap :: [Benchmark]
 bUnionOverlap =
-  [ -- bgroup "Bytes" [env (bytesEnv s) (bench' s) | s <- defaultSizes],
+  [ bgroup "Bytes" [env (bytesEnv s) (bench' s) | s <- defaultSizes],
     bgroup "Int" [env (intsEnv s) (bench' s) | s <- defaultSizes]
   ]
   where
     bench' s tup = bench (show s) $ whnf (\(as, bs) -> HM.union as bs) tup
     bytesEnv s = do
       g <- newIOGenM defaultGen
-      undefined
+      (trues, falses) <- Key.Bytes.genDisjoint s bytesLength g
+      let (a_sep, b_sep) = splitAt (s `div` 4) trues
+      return (toMap falses `HM.union` toMap a_sep, toMap falses `HM.union` toMap b_sep)
     intsEnv s = do
       g <- newIOGenM defaultGen
       let s_overlap = s `div` 2
@@ -104,8 +127,10 @@ bUnionOverlap =
       overlap <- genInts s_overlap g
       a_sep <- genInts s_a_sep g
       b_sep <- genInts s_b_sep g
-      let toMap = HM.fromList . map (,())
       return (toMap overlap `HM.union` toMap a_sep, toMap overlap `HM.union` toMap b_sep)
+
+toMap :: (Hashable k) => [k] -> HashMap k Int
+toMap = HM.fromList . map (,1)
 
 genInts ::
   (StatefulGen g m) =>
