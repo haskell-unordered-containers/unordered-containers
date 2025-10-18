@@ -92,11 +92,11 @@ bUnionDisjoint =
     run = whnf (\(as, bs) -> HM.union as bs)
     setupBytes s gen = do
       (trues, falses) <- Key.Bytes.genDisjoint s bytesLength gen
-      return (toMap trues, toMap falses)
+      return (keysToMap trues, keysToMap falses)
     setupInts s gen = do
       ints <- genInts s gen
       let (trues, falses) = Data.List.partition (flip testBit (31 :: Int)) ints
-      return (toMap trues, toMap falses)
+      return (keysToMap trues, keysToMap falses)
 
 bUnionEqual :: [Benchmark]
 bUnionEqual =
@@ -108,11 +108,11 @@ bUnionEqual =
     bytesEnv s = do
       g <- newIOGenM defaultGen
       ks <- Key.Bytes.genNBytes s bytesLength g
-      return (toMap ks)
+      return (keysToMap ks)
     intsEnv s = do
       g <- newIOGenM defaultGen
       ks <- genInts s g
-      return (toMap ks)
+      return (keysToMap ks)
 
 -- TODO: Separate benchmarks for overlap with pointer eq?!
 bUnionOverlap :: [Benchmark]
@@ -126,7 +126,10 @@ bUnionOverlap =
       g <- newIOGenM defaultGen
       (trues, falses) <- Key.Bytes.genDisjoint s bytesLength g
       let (a_sep, b_sep) = splitAt (s `div` 4) trues
-      return (toMap falses `HM.union` toMap a_sep, toMap falses `HM.union` toMap b_sep)
+      return
+        ( keysToMap falses `HM.union` keysToMap a_sep,
+          keysToMap falses `HM.union` keysToMap b_sep
+        )
     intsEnv s = do
       g <- newIOGenM defaultGen
       let s_overlap = s `div` 2
@@ -135,10 +138,13 @@ bUnionOverlap =
       overlap <- genInts s_overlap g
       a_sep <- genInts s_a_sep g
       b_sep <- genInts s_b_sep g
-      return (toMap overlap `HM.union` toMap a_sep, toMap overlap `HM.union` toMap b_sep)
+      return
+        ( keysToMap overlap `HM.union` keysToMap a_sep,
+          keysToMap overlap `HM.union` keysToMap b_sep
+        )
 
-toMap :: (Hashable k) => [k] -> HashMap k Int
-toMap = HM.fromList . map (,1)
+keysToMap :: (Hashable k) => [k] -> HashMap k Int
+keysToMap = HM.fromList . map (,1)
 
 genInts ::
   (StatefulGen g m) =>
