@@ -2,12 +2,12 @@
 
 module Key.Bytes where
 
-import Data.List
+import Control.DeepSeq
 import Control.Monad (replicateM)
 import Data.ByteString.Short
 import Data.Hashable
+import Data.List
 import System.Random.Stateful
-import Control.DeepSeq
 
 newtype Bytes = Bytes {unBytes :: ShortByteString}
   deriving (Eq, Hashable, Show, NFData)
@@ -32,12 +32,15 @@ genNBytes n len = replicateM n . genBytes len
 genDisjoint ::
   (StatefulGen g m) =>
   Int ->
-  Int -> -- ^ Must be positive
+  -- | Must be positive
+  Int ->
   g ->
   m ([Bytes], [Bytes])
 genDisjoint n len gen = Data.List.partition predicate <$> genNBytes n len gen
-  where predicate (Bytes sbs) = even (Data.ByteString.Short.head sbs)
+  where
+    predicate (Bytes sbs) = even (Data.ByteString.Short.head sbs)
+
 {-
 instance Uniform Bytes where
-  uniformM = genBytes 32 
+  uniformM = genBytes 32
 -}
