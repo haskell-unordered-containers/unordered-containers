@@ -142,10 +142,14 @@ benchmark fine-grained
   type: exitcode-stdio-1.0
 
   other-modules:
+    Key.Bytes
 
   build-depends:
     base,
+    bytestring,
+    deepseq,
     hashable,
+    random,
     tasty-bench,
     unordered-containers
 
