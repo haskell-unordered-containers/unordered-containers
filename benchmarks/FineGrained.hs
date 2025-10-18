@@ -66,7 +66,7 @@ bUnion :: Benchmark
 bUnion =
   bgroup
     "union"
-    [bgroup "disjoint" bUnionDisjoint, bgroup "overlap" [], bgroup "same" []]
+    [bgroup "disjoint" bUnionDisjoint, bgroup "overlap" bUnionOverlap, bgroup "same" []]
 
 bUnionDisjoint :: [Benchmark]
 bUnionDisjoint =
@@ -84,6 +84,9 @@ bUnionDisjoint =
       ints <- genInts s g
       let (trues, falses) = Data.List.partition (flip testBit (31 :: Int)) ints
       return (HM.fromList (map (,()) trues), HM.fromList (map (,()) falses))
+
+bUnionOverlap :: [Benchmark]
+bUnionOverlap = undefined
 
 genInts ::
   (StatefulGen g m) =>
