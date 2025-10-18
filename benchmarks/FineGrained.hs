@@ -11,6 +11,7 @@ import Control.Monad (replicateM)
 import Data.Bits (testBit)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
+import qualified Data.HashSet
 import Data.Hashable
 import Data.List
 import Key.Bytes
@@ -21,9 +22,13 @@ import Prelude hiding (Foldable (..), lookup)
 main :: IO ()
 main =
   defaultMain
-    [ bFromList,
-      -- bgroup "insert" bInsert
-      bUnion
+    [ bgroup
+        "HashMap.Strict"
+        [ bFromList,
+          -- bgroup "insert" bInsert
+          bUnion
+        ],
+      bgroup "HashSet" [bSetFromList]
     ]
 
 defaultGen :: StdGen
@@ -139,6 +144,23 @@ genInts ::
   m [Int]
 genInts n = do
   replicateM n . uniformM
+
+bSetFromList :: Benchmark
+bSetFromList =
+  bgroup
+    "fromList"
+    [ bgroup "Bytes" (b bytesEnv),
+      bgroup "Int" (b intsEnv)
+    ]
+  where
+    b e = [env (e s) (bench' s) | s <- defaultSizes]
+    bench' s = bench (show s) . whnf Data.HashSet.fromList
+    bytesEnv s = do
+      g <- newIOGenM defaultGen
+      genNBytes s bytesLength g
+    intsEnv s = do
+      g <- newIOGenM defaultGen
+      genInts s g
 
 {-
 bFromList = matrix defaultSizes e' b'
