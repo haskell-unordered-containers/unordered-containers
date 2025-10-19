@@ -145,19 +145,23 @@ bSetFromList :: Benchmark
 bSetFromList =
   bgroup
     "fromList"
-    [ bg "Bytes" bytesEnv,
-      bg "Int" intsEnv
+    [ bg "Bytes" setupBytes,
+      bg "Int" setupInts
     ]
   where
     bg name e = bgroup name (b e)
-    b e = [env (e s) (bench' s) | s <- defaultSizes]
-    bench' s = bench (show s) . whnf Data.HashSet.fromList
-    bytesEnv s = do
-      g <- newIOGenM defaultGen
-      genNBytes s bytesLength g
-    intsEnv s = do
-      g <- newIOGenM defaultGen
-      genInts s g
+    b e = [env' s e run | s <- defaultSizes]
+    run :: (Hashable a) => [a] -> Benchmarkable
+    run = whnf Data.HashSet.fromList
+    setupBytes s gen = genNBytes s bytesLength gen
+    setupInts = genInts
+
+{-
+bg :: _
+bg name setup run = bgroup name (b setup run)
+  where
+    b e run = [env (e s) (run s) | s <- defaultSizes]
+-}
 
 keysToMap :: (Hashable k) => [k] -> HashMap k Int
 keysToMap = HM.fromList . map (,1)
