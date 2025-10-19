@@ -979,7 +979,8 @@ two' s h1 lc1 h2 lc2 = go (shiftHash s h1) lc1 (shiftHash s h2) lc2
         --      | otherwise               = 0
         --
         -- See https://github.com/haskell-unordered-containers/unordered-containers/issues/75#issuecomment-1128419337
-{-# NOINLINE two' #-}
+    {-# NOINLINE go #-}
+{-# INLINE two' #-} -- Really?!
 
 -- | \(O(\log n)\) Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
