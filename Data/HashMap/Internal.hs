@@ -948,7 +948,8 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 -- It is the caller's responsibility to ensure that the HashMap argument is in
 -- WHNF.
 two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
-two s h1 k1 v1 = two' s h1 (Leaf h1 (L k1 v1))
+two s h1 k1 v1 = two' s h1 l
+  where !l = Leaf h1 (L k1 v1)
 {-# INLINE two #-}
 
 -- | Create a map from two 'Leaf' or 'Collision' nodes whose hashes are
