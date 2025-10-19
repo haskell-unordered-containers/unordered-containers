@@ -27,7 +27,8 @@ main =
         "HashMap.Strict"
         [ bFromList,
           -- bgroup "insert" bInsert
-          bUnion
+          bUnion,
+          bDifference
         ],
       bgroup "HashSet" [bSetFromList]
     ]
@@ -140,6 +141,37 @@ bUnionEqual =
     setupInts s gen = do
       ks <- genInts s gen
       return (keysToMap ks)
+
+bDifference :: Benchmark
+bDifference = bgroup "difference" []
+{-
+    [ bgroup "disjoint" bDifferenceDisjoint,
+      bgroup "overlap" bDifferenceOverlap,
+      bgroup "equal" bDifferenceEqual
+    ]
+-}
+
+bDifferenceDisjoint :: [Benchmark]
+bDifferenceDisjoint = [ b "Bytes" setupBytes, b "Int" setupInts ]
+  where
+    b = undefined
+    setupBytes = undefined
+    setupInts = undefined
+
+bDifferenceOverlap :: [Benchmark]
+bDifferenceOverlap = [ b "Bytes" setupBytes, b "Int" setupInts ]
+  where
+    b = undefined
+    setupBytes = undefined
+    setupInts = undefined
+
+bDifferenceEqual :: [Benchmark]
+bDifferenceEqual = [ b "Bytes" setupBytes, b "Int" setupInts ]
+  where
+    b = undefined
+    setupBytes = undefined
+    setupInts = undefined
+
 
 bSetFromList :: Benchmark
 bSetFromList =
