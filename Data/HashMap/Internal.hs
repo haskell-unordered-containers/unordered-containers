@@ -1056,17 +1056,17 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
 -- | Like insertModifying for arrays; used to implement insertModifying
 insertModifyingArr :: Eq k => v -> (v -> (# v #)) -> k -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
-insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
+insertModifyingArr x f k0 ary0 = go k0 ary0 (A.length ary0 - 1)
   where
-    go !k !ary !i !n
+    go !k !ary !i
           -- Not found, append to the end.
-        | i >= n = A.snoc ary $ L k x
+        | i < 0 = A.snoc ary $ L k x
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> case f y of
                                       (# y' #) -> if ptrEq y y'
                                                   then ary
                                                   else A.update ary i (L k y')
-                     | otherwise -> go k ary (i+1) n
+                     | otherwise -> go k ary (i-1)
 {-# INLINE insertModifyingArr #-}
 
 -- | In-place update version of insertWith
@@ -2309,41 +2309,41 @@ fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (
 lookupInArrayCont ::
   forall rep (r :: TYPE rep) k v.
   Eq k => ((# #) -> r) -> (v -> Int -> r) -> k -> A.Array (Leaf k v) -> r
-lookupInArrayCont absent present k0 ary0 = go k0 ary0 0 (A.length ary0)
+lookupInArrayCont absent present k0 ary0 = go k0 ary0 (A.length ary0 - 1)
   where
-    go :: Eq k => k -> A.Array (Leaf k v) -> Int -> Int -> r
-    go !k !ary !i !n
-        | i >= n    = absent (# #)
+    go :: Eq k => k -> A.Array (Leaf k v) -> Int -> r
+    go !k !ary !i
+        | i < 0    = absent (# #)
         | otherwise = case A.index ary i of
             (L kx v)
                 | k == kx   -> present v i
-                | otherwise -> go k ary (i+1) n
+                | otherwise -> go k ary (i-1)
 {-# INLINE lookupInArrayCont #-}
 
 -- | \(O(n)\) Lookup the value associated with the given key in this
 -- array.  Returns 'Nothing' if the key wasn't found.
 indexOf :: Eq k => k -> A.Array (Leaf k v) -> Maybe Int
-indexOf k0 ary0 = go k0 ary0 0 (A.length ary0)
+indexOf k0 ary0 = go k0 ary0 (A.length ary0 - 1)
   where
-    go !k !ary !i !n
-        | i >= n    = Nothing
+    go !k !ary !i
+        | i < 0     = Nothing
         | otherwise = case A.index ary i of
             (L kx _)
                 | k == kx   -> Just i
-                | otherwise -> go k ary (i+1) n
+                | otherwise -> go k ary (i-1)
 {-# INLINABLE indexOf #-}
 
 updateWith# :: Eq k => (v -> (# v #)) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-updateWith# f k0 ary0 = go k0 ary0 0 (A.length ary0)
+updateWith# f k0 ary0 = go k0 ary0 (A.length ary0 - 1)
   where
-    go !k !ary !i !n
-        | i >= n    = ary
+    go !k !ary !i
+        | i < 0     = ary
         | otherwise = case A.index ary i of
             (L kx y) | k == kx -> case f y of
                           (# y' #)
                              | ptrEq y y' -> ary
                              | otherwise -> A.update ary i (L k y')
-                     | otherwise -> go k ary (i+1) n
+                     | otherwise -> go k ary (i-1)
 {-# INLINABLE updateWith# #-}
 
 updateOrSnocWith :: Eq k => (v -> v -> (# v #)) -> k -> v -> A.Array (Leaf k v)
@@ -2353,17 +2353,17 @@ updateOrSnocWith f = updateOrSnocWithKey (const f)
 
 updateOrSnocWithKey :: Eq k => (k -> v -> v -> (# v #)) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
-updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
+updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 (A.length ary0 - 1)
   where
-    go !k v !ary !i !n
+    go !k v !ary !i
         -- Not found, append to the end.
-        | i >= n = A.snoc ary $ L k v
+        | i < 0 = A.snoc ary $ L k v
         | L kx y <- A.index ary i
         , k == kx
         , (# v2 #) <- f k v y
             = A.update ary i (L k v2)
         | otherwise
-            = go k v ary (i+1) n
+            = go k v ary (i-1)
 {-# INLINABLE updateOrSnocWithKey #-}
 
 updateOrConcatWithKey :: Eq k => (k -> v -> v -> (# v #)) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
