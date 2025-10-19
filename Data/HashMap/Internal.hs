@@ -1044,7 +1044,7 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
             in if A.unsafeSameArray v v'
                then t
                else Collision h v'
-        | otherwise = go h k s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = runST (two s h k x hy t)
 {-# INLINABLE insertModifying #-}
 
 -- | Like insertModifying for arrays; used to implement insertModifying
