@@ -958,29 +958,32 @@ two s h1 k1 v1 = two' s h1 l
 -- It is the caller's responsibility to ensure that both HashMap arguments are
 -- in WHNF.
 two' :: Shift -> Hash -> HashMap k v -> Hash -> HashMap k v -> ST s (HashMap k v)
-two' s h1 lc1 h2 lc2 = go (shiftHash s h1) lc1 (shiftHash s h2) lc2
-  where
-    go !sh1 t1 !sh2 t2
-        | bp1 == bp2 = do
-            st <- go (nextSH sh1) t1 (nextSH sh2) t2
-            ary <- A.singletonM st
-            return $ BitmapIndexed bp1 ary
-        | otherwise  = do
-            mary <- A.new 2 t1
-            A.write mary idx2 t2
-            ary <- A.unsafeFreeze mary
-            return $ BitmapIndexed (bp1 .|. bp2) ary
-      where
-        !bp1@(W# bp1#) = maskSH sh1
-        !bp2@(W# bp2#) = maskSH sh2
-        idx2 = I# (bp1# `Exts.ltWord#` bp2#)
-        -- This way of computing idx2 saves us a branch compared to the previous approach:
-        --
-        -- idx2 | index h1 s < index h2 s = 1
-        --      | otherwise               = 0
-        --
-        -- See https://github.com/haskell-unordered-containers/unordered-containers/issues/75#issuecomment-1128419337
+two' s h1 lc1 h2 lc2 = two_go (shiftHash s h1) lc1 (shiftHash s h2) lc2
 {-# INLINE two' #-}
+
+-- | This function lives at the top-level so 'two' and `two'` can be inlined
+-- without inlining this loop.
+two_go :: ShiftedHash -> HashMap k v -> ShiftedHash -> HashMap k v -> ST s (HashMap k v)
+two_go !sh1 t1 !sh2 t2
+    | bp1 == bp2 = do
+        st <- two_go (nextSH sh1) t1 (nextSH sh2) t2
+        ary <- A.singletonM st
+        return $ BitmapIndexed bp1 ary
+    | otherwise  = do
+        mary <- A.new 2 t1
+        A.write mary idx2 t2
+        ary <- A.unsafeFreeze mary
+        return $ BitmapIndexed (bp1 .|. bp2) ary
+  where
+    !bp1@(W# bp1#) = maskSH sh1
+    !bp2@(W# bp2#) = maskSH sh2
+    idx2 = I# (bp1# `Exts.ltWord#` bp2#)
+    -- This way of computing idx2 saves us a branch compared to the previous approach:
+    --
+    -- idx2 | index h1 s < index h2 s = 1
+    --      | otherwise               = 0
+    --
+    -- See https://github.com/haskell-unordered-containers/unordered-containers/issues/75#issuecomment-1128419337
 
 -- | \(O(\log n)\) Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
