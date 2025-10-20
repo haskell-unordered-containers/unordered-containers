@@ -7,6 +7,7 @@
 
 module Main where
 
+import Data.Bifunctor (second)
 import Control.DeepSeq (NFData)
 import Control.Monad (replicateM)
 import Data.Bits (testBit)
@@ -63,13 +64,18 @@ bInsert :: Benchmark
 bInsert =
   bgroup
     "insert"
-    [ bgroup "present" bInsertPresent,
-      bgroup "absent" bInsertAbsent
+    [ bgroup "presentKey" bInsertPresentKey,
+      bgroup "absentKey" bInsertAbsentKey
     ]
 
--- | FIXME: This is with present keys, but mostly new values
-bInsertPresent :: [Benchmark]
-bInsertPresent =
+bInsertPresentKey :: [Benchmark]
+bInsertPresentKey =
+  [ bgroup "sameValue" bInsertPresentKeySameValue
+  , bgroup "differentValue" bInsertPresentKeyDifferentValue
+  ]
+
+bInsertPresentKeySameValue :: [Benchmark]
+bInsertPresentKeySameValue =
   [ bgroup'WithSizes sizes "Bytes" setupBytes b,
     bgroup'WithSizes sizes "Int" setupInts b
   ]
@@ -78,17 +84,35 @@ bInsertPresent =
     b s =
       bench (show s)
         . whnf (\(m, kvs) -> foldl' (\() (k, v) -> HM.insert k v m `seq` ()) () kvs)
+    toKVs = take 100 . Data.List.cycle . HM.toList
     setupBytes size gen = do
       m <- genBytesMap size gen
-      let kvs = zip (Data.List.cycle (HM.keys m)) [0 ..]
-      return (m, take 100 kvs)
+      return (m, toKVs m)
     setupInts size gen = do
       m <- genIntMap size gen
-      let kvs = zip (Data.List.cycle (HM.keys m)) [0 ..]
-      return (m, take 100 kvs)
+      return (m, toKVs m)
 
-bInsertAbsent :: [Benchmark]
-bInsertAbsent =
+bInsertPresentKeyDifferentValue :: [Benchmark]
+bInsertPresentKeyDifferentValue =
+  [ bgroup'WithSizes sizes "Bytes" setupBytes b,
+    bgroup'WithSizes sizes "Int" setupInts b
+  ]
+  where
+    sizes = filter (/= 0) defaultSizes
+    b s =
+      bench (show s)
+        . whnf (\(m, kvs) -> foldl' (\() (k, v) -> HM.insert k v m `seq` ()) () kvs)
+    toKVs = take 100 . Data.List.cycle . map (second (+1)) . HM.toList
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      return (m, toKVs m)
+    setupInts size gen = do
+      m <- genIntMap size gen
+      return (m, toKVs m)
+
+-- TODO
+bInsertAbsentKey :: [Benchmark]
+bInsertAbsentKey =
   [ bgroup' "Bytes" genBytesMapsDisjoint b,
     bgroup' "Int" genIntMapsDisjoint b
   ]
