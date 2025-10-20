@@ -713,13 +713,13 @@ fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) HM.e
 -- Array operations
 
 updateWith :: Eq k => (v -> v) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
-updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
+updateWith f k0 ary0 = go k0 ary0 (A.length ary0 - 1)
   where
-    go !k !ary !i !n
-        | i >= n    = ary
+    go !k !ary !i
+        | i < 0     = ary
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> let !v' = f y in A.update ary i (L k v')
-                     | otherwise -> go k ary (i+1) n
+                     | otherwise -> go k ary (i-1)
 {-# INLINABLE updateWith #-}
 
 -- | Append the given key and value to the array. If the key is
@@ -739,14 +739,14 @@ updateOrSnocWith f = updateOrSnocWithKey (const f)
 -- array.
 updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.Array (Leaf k v)
                  -> A.Array (Leaf k v)
-updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
+updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 (A.length ary0 - 1)
   where
-    go !k v !ary !i !n
+    go !k v !ary !i
         -- Not found, append to the end.
-        | i >= n = A.snoc ary $! L k $! v
+        | i < 0 = A.snoc ary $! L k $! v
         | otherwise = case A.index ary i of
             (L kx y) | k == kx   -> let !v' = f k v y in A.update ary i (L k v')
-                     | otherwise -> go k v ary (i+1) n
+                     | otherwise -> go k v ary (i-1)
 {-# INLINABLE updateOrSnocWithKey #-}
 
 ------------------------------------------------------------------------
