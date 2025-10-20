@@ -7,8 +7,9 @@ constraint-set debug
   tests:       True
   run-tests:   True
 
-installed: -containers
 installed: -binary
+installed: -bytestring
+installed: -containers
 installed: -text
 
 -- With GHC < 9, haddock fails due to a parse error in the benchmarks.
