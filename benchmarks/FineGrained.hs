@@ -225,16 +225,11 @@ bSetFromList :: Benchmark
 bSetFromList =
   bgroup
     "fromList"
-    [ bg "Bytes" setupBytes,
-      bg "Int" setupInts
+    [ bgroup' "Bytes" (\s gen -> genNBytes s bytesLength gen) b,
+      bgroup' "Int" genInts b
     ]
   where
-    bg name e = bgroup name (b e)
-    b e = [env' s e run | s <- defaultSizes]
-    run :: (Hashable a) => [a] -> Benchmarkable
-    run = whnf Data.HashSet.fromList
-    setupBytes s gen = genNBytes s bytesLength gen
-    setupInts = genInts
+    b size = bench (show size) . whnf Data.HashSet.fromList
 
 keysToMap :: (Hashable k) => [k] -> HashMap k Int
 keysToMap = HM.fromList . map (,1)
