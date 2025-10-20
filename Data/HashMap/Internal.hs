@@ -942,8 +942,8 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsert #-}
 
--- | Create a map from a key-value pair and a 'Leaf' or 'Collision' node with a
--- different hash.
+-- | Create a subtree from a key-value pair and a 'Leaf' or 'Collision' node
+-- with a different hash.
 --
 -- It is the caller's responsibility to ensure that the HashMap argument is in
 -- WHNF.
@@ -952,7 +952,7 @@ two s h1 k1 v1 = two' s h1 l
   where !l = Leaf h1 (L k1 v1)
 {-# INLINE two #-}
 
--- | Create a map from two 'Leaf' or 'Collision' nodes whose hashes are
+-- | Create a subtree from two 'Leaf' or 'Collision' nodes whose hashes are
 -- distinct.
 --
 -- It is the caller's responsibility to ensure that both HashMap arguments are
