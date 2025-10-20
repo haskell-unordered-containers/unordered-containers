@@ -89,13 +89,15 @@ bUnionOverlap =
 
 bUnionEqual :: [Benchmark]
 bUnionEqual =
-  [ bgroup "Bytes" [env' s genBytesMap run | s <- defaultSizes],
-    bgroup "Int" [env' s genIntMap run | s <- defaultSizes]
+  [ bgroup' "Bytes" genBytesMap b,
+    bgroup' "Int" genIntMap b
   ]
   where
-    run :: (Hashable a) => HashMap a Int -> Benchmarkable
-    run = whnf (\m -> HM.union m m)
+    b size = bench (show size) . whnf (\m -> HM.union m m)
 
+-- TODO: For the "overlap" and "equal" cases, it would be interesting to
+-- have separate benchmarks both with and without shared subtrees,
+-- so we can make use of pointer equality.
 bDifference :: Benchmark
 bDifference =
   bgroup
@@ -159,29 +161,15 @@ bgroup' ::
   (Int -> IOGenM StdGen -> IO env) ->
   (Int -> env -> Benchmark) ->
   Benchmark
-bgroup' name setup b = bgroup name [env'' setup b s | s <- defaultSizes]
+bgroup' name setup b = bgroup name [env' setup b s | s <- defaultSizes]
 
 env' ::
-  (NFData a) =>
-  Int ->
-  (Int -> IOGenM StdGen -> IO a) ->
-  (a -> Benchmarkable) ->
-  Benchmark
-env' size setup run =
-  env
-    ( do
-        gen <- newIOGenM defaultGen
-        setup size gen
-    )
-    (\x -> bench (show size) (run x))
-
-env'' ::
   (NFData env) =>
   (Int -> IOGenM StdGen -> IO env) ->
   (Int -> env -> Benchmark) ->
   Int ->
   Benchmark
-env'' setup b size =
+env' setup b size =
   env
     ( do
         gen <- newIOGenM defaultGen
