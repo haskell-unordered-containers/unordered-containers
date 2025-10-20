@@ -236,13 +236,6 @@ bSetFromList =
     setupBytes s gen = genNBytes s bytesLength gen
     setupInts = genInts
 
-{-
-bg :: _
-bg name setup run = bgroup name (b setup run)
-  where
-    b e run = [env (e s) (run s) | s <- defaultSizes]
--}
-
 keysToMap :: (Hashable k) => [k] -> HashMap k Int
 keysToMap = HM.fromList . map (,1)
 
@@ -254,13 +247,6 @@ genInts ::
 genInts n = replicateM n . uniformM
 
 {-
-bFromList = matrix defaultSizes e' b'
-  where
-    e' s = uniformListM s defaultGen
-    b' = whnf HM.fromList
--}
-
-{-
 bInsert = [ env m $ \d -> bench (show s) $ whnf (\(k, v, m) -> HM.insert k v m) d ]
   where m s = do
           g <- newIOGenM defaultGen
@@ -269,14 +255,4 @@ bInsert = [ env m $ \d -> bench (show s) $ whnf (\(k, v, m) -> HM.insert k v m) 
             b <- genBytes 32 g
             HMI.unsafeInsert b v hm
           return (m, newKeys) -- separate existing, new
--}
-
-{-
-matrix :: (NFData env) => [Int] -> (Int -> IO env) -> (env -> Benchmarkable) -> Benchmark
-matrix sizes e x = b -- [ b @Bytes, b @Int] -- , b @SlowInt, b @Colli ]
-  where
-    b = bgroup "bla" [runTemplate @Int e x s | s <- sizes]
-
-runTemplate :: forall env. (NFData env) => (Int -> IO env) -> (env -> Benchmarkable) -> Int -> Benchmark
-runTemplate e b s = env (e s) $ \x -> bench (show s) (b x)
 -}
