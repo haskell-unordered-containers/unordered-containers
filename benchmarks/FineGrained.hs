@@ -60,6 +60,7 @@ bFromList =
     setupBytes s gen = genNBytes s bytesLength gen
     b s = bench (show s) . whnf (HM.fromList . map (,()))
 
+-- 100 insertions each, so we get more precise timings
 bInsert :: Benchmark
 bInsert =
   bgroup
@@ -110,25 +111,25 @@ bInsertPresentKeyDifferentValue =
       m <- genIntMap size gen
       return (m, toKVs m)
 
--- TODO
 bInsertAbsentKey :: [Benchmark]
 bInsertAbsentKey =
-  [ bgroup' "Bytes" genBytesMapsDisjoint b,
-    bgroup' "Int" genIntMapsDisjoint b
+  [ bgroup' "Bytes" setupBytes b,
+    bgroup' "Int" setupInts b
   ]
   where
-    b s = bench (show s) . whnf (\(as, bs) -> HM.union as bs)
-
-{-
- - [ env m $ \d -> bench (show s) $ whnf (\(k, v, m) -> HM.insert k v m) d ]
-  where m s = do
-          g <- newIOGenM defaultGen
-          let hm = HM.empty
-          forM_ [1..s] $ \v -> do
-            b <- genBytes 32 g
-            HMI.unsafeInsert b v hm
-          return (m, newKeys) -- separate existing, new
--}
+    b s =
+      bench (show s)
+        . whnf (\(m, kvs) -> foldl' (\() (k, v) -> HM.insert k v m `seq` ()) () kvs)
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      ks <- genNBytes 200 bytesLength gen
+      let kvs = take 100 $ Data.List.cycle $ map (,1) $ filter (not . flip HM.member m) ks
+      return (m, kvs)
+    setupInts size gen = do
+      m <- genIntMap size gen
+      ks <- genInts 200 gen
+      let kvs = take 100 $ Data.List.cycle $ map (,1) $ filter (not . flip HM.member m) ks
+      return (m, kvs)
 
 -- TODO: For the "overlap" and "equal" cases, it would be interesting to
 -- have separate benchmarks both with and without shared subtrees,
