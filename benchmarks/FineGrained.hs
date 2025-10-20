@@ -48,6 +48,119 @@ bytesLength = 32
 defaultGen :: StdGen
 defaultGen = mkStdGen 42
 
+bFromList :: Benchmark
+bFromList =
+  bgroup
+    "fromList"
+    [ bgroup' "Bytes" setupBytes b,
+      bgroup' "Int" genInts b
+    ]
+  where
+    setupBytes s gen = genNBytes s bytesLength gen
+    b s = bench (show s) . whnf (HM.fromList . map (,()))
+
+-- TODO: For the "overlap" and "equal" cases, it would be interesting to
+-- have separate benchmarks both with and without shared subtrees,
+-- so we can make use of pointer equality.
+bUnion :: Benchmark
+bUnion =
+  bgroup
+    "union"
+    [ bgroup "disjoint" bUnionDisjoint,
+      bgroup "overlap" bUnionOverlap,
+      bgroup "equal" bUnionEqual
+    ]
+
+bUnionDisjoint :: [Benchmark]
+bUnionDisjoint =
+  [ bgroup' "Bytes" genBytesMapsDisjoint b,
+    bgroup' "Int" genIntMapsDisjoint b
+  ]
+  where
+    b s = bench (show s) . whnf (\(as, bs) -> HM.union as bs)
+
+bUnionOverlap :: [Benchmark]
+bUnionOverlap =
+  [ bgroup' "Bytes" genBytesMapsOverlap b,
+    bgroup' "Int" genIntMapsOverlap b
+  ]
+  where
+    b s = bench (show s) . whnf (\(as, bs) -> HM.union as bs)
+
+bUnionEqual :: [Benchmark]
+bUnionEqual =
+  [ bgroup "Bytes" [env' s genBytesMap run | s <- defaultSizes],
+    bgroup "Int" [env' s genIntMap run | s <- defaultSizes]
+  ]
+  where
+    run :: (Hashable a) => HashMap a Int -> Benchmarkable
+    run = whnf (\m -> HM.union m m)
+
+bDifference :: Benchmark
+bDifference =
+  bgroup
+    "difference"
+    [ bgroup "disjoint" bDifferenceDisjoint,
+      bgroup "overlap" bDifferenceOverlap,
+      bgroup "equal" bDifferenceEqual
+    ]
+
+bDifferenceDisjoint :: [Benchmark]
+bDifferenceDisjoint =
+  [ bgroup' "Bytes" genBytesMapsDisjoint b,
+    bgroup' "Int" genIntMapsDisjoint b
+  ]
+  where
+    b size = bench (show size) . whnf (\(xs, ys) -> HM.difference xs ys)
+
+bDifferenceOverlap :: [Benchmark]
+bDifferenceOverlap =
+  [ bgroup' "Bytes" genBytesMapsOverlap b,
+    bgroup' "Int" genIntMapsOverlap b
+  ]
+  where
+    b size = bench (show size) . whnf (\(xs, ys) -> HM.difference xs ys)
+
+bDifferenceEqual :: [Benchmark]
+bDifferenceEqual =
+  [ bgroup' "Bytes" genBytesMap b,
+    bgroup' "Int" genIntMap b
+  ]
+  where
+    b size = bench (show size) . whnf (\m -> HM.difference m m)
+
+bSetFromList :: Benchmark
+bSetFromList =
+  bgroup
+    "fromList"
+    [ bgroup' "Bytes" (\s gen -> genNBytes s bytesLength gen) b,
+      bgroup' "Int" genInts b
+    ]
+  where
+    b size = bench (show size) . whnf Data.HashSet.fromList
+
+{-
+bInsert = [ env m $ \d -> bench (show s) $ whnf (\(k, v, m) -> HM.insert k v m) d ]
+  where m s = do
+          g <- newIOGenM defaultGen
+          let hm = HM.empty
+          forM_ [1..s] $ \v -> do
+            b <- genBytes 32 g
+            HMI.unsafeInsert b v hm
+          return (m, newKeys) -- separate existing, new
+-}
+
+-------------------------------------------------------------------------------
+-- Boilerplate
+
+bgroup' ::
+  (NFData env) =>
+  String ->
+  (Int -> IOGenM StdGen -> IO env) ->
+  (Int -> env -> Benchmark) ->
+  Benchmark
+bgroup' name setup b = bgroup name [env'' setup b s | s <- defaultSizes]
+
 env' ::
   (NFData a) =>
   Int ->
@@ -76,64 +189,28 @@ env'' setup b size =
     )
     (b size)
 
-bFromList :: Benchmark
-bFromList =
-  bgroup
-    "fromList"
-    [ bgroup "Bytes" [env' s setupBytes run | s <- defaultSizes],
-      bgroup "Int" [env' s genInts run | s <- defaultSizes]
-    ]
-  where
-    setupBytes s = genNBytes s bytesLength
-    run :: (Hashable a) => [a] -> Benchmarkable
-    run = whnf (HM.fromList . map (,()))
+-------------------------------------------------------------------------------
+-- Generators
 
-bUnion :: Benchmark
-bUnion =
-  bgroup
-    "union"
-    [ bgroup "disjoint" bUnionDisjoint,
-      bgroup "overlap" bUnionOverlap,
-      bgroup "equal" bUnionEqual
-    ]
+keysToMap :: (Hashable k) => [k] -> HashMap k Int
+keysToMap = HM.fromList . map (,1)
 
-bUnionDisjoint :: [Benchmark]
-bUnionDisjoint =
-  [ bgroup "Bytes" [env' s setupBytes run | s <- defaultSizes],
-    bgroup "Int" [env' s setupInts run | s <- defaultSizes]
-  ]
-  where
-    run :: (Hashable a) => (HashMap a Int, HashMap a Int) -> Benchmarkable
-    run = whnf (\(as, bs) -> HM.union as bs)
-    setupBytes = genBytesMapsDisjoint
-    setupInts = genIntMapsDisjoint
-
-genIntMapsDisjoint ::
+genInts ::
   (StatefulGen g m) =>
-  Int -> g -> m (HashMap Int Int, HashMap Int Int)
-genIntMapsDisjoint s gen = do
-  ints <- genInts s gen
-  let (trues, falses) = Data.List.partition (flip testBit (31 :: Int)) ints
-  return (keysToMap trues, keysToMap falses)
+  Int ->
+  g ->
+  m [Int]
+genInts n = replicateM n . uniformM
 
-genBytesMapsDisjoint ::
-  (StatefulGen g m) =>
-  Int -> g -> m (HashMap Bytes Int, HashMap Bytes Int)
-genBytesMapsDisjoint s gen = do
-  (trues, falses) <- Key.Bytes.genDisjoint s bytesLength gen
-  return (keysToMap trues, keysToMap falses)
+genBytesMap :: (StatefulGen g m) => Int -> g -> m (HashMap Bytes Int)
+genBytesMap s gen = do
+  ks <- Key.Bytes.genNBytes s bytesLength gen
+  return (keysToMap ks)
 
--- TODO: Separate benchmarks for overlap with pointer eq?!
-bUnionOverlap :: [Benchmark]
-bUnionOverlap =
-  [ bgroup "Bytes" [env' s setupBytes run | s <- defaultSizes],
-    bgroup "Int" [env' s setupInts run | s <- defaultSizes]
-  ]
-  where
-    run :: (Hashable a) => (HashMap a Int, HashMap a Int) -> Benchmarkable
-    run = whnf (\(as, bs) -> HM.union as bs)
-    setupBytes = genBytesMapsOverlap
-    setupInts = genIntMapsOverlap
+genIntMap :: (StatefulGen g m) => Int -> g -> m (HashMap Int Int)
+genIntMap s gen = do
+  ks <- genInts s gen
+  return (keysToMap ks)
 
 genBytesMapsOverlap ::
   (StatefulGen g m) =>
@@ -161,93 +238,17 @@ genIntMapsOverlap s gen = do
       keysToMap overlap `HM.union` keysToMap b_sep
     )
 
-bUnionEqual :: [Benchmark]
-bUnionEqual =
-  [ bgroup "Bytes" [env' s genBytesMap run | s <- defaultSizes],
-    bgroup "Int" [env' s genIntMap run | s <- defaultSizes]
-  ]
-  where
-    run :: (Hashable a) => HashMap a Int -> Benchmarkable
-    run = whnf (\m -> HM.union m m)
-
-genBytesMap :: (StatefulGen g m) => Int -> g -> m (HashMap Bytes Int)
-genBytesMap s gen = do
-  ks <- Key.Bytes.genNBytes s bytesLength gen
-  return (keysToMap ks)
-
-genIntMap :: (StatefulGen g m) => Int -> g -> m (HashMap Int Int)
-genIntMap s gen = do
-  ks <- genInts s gen
-  return (keysToMap ks)
-
-bDifference :: Benchmark
-bDifference =
-  bgroup
-    "difference"
-    [ bgroup "disjoint" bDifferenceDisjoint,
-      bgroup "overlap" bDifferenceOverlap,
-      bgroup "equal" bDifferenceEqual
-    ]
-
-bDifferenceDisjoint :: [Benchmark]
-bDifferenceDisjoint =
-  [ bgroup' "Bytes" genBytesMapsDisjoint b,
-    bgroup' "Int" genIntMapsDisjoint b
-  ]
-  where
-    b size = bench (show size) . whnf (\(xs, ys) -> HM.difference xs ys)
-
-bgroup' ::
-  (NFData env) =>
-  String ->
-  (Int -> IOGenM StdGen -> IO env) ->
-  (Int -> env -> Benchmark) ->
-  Benchmark
-bgroup' name setup b = bgroup name [env'' setup b s | s <- defaultSizes]
-
-bDifferenceOverlap :: [Benchmark]
-bDifferenceOverlap =
-  [ bgroup' "Bytes" genBytesMapsOverlap b,
-    bgroup' "Int" genIntMapsOverlap b
-  ]
-  where
-    b size = bench (show size) . whnf (\(xs, ys) -> HM.difference xs ys)
-
-bDifferenceEqual :: [Benchmark]
-bDifferenceEqual =
-  [ bgroup' "Bytes" genBytesMap b,
-    bgroup' "Int" genIntMap b
-  ]
-  where
-    b size = bench (show size) . whnf (\m -> HM.difference m m)
-
-bSetFromList :: Benchmark
-bSetFromList =
-  bgroup
-    "fromList"
-    [ bgroup' "Bytes" (\s gen -> genNBytes s bytesLength gen) b,
-      bgroup' "Int" genInts b
-    ]
-  where
-    b size = bench (show size) . whnf Data.HashSet.fromList
-
-keysToMap :: (Hashable k) => [k] -> HashMap k Int
-keysToMap = HM.fromList . map (,1)
-
-genInts ::
+genIntMapsDisjoint ::
   (StatefulGen g m) =>
-  Int ->
-  g ->
-  m [Int]
-genInts n = replicateM n . uniformM
+  Int -> g -> m (HashMap Int Int, HashMap Int Int)
+genIntMapsDisjoint s gen = do
+  ints <- genInts s gen
+  let (trues, falses) = Data.List.partition (flip testBit (31 :: Int)) ints
+  return (keysToMap trues, keysToMap falses)
 
-{-
-bInsert = [ env m $ \d -> bench (show s) $ whnf (\(k, v, m) -> HM.insert k v m) d ]
-  where m s = do
-          g <- newIOGenM defaultGen
-          let hm = HM.empty
-          forM_ [1..s] $ \v -> do
-            b <- genBytes 32 g
-            HMI.unsafeInsert b v hm
-          return (m, newKeys) -- separate existing, new
--}
+genBytesMapsDisjoint ::
+  (StatefulGen g m) =>
+  Int -> g -> m (HashMap Bytes Int, HashMap Bytes Int)
+genBytesMapsDisjoint s gen = do
+  (trues, falses) <- Key.Bytes.genDisjoint s bytesLength gen
+  return (keysToMap trues, keysToMap falses)
