@@ -7,9 +7,9 @@
 
 module Main where
 
-import Data.Bifunctor (second)
 import Control.DeepSeq (NFData)
 import Control.Monad (replicateM)
+import Data.Bifunctor (second)
 import Data.Bits (testBit)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
@@ -65,15 +65,13 @@ bInsert :: Benchmark
 bInsert =
   bgroup
     "insert"
-    [ bgroup "presentKey" bInsertPresentKey,
+    [ bgroup
+        "presentKey"
+        [ bgroup "sameValue" bInsertPresentKeySameValue,
+          bgroup "differentValue" bInsertPresentKeyDifferentValue
+        ],
       bgroup "absentKey" bInsertAbsentKey
     ]
-
-bInsertPresentKey :: [Benchmark]
-bInsertPresentKey =
-  [ bgroup "sameValue" bInsertPresentKeySameValue
-  , bgroup "differentValue" bInsertPresentKeyDifferentValue
-  ]
 
 bInsertPresentKeySameValue :: [Benchmark]
 bInsertPresentKeySameValue =
@@ -103,7 +101,7 @@ bInsertPresentKeyDifferentValue =
     b s =
       bench (show s)
         . whnf (\(m, kvs) -> foldl' (\() (k, v) -> HM.insert k v m `seq` ()) () kvs)
-    toKVs = take 100 . Data.List.cycle . map (second (+1)) . HM.toList
+    toKVs = take 100 . Data.List.cycle . map (second (+ 1)) . HM.toList
     setupBytes size gen = do
       m <- genBytesMap size gen
       return (m, toKVs m)
