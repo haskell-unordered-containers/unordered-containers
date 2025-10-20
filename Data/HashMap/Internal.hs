@@ -708,11 +708,11 @@ lookupCont ::
   -> (v -> Int -> r) -- Present continuation
   -> Hash -- The hash of the key
   -> k
-  -> Int -- The offset of the subkey in the hash.
+  -> Shift -- The offset of the subkey in the hash.
   -> HashMap k v -> r
 lookupCont absent present !h0 !k0 !s0 !m0 = go h0 k0 s0 m0
   where
-    go :: Eq k => Hash -> k -> Int -> HashMap k v -> r
+    go :: Eq k => Hash -> k -> Shift -> HashMap k v -> r
     go !_ !_ !_ Empty = absent (# #)
     go h k _ (Leaf hx (L kx x))
         | h == hx && k == kx = present x (-1)
