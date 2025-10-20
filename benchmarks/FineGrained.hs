@@ -140,7 +140,22 @@ bDelete =
     ]
 
 bDeletePresentKey :: [Benchmark]
-bDeletePresentKey = []
+bDeletePresentKey =
+  [ bgroup'WithSizes sizes "Bytes" setupBytes b,
+    bgroup'WithSizes sizes "Int" setupInts b
+  ]
+  where
+    sizes = filter (/= 0) defaultSizes
+    b s =
+      bench (show s)
+        . whnf (\(m, ks) -> foldl' (\() k -> HM.delete k m `seq` ()) () ks)
+    toKs = take 100 . Data.List.cycle . HM.keys
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      return (m, toKs m)
+    setupInts size gen = do
+      m <- genIntMap size gen
+      return (m, toKs m)
 
 bDeleteAbsentKey :: [Benchmark]
 bDeleteAbsentKey =
