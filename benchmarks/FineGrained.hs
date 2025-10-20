@@ -26,7 +26,7 @@ main =
     [ bgroup
         "HashMap.Strict"
         [ bFromList,
-          -- bgroup "insert" bInsert
+          bInsert,
           bUnion,
           bDifference
         ],
@@ -58,6 +58,45 @@ bFromList =
   where
     setupBytes s gen = genNBytes s bytesLength gen
     b s = bench (show s) . whnf (HM.fromList . map (,()))
+
+bInsert :: Benchmark
+bInsert =
+  bgroup
+    "insert"
+    [ bgroup "present" bInsertPresent,
+      bgroup "absent" bInsertAbsent
+    ]
+
+bInsertPresent :: [Benchmark]
+bInsertPresent =
+  [ bgroup' "Bytes" undefined b,
+    bgroup' "Int" setupInts b
+  ]
+  where
+    setupInts size gen = do
+      m <- genIntMap size gen
+      let ks = Data.List.repeat (HM.keys m)
+      return (m, take 100 ks)
+    b s = bench (show s) . undefined
+
+bInsertAbsent :: [Benchmark]
+bInsertAbsent =
+  [ bgroup' "Bytes" genBytesMapsDisjoint b,
+    bgroup' "Int" genIntMapsDisjoint b
+  ]
+  where
+    b s = bench (show s) . whnf (\(as, bs) -> HM.union as bs)
+
+{-
+ - [ env m $ \d -> bench (show s) $ whnf (\(k, v, m) -> HM.insert k v m) d ]
+  where m s = do
+          g <- newIOGenM defaultGen
+          let hm = HM.empty
+          forM_ [1..s] $ \v -> do
+            b <- genBytes 32 g
+            HMI.unsafeInsert b v hm
+          return (m, newKeys) -- separate existing, new
+-}
 
 -- TODO: For the "overlap" and "equal" cases, it would be interesting to
 -- have separate benchmarks both with and without shared subtrees,
@@ -140,17 +179,6 @@ bSetFromList =
     ]
   where
     b size = bench (show size) . whnf Data.HashSet.fromList
-
-{-
-bInsert = [ env m $ \d -> bench (show s) $ whnf (\(k, v, m) -> HM.insert k v m) d ]
-  where m s = do
-          g <- newIOGenM defaultGen
-          let hm = HM.empty
-          forM_ [1..s] $ \v -> do
-            b <- genBytes 32 g
-            HMI.unsafeInsert b v hm
-          return (m, newKeys) -- separate existing, new
--}
 
 -------------------------------------------------------------------------------
 -- Boilerplate
