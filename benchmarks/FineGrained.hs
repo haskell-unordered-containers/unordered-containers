@@ -1,3 +1,5 @@
+-- | This file is formatted with https://hackage.haskell.org/package/ormolu
+
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExplicitForAll #-}
