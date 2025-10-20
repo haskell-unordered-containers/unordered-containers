@@ -27,6 +27,7 @@ main =
     [ bgroup
         "HashMap.Strict"
         [ bFromList,
+          bLookup,
           bInsert,
           bDelete,
           bUnion,
@@ -60,6 +61,53 @@ bFromList =
   where
     setupBytes s gen = genNBytes s bytesLength gen
     b s = bench (show s) . whnf (HM.fromList . map (,()))
+
+-- 100 lookups each, so we get more precise timings
+bLookup :: Benchmark
+bLookup =
+  bgroup
+    "lookup"
+    [ bgroup "presentKey" bLookupPresentKey,
+      bgroup "absentKey" bLookupAbsentKey
+    ]
+
+bLookupPresentKey :: [Benchmark]
+bLookupPresentKey =
+  [ bgroup'WithSizes sizes "Bytes" setupBytes b,
+    bgroup'WithSizes sizes "Int" setupInts b
+  ]
+  where
+    sizes = filter (/= 0) defaultSizes
+    b s =
+      bench (show s)
+        . whnf (\(m, ks) -> foldl' (\() k -> HM.lookup k m `seq` ()) () ks)
+    toKs = take 100 . Data.List.cycle . HM.keys
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      return (m, toKs m)
+    setupInts size gen = do
+      m <- genIntMap size gen
+      return (m, toKs m)
+
+bLookupAbsentKey :: [Benchmark]
+bLookupAbsentKey =
+  [ bgroup' "Bytes" setupBytes b,
+    bgroup' "Int" setupInts b
+  ]
+  where
+    b s =
+      bench (show s)
+        . whnf (\(m, ks) -> foldl' (\() k -> HM.lookup k m `seq` ()) () ks)
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      ks0 <- genNBytes 200 bytesLength gen
+      let ks1 = take 100 $ Data.List.cycle $ filter (not . flip HM.member m) ks0
+      return (m, ks1)
+    setupInts size gen = do
+      m <- genIntMap size gen
+      ks0 <- genInts 200 gen
+      let ks1 = take 100 $ Data.List.cycle $ filter (not . flip HM.member m) ks0
+      return (m, ks1)
 
 -- 100 insertions each, so we get more precise timings
 bInsert :: Benchmark
