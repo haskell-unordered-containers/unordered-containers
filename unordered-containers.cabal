@@ -146,7 +146,7 @@ benchmark fine-grained
 
   build-depends:
     base,
-    bytestring,
+    bytestring >= 0.11.3,
     deepseq,
     hashable,
     random,
