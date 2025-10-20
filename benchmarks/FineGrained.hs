@@ -28,6 +28,7 @@ main =
         "HashMap.Strict"
         [ bFromList,
           bInsert,
+          bDelete,
           bUnion,
           bDifference
         ],
@@ -128,6 +129,38 @@ bInsertAbsentKey =
       ks <- genInts 200 gen
       let kvs = take 100 $ Data.List.cycle $ map (,1) $ filter (not . flip HM.member m) ks
       return (m, kvs)
+
+-- 100 deletions each, so we get more precise timings
+bDelete :: Benchmark
+bDelete =
+  bgroup
+    "delete"
+    [ bgroup "presentKey" bDeletePresentKey,
+      bgroup "absentKey" bDeleteAbsentKey
+    ]
+
+bDeletePresentKey :: [Benchmark]
+bDeletePresentKey = []
+
+bDeleteAbsentKey :: [Benchmark]
+bDeleteAbsentKey =
+  [ bgroup' "Bytes" setupBytes b,
+    bgroup' "Int" setupInts b
+  ]
+  where
+    b s =
+      bench (show s)
+        . whnf (\(m, ks) -> foldl' (\() k -> HM.delete k m `seq` ()) () ks)
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      ks0 <- genNBytes 200 bytesLength gen
+      let ks1 = take 100 $ Data.List.cycle $ filter (not . flip HM.member m) ks0
+      return (m, ks1)
+    setupInts size gen = do
+      m <- genIntMap size gen
+      ks0 <- genInts 200 gen
+      let ks1 = take 100 $ Data.List.cycle $ filter (not . flip HM.member m) ks0
+      return (m, ks1)
 
 -- TODO: For the "overlap" and "equal" cases, it would be interesting to
 -- have separate benchmarks both with and without shared subtrees,
