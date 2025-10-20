@@ -164,7 +164,7 @@ import Data.Hashable              (Hashable)
 import Data.Hashable.Lifted       (Hashable1, Hashable2)
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
 import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
-import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
+import GHC.Exts                   (Int (..), Int#, TYPE, Word (..), (==#))
 import GHC.Stack                  (HasCallStack)
 import Prelude                    hiding (Foldable (..), filter, lookup, map,
                                    pred)
@@ -884,33 +884,19 @@ insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
         = Leaf h (L k x)
     go collPos shiftedHash k x (BitmapIndexed b ary) =
         let !st  = A.index ary i
-            !st' = go collPos (shiftHash shiftedHash) k x st
+            !st' = go collPos (nextSH shiftedHash) k x st
         in BitmapIndexed b (A.update ary i st')
-      where m = mask' shiftedHash
+      where m = maskSH shiftedHash
             i = sparseIndex b m
     go collPos shiftedHash k x (Full ary) =
         let !st  = A.index ary i
-            !st' = go collPos (shiftHash shiftedHash) k x st
+            !st' = go collPos (nextSH shiftedHash) k x st
         in Full (updateFullArray ary i st')
-      where i = index' shiftedHash
+      where i = indexSH shiftedHash
     go collPos _shiftedHash k x (Collision h v)
         | collPos >= 0 = Collision h (setAtPosition collPos k x v)
         | otherwise = Empty -- error "Internal error: go {collPos negative}"
     go _ _ _ _ Empty = Empty -- error "Internal error: go Empty"
-
-    -- Customized version of 'index' that doesn't require a 'Shift'.
-    index' :: Hash -> Int
-    index' w = fromIntegral $ w .&. subkeyMask
-    {-# INLINE index' #-}
-
-    -- Customized version of 'mask' that doesn't require a 'Shift'.
-    mask' :: Word -> Bitmap
-    mask' w = 1 `unsafeShiftL` index' w
-    {-# INLINE mask' #-}
-
-    shiftHash h = h `unsafeShiftR` bitsPerSubkey
-    {-# INLINE shiftHash #-}
-
 {-# NOINLINE insertKeyExists #-}
 
 -- | Replace the ith Leaf with Leaf k v.
@@ -956,40 +942,45 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsert #-}
 
--- | Create a map from two key-value pairs which hashes don't collide. To
--- enhance sharing, the second key-value pair is represented by the hash of its
--- key and a singleton HashMap pairing its key with its value.
+-- | Create a subtree from a key-value pair and a 'Leaf' or 'Collision' node
+-- with a different hash.
 --
--- Note: to avoid silly thunks, this function must be strict in the
--- key. See issue #232. We don't need to force the HashMap argument
--- because it's already in WHNF (having just been matched) and we
--- just put it directly in an array.
+-- It is the caller's responsibility to ensure that the HashMap argument is in
+-- WHNF.
 two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
-two = go
+two s h1 k1 v1 = two' s h1 l
+  where !l = Leaf h1 (L k1 v1)
+{-# INLINE two #-}
+
+-- | Create a subtree from two 'Leaf' or 'Collision' nodes whose hashes are
+-- distinct.
+--
+-- It is the caller's responsibility to ensure that both HashMap arguments are
+-- in WHNF.
+two' :: Shift -> Hash -> HashMap k v -> Hash -> HashMap k v -> ST s (HashMap k v)
+two' s h1 lc1 h2 lc2 = go (shiftHash s h1) lc1 (shiftHash s h2) lc2
   where
-    go s h1 k1 v1 h2 t2
+    go !sh1 t1 !sh2 t2
         | bp1 == bp2 = do
-            st <- go (nextShift s) h1 k1 v1 h2 t2
+            st <- go (nextSH sh1) t1 (nextSH sh2) t2
             ary <- A.singletonM st
             return $ BitmapIndexed bp1 ary
         | otherwise  = do
-            mary <- A.new 2 $! Leaf h1 (L k1 v1)
+            mary <- A.new 2 t1
             A.write mary idx2 t2
             ary <- A.unsafeFreeze mary
             return $ BitmapIndexed (bp1 .|. bp2) ary
       where
-        bp1  = mask h1 s
-        bp2  = mask h2 s
-        !(I# i1) = index h1 s
-        !(I# i2) = index h2 s
-        idx2 = I# (i1 Exts.<# i2)
+        !bp1@(W# bp1#) = maskSH sh1
+        !bp2@(W# bp2#) = maskSH sh2
+        idx2 = I# (bp1# `Exts.ltWord#` bp2#)
         -- This way of computing idx2 saves us a branch compared to the previous approach:
         --
         -- idx2 | index h1 s < index h2 s = 1
         --      | otherwise               = 0
         --
         -- See https://github.com/haskell-unordered-containers/unordered-containers/issues/75#issuecomment-1128419337
-{-# INLINE two #-}
+{-# INLINE two' #-}
 
 -- | \(O(\log n)\) Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
@@ -1178,11 +1169,11 @@ delete' h0 k0 m0 = go h0 k0 0 m0
 deleteKeyExists :: Int -> Hash -> k -> HashMap k v -> HashMap k v
 deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
   where
-    go :: Int -> Word -> k -> HashMap k v -> HashMap k v
+    go :: Int -> ShiftedHash -> k -> HashMap k v -> HashMap k v
     go !_collPos !_shiftedHash !_k (Leaf _ _) = Empty
     go collPos shiftedHash k (BitmapIndexed b ary) =
             let !st = A.index ary i
-                !st' = go collPos (shiftHash shiftedHash) k st
+                !st' = go collPos (nextSH shiftedHash) k st
             in case st' of
                 Empty | A.length ary == 1 -> Empty
                       | A.length ary == 2 ->
@@ -1195,18 +1186,18 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
                       bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
                 l | isLeafOrCollision l && A.length ary == 1 -> l
                 _ -> BitmapIndexed b (A.update ary i st')
-      where m = mask' shiftedHash
+      where m = maskSH shiftedHash
             i = sparseIndex b m
     go collPos shiftedHash k (Full ary) =
         let !st   = A.index ary i
-            !st' = go collPos (shiftHash shiftedHash) k st
+            !st' = go collPos (nextSH shiftedHash) k st
         in case st' of
             Empty ->
                 let ary' = A.delete ary i
                     bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
                 in BitmapIndexed bm ary'
             _ -> Full (A.update ary i st')
-      where i = index' shiftedHash
+      where i = indexSH shiftedHash
     go collPos _shiftedHash _k (Collision h v)
       | A.length v == 2
       = if collPos == 0
@@ -1214,20 +1205,6 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
         else Leaf h (A.index v 0)
       | otherwise = Collision h (A.delete v collPos)
     go !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
-
-    -- Customized version of 'index' that doesn't require a 'Shift'.
-    index' :: Hash -> Int
-    index' w = fromIntegral $ w .&. subkeyMask
-    {-# INLINE index' #-}
-
-    -- Customized version of 'mask' that doesn't require a 'Shift'.
-    mask' :: Word -> Bitmap
-    mask' w = 1 `unsafeShiftL` index' w
-    {-# INLINE mask' #-}
-
-    shiftHash h = h `unsafeShiftR` bitsPerSubkey
-    {-# INLINE shiftHash #-}
-
 {-# NOINLINE deleteKeyExists #-}
 
 -- | \(O(\log n)\) Adjust the value tied to a given key in this map only
@@ -2509,6 +2486,33 @@ fullBitmap = complement (complement 0 `shiftL` maxChildren)
 nextShift :: Shift -> Shift
 nextShift s = s + bitsPerSubkey
 {-# INLINE nextShift #-}
+
+------------------------------------------------------------------------
+-- ShiftedHash
+
+-- | Sometimes it's more efficient to right-shift the hashes directly instead
+-- of keeping track of an additional 'Shift' value.
+type ShiftedHash = Hash
+
+-- | Construct a 'ShiftedHash' from a 'Shift' and a 'Hash'.
+shiftHash :: Shift -> Hash -> ShiftedHash
+shiftHash s h = h `unsafeShiftR` s
+{-# INLINE shiftHash #-}
+
+-- | Update a 'ShiftedHash' for the next level of the tree.
+nextSH :: ShiftedHash -> ShiftedHash
+nextSH sh = sh `unsafeShiftR` bitsPerSubkey
+{-# INLINE nextSH #-}
+
+-- | Version of 'index' for use with @'ShiftedHash'es@.
+indexSH :: ShiftedHash -> Int
+indexSH sh = fromIntegral $ sh .&. subkeyMask
+{-# INLINE indexSH #-}
+
+-- | Version of 'mask' for use with @'ShiftedHash'es@.
+maskSH :: ShiftedHash -> Bitmap
+maskSH sh = 1 `unsafeShiftL` indexSH sh
+{-# INLINE maskSH #-}
 
 ------------------------------------------------------------------------
 -- Pointer equality
