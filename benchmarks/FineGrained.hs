@@ -67,17 +67,25 @@ bInsert =
       bgroup "absent" bInsertAbsent
     ]
 
+-- | FIXME: This is with present keys, but mostly new values
 bInsertPresent :: [Benchmark]
 bInsertPresent =
-  [ bgroup' "Bytes" undefined b,
-    bgroup' "Int" setupInts b
+  [ bgroup'WithSizes sizes "Bytes" setupBytes b,
+    bgroup'WithSizes sizes "Int" setupInts b
   ]
   where
+    sizes = filter (/= 0) defaultSizes
+    b s =
+      bench (show s)
+        . whnf (\(m, kvs) -> foldl' (\() (k, v) -> HM.insert k v m `seq` ()) () kvs)
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      let kvs = zip (Data.List.cycle (HM.keys m)) [0 ..]
+      return (m, take 100 kvs)
     setupInts size gen = do
       m <- genIntMap size gen
-      let ks = Data.List.repeat (HM.keys m)
-      return (m, take 100 ks)
-    b s = bench (show s) . undefined
+      let kvs = zip (Data.List.cycle (HM.keys m)) [0 ..]
+      return (m, take 100 kvs)
 
 bInsertAbsent :: [Benchmark]
 bInsertAbsent =
@@ -189,7 +197,16 @@ bgroup' ::
   (Int -> IOGenM StdGen -> IO env) ->
   (Int -> env -> Benchmark) ->
   Benchmark
-bgroup' name setup b = bgroup name [env' setup b s | s <- defaultSizes]
+bgroup' = bgroup'WithSizes defaultSizes
+
+bgroup'WithSizes ::
+  (NFData env) =>
+  [Int] ->
+  String ->
+  (Int -> IOGenM StdGen -> IO env) ->
+  (Int -> env -> Benchmark) ->
+  Benchmark
+bgroup'WithSizes sizes name setup b = bgroup name [env' setup b s | s <- sizes]
 
 env' ::
   (NFData env) =>
