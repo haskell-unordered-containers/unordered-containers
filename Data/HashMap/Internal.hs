@@ -163,7 +163,7 @@ import Data.Functor.Identity      (Identity (..))
 import Data.Hashable              (Hashable)
 import Data.Hashable.Lifted       (Hashable1, Hashable2)
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
-import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
+import Data.Semigroup             (Semigroup (stimes), stimesIdempotentMonoid, Max(..), Min(..))
 import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
 import GHC.Stack                  (HasCallStack)
 import Prelude                    hiding (Foldable (..), filter, lookup, map,
@@ -281,10 +281,14 @@ instance Foldable.Foldable (HashMap k) where
     {-# INLINE foldr' #-}
     foldl' = foldl'
     {-# INLINE foldl' #-}
+    toList = elems
+    {-# INLINE toList #-}
     null = null
     {-# INLINE null #-}
     length = size
     {-# INLINE length #-}
+    maximum = getMax . sconcat . coerce
+    minimum = getMin . sconcat . coerce
 
 -- | @since 0.2.11
 instance Bifoldable HashMap where
@@ -2095,6 +2099,15 @@ foldMapWithKey f = go
     go (Full ary) = A.foldMap go ary
     go (Collision _ ary) = A.foldMap (\ (L k v) -> f k v) ary
 {-# INLINE foldMapWithKey #-}
+
+sconcat :: Semigroup a => HashMap k a -> a
+sconcat = go
+  where
+    go Empty = error "Data.HashMap.sconcat"
+    go (Leaf _ (L _ v)) = v
+    go (BitmapIndexed _ ary) = undefined ary
+    go (Full ary) = undefined ary
+    go (Collision _ ary) = undefined ary
 
 ------------------------------------------------------------------------
 -- * Filter
