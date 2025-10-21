@@ -32,6 +32,7 @@ main =
           bInsert,
           bDelete,
           bUnion,
+          bUnions,
           bIntersection,
           bDifference
         ],
@@ -262,6 +263,17 @@ bUnionEqual =
   ]
   where
     b size = bench (show size) . whnf (\m -> HM.union m m)
+
+bUnions :: Benchmark
+bUnions = bgroup "unions"
+  [ bgroup'WithSizes sizes "Bytes" setupBytes b,
+    bgroup'WithSizes sizes "Int" setupInts b
+  ]
+  where
+    sizes = filter (>= 10) defaultSizes
+    b size = bench (show size) . whnf (\ms -> HM.unions ms)
+    setupBytes s gen = replicateM 10 (genBytesMap (s `div` 10) gen)
+    setupInts s gen = replicateM 10 (genBytesMap (s `div` 10) gen)
 
 -- TODO: For the "overlap" and "equal" cases, it would be interesting to
 -- have separate benchmarks both with and without shared subtrees,
