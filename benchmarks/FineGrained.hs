@@ -32,6 +32,7 @@ main =
           bInsert,
           bDelete,
           bUnion,
+          bIntersection,
           bDifference
         ],
       bgroup "HashSet" [bSetFromList]
@@ -261,6 +262,42 @@ bUnionEqual =
   ]
   where
     b size = bench (show size) . whnf (\m -> HM.union m m)
+
+-- TODO: For the "overlap" and "equal" cases, it would be interesting to
+-- have separate benchmarks both with and without shared subtrees,
+-- so we can make use of pointer equality.
+bIntersection :: Benchmark
+bIntersection =
+  bgroup
+    "intersection"
+    [ bgroup "disjoint" bIntersectionDisjoint,
+      bgroup "overlap" bIntersectionOverlap,
+      bgroup "equal" bIntersectionEqual
+    ]
+
+bIntersectionDisjoint :: [Benchmark]
+bIntersectionDisjoint =
+  [ bgroup' "Bytes" genBytesMapsDisjoint b,
+    bgroup' "Int" genIntMapsDisjoint b
+  ]
+  where
+    b size = bench (show size) . whnf (\(xs, ys) -> HM.intersection xs ys)
+
+bIntersectionOverlap :: [Benchmark]
+bIntersectionOverlap =
+  [ bgroup' "Bytes" genBytesMapsOverlap b,
+    bgroup' "Int" genIntMapsOverlap b
+  ]
+  where
+    b size = bench (show size) . whnf (\(xs, ys) -> HM.intersection xs ys)
+
+bIntersectionEqual :: [Benchmark]
+bIntersectionEqual =
+  [ bgroup' "Bytes" genBytesMap b,
+    bgroup' "Int" genIntMap b
+  ]
+  where
+    b size = bench (show size) . whnf (\m -> HM.intersection m m)
 
 -- TODO: For the "overlap" and "equal" cases, it would be interesting to
 -- have separate benchmarks both with and without shared subtrees,
