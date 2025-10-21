@@ -414,7 +414,20 @@ instance Eq k => Eq1 (HashMap k) where
 -- In general, the lack of extensionality can be observed with any function
 -- that depends on the key ordering, such as folds and traversals.
 instance (Eq k, Eq v) => Eq (HashMap k v) where
-    (==) = equal1 (==)
+    (==) = go
+      where
+        go Empty Empty = True
+        go (BitmapIndexed bm1 ary1) (BitmapIndexed bm2 ary2)
+          = bm1 == bm2 && (A.unsafeSameArray ary1 ary2 || A.sameArray1 go ary1 ary2)
+        go (Leaf h1 l1) (Leaf h2 l2) = h1 == h2 && leafEq l1 l2 -- FIXME: Does this allocate Leafs?
+        go (Full ary1) (Full ary2)
+          = A.unsafeSameArray ary1 ary2 || A.sameArray1 go ary1 ary2
+        go (Collision h1 ary1) (Collision h2 ary2)
+          = h1 == h2 && (A.unsafeSameArray ary1 ary2 ||
+                         isPermutationBy leafEq (A.toList ary1) (A.toList ary2))
+        go _ _ = False
+
+        leafEq (L k1 v1) (L k2 v2) = k1 == k2 && v1 == v2
 
 equal1 :: Eq k
        => (v -> v' -> Bool)
