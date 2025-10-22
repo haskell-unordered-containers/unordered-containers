@@ -1118,10 +1118,9 @@ delete' h0 k0 m0 = go h0 k0 0 m0
                 else case st' of
                 Empty | A.length ary == 1 -> Empty
                       | A.length ary == 2 ->
-                          case (i, A.index ary 0, A.index ary 1) of
-                          (0, _, l) | isLeafOrCollision l -> l
-                          (1, l, _) | isLeafOrCollision l -> l
-                          _                               -> bIndexed
+                          case A.index ary (1 - i) of
+                          l | isLeafOrCollision l -> l
+                          _                       -> bIndexed
                       | otherwise -> bIndexed
                     where
                       bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
@@ -1144,11 +1143,8 @@ delete' h0 k0 m0 = go h0 k0 0 m0
     go h k _ t@(Collision hy v)
         | h == hy = case indexOf k v of
             Just i
-                | A.length v == 2 ->
-                    if i == 0
-                    then Leaf h (A.index v 1)
-                    else Leaf h (A.index v 0)
-                | otherwise -> Collision h (A.delete v i)
+                | A.length v == 2 -> Leaf h (A.index v (1 - i))
+                | otherwise       -> Collision h (A.delete v i)
             Nothing -> t
         | otherwise = t
 {-# INLINABLE delete' #-}
@@ -1169,10 +1165,9 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
             in case st' of
                 Empty | A.length ary == 1 -> Empty
                       | A.length ary == 2 ->
-                          case (i, A.index ary 0, A.index ary 1) of
-                          (0, _, l) | isLeafOrCollision l -> l
-                          (1, l, _) | isLeafOrCollision l -> l
-                          _                               -> bIndexed
+                          case A.index ary (1 - i) of
+                          l | isLeafOrCollision l -> l
+                          _                       -> bIndexed
                       | otherwise -> bIndexed
                     where
                       bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
@@ -1191,11 +1186,8 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
             _ -> Full (A.update ary i st')
       where i = indexSH shiftedHash
     go collPos _shiftedHash _k (Collision h v)
-      | A.length v == 2
-      = if collPos == 0
-        then Leaf h (A.index v 1)
-        else Leaf h (A.index v 0)
-      | otherwise = Collision h (A.delete v collPos)
+      | A.length v == 2 = Leaf h (A.index v (1 - collPos))
+      | otherwise       = Collision h (A.delete v collPos)
     go !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
 {-# NOINLINE deleteKeyExists #-}
 
