@@ -906,10 +906,10 @@ setAtPosition i k x ary = A.update ary i (L k x)
 
 -- | In-place update version of insert
 unsafeInsert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
-unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+unsafeInsert !k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
-    go !h !k x !_ Empty = return $! Leaf h (L k x)
+    go !h k x !_ Empty = return $! Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then if x `ptrEq` y
