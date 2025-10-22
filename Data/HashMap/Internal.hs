@@ -350,9 +350,10 @@ type Hash   = Word
 -- Only the lower 'maxChildren' bits are used. The remaining bits must be zeros.
 type Bitmap = Word
 
--- | 'Shift' values correspond to the level of the tree that we're currently
--- operating at. At the root level the 'Shift' is @0@. For the subsequent
--- levels the 'Shift' values are 'bitsPerSubkey', @2*'bitsPerSubkey'@ etc.
+-- | A 'Shift' value is the offset of the subkey in the hash and corresponds
+-- to the level of the tree that we're currently operating at. At the root
+-- level the 'Shift' is @0@. For the subsequent levels the 'Shift' values are
+-- 'bitsPerSubkey', @2*'bitsPerSubkey'@ etc.
 --
 -- Valid values are non-negative and less than @bitSize (0 :: Word)@.
 type Shift  = Int
@@ -697,10 +698,6 @@ lookupRecordCollision# h k m =
 -- so we can be representation-polymorphic in the result type. Since
 -- this whole thing is always inlined, we don't have to worry about
 -- any extra CPS overhead.
---
--- The @Int@ argument is the offset of the subkey in the hash. When looking up
--- keys at the top-level of a hashmap, the offset should be 0. When looking up
--- keys at level @n@ of a hashmap, the offset should be @n * bitsPerSubkey@.
 lookupCont ::
   forall rep (r :: TYPE rep) k v.
      Eq k
@@ -708,11 +705,11 @@ lookupCont ::
   -> (v -> Int -> r) -- Present continuation
   -> Hash -- The hash of the key
   -> k
-  -> Int -- The offset of the subkey in the hash.
+  -> Shift
   -> HashMap k v -> r
 lookupCont absent present !h0 !k0 !s0 !m0 = go h0 k0 s0 m0
   where
-    go :: Eq k => Hash -> k -> Int -> HashMap k v -> r
+    go :: Eq k => Hash -> k -> Shift -> HashMap k v -> r
     go !_ !_ !_ Empty = absent (# #)
     go h k _ (Leaf hx (L kx x))
         | h == hx && k == kx = present x (-1)
