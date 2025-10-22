@@ -111,7 +111,7 @@ test-suite unordered-containers-tests
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   cpp-options: -DASSERTS
 
-benchmark benchmarks
+benchmark package-comparisons
   hs-source-dirs: benchmarks
   main-is: Benchmarks.hs
   type: exitcode-stdio-1.0
@@ -135,6 +135,26 @@ benchmark benchmarks
   default-language: Haskell2010
   ghc-options: -Wall -O2 -rtsopts "-with-rtsopts=-A32m" -fproc-alignment=64
   -- cpp-options: -DBENCH_containers_Map -DBENCH_containers_IntMap -DBENCH_hashmap_Map
+
+benchmark fine-grained
+  hs-source-dirs: benchmarks
+  main-is: FineGrained.hs
+  type: exitcode-stdio-1.0
+
+  other-modules:
+    Key.Bytes
+
+  build-depends:
+    base,
+    bytestring >= 0.11.3,
+    deepseq,
+    hashable,
+    random,
+    tasty-bench,
+    unordered-containers
+
+  default-language: Haskell2010
+  ghc-options: -Wall -O2 -rtsopts "-with-rtsopts=-A64m" -fproc-alignment=64
 
 source-repository head
   type:     git
