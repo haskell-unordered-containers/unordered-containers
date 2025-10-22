@@ -57,7 +57,6 @@ data Error k
   | INV5_BitmapIndexed_invalid_single_subtree
   | INV6_misplaced_hash !Hash
   | INV7_key_hash_mismatch k !Hash
-  | INV8_bad_Full_size !Int
   | INV9_Collision_size !Int
   | INV10_Collision_duplicate_key k !Hash
   deriving (Eq, Show)
@@ -97,7 +96,6 @@ valid t     = validInternal initialSubHashPath t
     validInternal p (Leaf h l)            = validHash p h <> validLeaf p h l
     validInternal p (Collision h ary)     = validHash p h <> validCollision p h ary
     validInternal p (BitmapIndexed b ary) = validBitmapIndexed p b ary
-    validInternal p (Full ary)            = validFull p ary
 
     validHash p h | hashMatchesSubHashPath p h = Valid
                   | otherwise                  = Invalid (INV6_misplaced_hash h) p
@@ -119,7 +117,7 @@ valid t     = validInternal initialSubHashPath t
         validBitmap | b .&. complement fullBitmap == 0 = Valid
                     | otherwise                        = Invalid (INV2_Bitmap_unexpected_1_bits b) p
         n = A.length ary
-        validArraySize | n < 1 || n >= maxChildren = Invalid (INV3_bad_BitmapIndexed_size n) p
+        validArraySize | n < 1 || n > maxChildren  = Invalid (INV3_bad_BitmapIndexed_size n) p
                        | popCount b == n           = Valid
                        | otherwise                 = Invalid (INV4_bitmap_array_size_mismatch b n) p
 
@@ -136,9 +134,3 @@ valid t     = validInternal initialSubHashPath t
             m = 1 `unsafeShiftL` c
             i = sparseIndex b m
             b'' = b' .&. complement m
-
-    validFull p ary = validArraySize <> validSubTrees p fullBitmap ary
-      where
-        n = A.length ary
-        validArraySize | n == maxChildren = Valid
-                       | otherwise        = Invalid (INV8_bad_Full_size n) p
