@@ -182,7 +182,7 @@ tests =
         \(k :: Key) (v :: Int) x -> isValid (HM.insert k v x)
       ]
     , testGroup "insertWith"
-      [ testProperty "insertWith" $
+      [ testProperty "model" $
         \(Fn2 f) k v (x :: HMKI) ->
           toOrdMap (HM.insertWith f k v x) === M.insertWith f k v (toOrdMap x)
       , testProperty "valid" $
