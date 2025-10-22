@@ -906,10 +906,13 @@ setAtPosition i k x ary = A.update ary i (L k x)
 
 -- | In-place update version of insert
 unsafeInsert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
-unsafeInsert !k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+unsafeInsert !k0 v0 m0 = runST (unsafeInsert' (hash k0) k0 v0 0 m0)
+{-# INLINE unsafeInsert #-}
+
+unsafeInsert' :: (Eq k) => Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
+unsafeInsert' = go
   where
-    h0 = hash k0
-    go !h k x !_ Empty = return $! Leaf h (L k x)
+    go !h !k x !_ Empty = return $! Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then if x `ptrEq` y
@@ -937,7 +940,7 @@ unsafeInsert !k0 v0 m0 = runST (go h0 k0 v0 0 m0)
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-{-# INLINABLE unsafeInsert #-}
+{-# INLINABLE unsafeInsert' #-}
 
 -- | Create a map from two key-value pairs which hashes don't collide. To
 -- enhance sharing, the second key-value pair is represented by the hash of its
