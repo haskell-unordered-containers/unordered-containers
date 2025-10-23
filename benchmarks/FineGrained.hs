@@ -390,7 +390,9 @@ env' setup b size =
   env
     ( do
         gen <- newIOGenM defaultGen
-        setup size gen
+        !x <- setup size gen
+        threadDelay 10_000_000
+        return x
     )
     (b size)
 
