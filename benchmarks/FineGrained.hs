@@ -54,6 +54,11 @@ bytesLength = 32
 defaultGen :: StdGen
 defaultGen = mkStdGen 42
 
+-- | Number of repetitions or keys that are used to benchmark fast operations
+-- like 'lookup' or 'insert'.
+nRepetitions :: Int
+nRepetitions = 1000
+
 bFromList :: Benchmark
 bFromList =
   bgroup
@@ -65,7 +70,6 @@ bFromList =
     setupBytes s gen = genNBytes s bytesLength gen
     b s = bench (show s) . whnf (HM.fromList . map (,()))
 
--- 100 lookups each, so we get more precise timings
 bLookup :: Benchmark
 bLookup =
   bgroup
@@ -84,7 +88,7 @@ bLookupPresentKey =
     b s =
       bench (show s)
         . whnf (\(m, ks) -> foldl' (\() k -> HM.lookup k m `seq` ()) () ks)
-    toKs = take 1000 . Data.List.cycle . HM.keys
+    toKs = take nRepetitions . Data.List.cycle . HM.keys
     setupBytes size gen = do
       m <- genBytesMap size gen
       return (m, toKs m)
@@ -103,16 +107,15 @@ bLookupAbsentKey =
         . whnf (\(m, ks) -> foldl' (\() k -> HM.lookup k m `seq` ()) () ks)
     setupBytes size gen = do
       m <- genBytesMap size gen
-      ks0 <- genNBytes 1100 bytesLength gen
-      let ks1 = take 1000 $ Data.List.cycle $ filter (not . flip HM.member m) ks0
+      ks0 <- genNBytes nRepetitions bytesLength gen
+      let ks1 = take nRepetitions $ Data.List.cycle $ filter (not . flip HM.member m) ks0
       return (m, ks1)
     setupInts size gen = do
       m <- genIntMap size gen
-      ks0 <- genInts 1100 gen
-      let ks1 = take 1000 $ Data.List.cycle $ filter (not . flip HM.member m) ks0
+      ks0 <- genInts nRepetitions gen
+      let ks1 = take nRepetitions $ Data.List.cycle $ filter (not . flip HM.member m) ks0
       return (m, ks1)
 
--- 100 insertions each, so we get more precise timings
 bInsert :: Benchmark
 bInsert =
   bgroup
@@ -135,7 +138,7 @@ bInsertPresentKeySameValue =
     b s =
       bench (show s)
         . whnf (\(m, kvs) -> foldl' (\() (k, v) -> HM.insert k v m `seq` ()) () kvs)
-    toKVs = take 100 . Data.List.cycle . HM.toList
+    toKVs = take nRepetitions . Data.List.cycle . HM.toList
     setupBytes size gen = do
       m <- genBytesMap size gen
       return (m, toKVs m)
@@ -153,7 +156,7 @@ bInsertPresentKeyDifferentValue =
     b s =
       bench (show s)
         . whnf (\(m, kvs) -> foldl' (\() (k, v) -> HM.insert k v m `seq` ()) () kvs)
-    toKVs = take 100 . Data.List.cycle . map (second (+ 1)) . HM.toList
+    toKVs = take nRepetitions . Data.List.cycle . map (second (+ 1)) . HM.toList
     setupBytes size gen = do
       m <- genBytesMap size gen
       return (m, toKVs m)
@@ -172,16 +175,15 @@ bInsertAbsentKey =
         . whnf (\(m, kvs) -> foldl' (\() (k, v) -> HM.insert k v m `seq` ()) () kvs)
     setupBytes size gen = do
       m <- genBytesMap size gen
-      ks <- genNBytes 200 bytesLength gen
-      let kvs = take 100 $ Data.List.cycle $ map (,1) $ filter (not . flip HM.member m) ks
+      ks <- genNBytes nRepetitions bytesLength gen
+      let kvs = take nRepetitions $ Data.List.cycle $ map (,1) $ filter (not . flip HM.member m) ks
       return (m, kvs)
     setupInts size gen = do
       m <- genIntMap size gen
-      ks <- genInts 200 gen
-      let kvs = take 100 $ Data.List.cycle $ map (,1) $ filter (not . flip HM.member m) ks
+      ks <- genInts nRepetitions gen
+      let kvs = take nRepetitions $ Data.List.cycle $ map (,1) $ filter (not . flip HM.member m) ks
       return (m, kvs)
 
--- 100 deletions each, so we get more precise timings
 bDelete :: Benchmark
 bDelete =
   bgroup
@@ -200,7 +202,7 @@ bDeletePresentKey =
     b s =
       bench (show s)
         . whnf (\(m, ks) -> foldl' (\() k -> HM.delete k m `seq` ()) () ks)
-    toKs = take 100 . Data.List.cycle . HM.keys
+    toKs = take nRepetitions . Data.List.cycle . HM.keys
     setupBytes size gen = do
       m <- genBytesMap size gen
       return (m, toKs m)
@@ -219,13 +221,13 @@ bDeleteAbsentKey =
         . whnf (\(m, ks) -> foldl' (\() k -> HM.delete k m `seq` ()) () ks)
     setupBytes size gen = do
       m <- genBytesMap size gen
-      ks0 <- genNBytes 200 bytesLength gen
-      let ks1 = take 100 $ Data.List.cycle $ filter (not . flip HM.member m) ks0
+      ks0 <- genNBytes nRepetitions bytesLength gen
+      let ks1 = take nRepetitions $ Data.List.cycle $ filter (not . flip HM.member m) ks0
       return (m, ks1)
     setupInts size gen = do
       m <- genIntMap size gen
-      ks0 <- genInts 200 gen
-      let ks1 = take 100 $ Data.List.cycle $ filter (not . flip HM.member m) ks0
+      ks0 <- genInts nRepetitions gen
+      let ks1 = take nRepetitions $ Data.List.cycle $ filter (not . flip HM.member m) ks0
       return (m, ks1)
 
 -- TODO: For the "overlap" and "equal" cases, it would be interesting to
