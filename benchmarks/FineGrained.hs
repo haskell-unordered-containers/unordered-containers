@@ -1,13 +1,14 @@
--- | This file is formatted with https://hackage.haskell.org/package/ormolu
-
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
+-- | This file is formatted with https://hackage.haskell.org/package/ormolu
 module Main where
 
+import Control.Concurrent (threadDelay)
 import Control.DeepSeq (NFData)
 import Control.Monad (replicateM)
 import Data.Bifunctor (second)
@@ -265,10 +266,12 @@ bUnionEqual =
     b size = bench (show size) . whnf (\m -> HM.union m m)
 
 bUnions :: Benchmark
-bUnions = bgroup "unions"
-  [ bgroup'WithSizes sizes "Bytes" setupBytes b,
-    bgroup'WithSizes sizes "Int" setupInts b
-  ]
+bUnions =
+  bgroup
+    "unions"
+    [ bgroup'WithSizes sizes "Bytes" setupBytes b,
+      bgroup'WithSizes sizes "Int" setupInts b
+    ]
   where
     sizes = filter (>= 10) defaultSizes
     b size = bench (show size) . whnf (\ms -> HM.unions ms)
