@@ -8,7 +8,6 @@
 -- | This file is formatted with https://hackage.haskell.org/package/ormolu
 module Main where
 
-import Control.Concurrent (threadDelay)
 import Control.DeepSeq (NFData)
 import Control.Monad (replicateM)
 import Data.Bifunctor (second)
@@ -390,9 +389,7 @@ env' setup b size =
   env
     ( do
         gen <- newIOGenM defaultGen
-        !x <- setup size gen
-        threadDelay 10_000_000
-        return x
+        setup size gen
     )
     (b size)
 
