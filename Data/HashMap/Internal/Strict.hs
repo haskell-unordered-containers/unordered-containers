@@ -208,12 +208,6 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
             in BitmapIndexed b ary'
       where m = mask h s
             i = sparseIndex b m
-    go h k x s (Full ary) =
-        let st   = A.index ary i
-            st'  = go h k x (nextShift s) st
-            ary' = HM.updateFullArray ary i $! st'
-        in Full ary'
-      where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith f k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
@@ -249,12 +243,6 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
             return t
       where m = mask h s
             i = sparseIndex b m
-    go h k x s t@(Full ary) = do
-        st <- A.indexM ary i
-        st' <- go h k x (nextShift s) st
-        A.unsafeUpdateM ary i st'
-        return t
-      where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWithKey f k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
@@ -278,12 +266,6 @@ adjust f k0 m0 = go h0 k0 0 m0
                       in BitmapIndexed b ary'
       where m = mask h s
             i = sparseIndex b m
-    go h k s (Full ary) =
-        let i    = index h s
-            st   = A.index ary i
-            st'  = go h k (nextShift s) st
-            ary' = HM.updateFullArray ary i $! st'
-        in Full ary'
     go h k _ t@(Collision hy v)
         | h == hy   = Collision h (updateWith f k v)
         | otherwise = t
@@ -480,16 +462,6 @@ unionWithKey f = go 0
         let b'   = b1 .|. b2
             ary' = HM.unionArrayBy (go (nextShift s)) b1 b2 ary1 ary2
         in HM.bitmapIndexedOrFull b' ary'
-    go s (BitmapIndexed b1 ary1) (Full ary2) =
-        let ary' = HM.unionArrayBy (go (nextShift s)) b1 fullBitmap ary1 ary2
-        in Full ary'
-    go s (Full ary1) (BitmapIndexed b2 ary2) =
-        let ary' = HM.unionArrayBy (go (nextShift s)) fullBitmap b2 ary1 ary2
-        in Full ary'
-    go s (Full ary1) (Full ary2) =
-        let ary' = HM.unionArrayBy (go (nextShift s)) fullBitmap fullBitmap
-                   ary1 ary2
-        in Full ary'
     -- leaf vs. branch
     go s (BitmapIndexed b1 ary1) t2
         | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
@@ -513,16 +485,6 @@ unionWithKey f = go 0
         h1 = leafHashCode t1
         m1 = mask h1 s
         i = sparseIndex b2 m1
-    go s (Full ary1) t2 =
-        let h2   = leafHashCode t2
-            i    = index h2 s
-            ary' = HM.updateFullArrayWith' ary1 i $ \st1 -> go (nextShift s) st1 t2
-        in Full ary'
-    go s t1 (Full ary2) =
-        let h1   = leafHashCode t1
-            i    = index h1 s
-            ary' = HM.updateFullArrayWith' ary2 i $ \st2 -> go (nextShift s) t1 st2
-        in Full ary'
 
     leafHashCode (Leaf h _) = h
     leafHashCode (Collision h _) = h
@@ -547,7 +509,6 @@ mapWithKey f = go
     go Empty                 = Empty
     go (Leaf h (L k v))      = leaf h k (f k v)
     go (BitmapIndexed b ary) = BitmapIndexed b $ A.map' go ary
-    go (Full ary)            = Full $ A.map' go ary
     go (Collision h ary)     =
         Collision h $ A.map' (\ (L k v) -> let !v' = f k v in L k v') ary
 {-# INLINE mapWithKey #-}
@@ -599,7 +560,6 @@ traverseWithKey f = go
     go Empty                 = pure Empty
     go (Leaf h (L k v))      = leaf h k <$> f k v
     go (BitmapIndexed b ary) = BitmapIndexed b <$> A.traverse' go ary
-    go (Full ary)            = Full <$> A.traverse' go ary
     go (Collision h ary)     =
         Collision h <$> A.traverse' (\ (L k v) -> (L k $!) <$> f k v) ary
 {-# INLINE traverseWithKey #-}
