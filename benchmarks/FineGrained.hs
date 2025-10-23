@@ -252,10 +252,11 @@ bUnionDisjoint =
 
 bUnionOverlap :: [Benchmark]
 bUnionOverlap =
-  [ bgroup' "Bytes" genBytesMapsOverlap b,
-    bgroup' "Int" genIntMapsOverlap b
+  [ bgroup'WithSizes sizes "Bytes" genBytesMapsOverlap b,
+    bgroup'WithSizes sizes "Int" genIntMapsOverlap b
   ]
   where
+    sizes = 5 : filter (> 5) defaultSizes
     b s = bench (show s) . whnf (\(as, bs) -> HM.union as bs)
 
 bUnionEqual :: [Benchmark]
@@ -301,10 +302,11 @@ bIntersectionDisjoint =
 
 bIntersectionOverlap :: [Benchmark]
 bIntersectionOverlap =
-  [ bgroup' "Bytes" genBytesMapsOverlap b,
-    bgroup' "Int" genIntMapsOverlap b
+  [ bgroup'WithSizes sizes "Bytes" genBytesMapsOverlap b,
+    bgroup'WithSizes sizes "Int" genIntMapsOverlap b
   ]
   where
+    sizes = 5 : filter (> 5) defaultSizes
     b size = bench (show size) . whnf (\(xs, ys) -> HM.intersection xs ys)
 
 bIntersectionEqual :: [Benchmark]
@@ -337,10 +339,11 @@ bDifferenceDisjoint =
 
 bDifferenceOverlap :: [Benchmark]
 bDifferenceOverlap =
-  [ bgroup' "Bytes" genBytesMapsOverlap b,
-    bgroup' "Int" genIntMapsOverlap b
+  [ bgroup'WithSizes sizes "Bytes" genBytesMapsOverlap b,
+    bgroup'WithSizes sizes "Int" genIntMapsOverlap b
   ]
   where
+    sizes = 5 : filter (> 5) defaultSizes
     b size = bench (show size) . whnf (\(xs, ys) -> HM.difference xs ys)
 
 bDifferenceEqual :: [Benchmark]
