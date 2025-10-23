@@ -84,7 +84,7 @@ bLookupPresentKey =
     b s =
       bench (show s)
         . whnf (\(m, ks) -> foldl' (\() k -> HM.lookup k m `seq` ()) () ks)
-    toKs = take 100 . Data.List.cycle . HM.keys
+    toKs = take 1000 . Data.List.cycle . HM.keys
     setupBytes size gen = do
       m <- genBytesMap size gen
       return (m, toKs m)
@@ -103,13 +103,13 @@ bLookupAbsentKey =
         . whnf (\(m, ks) -> foldl' (\() k -> HM.lookup k m `seq` ()) () ks)
     setupBytes size gen = do
       m <- genBytesMap size gen
-      ks0 <- genNBytes 200 bytesLength gen
-      let ks1 = take 100 $ Data.List.cycle $ filter (not . flip HM.member m) ks0
+      ks0 <- genNBytes 1100 bytesLength gen
+      let ks1 = take 1000 $ Data.List.cycle $ filter (not . flip HM.member m) ks0
       return (m, ks1)
     setupInts size gen = do
       m <- genIntMap size gen
-      ks0 <- genInts 200 gen
-      let ks1 = take 100 $ Data.List.cycle $ filter (not . flip HM.member m) ks0
+      ks0 <- genInts 1100 gen
+      let ks1 = take 1000 $ Data.List.cycle $ filter (not . flip HM.member m) ks0
       return (m, ks1)
 
 -- 100 insertions each, so we get more precise timings
