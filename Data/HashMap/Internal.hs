@@ -517,18 +517,22 @@ equalKeys1 eq t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
 
     leafEq (L k _) (L k' _) = eq k k'
 
--- | Same as 'equal1' but doesn't compare the values.
+-- | Same as '(==)' but doesn't compare the values.
+--
+-- This function is used by the 'Eq' instance for 'HashSet'.
 equalKeys :: Eq k => HashMap k v -> HashMap k v' -> Bool
 equalKeys = go
   where
     go :: Eq k => HashMap k v -> HashMap k v' -> Bool
     go Empty Empty = True
     go (BitmapIndexed bm1 ary1) (BitmapIndexed bm2 ary2)
-      = bm1 == bm2 && A.sameArray1 go ary1 ary2
+      = bm1 == bm2 && (A.unsafeSameArray ary1 ary2 || A.sameArray1 go ary1 ary2)
     go (Leaf h1 l1) (Leaf h2 l2) = h1 == h2 && leafEq l1 l2
-    go (Full ary1) (Full ary2) = A.sameArray1 go ary1 ary2
+    go (Full ary1) (Full ary2)
+      = A.unsafeSameArray ary1 ary2 || A.sameArray1 go ary1 ary2
     go (Collision h1 ary1) (Collision h2 ary2)
-      = h1 == h2 && isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
+      = h1 == h2 && (A.unsafeSameArray ary1 ary2 ||
+                     isPermutationBy leafEq (A.toList ary1) (A.toList ary2))
     go _ _ = False
 
     leafEq (L k1 _) (L k2 _) = k1 == k2
