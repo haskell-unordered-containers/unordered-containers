@@ -1815,40 +1815,42 @@ difference = go 0
 differenceArrays :: (Shift -> HashMap k1 v1 -> HashMap k1 v2 -> HashMap k1 v1) -> Shift -> Bitmap -> A.Array (HashMap k1 v1) -> HashMap k1 v1 -> Bitmap -> A.Array (HashMap k1 v2) -> HashMap k1 v1
 differenceArrays diff s b1 ary1 t1 b2 ary2
   | b1 .&. b2 == 0 = t1
-  | b1 == b2 && A.unsafeSameArray ary1 ary2 = Empty
-  | otherwise = runST $ undefined
-{-
-    mary <- A.new_ $ popCount bIntersect
-    -- iterate over nonzero bits of b1 .|. b2
-    let go !i !i1 !i2 !b !bFinal
-          | b == 0 = pure (i, bFinal)
-          | testBit $ b1 .&. b2 = do
-            x1 <- A.indexM ary1 i1
-            x2 <- A.indexM ary2 i2
-            case f x1 x2 of
-              Empty -> go i (i1 + 1) (i2 + 1) b' (bFinal .&. complement m)
+  | {- b1 == b2 && -} A.unsafeSameArray ary1 ary2 = Empty
+  | otherwise = runST $ do
+    mary <- A.new_ $ A.length ary1
+
+    let go !i !i1 !b1' !bResult !sameAs1
+          | b1' == 0 = pure (bResult, sameAs1)
+          | otherwise = do
+            !st1 <- A.indexM ary1 i1
+            case m .&. b2 of
+              0 -> do
+                A.write mary i st1
+                go (i + 1) (i1 + 1) nextB1' (bResult .|. m) sameAs1
               _ -> do
-                A.write mary i $! f x1 x2
-                go (i + 1) (i1 + 1) (i2 + 1) b' bFinal
-          | testBit b1 = go i (i1 + 1) i2 b' bFinal
-          | otherwise = go i i1 (i2 + 1) b' bFinal
+                !st2 <- A.indexM ary2 (sparseIndex b2 m)
+                case diff (nextShift s) st1 st2 of
+                  Empty -> go i (i1 + 1) nextB1' bResult False
+                  st -> do
+                    A.write mary i st
+                    let same = st `ptrEq` st1
+                    go (i + 1) (i1 + 1) nextB1' (bResult .|. m) (sameAs1 && same)
           where
-            m = 1 `unsafeShiftL` countTrailingZeros b
-            testBit x = x .&. m /= 0
-            b' = b .&. complement m
-    (len, bFinal) <- go 0 0 0 bCombined bIntersect
-    case len of
-      0 -> pure Empty
-      1 -> do
-        l <- A.read mary 0
-        if isLeafOrCollision l
-          then pure l
-          else BitmapIndexed bFinal <$> (A.unsafeFreeze =<< A.shrink mary 1)
-      _ -> bitmapIndexedOrFull bFinal <$> (A.unsafeFreeze =<< A.shrink mary len)
-  where
-    bCombined = b1 .|. b2
-    bIntersect = b1 .&. b2
--}
+            m = b1' .&. negate b1'
+            nextB1' = b1' .&. complement m
+
+    (bFinal, sameAs1) <- go 0 0 b1 0 True -- FIXME: Does this allocate a tuple?
+    if sameAs1
+      then pure t1
+      else case popCount bFinal of
+        0 -> pure Empty
+        1 -> do
+          l <- A.read mary 0
+          if isLeafOrCollision l
+            then pure l
+            else BitmapIndexed bFinal <$> (A.unsafeFreeze =<< A.shrink mary 1)
+        n -> bitmapIndexedOrFull bFinal <$> (A.unsafeFreeze =<< A.shrink mary n)
+{-# INLINABLE differenceArrays #-}
 
 differenceCollisions :: Hash -> A.Array (Leaf k1 v1) -> Hash -> A.Array (Leaf k1 v2) -> HashMap k1 v1
 differenceCollisions = undefined
