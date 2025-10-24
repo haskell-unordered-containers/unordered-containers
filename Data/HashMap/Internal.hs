@@ -1823,8 +1823,16 @@ difference = go 0
         i1 = sparseIndex b1 m
     go s t1@(Collision h1 _) (Full ary2)
       = go (nextShift s) t1 (A.index ary2 (index h1 s))
-    go s (Full ary1) t2@(Collision h2 _) -- BUG
-      = go (nextShift s) (A.index ary1 (index h2 s)) t2
+    go s t1@(Full ary1) t2@(Collision h2 _)
+      = let !st = A.index ary1 i
+        in case go (nextShift s) st t2 of
+          Empty ->
+              let ary1' = A.delete ary1 i
+                  bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
+              in BitmapIndexed bm ary1'
+          st' | st `ptrEq` st' -> t1
+              | otherwise -> Full (A.update ary1 i st')
+      where i = index h2 s
 
     go _ t1@(Collision h1 ary1) (Collision h2 ary2) = differenceCollisions h1 ary1 t1 h2 ary2
 {-# INLINABLE difference #-}
