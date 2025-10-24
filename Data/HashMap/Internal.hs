@@ -163,6 +163,7 @@ import Data.Functor.Identity      (Identity (..))
 import Data.Hashable              (Hashable)
 import Data.Hashable.Lifted       (Hashable1, Hashable2)
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
+import Data.Maybe                 (isJust)
 import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
 import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
 import GHC.Stack                  (HasCallStack)
@@ -1809,7 +1810,7 @@ difference = go 0
     go s (Full ary1) t2@(Collision h2 _)
       = go (nextShift s) (A.index ary1 (index h2 s)) t2
 
-    go _ (Collision h1 ary1) (Collision h2 ary2) = differenceCollisions h1 ary1 h2 ary2
+    go _ t1@(Collision h1 ary1) (Collision h2 ary2) = differenceCollisions h1 ary1 t1 h2 ary2
 {-# INLINABLE difference #-}
 
 differenceArrays :: (Shift -> HashMap k1 v1 -> HashMap k1 v2 -> HashMap k1 v1) -> Shift -> Bitmap -> A.Array (HashMap k1 v1) -> HashMap k1 v1 -> Bitmap -> A.Array (HashMap k1 v2) -> HashMap k1 v1
@@ -1853,13 +1854,13 @@ differenceArrays diff s b1 ary1 t1 b2 ary2
         n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
 {-# INLINABLE differenceArrays #-}
 
-differenceCollisions :: Hash -> A.Array (Leaf k v1) -> HashMap k v2 -> Hash -> A.Array (Leaf k v2) -> HashMap k v1
+differenceCollisions :: Eq k => Hash -> A.Array (Leaf k v1) -> HashMap k v1 -> Hash -> A.Array (Leaf k v2) -> HashMap k v1
 differenceCollisions h1 ary1 t1 h2 ary2
   | h1 == h2 =
     let ary = A.filter (\(L k1 _) -> isJust (indexOf k1 ary2)) ary1
     in case A.length ary of
       0 -> Empty
-      1 -> Leaf h1 (A.index 0 ary)
+      1 -> Leaf h1 (A.index ary 0)
       n | A.length ary1 == n -> t1
         | otherwise -> Collision h1 ary
   | otherwise = t1

@@ -72,6 +72,7 @@ module Data.HashMap.Internal.Array
     , thaw
     , map
     , map'
+    , filter
     , traverse
     , traverse'
     , toList
@@ -495,6 +496,24 @@ map' f = \ ary ->
              write mary i $! f x
              go ary mary (i+1) n
 {-# INLINE map' #-}
+
+filter :: (a -> Bool) -> Array a -> Array a
+filter f = \ ary ->
+    let !n = length ary
+    in run $ do
+      mary <- new_ n
+      len <- go ary mary 0 0 n
+      shrink mary len
+  where
+    go ary mary iAry iMary n
+      | iAry >= n = return iMary
+      | otherwise = do
+        x <- indexM ary iAry
+        if f x
+          then do
+            write mary iMary x
+            go ary mary (iAry + 1) (iMary + 1) n
+          else go ary mary (iAry + 1) iMary n
 
 fromList :: Int -> [a] -> Array a
 fromList n xs0 =
