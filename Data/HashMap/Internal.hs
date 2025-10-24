@@ -1102,7 +1102,10 @@ delete k m = delete' (hash k) k m
 {-# INLINABLE delete #-}
 
 delete' :: Eq k => Hash -> k -> HashMap k v -> HashMap k v
-delete' h0 k0 m0 = go h0 k0 0 m0
+delete' h0 k0 m0 = delete'' h0 k0 0 m0
+
+delete'' :: Eq k => Hash -> k -> Shift -> HashMap k v -> HashMap k v
+delete'' = go
   where
     go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky _))
@@ -1781,12 +1784,74 @@ mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 -- | \(O(n \log m)\) Difference of two maps. Return elements of the first map
 -- not existing in the second.
 difference :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
-difference a b = foldlWithKey' go empty a
+difference = go 0
   where
-    go m k v = case lookup k b of
-                 Nothing -> unsafeInsert k v m
-                 _       -> m
+    go !_s Empty !_ = Empty
+    go s t1@(Leaf h1 (L k1 _)) t2 = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
+    go _ t1 Empty = t1
+    go s t1 (Leaf h2 (L k2 _)) = delete'' h2 k2 s t1
+
+    go s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) = differenceArrays go s b1 ary1 t1 b2 ary2
+    go s t1@(Full ary1) (BitmapIndexed b2 ary2) = differenceArrays go s fullBitmap ary1 t1 b2 ary2
+    go s t1@(BitmapIndexed b1 ary1) (Full ary2) = differenceArrays go s b1 ary1 t1 fullBitmap ary2
+    go s t1@(Full ary1) (Full ary2) = differenceArrays go s fullBitmap ary1 t1 fullBitmap ary2
+
+    go s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
+        | b2 .&. m == 0 = Empty
+        | otherwise = go (nextShift s) t1 (A.index ary2 (sparseIndex b2 m))
+      where m = mask h1 s
+    go s (BitmapIndexed b1 ary1) t2@(Collision h2 _)
+        | b1 .&. m == 0 = Empty
+        | otherwise = go (nextShift s) (A.index ary1 (sparseIndex b1 m)) t2
+      where m = mask h2 s
+    go s t1@(Collision h1 _) (Full ary2)
+      = go (nextShift s) t1 (A.index ary2 (index h1 s))
+    go s (Full ary1) t2@(Collision h2 _)
+      = go (nextShift s) (A.index ary1 (index h2 s)) t2
+
+    go _ (Collision h1 ary1) (Collision h2 ary2) = differenceCollisions h1 ary1 h2 ary2
 {-# INLINABLE difference #-}
+
+differenceArrays :: (Shift -> HashMap k1 v1 -> HashMap k1 v2 -> HashMap k1 v1) -> Shift -> Bitmap -> A.Array (HashMap k1 v1) -> HashMap k1 v1 -> Bitmap -> A.Array (HashMap k1 v2) -> HashMap k1 v1
+differenceArrays diff s b1 ary1 t1 b2 ary2
+  | b1 .&. b2 == 0 = t1
+  | b1 == b2 && A.unsafeSameArray ary1 ary2 = Empty
+  | otherwise = runST $ undefined
+{-
+    mary <- A.new_ $ popCount bIntersect
+    -- iterate over nonzero bits of b1 .|. b2
+    let go !i !i1 !i2 !b !bFinal
+          | b == 0 = pure (i, bFinal)
+          | testBit $ b1 .&. b2 = do
+            x1 <- A.indexM ary1 i1
+            x2 <- A.indexM ary2 i2
+            case f x1 x2 of
+              Empty -> go i (i1 + 1) (i2 + 1) b' (bFinal .&. complement m)
+              _ -> do
+                A.write mary i $! f x1 x2
+                go (i + 1) (i1 + 1) (i2 + 1) b' bFinal
+          | testBit b1 = go i (i1 + 1) i2 b' bFinal
+          | otherwise = go i i1 (i2 + 1) b' bFinal
+          where
+            m = 1 `unsafeShiftL` countTrailingZeros b
+            testBit x = x .&. m /= 0
+            b' = b .&. complement m
+    (len, bFinal) <- go 0 0 0 bCombined bIntersect
+    case len of
+      0 -> pure Empty
+      1 -> do
+        l <- A.read mary 0
+        if isLeafOrCollision l
+          then pure l
+          else BitmapIndexed bFinal <$> (A.unsafeFreeze =<< A.shrink mary 1)
+      _ -> bitmapIndexedOrFull bFinal <$> (A.unsafeFreeze =<< A.shrink mary len)
+  where
+    bCombined = b1 .|. b2
+    bIntersect = b1 .&. b2
+-}
+
+differenceCollisions :: Hash -> A.Array (Leaf k1 v1) -> Hash -> A.Array (Leaf k1 v2) -> HashMap k1 v1
+differenceCollisions = undefined
 
 -- | \(O(n \log m)\) Difference with a combining function. When two equal keys are
 -- encountered, the combining function is applied to the values of these keys.
