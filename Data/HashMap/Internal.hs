@@ -1787,6 +1787,23 @@ mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 difference :: Eq k => HashMap k v -> HashMap k w -> HashMap k v
 difference = go 0
   where
+{- Somehow we get repeated "cases of" on the Hashmap arguments:
+
+        $wgo1
+          = \ (ww :: Int#) (ds :: HashMap k v) (ds1 :: HashMap k w) ->
+              case ds of wild {
+                __DEFAULT ->
+                  case ds1 of wild1 {
+                    __DEFAULT ->
+                      case wild of wild2 {
+                        BitmapIndexed bx bx1 ->
+                          case wild1 of {
+                            BitmapIndexed bx2 bx3 ->
+
+Maybe don't force the first !_?!
+
+Or maybe this helps avoid more evaluations later on? (Check Cmm)
+-}
     go !_s Empty !_ = Empty
     go s t1@(Leaf h1 (L k1 _)) t2 = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
     go _ t1 Empty = t1
@@ -1836,20 +1853,30 @@ difference = go 0
                   bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
               in BitmapIndexed bm ary1'
           st' | st `ptrEq` st' -> t1
+                -- TODO: Should probably use updateFullArray
+                -- (and in other places too!)
               | otherwise -> Full (A.update ary1 i st')
       where i = index h2 s
 
-    go _ t1@(Collision h1 ary1) (Collision h2 ary2) = differenceCollisions h1 ary1 t1 h2 ary2
+    -- TODO: Why does $wdifferenceCollisions appear three times in the Core
+    -- for difference, and not just once?
+    go _ t1@(Collision h1 ary1) (Collision h2 ary2)
+      = differenceCollisions h1 ary1 t1 h2 ary2
 {-# INLINABLE difference #-}
 
 differenceArrays :: (Shift -> HashMap k1 v1 -> HashMap k1 v2 -> HashMap k1 v1) -> Shift -> Bitmap -> A.Array (HashMap k1 v1) -> HashMap k1 v1 -> Bitmap -> A.Array (HashMap k1 v2) -> HashMap k1 v1
-differenceArrays diff s b1 ary1 t1 b2 ary2
+differenceArrays diff !s !b1 !ary1 !t1 !b2 !ary2
   | b1 .&. b2 == 0 = t1
   | {- b1 == b2 && -} A.unsafeSameArray ary1 ary2 = Empty
   | otherwise = runST $ do
     mary <- A.new_ $ A.length ary1
 
     -- TODO: i == popCount bResult. Not sure if that would be faster.
+    -- Also i1 is in some relation with b1'
+    --
+    -- TODO: Depending on sameAs1 the Core contains jumps to either
+    -- $s$wgo or $s$wgo1. Maybe it would be better to keep track of
+    -- the "sameness" as an Int?!
     let go !i !i1 !b1' !bResult !sameAs1
           | b1' == 0 = pure (bResult, sameAs1)
           | otherwise = do
@@ -1886,9 +1913,12 @@ differenceArrays diff s b1 ary1 t1 b2 ary2
 -- TODO: This could be faster if we would keep track of which elements of ary2
 -- we've already matched. Those could be skipped when we check the following
 -- elements of ary1.
+--
+-- TODO: Get ary1 unboxed somehow?!
 differenceCollisions :: Eq k => Hash -> A.Array (Leaf k v1) -> HashMap k v1 -> Hash -> A.Array (Leaf k v2) -> HashMap k v1
-differenceCollisions h1 ary1 t1 h2 ary2
+differenceCollisions !h1 !ary1 t1 !h2 !ary2
   | h1 == h2 =
+    -- TODO: This actually allocates Maybes!
     let ary = A.filter (\(L k1 _) -> isNothing (indexOf k1 ary2)) ary1
     in case A.length ary of
       0 -> Empty
