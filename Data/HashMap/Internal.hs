@@ -1819,6 +1819,7 @@ differenceArrays diff s b1 ary1 t1 b2 ary2
   | otherwise = runST $ do
     mary <- A.new_ $ A.length ary1
 
+    -- TODO: i == popCount bResult. Not sure if that would be faster.
     let go !i !i1 !b1' !bResult !sameAs1
           | b1' == 0 = pure (bResult, sameAs1)
           | otherwise = do
