@@ -1806,7 +1806,7 @@ difference = go 0
         | otherwise =
             let !st = A.index ary1 i1
             in case go (nextShift s) st t2 of
-              Empty | A.length ary1 == 1 -> Empty -- impossible?!
+              Empty {- | A.length ary1 == 1 -> Empty -- Impossible! -}
                     | A.length ary1 == 2 ->
                         case (i1, A.index ary1 0, A.index ary1 1) of
                         (0, _, l) | isLeafOrCollision l -> l
