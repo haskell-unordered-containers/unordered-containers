@@ -1840,17 +1840,17 @@ differenceArrays diff s b1 ary1 t1 b2 ary2
             m = b1' .&. negate b1'
             nextB1' = b1' .&. complement m
 
-    (bFinal, sameAs1) <- go 0 0 b1 0 True -- FIXME: Does this allocate a tuple?
+    (bResult, sameAs1) <- go 0 0 b1 0 True -- FIXME: Does this allocate a tuple?
     if sameAs1
       then pure t1
-      else case popCount bFinal of
+      else case popCount bResult of
         0 -> pure Empty
         1 -> do
           l <- A.read mary 0
           if isLeafOrCollision l
             then pure l
-            else BitmapIndexed bFinal <$> (A.unsafeFreeze =<< A.shrink mary 1)
-        n -> bitmapIndexedOrFull bFinal <$> (A.unsafeFreeze =<< A.shrink mary n)
+            else BitmapIndexed bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
+        n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
 {-# INLINABLE differenceArrays #-}
 
 differenceCollisions :: Hash -> A.Array (Leaf k1 v1) -> Hash -> A.Array (Leaf k1 v2) -> HashMap k1 v1
