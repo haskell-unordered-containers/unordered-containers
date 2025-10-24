@@ -1822,8 +1822,8 @@ difference = go 0
                     | otherwise -> bIndexed
                   where
                     bIndexed = BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
-              l | isLeafOrCollision l && A.length ary1 == 1 -> l
-              st' | st `ptrEq` st' -> t1
+              st' | isLeafOrCollision st' && A.length ary1 == 1 -> st'
+                  | st `ptrEq` st' -> t1
                   | otherwise -> BitmapIndexed b1 (A.update ary1 i1 st')
       where
         m = mask h2 s
