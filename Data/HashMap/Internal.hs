@@ -1853,8 +1853,17 @@ differenceArrays diff s b1 ary1 t1 b2 ary2
         n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
 {-# INLINABLE differenceArrays #-}
 
-differenceCollisions :: Hash -> A.Array (Leaf k1 v1) -> Hash -> A.Array (Leaf k1 v2) -> HashMap k1 v1
-differenceCollisions = undefined
+differenceCollisions :: Hash -> A.Array (Leaf k v1) -> HashMap k v2 -> Hash -> A.Array (Leaf k v2) -> HashMap k v1
+differenceCollisions h1 ary1 t1 h2 ary2
+  | h1 == h2 =
+    let ary = A.filter (\(L k1 _) -> isJust (indexOf k1 ary2)) ary1
+    in case A.length ary of
+      0 -> Empty
+      1 -> Leaf h1 (A.index 0 ary)
+      n | A.length ary1 == n -> t1
+        | otherwise -> Collision h1 ary
+  | otherwise = t1
+{-# INLINABLE differenceCollisions #-}
 
 -- | \(O(n \log m)\) Difference with a combining function. When two equal keys are
 -- encountered, the combining function is applied to the values of these keys.
