@@ -1784,7 +1784,7 @@ mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 
 -- | \(O(n \log m)\) Difference of two maps. Return elements of the first map
 -- not existing in the second.
-difference :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
+difference :: Eq k => HashMap k v -> HashMap k w -> HashMap k v
 difference = go 0
   where
     go !_s Empty !_ = Empty
