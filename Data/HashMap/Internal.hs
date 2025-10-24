@@ -1792,15 +1792,22 @@ difference = go 0
     go _ t1 Empty = t1
     go s t1 (Leaf h2 (L k2 _)) = delete'' h2 k2 s t1
 
-    go s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) = differenceArrays go s b1 ary1 t1 b2 ary2
-    go s t1@(Full ary1) (BitmapIndexed b2 ary2) = differenceArrays go s fullBitmap ary1 t1 b2 ary2
-    go s t1@(BitmapIndexed b1 ary1) (Full ary2) = differenceArrays go s b1 ary1 t1 fullBitmap ary2
-    go s t1@(Full ary1) (Full ary2) = differenceArrays go s fullBitmap ary1 t1 fullBitmap ary2
+    go s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
+      = differenceArrays go s b1 ary1 t1 b2 ary2
+    go s t1@(Full ary1) (BitmapIndexed b2 ary2)
+      = differenceArrays go s fullBitmap ary1 t1 b2 ary2
+    go s t1@(BitmapIndexed b1 ary1) (Full ary2)
+      = differenceArrays go s b1 ary1 t1 fullBitmap ary2
+    go s t1@(Full ary1) (Full ary2)
+      = differenceArrays go s fullBitmap ary1 t1 fullBitmap ary2
 
     go s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
         | b2 .&. m == 0 = t1
         | otherwise = go (nextShift s) t1 (A.index ary2 (sparseIndex b2 m))
       where m = mask h1 s
+    go s t1@(Collision h1 _) (Full ary2)
+      = go (nextShift s) t1 (A.index ary2 (index h1 s))
+
     go s t1@(BitmapIndexed b1 ary1) t2@(Collision h2 _)
         | b1 .&. m == 0 = t1
         | otherwise =
@@ -1821,8 +1828,6 @@ difference = go 0
       where
         m = mask h2 s
         i1 = sparseIndex b1 m
-    go s t1@(Collision h1 _) (Full ary2)
-      = go (nextShift s) t1 (A.index ary2 (index h1 s))
     go s t1@(Full ary1) t2@(Collision h2 _)
       = let !st = A.index ary1 i
         in case go (nextShift s) st t2 of
