@@ -163,7 +163,7 @@ import Data.Functor.Identity      (Identity (..))
 import Data.Hashable              (Hashable)
 import Data.Hashable.Lifted       (Hashable1, Hashable2)
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
-import Data.Maybe                 (isJust)
+import Data.Maybe                 (isNothing)
 import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
 import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
 import GHC.Stack                  (HasCallStack)
@@ -1798,16 +1798,32 @@ difference = go 0
     go s t1@(Full ary1) (Full ary2) = differenceArrays go s fullBitmap ary1 t1 fullBitmap ary2
 
     go s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
-        | b2 .&. m == 0 = Empty
+        | b2 .&. m == 0 = t1
         | otherwise = go (nextShift s) t1 (A.index ary2 (sparseIndex b2 m))
       where m = mask h1 s
-    go s (BitmapIndexed b1 ary1) t2@(Collision h2 _)
-        | b1 .&. m == 0 = Empty
-        | otherwise = go (nextShift s) (A.index ary1 (sparseIndex b1 m)) t2
-      where m = mask h2 s
+    go s t1@(BitmapIndexed b1 ary1) t2@(Collision h2 _)
+        | b1 .&. m == 0 = t1
+        | otherwise =
+            let !st = A.index ary1 i1
+            in case go (nextShift s) st t2 of
+              Empty | A.length ary1 == 1 -> Empty -- impossible?!
+                    | A.length ary1 == 2 ->
+                        case (i1, A.index ary1 0, A.index ary1 1) of
+                        (0, _, l) | isLeafOrCollision l -> l
+                        (1, l, _) | isLeafOrCollision l -> l
+                        _                               -> bIndexed
+                    | otherwise -> bIndexed
+                  where
+                    bIndexed = BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
+              l | isLeafOrCollision l && A.length ary1 == 1 -> l
+              st' | st `ptrEq` st' -> t1
+                  | otherwise -> BitmapIndexed b1 (A.update ary1 i1 st')
+      where
+        m = mask h2 s
+        i1 = sparseIndex b1 m
     go s t1@(Collision h1 _) (Full ary2)
       = go (nextShift s) t1 (A.index ary2 (index h1 s))
-    go s (Full ary1) t2@(Collision h2 _)
+    go s (Full ary1) t2@(Collision h2 _) -- BUG
       = go (nextShift s) (A.index ary1 (index h2 s)) t2
 
     go _ t1@(Collision h1 ary1) (Collision h2 ary2) = differenceCollisions h1 ary1 t1 h2 ary2
@@ -1857,7 +1873,7 @@ differenceArrays diff s b1 ary1 t1 b2 ary2
 differenceCollisions :: Eq k => Hash -> A.Array (Leaf k v1) -> HashMap k v1 -> Hash -> A.Array (Leaf k v2) -> HashMap k v1
 differenceCollisions h1 ary1 t1 h2 ary2
   | h1 == h2 =
-    let ary = A.filter (\(L k1 _) -> isJust (indexOf k1 ary2)) ary1
+    let ary = A.filter (\(L k1 _) -> isNothing (indexOf k1 ary2)) ary1
     in case A.length ary of
       0 -> Empty
       1 -> Leaf h1 (A.index ary 0)
