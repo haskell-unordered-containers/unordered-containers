@@ -1883,6 +1883,9 @@ differenceArrays diff s b1 ary1 t1 b2 ary2
         n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
 {-# INLINABLE differenceArrays #-}
 
+-- TODO: This could be faster if we would keep track of which elements of ary2
+-- we've already matched. Those could be skipped when we check the following
+-- elements of ary1.
 differenceCollisions :: Eq k => Hash -> A.Array (Leaf k v1) -> HashMap k v1 -> Hash -> A.Array (Leaf k v2) -> HashMap k v1
 differenceCollisions h1 ary1 t1 h2 ary2
   | h1 == h2 =
