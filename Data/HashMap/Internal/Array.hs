@@ -515,7 +515,7 @@ filter f = \ ary ->
             write mary iMary x
             go ary mary (iAry + 1) (iMary + 1) n
           else go ary mary (iAry + 1) iMary n
--- TODO: This should probably be inlined
+{-# INLINE filter #-}
 
 fromList :: Int -> [a] -> Array a
 fromList n xs0 =
