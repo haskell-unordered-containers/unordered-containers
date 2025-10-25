@@ -1143,7 +1143,7 @@ delete'' = go
                 let ary' = A.delete ary i
                     bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
                 in BitmapIndexed bm ary'
-            _ -> Full (A.update ary i st')
+            _ -> Full (updateFullArray ary i st')
       where i = index h s
     go h k _ t@(Collision hy v)
         | h == hy = case indexOf k v of
@@ -1192,7 +1192,7 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
                 let ary' = A.delete ary i
                     bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
                 in BitmapIndexed bm ary'
-            _ -> Full (A.update ary i st')
+            _ -> Full (updateFullArray ary i st')
       where i = indexSH shiftedHash
     go collPos _shiftedHash _k (Collision h v)
       | A.length v == 2
@@ -1853,9 +1853,7 @@ Or maybe this helps avoid more evaluations later on? (Check Cmm)
                   bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
               in BitmapIndexed bm ary1'
           st' | st `ptrEq` st' -> t1
-                -- TODO: Should probably use updateFullArray
-                -- (and in other places too!)
-              | otherwise -> Full (A.update ary1 i st')
+              | otherwise -> Full (updateFullArray ary1 i st')
       where i = index h2 s
 
     -- TODO: Why does $wdifferenceCollisions appear three times in the Core
