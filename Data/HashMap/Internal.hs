@@ -163,6 +163,7 @@ import Data.Functor.Identity      (Identity (..))
 import Data.Hashable              (Hashable)
 import Data.Hashable.Lifted       (Hashable1, Hashable2)
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
+import Data.Maybe                 (isNothing)
 import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
 import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
 import GHC.Stack                  (HasCallStack)
@@ -1102,7 +1103,10 @@ delete k m = delete' (hash k) k m
 {-# INLINABLE delete #-}
 
 delete' :: Eq k => Hash -> k -> HashMap k v -> HashMap k v
-delete' h0 k0 m0 = go h0 k0 0 m0
+delete' h0 k0 m0 = delete'' h0 k0 0 m0
+
+delete'' :: Eq k => Hash -> k -> Shift -> HashMap k v -> HashMap k v
+delete'' = go
   where
     go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky _))
@@ -1139,7 +1143,7 @@ delete' h0 k0 m0 = go h0 k0 0 m0
                 let ary' = A.delete ary i
                     bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
                 in BitmapIndexed bm ary'
-            _ -> Full (A.update ary i st')
+            _ -> Full (updateFullArray ary i st')
       where i = index h s
     go h k _ t@(Collision hy v)
         | h == hy = case indexOf k v of
@@ -1188,7 +1192,7 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
                 let ary' = A.delete ary i
                     bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
                 in BitmapIndexed bm ary'
-            _ -> Full (A.update ary i st')
+            _ -> Full (updateFullArray ary i st')
       where i = indexSH shiftedHash
     go collPos _shiftedHash _k (Collision h v)
       | A.length v == 2
@@ -1780,13 +1784,148 @@ mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 
 -- | \(O(n \log m)\) Difference of two maps. Return elements of the first map
 -- not existing in the second.
-difference :: (Eq k, Hashable k) => HashMap k v -> HashMap k w -> HashMap k v
-difference a b = foldlWithKey' go empty a
+difference :: Eq k => HashMap k v -> HashMap k w -> HashMap k v
+difference = go 0
   where
-    go m k v = case lookup k b of
-                 Nothing -> unsafeInsert k v m
-                 _       -> m
+{- Somehow we get repeated "cases of" on the Hashmap arguments:
+
+        $wgo1
+          = \ (ww :: Int#) (ds :: HashMap k v) (ds1 :: HashMap k w) ->
+              case ds of wild {
+                __DEFAULT ->
+                  case ds1 of wild1 {
+                    __DEFAULT ->
+                      case wild of wild2 {
+                        BitmapIndexed bx bx1 ->
+                          case wild1 of {
+                            BitmapIndexed bx2 bx3 ->
+
+Maybe don't force the first !_?!
+
+Or maybe this helps avoid more evaluations later on? (Check Cmm)
+-}
+    go !_s Empty !_ = Empty
+    go s t1@(Leaf h1 (L k1 _)) t2
+      = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
+    go _ t1 Empty = t1
+    go s t1 (Leaf h2 (L k2 _)) = delete'' h2 k2 s t1
+
+    go s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
+      = differenceArrays go s b1 ary1 t1 b2 ary2
+    go s t1@(Full ary1) (BitmapIndexed b2 ary2)
+      = differenceArrays go s fullBitmap ary1 t1 b2 ary2
+    go s t1@(BitmapIndexed b1 ary1) (Full ary2)
+      = differenceArrays go s b1 ary1 t1 fullBitmap ary2
+    go s t1@(Full ary1) (Full ary2)
+      = differenceArrays go s fullBitmap ary1 t1 fullBitmap ary2
+
+    go s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
+        | b2 .&. m == 0 = t1
+        | otherwise = go (nextShift s) t1 (A.index ary2 (sparseIndex b2 m))
+      where m = mask h1 s
+    go s t1@(Collision h1 _) (Full ary2)
+      = go (nextShift s) t1 (A.index ary2 (index h1 s))
+
+    go s t1@(BitmapIndexed b1 ary1) t2@(Collision h2 _)
+        | b1 .&. m == 0 = t1
+        | otherwise =
+            let !st = A.index ary1 i1
+            in case go (nextShift s) st t2 of
+              Empty {- | A.length ary1 == 1 -> Empty -- Impossible! -}
+                    | A.length ary1 == 2 ->
+                        case (i1, A.index ary1 0, A.index ary1 1) of
+                        (0, _, l) | isLeafOrCollision l -> l
+                        (1, l, _) | isLeafOrCollision l -> l
+                        _                               -> bIndexed
+                    | otherwise -> bIndexed
+                  where
+                    bIndexed = BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
+              st' | isLeafOrCollision st' && A.length ary1 == 1 -> st'
+                  | st `ptrEq` st' -> t1
+                  | otherwise -> BitmapIndexed b1 (A.update ary1 i1 st')
+      where
+        m = mask h2 s
+        i1 = sparseIndex b1 m
+    go s t1@(Full ary1) t2@(Collision h2 _)
+      = let !st = A.index ary1 i
+        in case go (nextShift s) st t2 of
+          Empty ->
+              let ary1' = A.delete ary1 i
+                  bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
+              in BitmapIndexed bm ary1'
+          st' | st `ptrEq` st' -> t1
+              | otherwise -> Full (updateFullArray ary1 i st')
+      where i = index h2 s
+
+    -- TODO: Why does $wdifferenceCollisions appear three times in the Core
+    -- for difference, and not just once?
+    go _ t1@(Collision h1 ary1) (Collision h2 ary2)
+      = differenceCollisions h1 ary1 t1 h2 ary2
 {-# INLINABLE difference #-}
+
+differenceArrays :: (Shift -> HashMap k1 v1 -> HashMap k1 v2 -> HashMap k1 v1) -> Shift -> Bitmap -> A.Array (HashMap k1 v1) -> HashMap k1 v1 -> Bitmap -> A.Array (HashMap k1 v2) -> HashMap k1 v1
+differenceArrays diff !s !b1 !ary1 !t1 !b2 !ary2
+  | b1 .&. b2 == 0 = t1
+  | {- b1 == b2 && -} A.unsafeSameArray ary1 ary2 = Empty
+  | otherwise = runST $ do
+    mary <- A.new_ $ A.length ary1
+
+    -- TODO: i == popCount bResult. Not sure if that would be faster.
+    -- Also i1 is in some relation with b1'
+    --
+    -- TODO: Depending on sameAs1 the Core contains jumps to either
+    -- $s$wgo or $s$wgo1. Maybe it would be better to keep track of
+    -- the "sameness" as an Int?!
+    let go !i !i1 !b1' !bResult !sameAs1
+          | b1' == 0 = pure (bResult, sameAs1)
+          | otherwise = do
+            !st1 <- A.indexM ary1 i1
+            case m .&. b2 of
+              0 -> do
+                A.write mary i st1
+                go (i + 1) (i1 + 1) nextB1' (bResult .|. m) sameAs1
+              _ -> do
+                !st2 <- A.indexM ary2 (sparseIndex b2 m)
+                case diff (nextShift s) st1 st2 of
+                  Empty -> go i (i1 + 1) nextB1' bResult False
+                  st -> do
+                    A.write mary i st
+                    let same = st `ptrEq` st1
+                    go (i + 1) (i1 + 1) nextB1' (bResult .|. m) (sameAs1 && same)
+          where
+            m = b1' .&. negate b1'
+            nextB1' = b1' .&. complement m
+
+    (bResult, sameAs1) <- go 0 0 b1 0 True -- FIXME: Does this allocate a tuple?
+    if sameAs1
+      then pure t1
+      else case popCount bResult of
+        0 -> pure Empty
+        1 -> do
+          l <- A.read mary 0
+          if isLeafOrCollision l
+            then pure l
+            else BitmapIndexed bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
+        n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
+{-# INLINABLE differenceArrays #-}
+
+-- TODO: This could be faster if we would keep track of which elements of ary2
+-- we've already matched. Those could be skipped when we check the following
+-- elements of ary1.
+--
+-- TODO: Get ary1 unboxed somehow?!
+differenceCollisions :: Eq k => Hash -> A.Array (Leaf k v1) -> HashMap k v1 -> Hash -> A.Array (Leaf k v2) -> HashMap k v1
+differenceCollisions !h1 !ary1 t1 !h2 !ary2
+  | h1 == h2 =
+    -- TODO: This actually allocates Maybes!
+    let ary = A.filter (\(L k1 _) -> isNothing (indexOf k1 ary2)) ary1
+    in case A.length ary of
+      0 -> Empty
+      1 -> Leaf h1 (A.index ary 0)
+      n | A.length ary1 == n -> t1
+        | otherwise -> Collision h1 ary
+  | otherwise = t1
+{-# INLINABLE differenceCollisions #-}
 
 -- | \(O(n \log m)\) Difference with a combining function. When two equal keys are
 -- encountered, the combining function is applied to the values of these keys.
