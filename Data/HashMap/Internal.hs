@@ -1805,7 +1805,8 @@ Maybe don't force the first !_?!
 Or maybe this helps avoid more evaluations later on? (Check Cmm)
 -}
     go !_s Empty !_ = Empty
-    go s t1@(Leaf h1 (L k1 _)) t2 = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
+    go s t1@(Leaf h1 (L k1 _)) t2
+      = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
     go _ t1 Empty = t1
     go s t1 (Leaf h2 (L k2 _)) = delete'' h2 k2 s t1
 
