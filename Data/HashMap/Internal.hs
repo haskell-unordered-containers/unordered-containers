@@ -1109,55 +1109,53 @@ delete' h0 k0 m0 = deleteSubTree h0 k0 0 m0
 -- | This version of 'delete' can be used on subtrees when a the
 -- corresponding 'Shift' argument is supplied.
 deleteSubTree :: Eq k => Hash -> k -> Shift -> HashMap k v -> HashMap k v
-deleteSubTree = go
-  where
-    go !_ !_ !_ Empty = Empty
-    go h k _ t@(Leaf hy (L ky _))
-        | hy == h && ky == k = Empty
-        | otherwise          = t
-    go h k s t@(BitmapIndexed b ary)
-        | b .&. m == 0 = t
-        | otherwise =
-            let !st = A.index ary i
-                !st' = go h k (nextShift s) st
-            in if st' `ptrEq` st
-                then t
-                else case st' of
-                Empty | A.length ary == 1 -> Empty
-                      | A.length ary == 2 ->
-                          case (i, A.index ary 0, A.index ary 1) of
-                          (0, _, l) | isLeafOrCollision l -> l
-                          (1, l, _) | isLeafOrCollision l -> l
-                          _                               -> bIndexed
-                      | otherwise -> bIndexed
-                    where
-                      bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
-                l | isLeafOrCollision l && A.length ary == 1 -> l
-                _ -> BitmapIndexed b (A.update ary i st')
-      where m = mask h s
-            i = sparseIndex b m
-    go h k s t@(Full ary) =
-        let !st   = A.index ary i
-            !st' = go h k (nextShift s) st
+deleteSubTree !_ !_ !_ Empty = Empty
+deleteSubTree h k _ t@(Leaf hy (L ky _))
+    | hy == h && ky == k = Empty
+    | otherwise          = t
+deleteSubTree h k s t@(BitmapIndexed b ary)
+    | b .&. m == 0 = t
+    | otherwise =
+        let !st = A.index ary i
+            !st' = deleteSubTree h k (nextShift s) st
         in if st' `ptrEq` st
             then t
             else case st' of
-            Empty ->
-                let ary' = A.delete ary i
-                    bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
-                in BitmapIndexed bm ary'
-            _ -> Full (updateFullArray ary i st')
-      where i = index h s
-    go h k _ t@(Collision hy v)
-        | h == hy = case indexOf k v of
-            Just i
-                | A.length v == 2 ->
-                    if i == 0
-                    then Leaf h (A.index v 1)
-                    else Leaf h (A.index v 0)
-                | otherwise -> Collision h (A.delete v i)
-            Nothing -> t
-        | otherwise = t
+            Empty | A.length ary == 1 -> Empty
+                  | A.length ary == 2 ->
+                      case (i, A.index ary 0, A.index ary 1) of
+                      (0, _, l) | isLeafOrCollision l -> l
+                      (1, l, _) | isLeafOrCollision l -> l
+                      _                               -> bIndexed
+                  | otherwise -> bIndexed
+                where
+                  bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
+            l | isLeafOrCollision l && A.length ary == 1 -> l
+            _ -> BitmapIndexed b (A.update ary i st')
+  where m = mask h s
+        i = sparseIndex b m
+deleteSubTree h k s t@(Full ary) =
+    let !st   = A.index ary i
+        !st' = deleteSubTree h k (nextShift s) st
+    in if st' `ptrEq` st
+        then t
+        else case st' of
+        Empty ->
+            let ary' = A.delete ary i
+                bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
+            in BitmapIndexed bm ary'
+        _ -> Full (updateFullArray ary i st')
+  where i = index h s
+deleteSubTree h k _ t@(Collision hy v)
+    | h == hy = case indexOf k v of
+        Just i
+            | A.length v == 2 ->
+                if i == 0
+                then Leaf h (A.index v 1)
+                else Leaf h (A.index v 0)
+            | otherwise -> Collision h (A.delete v i)
+        Nothing -> t
+    | otherwise = t
 {-# INLINABLE deleteSubTree #-}
 
 -- | Delete optimized for the case when we know the key is in the map.
