@@ -1810,13 +1810,13 @@ Or maybe this helps avoid more evaluations later on? (Check Cmm)
     go s t1 (Leaf h2 (L k2 _)) = deleteSubTree h2 k2 s t1
 
     go s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
-      = differenceArrays go s b1 ary1 t1 b2 ary2
+      = differenceArrays s b1 ary1 t1 b2 ary2
     go s t1@(Full ary1) (BitmapIndexed b2 ary2)
-      = differenceArrays go s fullBitmap ary1 t1 b2 ary2
+      = differenceArrays s fullBitmap ary1 t1 b2 ary2
     go s t1@(BitmapIndexed b1 ary1) (Full ary2)
-      = differenceArrays go s b1 ary1 t1 fullBitmap ary2
+      = differenceArrays s b1 ary1 t1 fullBitmap ary2
     go s t1@(Full ary1) (Full ary2)
-      = differenceArrays go s fullBitmap ary1 t1 fullBitmap ary2
+      = differenceArrays s fullBitmap ary1 t1 fullBitmap ary2
 
     go s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
         | b2 .&. m == 0 = t1
@@ -1860,53 +1860,52 @@ Or maybe this helps avoid more evaluations later on? (Check Cmm)
     -- for difference, and not just once?
     go _ t1@(Collision h1 ary1) (Collision h2 ary2)
       = differenceCollisions h1 ary1 t1 h2 ary2
+
+    differenceArrays !s !b1 !ary1 !t1 !b2 !ary2
+      | b1 .&. b2 == 0 = t1
+      | {- b1 == b2 && -} A.unsafeSameArray ary1 ary2 = Empty
+      | otherwise = runST $ do
+        mary <- A.new_ $ A.length ary1
+    
+        -- TODO: i == popCount bResult. Not sure if that would be faster.
+        -- Also i1 is in some relation with b1'
+        --
+        -- TODO: Depending on sameAs1 the Core contains jumps to either
+        -- $s$wgo or $s$wgo1. Maybe it would be better to keep track of
+        -- the "sameness" as an Int?!
+        let fill !i !i1 !b1' !bResult !sameAs1
+              | b1' == 0 = pure (bResult, sameAs1)
+              | otherwise = do
+                !st1 <- A.indexM ary1 i1
+                case m .&. b2 of
+                  0 -> do
+                    A.write mary i st1
+                    fill (i + 1) (i1 + 1) nextB1' (bResult .|. m) sameAs1
+                  _ -> do
+                    !st2 <- A.indexM ary2 (sparseIndex b2 m)
+                    case go (nextShift s) st1 st2 of
+                      Empty -> fill i (i1 + 1) nextB1' bResult False
+                      st -> do
+                        A.write mary i st
+                        let same = st `ptrEq` st1
+                        fill (i + 1) (i1 + 1) nextB1' (bResult .|. m) (sameAs1 && same)
+              where
+                m = b1' .&. negate b1'
+                nextB1' = b1' .&. complement m
+    
+        (bResult, sameAs1) <- fill 0 0 b1 0 True -- FIXME: Does this allocate a tuple?
+        if sameAs1
+          then pure t1
+          else case popCount bResult of
+            0 -> pure Empty
+            1 -> do
+              l <- A.read mary 0
+              if isLeafOrCollision l
+                then pure l
+                else BitmapIndexed bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
+            n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
+    {-# INLINABLE differenceArrays #-}
 {-# INLINABLE difference #-}
-
-differenceArrays :: (Shift -> HashMap k1 v1 -> HashMap k1 v2 -> HashMap k1 v1) -> Shift -> Bitmap -> A.Array (HashMap k1 v1) -> HashMap k1 v1 -> Bitmap -> A.Array (HashMap k1 v2) -> HashMap k1 v1
-differenceArrays diff !s !b1 !ary1 !t1 !b2 !ary2
-  | b1 .&. b2 == 0 = t1
-  | {- b1 == b2 && -} A.unsafeSameArray ary1 ary2 = Empty
-  | otherwise = runST $ do
-    mary <- A.new_ $ A.length ary1
-
-    -- TODO: i == popCount bResult. Not sure if that would be faster.
-    -- Also i1 is in some relation with b1'
-    --
-    -- TODO: Depending on sameAs1 the Core contains jumps to either
-    -- $s$wgo or $s$wgo1. Maybe it would be better to keep track of
-    -- the "sameness" as an Int?!
-    let go !i !i1 !b1' !bResult !sameAs1
-          | b1' == 0 = pure (bResult, sameAs1)
-          | otherwise = do
-            !st1 <- A.indexM ary1 i1
-            case m .&. b2 of
-              0 -> do
-                A.write mary i st1
-                go (i + 1) (i1 + 1) nextB1' (bResult .|. m) sameAs1
-              _ -> do
-                !st2 <- A.indexM ary2 (sparseIndex b2 m)
-                case diff (nextShift s) st1 st2 of
-                  Empty -> go i (i1 + 1) nextB1' bResult False
-                  st -> do
-                    A.write mary i st
-                    let same = st `ptrEq` st1
-                    go (i + 1) (i1 + 1) nextB1' (bResult .|. m) (sameAs1 && same)
-          where
-            m = b1' .&. negate b1'
-            nextB1' = b1' .&. complement m
-
-    (bResult, sameAs1) <- go 0 0 b1 0 True -- FIXME: Does this allocate a tuple?
-    if sameAs1
-      then pure t1
-      else case popCount bResult of
-        0 -> pure Empty
-        1 -> do
-          l <- A.read mary 0
-          if isLeafOrCollision l
-            then pure l
-            else BitmapIndexed bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
-        n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
-{-# INLINABLE differenceArrays #-}
 
 -- TODO: This could be faster if we would keep track of which elements of ary2
 -- we've already matched. Those could be skipped when we check the following
