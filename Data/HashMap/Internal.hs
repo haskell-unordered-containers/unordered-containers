@@ -1873,27 +1873,27 @@ Or maybe this helps avoid more evaluations later on? (Check Cmm)
         -- TODO: Depending on sameAs1 the Core contains jumps to either
         -- $s$wgo or $s$wgo1. Maybe it would be better to keep track of
         -- the "sameness" as an Int?!
-        let fill !i !i1 !b1' !bResult !sameAs1
+        let goDA !i !i1 !b1' !bResult !sameAs1
               | b1' == 0 = pure (bResult, sameAs1)
               | otherwise = do
                 !st1 <- A.indexM ary1 i1
                 case m .&. b2 of
                   0 -> do
                     A.write mary i st1
-                    fill (i + 1) (i1 + 1) nextB1' (bResult .|. m) sameAs1
+                    goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) sameAs1
                   _ -> do
                     !st2 <- A.indexM ary2 (sparseIndex b2 m)
                     case go (nextShift s) st1 st2 of
-                      Empty -> fill i (i1 + 1) nextB1' bResult False
+                      Empty -> goDA i (i1 + 1) nextB1' bResult False
                       st -> do
                         A.write mary i st
                         let same = st `ptrEq` st1
-                        fill (i + 1) (i1 + 1) nextB1' (bResult .|. m) (sameAs1 && same)
+                        goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) (sameAs1 && same)
               where
                 m = b1' .&. negate b1'
                 nextB1' = b1' .&. complement m
     
-        (bResult, sameAs1) <- fill 0 0 b1 0 True -- FIXME: Does this allocate a tuple?
+        (bResult, sameAs1) <- goDA 0 0 b1 0 True -- FIXME: Does this allocate a tuple?
         if sameAs1
           then pure t1
           else case popCount bResult of
