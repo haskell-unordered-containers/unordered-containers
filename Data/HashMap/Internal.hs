@@ -1104,6 +1104,7 @@ delete k m = delete' (hash k) k m
 
 delete' :: Eq k => Hash -> k -> HashMap k v -> HashMap k v
 delete' h0 k0 m0 = deleteSubTree h0 k0 0 m0
+{-# INLINABLE delete' #-}
 
 -- | This version of 'delete' can be used on subtrees when a the
 -- corresponding 'Shift' argument is supplied.
@@ -1157,7 +1158,7 @@ deleteSubTree = go
                 | otherwise -> Collision h (A.delete v i)
             Nothing -> t
         | otherwise = t
-{-# INLINABLE delete' #-}
+{-# INLINABLE deleteSubTree #-}
 
 -- | Delete optimized for the case when we know the key is in the map.
 --
