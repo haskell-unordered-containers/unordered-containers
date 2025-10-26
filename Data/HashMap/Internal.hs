@@ -1871,7 +1871,7 @@ difference = go 0
                       Empty -> goDA i (i1 + 1) nextB1' bResult (nChanges + 1)
                       st -> do
                         A.write mary i st
-                        let same = if st `ptrEq` st1 then 0 else 1
+                        let same = 1 - I# (Exts.reallyUnsafePtrEquality# st st1)
                         goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) (nChanges + same)
               where
                 m = b1' .&. negate b1'
