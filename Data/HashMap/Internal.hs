@@ -1861,7 +1861,7 @@ Or maybe this helps avoid more evaluations later on? (Check Cmm)
     go _ t1@(Collision h1 ary1) (Collision h2 ary2)
       = differenceCollisions h1 ary1 t1 h2 ary2
 
-    differenceArrays !s !b1 !ary1 !t1 !b2 !ary2
+    differenceArrays !s !b1 !ary1 t1 !b2 !ary2
       | b1 .&. b2 == 0 = t1
       | {- b1 == b2 && -} A.unsafeSameArray ary1 ary2 = Empty
       | otherwise = runST $ do
