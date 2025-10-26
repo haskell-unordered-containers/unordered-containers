@@ -1103,10 +1103,12 @@ delete k m = delete' (hash k) k m
 {-# INLINABLE delete #-}
 
 delete' :: Eq k => Hash -> k -> HashMap k v -> HashMap k v
-delete' h0 k0 m0 = delete'' h0 k0 0 m0
+delete' h0 k0 m0 = deleteSubTree h0 k0 0 m0
 
-delete'' :: Eq k => Hash -> k -> Shift -> HashMap k v -> HashMap k v
-delete'' = go
+-- | This version of 'delete' can be used on subtrees when a the
+-- corresponding 'Shift' argument is supplied.
+deleteSubTree :: Eq k => Hash -> k -> Shift -> HashMap k v -> HashMap k v
+deleteSubTree = go
   where
     go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky _))
@@ -1808,7 +1810,7 @@ Or maybe this helps avoid more evaluations later on? (Check Cmm)
     go s t1@(Leaf h1 (L k1 _)) t2
       = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
     go _ t1 Empty = t1
-    go s t1 (Leaf h2 (L k2 _)) = delete'' h2 k2 s t1
+    go s t1 (Leaf h2 (L k2 _)) = deleteSubTree h2 k2 s t1
 
     go s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
       = differenceArrays go s b1 ary1 t1 b2 ary2
