@@ -1820,10 +1820,10 @@ Or maybe this helps avoid more evaluations later on? (Check Cmm)
 
     go s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
         | b2 .&. m == 0 = t1
-        | otherwise = go (nextShift s) t1 $! A.index ary2 (sparseIndex b2 m)
+        | otherwise = go (nextShift s) t1 $ A.index ary2 (sparseIndex b2 m)
       where m = mask h1 s
     go s t1@(Collision h1 _) (Full ary2)
-      = go (nextShift s) t1 $! A.index ary2 (index h1 s)
+      = go (nextShift s) t1 $ A.index ary2 (index h1 s)
 
     go s t1@(BitmapIndexed b1 ary1) t2@(Collision h2 _)
         | b1 .&. m == 0 = t1
