@@ -499,7 +499,6 @@ map' f = \ ary ->
              go ary mary (i+1) n
 {-# INLINE map' #-}
 
--- TODO: Should this function return the old array when the length is unchanged?
 filter :: (a -> Bool) -> Array a -> Array a
 filter f = \ ary ->
     let !n = length ary
