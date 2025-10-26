@@ -1801,8 +1801,6 @@ difference = go 0
                           case wild1 of {
                             BitmapIndexed bx2 bx3 ->
 
-Maybe don't force the first !_?!
-
 Or maybe this helps avoid more evaluations later on? (Check Cmm)
 -}
     go !_s Empty !_ = Empty
