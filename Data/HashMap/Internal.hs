@@ -1788,21 +1788,6 @@ mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 difference :: Eq k => HashMap k v -> HashMap k w -> HashMap k v
 difference = go 0
   where
-{- Somehow we get repeated "cases of" on the Hashmap arguments:
-
-        $wgo1
-          = \ (ww :: Int#) (ds :: HashMap k v) (ds1 :: HashMap k w) ->
-              case ds of wild {
-                __DEFAULT ->
-                  case ds1 of wild1 {
-                    __DEFAULT ->
-                      case wild of wild2 {
-                        BitmapIndexed bx bx1 ->
-                          case wild1 of {
-                            BitmapIndexed bx2 bx3 ->
-
-Or maybe this helps avoid more evaluations later on? (Check Cmm)
--}
     go !_s Empty _ = Empty
     go s t1@(Leaf h1 (L k1 _)) t2
       = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
@@ -1856,14 +1841,12 @@ Or maybe this helps avoid more evaluations later on? (Check Cmm)
               | otherwise -> Full (updateFullArray ary1 i st')
       where i = index h2 s
 
-    -- TODO: Why does $wdifferenceCollisions appear three times in the Core
-    -- for difference, and not just once?
     go _ t1@(Collision h1 ary1) (Collision h2 ary2)
       = differenceCollisions h1 ary1 t1 h2 ary2
 
     differenceArrays !s !b1 !ary1 t1 !b2 !ary2
       | b1 .&. b2 == 0 = t1
-      | {- b1 == b2 && -} A.unsafeSameArray ary1 ary2 = Empty
+      | A.unsafeSameArray ary1 ary2 = Empty
       | otherwise = runST $ do
         mary <- A.new_ $ A.length ary1
     
@@ -1916,7 +1899,6 @@ Or maybe this helps avoid more evaluations later on? (Check Cmm)
 differenceCollisions :: Eq k => Hash -> A.Array (Leaf k v1) -> HashMap k v1 -> Hash -> A.Array (Leaf k v2) -> HashMap k v1
 differenceCollisions !h1 !ary1 t1 !h2 !ary2
   | h1 == h2 =
-    -- TODO: This actually allocates Maybes!
     let ary = A.filter (\(L k1 _) -> isNothing (indexOf k1 ary2)) ary1
     in case A.length ary of
       0 -> Empty
