@@ -1899,12 +1899,14 @@ difference = go 0
 differenceCollisions :: Eq k => Hash -> A.Array (Leaf k v1) -> HashMap k v1 -> Hash -> A.Array (Leaf k v2) -> HashMap k v1
 differenceCollisions !h1 !ary1 t1 !h2 !ary2
   | h1 == h2 =
-    let ary = A.filter (\(L k1 _) -> isNothing (indexOf k1 ary2)) ary1
-    in case A.length ary of
-      0 -> Empty
-      1 -> Leaf h1 (A.index ary 0)
-      n | A.length ary1 == n -> t1
-        | otherwise -> Collision h1 ary
+    if A.unsafeSameArray ary1 ary2
+      then Empty
+      else let ary = A.filter (\(L k1 _) -> isNothing (indexOf k1 ary2)) ary1
+           in case A.length ary of
+             0 -> Empty
+             1 -> Leaf h1 (A.index ary 0)
+             n | A.length ary1 == n -> t1
+               | otherwise -> Collision h1 ary
   | otherwise = t1
 {-# INLINABLE differenceCollisions #-}
 
