@@ -1894,8 +1894,8 @@ difference = go 0
 -- we've already matched. Those could be skipped when we check the following
 -- elements of ary1.
 --
--- TODO: Get ary1 unboxed somehow?! The reboxing is quite weird.
--- Maybe try a different order of arguments?!
+-- TODO: For some reason, ary2 is unboxed, but ary1 is not.
+-- https://gitlab.haskell.org/ghc/ghc/-/issues/26525
 differenceCollisions :: Eq k => Hash -> A.Array (Leaf k v1) -> HashMap k v1 -> Hash -> A.Array (Leaf k v2) -> HashMap k v1
 differenceCollisions !h1 !ary1 t1 !h2 !ary2
   | h1 == h2 =
