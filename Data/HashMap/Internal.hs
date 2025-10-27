@@ -1876,7 +1876,7 @@ difference = go 0
                 m = b1' .&. negate b1'
                 nextB1' = b1' .&. complement m
     
-        (bResult, nChanges) <- goDA 0 0 b1 0 (0 :: Int) -- FIXME: Does this allocate a tuple?
+        (bResult, nChanges) <- goDA 0 0 b1 0 (0 :: Int)
         if nChanges == 0
           then pure t1
           else case popCount bResult of
