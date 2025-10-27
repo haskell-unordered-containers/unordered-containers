@@ -1886,7 +1886,6 @@ difference = go 0
                 then pure l
                 else BitmapIndexed bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
             n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
-    {-# INLINABLE differenceArrays #-}
 {-# INLINABLE difference #-}
 
 -- TODO: This could be faster if we would keep track of which elements of ary2
