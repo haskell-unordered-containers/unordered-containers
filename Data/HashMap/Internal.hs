@@ -1869,8 +1869,9 @@ difference = go 0
                       Empty -> goDA i (i1 + 1) nextB1' bResult (nChanges + 1)
                       st -> do
                         A.write mary i st
-                        let same = 1 - I# (Exts.reallyUnsafePtrEquality# st st1)
-                        goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) (nChanges + same)
+                        let same = I# (Exts.reallyUnsafePtrEquality st st1)
+                        let nChanges' = nChanges + (1 - same)
+                        goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges'
               where
                 m = b1' .&. negate b1'
                 nextB1' = b1' .&. complement m
