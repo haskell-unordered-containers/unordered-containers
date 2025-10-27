@@ -1842,7 +1842,6 @@ difference = go 0
       where i = index h2 s
 
     go _ t1@(Collision h1 ary1) (Collision h2 ary2)
-      -- TODO: ary1 is always reboxed, t1 in one case. Can this be prevented?
       = differenceCollisions h1 ary1 t1 h2 ary2
 
     -- TODO: If we keep 'Full' (#399), differenceArrays could be optimized for
