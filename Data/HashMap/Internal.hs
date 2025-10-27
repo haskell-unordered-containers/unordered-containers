@@ -1845,6 +1845,8 @@ difference = go 0
       -- TODO: ary1 is always reboxed, t1 in one case. Can this be prevented?
       = differenceCollisions h1 ary1 t1 h2 ary2
 
+    -- TODO: If we keep 'Full' (#399), differenceArrays could be optimized for
+    -- each combination of 'Full' and 'BitmapIndexed`.
     differenceArrays !s !b1 !ary1 t1 !b2 !ary2
       | b1 .&. b2 == 0 = t1
       | A.unsafeSameArray ary1 ary2 = Empty
@@ -1853,10 +1855,6 @@ difference = go 0
     
         -- TODO: i == popCount bResult. Not sure if that would be faster.
         -- Also i1 is in some relation with b1'
-        --
-        -- TODO: Depending on sameAs1 the Core contains jumps to either
-        -- $s$wgo or $s$wgo1. Maybe it would be better to keep track of
-        -- the "sameness" as an Int?!
         let goDA !i !i1 !b1' !bResult !nChanges
               | b1' == 0 = pure (bResult, nChanges)
               | otherwise = do
