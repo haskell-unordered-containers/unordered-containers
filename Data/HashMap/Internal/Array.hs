@@ -507,7 +507,10 @@ filter f = \ ary ->
       len <- go ary mary 0 0 n
       shrink mary len
   where
-    go ary mary iAry iMary n
+    -- Without the @!@ on @ary@ we end up reboxing the array when using
+    -- 'differenceCollisions'. See
+    -- https://gitlab.haskell.org/ghc/ghc/-/issues/26525.
+    go !ary !mary !iAry !iMary !n
       | iAry >= n = return iMary
       | otherwise = do
         x <- indexM ary iAry
