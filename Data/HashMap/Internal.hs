@@ -1786,38 +1786,38 @@ mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 -- | \(O(n \log m)\) Difference of two maps. Return elements of the first map
 -- not existing in the second.
 difference :: Eq k => HashMap k v -> HashMap k w -> HashMap k v
-difference = go 0
+difference = go_difference 0
   where
-    go !_s Empty _ = Empty
-    go s t1@(Leaf h1 (L k1 _)) t2
+    go_difference !_s Empty _ = Empty
+    go_difference s t1@(Leaf h1 (L k1 _)) t2
       = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
-    go _ t1 Empty = t1
-    go s t1 (Leaf h2 (L k2 _)) = deleteSubTree h2 k2 s t1
+    go_difference _ t1 Empty = t1
+    go_difference s t1 (Leaf h2 (L k2 _)) = deleteSubTree h2 k2 s t1
 
-    go s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
+    go_difference s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
       = differenceArrays s b1 ary1 t1 b2 ary2
-    go s t1@(Full ary1) (BitmapIndexed b2 ary2)
+    go_difference s t1@(Full ary1) (BitmapIndexed b2 ary2)
       = differenceArrays s fullBitmap ary1 t1 b2 ary2
-    go s t1@(BitmapIndexed b1 ary1) (Full ary2)
+    go_difference s t1@(BitmapIndexed b1 ary1) (Full ary2)
       = differenceArrays s b1 ary1 t1 fullBitmap ary2
-    go s t1@(Full ary1) (Full ary2)
+    go_difference s t1@(Full ary1) (Full ary2)
       = differenceArrays s fullBitmap ary1 t1 fullBitmap ary2
 
-    go s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
+    go_difference s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
         | b2 .&. m == 0 = t1
         | otherwise =
           case A.index# ary2 (sparseIndex b2 m) of
-            (# st2 #) -> go (nextShift s) t1 st2
+            (# st2 #) -> go_difference (nextShift s) t1 st2
       where m = mask h1 s
-    go s t1@(Collision h1 _) (Full ary2)
+    go_difference s t1@(Collision h1 _) (Full ary2)
       = case A.index# ary2 (index h1 s) of
-          (# st2 #) -> go (nextShift s) t1 st2
+          (# st2 #) -> go_difference (nextShift s) t1 st2
 
-    go s t1@(BitmapIndexed b1 ary1) t2@(Collision h2 _)
+    go_difference s t1@(BitmapIndexed b1 ary1) t2@(Collision h2 _)
         | b1 .&. m == 0 = t1
         | otherwise =
             let (# !st #) = A.index# ary1 i1
-            in case go (nextShift s) st t2 of
+            in case go_difference (nextShift s) st t2 of
               Empty {- | A.length ary1 == 1 -> Empty -- Impossible! -}
                     | A.length ary1 == 2 ->
                         case (i1, A.index ary1 0, A.index ary1 1) of
@@ -1826,16 +1826,17 @@ difference = go 0
                         _                               -> bIndexed
                     | otherwise -> bIndexed
                   where
-                    bIndexed = BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
+                    bIndexed
+                      = BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
               st' | isLeafOrCollision st' && A.length ary1 == 1 -> st'
                   | st `ptrEq` st' -> t1
                   | otherwise -> BitmapIndexed b1 (A.update ary1 i1 st')
       where
         m = mask h2 s
         i1 = sparseIndex b1 m
-    go s t1@(Full ary1) t2@(Collision h2 _)
+    go_difference s t1@(Full ary1) t2@(Collision h2 _)
       = let (# !st #) = A.index# ary1 i
-        in case go (nextShift s) st t2 of
+        in case go_difference (nextShift s) st t2 of
           Empty ->
               let ary1' = A.delete ary1 i
                   bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
@@ -1844,7 +1845,7 @@ difference = go 0
               | otherwise -> Full (updateFullArray ary1 i st')
       where i = index h2 s
 
-    go _ t1@(Collision h1 ary1) (Collision h2 ary2)
+    go_difference _ t1@(Collision h1 ary1) (Collision h2 ary2)
       = differenceCollisions h1 ary1 t1 h2 ary2
 
     -- TODO: If we keep 'Full' (#399), differenceArrays could be optimized for
@@ -1867,7 +1868,7 @@ difference = go 0
                     goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges
                   _ -> do
                     !st2 <- A.indexM ary2 (sparseIndex b2 m)
-                    case go (nextShift s) st1 st2 of
+                    case go_difference (nextShift s) st1 st2 of
                       Empty -> goDA i (i1 + 1) nextB1' bResult (nChanges + 1)
                       st -> do
                         A.write mary i st

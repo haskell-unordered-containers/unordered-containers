@@ -504,21 +504,21 @@ filter f = \ ary ->
     let !n = length ary
     in run $ do
       mary <- new_ n
-      len <- go ary mary 0 0 n
+      len <- go_filter ary mary 0 0 n
       shrink mary len
   where
     -- Without the @!@ on @ary@ we end up reboxing the array when using
     -- 'differenceCollisions'. See
     -- https://gitlab.haskell.org/ghc/ghc/-/issues/26525.
-    go !ary !mary !iAry !iMary !n
+    go_filter !ary !mary !iAry !iMary !n
       | iAry >= n = return iMary
       | otherwise = do
         x <- indexM ary iAry
         if f x
           then do
             write mary iMary x
-            go ary mary (iAry + 1) (iMary + 1) n
-          else go ary mary (iAry + 1) iMary n
+            go_filter ary mary (iAry + 1) (iMary + 1) n
+          else go_filter ary mary (iAry + 1) iMary n
 {-# INLINE filter #-}
 
 fromList :: Int -> [a] -> Array a
