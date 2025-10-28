@@ -1805,15 +1805,18 @@ difference = go 0
 
     go s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
         | b2 .&. m == 0 = t1
-        | otherwise = go (nextShift s) t1 $! A.index ary2 (sparseIndex b2 m)
+        | otherwise =
+          case A.index# ary2 (sparseIndex b2 m) of
+            (# st2 #) -> go (nextShift s) t1 st2
       where m = mask h1 s
     go s t1@(Collision h1 _) (Full ary2)
-      = go (nextShift s) t1 $! A.index ary2 (index h1 s)
+      = case A.index# ary2 (index h1 s) of
+          (# st2 #) -> go (nextShift s) t1 st2
 
     go s t1@(BitmapIndexed b1 ary1) t2@(Collision h2 _)
         | b1 .&. m == 0 = t1
         | otherwise =
-            let !st = A.index ary1 i1
+            let (# !st #) = A.index# ary1 i1
             in case go (nextShift s) st t2 of
               Empty {- | A.length ary1 == 1 -> Empty -- Impossible! -}
                     | A.length ary1 == 2 ->
@@ -1831,7 +1834,7 @@ difference = go 0
         m = mask h2 s
         i1 = sparseIndex b1 m
     go s t1@(Full ary1) t2@(Collision h2 _)
-      = let !st = A.index ary1 i
+      = let (# !st #) = A.index# ary1 i
         in case go (nextShift s) st t2 of
           Empty ->
               let ary1' = A.delete ary1 i
@@ -1899,7 +1902,8 @@ differenceCollisions !h1 !ary1 t1 !h2 !ary2
       else let ary = A.filter (\(L k1 _) -> isNothing (indexOf k1 ary2)) ary1
            in case A.length ary of
              0 -> Empty
-             1 -> Leaf h1 (A.index ary 0)
+             1 -> case A.index# ary 0 of
+                    (# l #) -> Leaf h1 l
              n | A.length ary1 == n -> t1
                | otherwise -> Collision h1 ary
   | otherwise = t1
