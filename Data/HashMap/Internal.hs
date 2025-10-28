@@ -77,6 +77,7 @@ module Data.HashMap.Internal
       -- * Difference and intersection
     , difference
     , differenceWith
+    , differenceWithKey
     , intersection
     , intersectionWith
     , intersectionWithKey
@@ -1917,13 +1918,174 @@ differenceCollisions !h1 !ary1 t1 !h2 !ary2
 -- encountered, the combining function is applied to the values of these keys.
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
-differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
-differenceWith f a b = foldlWithKey' go empty a
-  where
-    go m k v = case lookup k b of
-                 Nothing -> unsafeInsert k v m
-                 Just w  -> maybe m (\y -> unsafeInsert k y m) (f v w)
+differenceWith :: Eq k => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
+differenceWith f = differenceWithKey (const f)
 {-# INLINABLE differenceWith #-}
+
+-- | \(O(n \log m)\) Difference with a combining function. When two equal keys are
+-- encountered, the combining function is applied to the values of these keys.
+-- If it returns 'Nothing', the element is discarded (proper set difference). If
+-- it returns (@'Just' y@), the element is updated with a new value @y@.
+differenceWithKey :: Eq k => (k -> v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
+differenceWithKey = go_differenceWithKey 0
+  where
+    go_differenceWithKey !_s _f Empty _tB = Empty
+    go_differenceWithKey _s _f a Empty = a
+    go_differenceWithKey s f a@(Leaf hA (L kA vA)) b
+      = lookupCont
+          (\_ -> a)
+          (\vB _ -> case f kA vA vB of
+              Nothing -> Empty
+              Just v | v `ptrEq` vA -> a
+                     | otherwise -> Leaf hA (L kA v))
+          hA kA s b
+    go_differenceWithKey s f a@(BitmapIndexed bA aryA) b@(Leaf hB _)
+      | bA .&. m == 0 = a
+      | otherwise = case A.index# aryA i of
+          (# !stA #) -> case go_differenceWithKey (nextShift s) f stA b of
+            Empty | A.length aryA == 2
+                  , (# l #) <- A.index# aryA (otherOfOneOrZero i)
+                  , isLeafOrCollision l
+                  -> l
+                  | otherwise
+                  -> BitmapIndexed (bA .&. complement m) (A.delete aryA i)
+            stA' | isLeafOrCollision stA' && A.length aryA == 1 -> stA'
+                 | stA `ptrEq` stA' -> a
+                 | otherwise -> BitmapIndexed bA (A.update aryA i stA')
+      where
+        m = mask hB s
+        i = sparseIndex bA m
+    go_differenceWithKey s f a@(Full aryA) b@(Leaf hB _)
+      = let (# !stA #) = A.index# aryA i
+        in case go_differenceWithKey (nextShift s) f stA b of
+          Empty ->
+              let aryA' = A.delete aryA i
+                  bm    = fullBitmap .&. complement (1 `unsafeShiftL` i)
+              in BitmapIndexed bm aryA'
+          stA' | stA `ptrEq` stA' -> a
+               | otherwise -> Full (updateFullArray aryA i stA')
+      where i = index hB s
+    go_differenceWithKey _s f a@(Collision hA aryA) (Leaf hB (L kB vB))
+      | hA == hB
+        = lookupInArrayCont
+            (\_ -> a)
+            (\vA i -> case f kB vA vB of
+                Nothing | A.length aryA == 2
+                        , (# l #) <- A.index# aryA (otherOfOneOrZero i)
+                        -> Leaf hA l
+                        | otherwise -> Collision hA (A.delete aryA i)
+                Just v | v `ptrEq` vA -> a
+                       | otherwise -> Collision hA (A.update aryA i (L kB v)))
+            kB aryA
+      | otherwise = a
+    go_differenceWithKey s f a@(BitmapIndexed bA aryA) b@(Collision hB _)
+        | bA .&. m == 0 = a
+        | otherwise =
+            let (# !st #) = A.index# aryA i
+            in case go_differenceWithKey (nextShift s) f st b of
+              Empty | A.length aryA == 2
+                    , (# l #) <- A.index# aryA (otherOfOneOrZero i)
+                    , isLeafOrCollision l
+                    -> l
+                    | otherwise
+                    -> BitmapIndexed (bA .&. complement m) (A.delete aryA i)
+              st' | isLeafOrCollision st' && A.length aryA == 1 -> st'
+                  | st `ptrEq` st' -> a
+                  | otherwise -> BitmapIndexed bA (A.update aryA i st')
+      where
+        m = mask hB s
+        i = sparseIndex bA m
+    go_differenceWithKey s f a@(Full aryA) b@(Collision hB _)
+      = let (# !stA #) = A.index# aryA i
+        in case go_differenceWithKey (nextShift s) f stA b of
+          Empty ->
+              let aryA' = A.delete aryA i
+                  bm    = fullBitmap .&. complement (1 `unsafeShiftL` i)
+              in BitmapIndexed bm aryA'
+          stA' | stA `ptrEq` stA' -> a
+               | otherwise -> Full (updateFullArray aryA i stA')
+      where i = index hB s
+    go_differenceWithKey s f a@(Collision hA _) (BitmapIndexed bB aryB)
+        | bB .&. m == 0 = a
+        | otherwise =
+          case A.index# aryB (sparseIndex bB m) of
+            (# stB #) -> go_differenceWithKey (nextShift s) f a stB
+      where m = mask hA s
+    go_differenceWithKey s f a@(Collision hA _) (Full aryB)
+      = case A.index# aryB (index hA s) of
+          (# stB #) -> go_differenceWithKey (nextShift s) f a stB
+    go_differenceWithKey s f a@(BitmapIndexed bA aryA) (BitmapIndexed bB aryB)
+      = differenceWithKey_Arrays s f bA aryA a bB aryB
+    go_differenceWithKey s f a@(Full aryA) (BitmapIndexed bB aryB)
+      = differenceWithKey_Arrays s f fullBitmap aryA a bB aryB
+    go_differenceWithKey s f a@(BitmapIndexed bA aryA) (Full aryB)
+      = differenceWithKey_Arrays s f bA aryA a fullBitmap aryB
+    go_differenceWithKey s f a@(Full aryA) (Full aryB)
+      = differenceWithKey_Arrays s f fullBitmap aryA a fullBitmap aryB
+    go_differenceWithKey _s f a@(Collision hA aryA) (Collision hB aryB)
+      = differenceWithKey_Collisions f hA aryA a hB aryB
+
+    differenceWithKey_Arrays !s f !bA !aryA tA !bB !aryB
+      | bA .&. bB == 0 = tA
+      | otherwise = runST $ do
+        mary <- A.new_ $ A.length aryA
+
+        -- TODO: i == popCount bResult. Not sure if that would be faster.
+        -- Also iA is in some relation with bA'
+        let go_dWKA !i !iA !bA' !bResult !nChanges
+              | bA' == 0 = pure (bResult, nChanges)
+              | otherwise = do
+                !stA <- A.indexM aryA iA
+                case m .&. bB of
+                  0 -> do
+                    A.write mary i stA
+                    go_dWKA (i + 1) (iA + 1) nextBA' (bResult .|. m) nChanges
+                  _ -> do
+                    !stB <- A.indexM aryB (sparseIndex bB m)
+                    case go_differenceWithKey (nextShift s) f stA stB of
+                      Empty -> go_dWKA i (iA + 1) nextBA' bResult (nChanges + 1)
+                      st -> do
+                        A.write mary i st
+                        let same = I# (Exts.reallyUnsafePtrEquality# st stA)
+                        let nChanges' = nChanges + (1 - same)
+                        go_dWKA (i + 1) (iA + 1) nextBA' (bResult .|. m) nChanges'
+              where
+                m = bA' .&. negate bA'
+                nextBA' = bA' .&. complement m
+
+        (bResult, nChanges) <- go_dWKA 0 0 bA 0 0
+        if nChanges == 0
+          then pure tA
+          else case popCount bResult of
+            0 -> pure Empty
+            1 -> do
+              l <- A.read mary 0
+              if isLeafOrCollision l
+                then pure l
+                else BitmapIndexed bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
+            n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
+{-# INLINABLE differenceWithKey #-}
+
+-- TODO: This could be faster if we would keep track of which elements of ary2
+-- we've already matched. Those could be skipped when we check the following
+-- elements of ary1.
+-- TODO: Return tA when the array is unchanged.
+differenceWithKey_Collisions :: Eq k => (k -> v -> w -> Maybe v) -> Word -> A.Array (Leaf k v) -> HashMap k v -> Word -> A.Array (Leaf k w) -> HashMap k v
+differenceWithKey_Collisions f !hA !aryA !tA !hB !aryB
+  | hA == hB =
+      let f' l@(L kA vA) =
+           lookupInArrayCont
+             (\_ -> Just l)
+             (\vB _ -> L kA <$> f kA vA vB)
+             kA aryB
+          ary = A.mapMaybe f' aryA
+      in case A.length ary of
+        0 -> Empty
+        1 -> case A.index# ary 0 of
+               (# l #) -> Leaf hA l
+        _ -> Collision hA ary
+  | otherwise = tA
+{-# INLINABLE differenceWithKey_Collisions #-}
 
 -- | \(O(n \log m)\) Intersection of two maps. Return elements of the first
 -- map for keys existing in the second.

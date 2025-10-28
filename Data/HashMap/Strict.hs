@@ -70,6 +70,7 @@ module Data.HashMap.Strict
       -- * Difference and intersection
     , difference
     , differenceWith
+    , differenceWithKey
     , intersection
     , intersectionWith
     , intersectionWithKey

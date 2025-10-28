@@ -90,6 +90,7 @@ module Data.HashMap.Internal.Strict
       -- * Difference and intersection
     , HM.difference
     , differenceWith
+    , differenceWithKey
     , HM.intersection
     , intersectionWith
     , intersectionWithKey
@@ -617,12 +618,15 @@ traverseWithKey f = go
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
 differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
-differenceWith f a b = HM.foldlWithKey' go HM.empty a
-  where
-    go m k v = case HM.lookup k b of
-                 Nothing -> v `seq` HM.unsafeInsert k v m
-                 Just w  -> maybe m (\ !y -> HM.unsafeInsert k y m) (f v w)
+differenceWith f = differenceWithKey (const f)
 {-# INLINABLE differenceWith #-}
+
+differenceWithKey :: Eq k => (k -> v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
+differenceWithKey f = HM.differenceWithKey $
+   \k vA vB -> case f k vA vB of
+     Nothing -> Nothing
+     x@(Just !_v) -> x
+{-# INLINABLE differenceWithKey #-}
 
 -- | \(O(n+m)\) Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
