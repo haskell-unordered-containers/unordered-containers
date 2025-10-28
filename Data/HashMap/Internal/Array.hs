@@ -72,6 +72,7 @@ module Data.HashMap.Internal.Array
     , thaw
     , map
     , map'
+    , filter
     , traverse
     , traverse'
     , toList
@@ -113,12 +114,14 @@ import qualified Prelude
 if (_k_) < 0 || (_k_) >= (_len_) then error ("Data.HashMap.Internal.Array." ++ (_func_) ++ ": bounds error, offset " ++ show (_k_) ++ ", length " ++ show (_len_)) else
 # define CHECK_OP(_func_,_op_,_lhs_,_rhs_) \
 if not ((_lhs_) _op_ (_rhs_)) then error ("Data.HashMap.Internal.Array." ++ (_func_) ++ ": Check failed: _lhs_ _op_ _rhs_ (" ++ show (_lhs_) ++ " vs. " ++ show (_rhs_) ++ ")") else
+# define CHECK_GE(_func_,_lhs_,_rhs_) CHECK_OP(_func_,>=,_lhs_,_rhs_)
 # define CHECK_GT(_func_,_lhs_,_rhs_) CHECK_OP(_func_,>,_lhs_,_rhs_)
 # define CHECK_LE(_func_,_lhs_,_rhs_) CHECK_OP(_func_,<=,_lhs_,_rhs_)
 # define CHECK_EQ(_func_,_lhs_,_rhs_) CHECK_OP(_func_,==,_lhs_,_rhs_)
 #else
 # define CHECK_BOUNDS(_func_,_len_,_k_)
 # define CHECK_OP(_func_,_op_,_lhs_,_rhs_)
+# define CHECK_GE(_func_,_lhs_,_rhs_)
 # define CHECK_GT(_func_,_lhs_,_rhs_)
 # define CHECK_LE(_func_,_lhs_,_rhs_)
 # define CHECK_EQ(_func_,_lhs_,_rhs_)
@@ -221,7 +224,7 @@ new_ n = new n undefinedElem
 -- | The returned array is the same as the array given, as it is shrunk in place.
 shrink :: MArray s a -> Int -> ST s (MArray s a)
 shrink mary _n@(I# n#) =
-  CHECK_GT("shrink", _n, (0 :: Int))
+  CHECK_GE("shrink", _n, (0 :: Int))
   CHECK_LE("shrink", _n, (unsafeLengthM mary))
   ST $ \s -> case Exts.shrinkSmallMutableArray# (unMArray mary) n# s of
     s' -> (# s', mary #)
@@ -495,6 +498,28 @@ map' f = \ ary ->
              write mary i $! f x
              go ary mary (i+1) n
 {-# INLINE map' #-}
+
+filter :: (a -> Bool) -> Array a -> Array a
+filter f = \ ary ->
+    let !n = length ary
+    in run $ do
+      mary <- new_ n
+      len <- go_filter ary mary 0 0 n
+      shrink mary len
+  where
+    -- Without the @!@ on @ary@ we end up reboxing the array when using
+    -- 'differenceCollisions'. See
+    -- https://gitlab.haskell.org/ghc/ghc/-/issues/26525.
+    go_filter !ary !mary !iAry !iMary !n
+      | iAry >= n = return iMary
+      | otherwise = do
+        x <- indexM ary iAry
+        if f x
+          then do
+            write mary iMary x
+            go_filter ary mary (iAry + 1) (iMary + 1) n
+          else go_filter ary mary (iAry + 1) iMary n
+{-# INLINE filter #-}
 
 fromList :: Int -> [a] -> Array a
 fromList n xs0 =
