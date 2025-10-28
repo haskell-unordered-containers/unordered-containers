@@ -1103,21 +1103,21 @@ delete k m = delete' (hash k) k m
 {-# INLINABLE delete #-}
 
 delete' :: Eq k => Hash -> k -> HashMap k v -> HashMap k v
-delete' h0 k0 m0 = deleteSubTree h0 k0 0 m0
+delete' h0 k0 m0 = deleteFromSubtree h0 k0 0 m0
 {-# INLINABLE delete' #-}
 
 -- | This version of 'delete' can be used on subtrees when a the
 -- corresponding 'Shift' argument is supplied.
-deleteSubTree :: Eq k => Hash -> k -> Shift -> HashMap k v -> HashMap k v
-deleteSubTree !_ !_ !_ Empty = Empty
-deleteSubTree h k _ t@(Leaf hy (L ky _))
+deleteFromSubtree :: Eq k => Hash -> k -> Shift -> HashMap k v -> HashMap k v
+deleteFromSubtree !_ !_ !_ Empty = Empty
+deleteFromSubtree h k _ t@(Leaf hy (L ky _))
     | hy == h && ky == k = Empty
     | otherwise          = t
-deleteSubTree h k s t@(BitmapIndexed b ary)
+deleteFromSubtree h k s t@(BitmapIndexed b ary)
     | b .&. m == 0 = t
     | otherwise =
         let !st = A.index ary i
-            !st' = deleteSubTree h k (nextShift s) st
+            !st' = deleteFromSubtree h k (nextShift s) st
         in if st' `ptrEq` st
             then t
             else case st' of
@@ -1134,9 +1134,9 @@ deleteSubTree h k s t@(BitmapIndexed b ary)
             _ -> BitmapIndexed b (A.update ary i st')
   where m = mask h s
         i = sparseIndex b m
-deleteSubTree h k s t@(Full ary) =
+deleteFromSubtree h k s t@(Full ary) =
     let !st   = A.index ary i
-        !st' = deleteSubTree h k (nextShift s) st
+        !st' = deleteFromSubtree h k (nextShift s) st
     in if st' `ptrEq` st
         then t
         else case st' of
@@ -1146,7 +1146,7 @@ deleteSubTree h k s t@(Full ary) =
             in BitmapIndexed bm ary'
         _ -> Full (updateFullArray ary i st')
   where i = index h s
-deleteSubTree h k _ t@(Collision hy v)
+deleteFromSubtree h k _ t@(Collision hy v)
     | h == hy = case indexOf k v of
         Just i
             | A.length v == 2 ->
@@ -1156,7 +1156,7 @@ deleteSubTree h k _ t@(Collision hy v)
             | otherwise -> Collision h (A.delete v i)
         Nothing -> t
     | otherwise = t
-{-# INLINABLE deleteSubTree #-}
+{-# INLINABLE deleteFromSubtree #-}
 
 -- | Delete optimized for the case when we know the key is in the map.
 --
@@ -1792,7 +1792,7 @@ difference = go_difference 0
     go_difference s t1@(Leaf h1 (L k1 _)) t2
       = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
     go_difference _ t1 Empty = t1
-    go_difference s t1 (Leaf h2 (L k2 _)) = deleteSubTree h2 k2 s t1
+    go_difference s t1 (Leaf h2 (L k2 _)) = deleteFromSubtree h2 k2 s t1
 
     go_difference s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
       = differenceArrays s b1 ary1 t1 b2 ary2
