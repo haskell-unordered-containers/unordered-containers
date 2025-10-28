@@ -1121,15 +1121,12 @@ deleteFromSubtree h k s t@(BitmapIndexed b ary)
         in if st' `ptrEq` st
             then t
             else case st' of
-            Empty | A.length ary == 1 -> Empty
-                  | A.length ary == 2 ->
-                      case (i, A.index ary 0, A.index ary 1) of
-                      (0, _, l) | isLeafOrCollision l -> l
-                      (1, l, _) | isLeafOrCollision l -> l
-                      _                               -> bIndexed
-                  | otherwise -> bIndexed
-                where
-                  bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
+            Empty | A.length ary == 2
+                  , (# l #) <- A.index# ary (otherOfOneOrZero i)
+                  , isLeafOrCollision l
+                    -> l
+                  | otherwise
+                    -> BitmapIndexed (b .&. complement m) (A.delete ary i)
             l | isLeafOrCollision l && A.length ary == 1 -> l
             _ -> BitmapIndexed b (A.update ary i st')
   where m = mask h s
@@ -1149,10 +1146,9 @@ deleteFromSubtree h k s t@(Full ary) =
 deleteFromSubtree h k _ t@(Collision hy v)
     | h == hy = case indexOf k v of
         Just i
-            | A.length v == 2 ->
-                if i == 0
-                then Leaf h (A.index v 1)
-                else Leaf h (A.index v 0)
+            | A.length v == 2
+            , (# l #) <- A.index# v (otherOfOneOrZero i)
+              -> Leaf h l
             | otherwise -> Collision h (A.delete v i)
         Nothing -> t
     | otherwise = t
@@ -1172,15 +1168,12 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
             let !st = A.index ary i
                 !st' = go collPos (nextSH shiftedHash) k st
             in case st' of
-                Empty | A.length ary == 1 -> Empty
-                      | A.length ary == 2 ->
-                          case (i, A.index ary 0, A.index ary 1) of
-                          (0, _, l) | isLeafOrCollision l -> l
-                          (1, l, _) | isLeafOrCollision l -> l
-                          _                               -> bIndexed
-                      | otherwise -> bIndexed
-                    where
-                      bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
+                Empty | A.length ary == 2
+                      , (# l #) <- A.index# ary (otherOfOneOrZero i)
+                      , isLeafOrCollision l
+                      -> l
+                      | otherwise
+                      -> BitmapIndexed (b .&. complement m) (A.delete ary i)
                 l | isLeafOrCollision l && A.length ary == 1 -> l
                 _ -> BitmapIndexed b (A.update ary i st')
       where m = maskSH shiftedHash
@@ -1197,9 +1190,8 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
       where i = indexSH shiftedHash
     go collPos _shiftedHash _k (Collision h v)
       | A.length v == 2
-      = if collPos == 0
-        then Leaf h (A.index v 1)
-        else Leaf h (A.index v 0)
+      , (# l #) <- A.index# v (otherOfOneOrZero collPos)
+      = Leaf h l
       | otherwise = Collision h (A.delete v collPos)
     go !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
 {-# NOINLINE deleteKeyExists #-}
@@ -1818,16 +1810,12 @@ difference = go_difference 0
         | otherwise =
             let (# !st #) = A.index# ary1 i1
             in case go_difference (nextShift s) st t2 of
-              Empty {- | A.length ary1 == 1 -> Empty -- Impossible! -}
-                    | A.length ary1 == 2 ->
-                        case (i1, A.index ary1 0, A.index ary1 1) of
-                        (0, _, l) | isLeafOrCollision l -> l
-                        (1, l, _) | isLeafOrCollision l -> l
-                        _                               -> bIndexed
-                    | otherwise -> bIndexed
-                  where
-                    bIndexed
-                      = BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
+              Empty | A.length ary1 == 2
+                    , (# l #) <- A.index# ary1 (otherOfOneOrZero i1)
+                    , isLeafOrCollision l
+                    -> l
+                    | otherwise
+                    -> BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
               st' | isLeafOrCollision st' && A.length ary1 == 1 -> st'
                   | st `ptrEq` st' -> t1
                   | otherwise -> BitmapIndexed b1 (A.update ary1 i1 st')
@@ -2638,6 +2626,18 @@ maskSH sh = 1 `unsafeShiftL` indexSH sh
 ptrEq :: a -> a -> Bool
 ptrEq x y = Exts.isTrue# (Exts.reallyUnsafePtrEquality# x y ==# 1#)
 {-# INLINE ptrEq #-}
+
+------------------------------------------------------------------------
+-- Array index arithmetic
+
+-- |
+-- >>> otherOfOneOrZero 0
+-- 1
+-- >>> otherOfOneOrZero 1
+-- 0
+otherOfOneOrZero :: Int -> Int
+otherOfOneOrZero i = 1 - i
+{-# INLINE otherOfOneOrZero #-}
 
 ------------------------------------------------------------------------
 -- IsList instance
