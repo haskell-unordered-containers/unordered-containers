@@ -717,11 +717,13 @@ lookupCont absent present !h0 !k0 !s0 !m0 = go h0 k0 s0 m0
         | otherwise          = absent (# #)
     go h k s (BitmapIndexed b v)
         | b .&. m == 0 = absent (# #)
-        | otherwise    =
-            go h k (nextShift s) (A.index v (sparseIndex b m))
+        | otherwise =
+            case A.index# v (sparseIndex b m) of
+              (# st #) -> go h k (nextShift s) st
       where m = mask h s
     go h k s (Full v) =
-      go h k (nextShift s) (A.index v (index h s))
+      case A.index# v (index h s) of
+        (# st #) -> go h k (nextShift s) st
     go h k _ (Collision hx v)
         | h == hx   = lookupInArrayCont absent present k v
         | otherwise = absent (# #)
@@ -814,19 +816,21 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
             let !ary' = A.insert ary i $! Leaf h (L k x)
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
-            let !st  = A.index ary i
-                !st' = go h k x (nextShift s) st
-            in if st' `ptrEq` st
-               then t
-               else BitmapIndexed b (A.update ary i st')
+            case A.index# ary i of
+              (# !st #) ->
+                let !st' = go h k x (nextShift s) st
+                in if st' `ptrEq` st
+                   then t
+                   else BitmapIndexed b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
     go h k x s t@(Full ary) =
-        let !st  = A.index ary i
-            !st' = go h k x (nextShift s) st
-        in if st' `ptrEq` st
-            then t
-            else Full (updateFullArray ary i st')
+        case A.index# ary i of
+          (# !st #) ->
+            let !st' = go h k x (nextShift s) st
+            in if st' `ptrEq` st
+               then t
+               else Full (updateFullArray ary i st')
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
@@ -852,15 +856,17 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
             let !ary' = A.insert ary i $! Leaf h (L k x)
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
-            let !st  = A.index ary i
-                !st' = go h k x (nextShift s) st
-            in BitmapIndexed b (A.update ary i st')
+            case A.index# ary i of
+              (# st #) ->
+                let !st' = go h k x (nextShift s) st
+                in BitmapIndexed b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
     go h k x s (Full ary) =
-        let !st  = A.index ary i
-            !st' = go h k x (nextShift s) st
-        in Full (updateFullArray ary i st')
+        case A.index# ary i of
+          (# st #) ->
+            let !st' = go h k x (nextShift s) st
+            in Full (updateFullArray ary i st')
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (A.snoc v (L k x))
@@ -880,16 +886,18 @@ insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
   where
     go !_collPos !_shiftedHash !k x (Leaf h _kx)
         = Leaf h (L k x)
-    go collPos shiftedHash k x (BitmapIndexed b ary) =
-        let !st  = A.index ary i
-            !st' = go collPos (nextSH shiftedHash) k x st
-        in BitmapIndexed b (A.update ary i st')
+    go collPos shiftedHash k x (BitmapIndexed b ary)
+        = case A.index# ary i of
+            (# st #) ->
+              let !st' = go collPos (nextSH shiftedHash) k x st
+              in BitmapIndexed b (A.update ary i st')
       where m = maskSH shiftedHash
             i = sparseIndex b m
-    go collPos shiftedHash k x (Full ary) =
-        let !st  = A.index ary i
-            !st' = go collPos (nextSH shiftedHash) k x st
-        in Full (updateFullArray ary i st')
+    go collPos shiftedHash k x (Full ary)
+        = case A.index# ary i of
+            (# st #) ->
+              let !st' = go collPos (nextSH shiftedHash) k x st
+              in Full (updateFullArray ary i st')
       where i = indexSH shiftedHash
     go collPos _shiftedHash k x (Collision h v)
         | collPos >= 0 = Collision h (setAtPosition collPos k x v)
@@ -1012,21 +1020,23 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
             let ary' = A.insert ary i $! Leaf h (L k x)
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
-            let !st   = A.index ary i
-                !st'  = go h k (nextShift s) st
-                ary'  = A.update ary i $! st'
-            in if ptrEq st st'
-               then t
-               else BitmapIndexed b ary'
+            case A.index# ary i of
+              (# !st #) ->
+                let !st' = go h k (nextShift s) st
+                    ary' = A.update ary i st'
+                in if ptrEq st st'
+                   then t
+                   else BitmapIndexed b ary'
       where m = mask h s
             i = sparseIndex b m
     go h k s t@(Full ary) =
-        let !st   = A.index ary i
-            !st'  = go h k (nextShift s) st
-            ary' = updateFullArray ary i $! st'
-        in if ptrEq st st'
-           then t
-           else Full ary'
+        case A.index# ary i of
+          (# !st #) ->
+            let !st' = go h k (nextShift s) st
+                ary' = updateFullArray ary i st'
+            in if ptrEq st st'
+               then t
+               else Full ary'
       where i = index h s
     go h k s t@(Collision hy v)
         | h == hy   =
@@ -1045,12 +1055,14 @@ insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
     go !k !ary !i !n
           -- Not found, append to the end.
         | i >= n = A.snoc ary $ L k x
-        | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> case f y of
-                                      (# y' #) -> if ptrEq y y'
-                                                  then ary
-                                                  else A.update ary i (L k y')
-                     | otherwise -> go k ary (i+1) n
+        | otherwise = case A.index# ary i of
+            (# L kx y #)
+              | k == kx ->
+                  case f y of
+                    (# y' #) -> if ptrEq y y'
+                                then ary
+                                else A.update ary i (L k y')
+              | otherwise -> go k ary (i+1) n
 {-# INLINE insertModifyingArr #-}
 
 -- | In-place update version of insertWith
@@ -1115,42 +1127,39 @@ deleteFromSubtree h k _ t@(Leaf hy (L ky _))
     | otherwise          = t
 deleteFromSubtree h k s t@(BitmapIndexed b ary)
     | b .&. m == 0 = t
-    | otherwise =
-        let !st = A.index ary i
-            !st' = deleteFromSubtree h k (nextShift s) st
-        in if st' `ptrEq` st
-            then t
-            else case st' of
+    | otherwise
+    = case A.index# ary i of
+        (# !st #) ->
+          case deleteFromSubtree h k (nextShift s) st of
             Empty | A.length ary == 2
                   , (# l #) <- A.index# ary (otherOfOneOrZero i)
                   , isLeafOrCollision l
                     -> l
                   | otherwise
                     -> BitmapIndexed (b .&. complement m) (A.delete ary i)
-            l | isLeafOrCollision l && A.length ary == 1 -> l
-            _ -> BitmapIndexed b (A.update ary i st')
+            st' | isLeafOrCollision st' && A.length ary == 1 -> st'
+                | st' `ptrEq` st -> t
+                | otherwise -> BitmapIndexed b (A.update ary i st')
   where m = mask h s
         i = sparseIndex b m
 deleteFromSubtree h k s t@(Full ary) =
-    let !st   = A.index ary i
-        !st' = deleteFromSubtree h k (nextShift s) st
-    in if st' `ptrEq` st
-        then t
-        else case st' of
-        Empty ->
-            let ary' = A.delete ary i
-                bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
-            in BitmapIndexed bm ary'
-        _ -> Full (updateFullArray ary i st')
+    case A.index# ary i of
+      (# !st #) ->
+        case deleteFromSubtree h k (nextShift s) st of
+          Empty ->
+              let ary' = A.delete ary i
+                  bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
+              in BitmapIndexed bm ary'
+          st' | st' `ptrEq` st -> t
+              | otherwise -> Full (updateFullArray ary i st')
   where i = index h s
 deleteFromSubtree h k _ t@(Collision hy v)
-    | h == hy = case indexOf k v of
-        Just i
-            | A.length v == 2
-            , (# l #) <- A.index# v (otherOfOneOrZero i)
-              -> Leaf h l
-            | otherwise -> Collision h (A.delete v i)
-        Nothing -> t
+    | h == hy
+    , Just i <- indexOf k v
+    = if A.length v == 2
+      then case A.index# v (otherOfOneOrZero i) of
+        (# l #) -> Leaf h l
+      else Collision h (A.delete v i)
     | otherwise = t
 {-# INLINABLE deleteFromSubtree #-}
 
@@ -1165,33 +1174,31 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
     go :: Int -> ShiftedHash -> k -> HashMap k v -> HashMap k v
     go !_collPos !_shiftedHash !_k (Leaf _ _) = Empty
     go collPos shiftedHash k (BitmapIndexed b ary) =
-            let !st = A.index ary i
-                !st' = go collPos (nextSH shiftedHash) k st
-            in case st' of
-                Empty | A.length ary == 2
-                      , (# l #) <- A.index# ary (otherOfOneOrZero i)
-                      , isLeafOrCollision l
-                      -> l
-                      | otherwise
-                      -> BitmapIndexed (b .&. complement m) (A.delete ary i)
-                l | isLeafOrCollision l && A.length ary == 1 -> l
-                _ -> BitmapIndexed b (A.update ary i st')
+      case A.index# ary i of
+        (# st #) -> case go collPos (nextSH shiftedHash) k st of
+          Empty | A.length ary == 2
+                , (# l #) <- A.index# ary (otherOfOneOrZero i)
+                , isLeafOrCollision l
+                -> l
+                | otherwise
+                -> BitmapIndexed (b .&. complement m) (A.delete ary i)
+          st' | isLeafOrCollision st' && A.length ary == 1 -> st'
+              | otherwise -> BitmapIndexed b (A.update ary i st')
       where m = maskSH shiftedHash
             i = sparseIndex b m
     go collPos shiftedHash k (Full ary) =
-        let !st   = A.index ary i
-            !st' = go collPos (nextSH shiftedHash) k st
-        in case st' of
+        case A.index# ary i of
+          (# st #) -> case go collPos (nextSH shiftedHash) k st of
             Empty ->
                 let ary' = A.delete ary i
                     bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
                 in BitmapIndexed bm ary'
-            _ -> Full (updateFullArray ary i st')
+            st' -> Full (updateFullArray ary i st')
       where i = indexSH shiftedHash
     go collPos _shiftedHash _k (Collision h v)
       | A.length v == 2
-      , (# l #) <- A.index# v (otherOfOneOrZero collPos)
-      = Leaf h l
+      = case A.index# v (otherOfOneOrZero collPos) of
+          (# l #) -> Leaf h l
       | otherwise = Collision h (A.delete v collPos)
     go !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
 {-# NOINLINE deleteKeyExists #-}
@@ -1222,22 +1229,25 @@ adjust# f k0 m0 = go h0 k0 0 m0
         | otherwise          = t
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 = t
-        | otherwise = let !st   = A.index ary i
-                          !st'  = go h k (nextShift s) st
-                          ary' = A.update ary i $! st'
-                      in if ptrEq st st'
-                         then t
-                         else BitmapIndexed b ary'
+        | otherwise =
+          case A.index# ary i of
+            (# !st #) ->
+              let !st' = go h k (nextShift s) st
+                  ary' = A.update ary i st'
+              in if ptrEq st st'
+                then t
+                else BitmapIndexed b ary'
       where m = mask h s
             i = sparseIndex b m
     go h k s t@(Full ary) =
-        let i    = index h s
-            !st   = A.index ary i
-            !st'  = go h k (nextShift s) st
-            ary' = updateFullArray ary i $! st'
-        in if ptrEq st st'
-           then t
-           else Full ary'
+        case A.index# ary i of
+          (# !st #) ->
+            let !st' = go h k (nextShift s) st
+                ary' = updateFullArray ary i st'
+            in if ptrEq st st'
+              then t
+              else Full ary'
+      where i = index h s
     go h k _ t@(Collision hy v)
         | h == hy   = let !v' = updateWith# f k v
                       in if A.unsafeSameArray v v'
@@ -1486,12 +1496,14 @@ isSubmapOfBy comp !m1 !m2 = go 0 m1 m2
     go s t1@(Collision h1 _) (BitmapIndexed b ls2)
         | b .&. m == 0 = False
         | otherwise    =
-            go (nextShift s) t1 (A.index ls2 (sparseIndex b m))
+            case A.index# ls2 (sparseIndex b m) of
+              (# st2 #) -> go (nextShift s) t1 st2
       where m = mask h1 s
 
     -- Similar to the previous case we need to traverse l2 at the index for the hash h1.
     go s t1@(Collision h1 _) (Full ls2) =
-      go (nextShift s) t1 (A.index ls2 (index h1 s))
+      case A.index# ls2 (index h1 s) of
+        (# st2 #) -> go (nextShift s) t1 st2
 
     -- In cases where the first and second map are BitmapIndexed or Full,
     -- traverse down the tree at the appropriate indices.
@@ -1525,8 +1537,10 @@ submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .
 
       -- In case a key is both in ary1 and ary2, check ary1[i] <= ary2[j] and
       -- increment the indices i and j.
-      | b1Andb2 .&. m /= 0 = comp (A.index ary1 i) (A.index ary2 j) &&
-                             go (i+1) (j+1) (m `unsafeShiftL` 1)
+      | b1Andb2 .&. m /= 0
+      , (# st1 #) <- A.index# ary1 i
+      , (# st2 #) <- A.index# ary2 j
+        = comp st1 st2 && go (i+1) (j+1) (m `unsafeShiftL` 1)
 
       -- In case a key occurs in ary1, but not ary2, only increment index j.
       | b2 .&. m /= 0 = go i (j+1) (m `unsafeShiftL` 1)
@@ -1808,29 +1822,30 @@ difference = go_difference 0
     go_difference s t1@(BitmapIndexed b1 ary1) t2@(Collision h2 _)
         | b1 .&. m == 0 = t1
         | otherwise =
-            let (# !st #) = A.index# ary1 i1
-            in case go_difference (nextShift s) st t2 of
-              Empty | A.length ary1 == 2
-                    , (# l #) <- A.index# ary1 (otherOfOneOrZero i1)
-                    , isLeafOrCollision l
-                    -> l
-                    | otherwise
-                    -> BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
-              st' | isLeafOrCollision st' && A.length ary1 == 1 -> st'
-                  | st `ptrEq` st' -> t1
-                  | otherwise -> BitmapIndexed b1 (A.update ary1 i1 st')
+          case A.index# ary1 i1 of
+            (# !st #) ->
+              case go_difference (nextShift s) st t2 of
+                Empty | A.length ary1 == 2
+                      , (# l #) <- A.index# ary1 (otherOfOneOrZero i1)
+                      , isLeafOrCollision l
+                      -> l
+                      | otherwise
+                      -> BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
+                st' | isLeafOrCollision st' && A.length ary1 == 1 -> st'
+                    | st `ptrEq` st' -> t1
+                    | otherwise -> BitmapIndexed b1 (A.update ary1 i1 st')
       where
         m = mask h2 s
         i1 = sparseIndex b1 m
     go_difference s t1@(Full ary1) t2@(Collision h2 _)
-      = let (# !st #) = A.index# ary1 i
-        in case go_difference (nextShift s) st t2 of
-          Empty ->
-              let ary1' = A.delete ary1 i
-                  bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
-              in BitmapIndexed bm ary1'
-          st' | st `ptrEq` st' -> t1
-              | otherwise -> Full (updateFullArray ary1 i st')
+      = case A.index# ary1 i of
+          (# !st #) -> case go_difference (nextShift s) st t2 of
+            Empty ->
+                let ary1' = A.delete ary1 i
+                    bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
+                in BitmapIndexed bm ary1'
+            st' | st `ptrEq` st' -> t1
+                | otherwise -> Full (updateFullArray ary1 i st')
       where i = index h2 s
 
     go_difference _ t1@(Collision h1 ary1) (Collision h2 ary2)
@@ -1961,20 +1976,28 @@ intersectionWithKey# f = go 0
     -- collision vs. branch
     go s (BitmapIndexed b1 ary1) t2@(Collision h2 _ls2)
       | b1 .&. m2 == 0 = Empty
-      | otherwise = go (nextShift s) (A.index ary1 i) t2
+      | otherwise =
+          case A.index# ary1 i of
+            (# st1 #) -> go (nextShift s) st1 t2
       where
         m2 = mask h2 s
         i = sparseIndex b1 m2
     go s t1@(Collision h1 _ls1) (BitmapIndexed b2 ary2)
       | b2 .&. m1 == 0 = Empty
-      | otherwise = go (nextShift s) t1 (A.index ary2 i)
+      | otherwise =
+          case A.index# ary2 i of
+            (# st2 #) -> go (nextShift s) t1 st2
       where
         m1 = mask h1 s
         i = sparseIndex b2 m1
-    go s (Full ary1) t2@(Collision h2 _ls2) = go (nextShift s) (A.index ary1 i) t2
+    go s (Full ary1) t2@(Collision h2 _ls2) =
+      case A.index# ary1 i of
+        (# st1 #)-> go (nextShift s) st1 t2
       where
         i = index h2 s
-    go s t1@(Collision h1 _ls1) (Full ary2) = go (nextShift s) t1 (A.index ary2 i)
+    go s t1@(Collision h1 _ls1) (Full ary2) =
+      case A.index# ary2 i of
+        (# st2 #) -> go (nextShift s) t1 st2
       where
         i = index h1 s
 {-# INLINE intersectionWithKey# #-}
@@ -2240,18 +2263,21 @@ filterMapAux onLeaf onColl = go
                     ch <- A.read mary 0
                     case ch of
                       t | isLeafOrCollision t -> return t
-                      _                       -> BitmapIndexed b <$> (A.unsafeFreeze =<< A.shrink mary 1)
+                      _ -> BitmapIndexed b <$> (A.unsafeFreeze =<< A.shrink mary 1)
                 _ -> do
                     ary2 <- A.unsafeFreeze =<< A.shrink mary j
                     return $! if j == maxChildren
                               then Full ary2
                               else BitmapIndexed b ary2
             | bi .&. b == 0 = step ary mary b i j (bi `unsafeShiftL` 1) n
-            | otherwise = case go (A.index ary i) of
-                Empty -> step ary mary (b .&. complement bi) (i+1) j
-                         (bi `unsafeShiftL` 1) n
-                t     -> do A.write mary j t
-                            step ary mary b (i+1) (j+1) (bi `unsafeShiftL` 1) n
+            | otherwise = do
+                st <- A.indexM ary i
+                case go st of
+                  Empty ->
+                    step ary mary (b .&. complement bi) (i+1) j (bi `unsafeShiftL` 1) n
+                  t -> do
+                    A.write mary j t
+                    step ary mary b (i+1) (j+1) (bi `unsafeShiftL` 1) n
 
     filterC ary0 h =
         let !n = A.length ary0
@@ -2271,7 +2297,8 @@ filterMapAux onLeaf onColl = go
                                  return $! Collision h ary2
                   | otherwise -> do ary2 <- A.unsafeFreeze =<< A.shrink mary j
                                     return $! Collision h ary2
-            | Just el <- onColl $! A.index ary i
+            | (# l #) <- A.index# ary i
+            , Just el <- onColl l
                 = A.write mary j el >> step ary mary (i+1) (j+1) n
             | otherwise = step ary mary (i+1) j n
 {-# INLINE filterMapAux #-}
@@ -2393,8 +2420,8 @@ lookupInArrayCont absent present k0 ary0 = go k0 ary0 0 (A.length ary0)
     go :: Eq k => k -> A.Array (Leaf k v) -> Int -> Int -> r
     go !k !ary !i !n
         | i >= n    = absent (# #)
-        | otherwise = case A.index ary i of
-            (L kx v)
+        | otherwise = case A.index# ary i of
+            (# L kx v #)
                 | k == kx   -> present v i
                 | otherwise -> go k ary (i+1) n
 {-# INLINE lookupInArrayCont #-}
@@ -2406,8 +2433,8 @@ indexOf k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
         | i >= n    = Nothing
-        | otherwise = case A.index ary i of
-            (L kx _)
+        | otherwise = case A.index# ary i of
+            (# L kx _ #)
                 | k == kx   -> Just i
                 | otherwise -> go k ary (i+1) n
 {-# INLINABLE indexOf #-}
@@ -2417,12 +2444,12 @@ updateWith# f k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
         | i >= n    = ary
-        | otherwise = case A.index ary i of
-            (L kx y) | k == kx -> case f y of
-                          (# y' #)
-                             | ptrEq y y' -> ary
-                             | otherwise -> A.update ary i (L k y')
-                     | otherwise -> go k ary (i+1) n
+        | otherwise = case A.index# ary i of
+            (# L kx y #) | k == kx -> case f y of
+                             (# y' #)
+                               | ptrEq y y' -> ary
+                               | otherwise -> A.update ary i (L k y')
+                         | otherwise -> go k ary (i+1) n
 {-# INLINABLE updateWith# #-}
 
 updateOrSnocWith :: Eq k => (v -> v -> (# v #)) -> k -> v -> A.Array (Leaf k v)
@@ -2437,12 +2464,11 @@ updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
     go !k v !ary !i !n
         -- Not found, append to the end.
         | i >= n = A.snoc ary $ L k v
-        | L kx y <- A.index ary i
-        , k == kx
-        , (# v2 #) <- f k v y
-            = A.update ary i (L k v2)
         | otherwise
-            = go k v ary (i+1) n
+            = case A.index# ary i of
+                (# L kx y #) | k == kx -> case f k v y of
+                                            (# v2 #) -> A.update ary i (L k v2)
+                             | otherwise -> go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWithKey #-}
 
 updateOrConcatWithKey :: Eq k => (k -> v -> v -> (# v #)) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
@@ -2463,15 +2489,16 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
     -- append or update all elements from ary2
     let go !iEnd !i2
           | i2 >= n2 = return ()
-          | otherwise = case A.index indices i2 of
-               Just i1 -> do -- key occurs in both arrays, store combination in position i1
-                             L k v1 <- A.indexM ary1 i1
-                             L _ v2 <- A.indexM ary2 i2
-                             case f k v1 v2 of (# v3 #) -> A.write mary i1 (L k v3)
-                             go iEnd (i2+1)
-               Nothing -> do -- key is only in ary2, append to end
-                             A.write mary iEnd =<< A.indexM ary2 i2
-                             go (iEnd+1) (i2+1)
+          | (# Just i1 #) <- A.index# indices i2 = do
+              -- key occurs in both arrays, store combination in position i1
+              L k v1 <- A.indexM ary1 i1
+              L _ v2 <- A.indexM ary2 i2
+              case f k v1 v2 of (# v3 #) -> A.write mary i1 (L k v3)
+              go iEnd (i2+1)
+          | otherwise = do
+              -- key is only in ary2, append to end
+              A.write mary iEnd =<< A.indexM ary2 i2
+              go (iEnd+1) (i2+1)
     go n1 0
     return mary
 {-# INLINABLE updateOrConcatWithKey #-}
@@ -2501,9 +2528,9 @@ updateFullArrayM ary idx b = do
 
 -- | \(O(n)\) Update the element at the given position in this array, by applying a function to it.
 updateFullArrayWith' :: A.Array e -> Int -> (e -> e) -> A.Array e
-updateFullArrayWith' ary idx f
-  | (# x #) <- A.index# ary idx
-  = updateFullArray ary idx $! f x
+updateFullArrayWith' ary idx f =
+  case A.index# ary idx of
+    (# x #) -> updateFullArray ary idx $! f x
 {-# INLINE updateFullArrayWith' #-}
 
 -- | Unsafely clone an array of (2^bitsPerSubkey) elements.  The length of the input

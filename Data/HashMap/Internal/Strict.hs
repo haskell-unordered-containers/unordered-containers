@@ -202,17 +202,19 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
             let ary' = A.insert ary i $! leaf h k x
             in HM.bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
-            let st   = A.index ary i
-                st'  = go h k x (nextShift s) st
-                ary' = A.update ary i $! st'
-            in BitmapIndexed b ary'
+            case A.index# ary i of
+              (# st #) ->
+                let !st' = go h k x (nextShift s) st
+                    ary' = A.update ary i st'
+                in BitmapIndexed b ary'
       where m = mask h s
             i = sparseIndex b m
     go h k x s (Full ary) =
-        let st   = A.index ary i
-            st'  = go h k x (nextShift s) st
-            ary' = HM.updateFullArray ary i $! st'
-        in Full ary'
+        case A.index# ary i of
+          (# st #) ->
+            let !st' = go h k x (nextShift s) st
+                ary' = HM.updateFullArray ary i st'
+            in Full ary'
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = Collision h (updateOrSnocWith f k x v)
@@ -272,18 +274,21 @@ adjust f k0 m0 = go h0 k0 0 m0
         | otherwise          = t
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 = t
-        | otherwise = let st   = A.index ary i
-                          st'  = go h k (nextShift s) st
-                          ary' = A.update ary i $! st'
-                      in BitmapIndexed b ary'
+        | otherwise =
+            case A.index# ary i of
+              (# st #) ->
+                let !st' = go h k (nextShift s) st
+                    ary' = A.update ary i st'
+                in BitmapIndexed b ary'
       where m = mask h s
             i = sparseIndex b m
     go h k s (Full ary) =
-        let i    = index h s
-            st   = A.index ary i
-            st'  = go h k (nextShift s) st
-            ary' = HM.updateFullArray ary i $! st'
-        in Full ary'
+        case A.index# ary i of
+          (# st #) ->
+            let !st' = go h k (nextShift s) st
+                ary' = HM.updateFullArray ary i st'
+            in Full ary'
+      where i = index h s
     go h k _ t@(Collision hy v)
         | h == hy   = Collision h (updateWith f k v)
         | otherwise = t
@@ -717,9 +722,9 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
         | i >= n    = ary
-        | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> let !v' = f y in A.update ary i (L k v')
-                     | otherwise -> go k ary (i+1) n
+        | otherwise = case A.index# ary i of
+            (# L kx y #) | k == kx   -> let !v' = f y in A.update ary i (L k v')
+                         | otherwise -> go k ary (i+1) n
 {-# INLINABLE updateWith #-}
 
 -- | Append the given key and value to the array. If the key is
@@ -744,9 +749,9 @@ updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
     go !k v !ary !i !n
         -- Not found, append to the end.
         | i >= n = A.snoc ary $! L k $! v
-        | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> let !v' = f k v y in A.update ary i (L k v')
-                     | otherwise -> go k v ary (i+1) n
+        | otherwise = case A.index# ary i of
+            (# L kx y #) | k == kx   -> let !v' = f k v y in A.update ary i (L k v')
+                         | otherwise -> go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWithKey #-}
 
 ------------------------------------------------------------------------

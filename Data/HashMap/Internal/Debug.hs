@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP              #-}
+{-# LANGUAGE MagicHash        #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE UnboxedTuples    #-}
 
 -- | = WARNING
 --
@@ -125,12 +127,14 @@ valid t     = validInternal initialSubHashPath t
 
     validSubTrees p b ary
       | A.length ary == 1
-      , isLeafOrCollision (A.index ary 0)
+      , (# st #) <- A.index# ary 0
+      , isLeafOrCollision st
       = Invalid INV5_BitmapIndexed_invalid_single_subtree p
       | otherwise = go b
       where
         go 0  = Valid
-        go b' = validInternal (addSubHash p (fromIntegral c)) (A.index ary i) <> go b''
+        go b' = case A.index# ary i of
+          (# st #) -> validInternal (addSubHash p (fromIntegral c)) st <> go b''
           where
             c = countTrailingZeros b'
             m = 1 `unsafeShiftL` c
