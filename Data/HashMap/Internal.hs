@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MagicHash             #-}
 {-# LANGUAGE PatternGuards         #-}
+{-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE RoleAnnotations       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
@@ -12,6 +13,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UnboxedSums           #-}
 {-# LANGUAGE UnboxedTuples         #-}
+{-# LANGUAGE ViewPatterns          #-}
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
@@ -246,6 +248,10 @@ data HashMap k v
     --   'Eq' instance. (INV10)
 
 type role HashMap nominal representational
+
+pattern LeafOrCollision :: Hash -> HashMap k v
+pattern LeafOrCollision h <- (leafHashCode -> h)
+{-# COMPLETE LeafOrCollision, Empty, BitmapIndexed, Full #-}
 
 -- | @since 0.2.17.0
 deriving instance (TH.Lift k, TH.Lift v) => TH.Lift (HashMap k v)
