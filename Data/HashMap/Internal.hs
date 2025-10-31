@@ -1650,10 +1650,6 @@ unionWithKey f = go 0
             ary' = updateFullArrayWith' ary2 i $ \st2 -> go (nextShift s) t1 st2
         in Full ary'
 
-    leafHashCode (Leaf h _) = h
-    leafHashCode (Collision h _) = h
-    leafHashCode _ = error "leafHashCode"
-
     goDifferentHash s h1 h2 t1 t2
         | m1 == m2  = BitmapIndexed m1 (A.singleton $! goDifferentHash (nextShift s) h1 h2 t1 t2)
         | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
@@ -1662,6 +1658,12 @@ unionWithKey f = go 0
         m1 = mask h1 s
         m2 = mask h2 s
 {-# INLINE unionWithKey #-}
+
+leafHashCode :: HashMap k v -> Hash
+leafHashCode (Leaf h _) = h
+leafHashCode (Collision h _) = h
+leafHashCode _ = error "leafHashCode"
+{-# INLINE leafHashCode #-}
 
 -- | Strict in the result of @f@.
 unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.Array a -> A.Array a
