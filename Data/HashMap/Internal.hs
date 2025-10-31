@@ -1956,14 +1956,14 @@ differenceWithKey = go_differenceWithKey 0
         m = mask hB s
         i = sparseIndex bA m
     go_differenceWithKey s f a@(Full aryA) b@(Leaf hB _)
-      = let (# !stA #) = A.index# aryA i
-        in case go_differenceWithKey (nextShift s) f stA b of
-          Empty ->
-              let aryA' = A.delete aryA i
-                  bm    = fullBitmap .&. complement (1 `unsafeShiftL` i)
-              in BitmapIndexed bm aryA'
-          stA' | stA `ptrEq` stA' -> a
-               | otherwise -> Full (updateFullArray aryA i stA')
+      = case A.index# aryA i of
+          (# !stA #) -> case go_differenceWithKey (nextShift s) f stA b of
+            Empty ->
+                let aryA' = A.delete aryA i
+                    bm    = fullBitmap .&. complement (1 `unsafeShiftL` i)
+                in BitmapIndexed bm aryA'
+            stA' | stA `ptrEq` stA' -> a
+                 | otherwise -> Full (updateFullArray aryA i stA')
       where i = index hB s
     go_differenceWithKey _s f a@(Collision hA aryA) (Leaf hB (L kB vB))
       | hA == hB
@@ -1981,29 +1981,29 @@ differenceWithKey = go_differenceWithKey 0
     go_differenceWithKey s f a@(BitmapIndexed bA aryA) b@(Collision hB _)
         | bA .&. m == 0 = a
         | otherwise =
-            let (# !st #) = A.index# aryA i
-            in case go_differenceWithKey (nextShift s) f st b of
-              Empty | A.length aryA == 2
-                    , (# l #) <- A.index# aryA (otherOfOneOrZero i)
-                    , isLeafOrCollision l
-                    -> l
-                    | otherwise
-                    -> BitmapIndexed (bA .&. complement m) (A.delete aryA i)
-              st' | isLeafOrCollision st' && A.length aryA == 1 -> st'
-                  | st `ptrEq` st' -> a
-                  | otherwise -> BitmapIndexed bA (A.update aryA i st')
+            case A.index# aryA i of
+              (# !st #) -> case go_differenceWithKey (nextShift s) f st b of
+                Empty | A.length aryA == 2
+                      , (# l #) <- A.index# aryA (otherOfOneOrZero i)
+                      , isLeafOrCollision l
+                      -> l
+                      | otherwise
+                      -> BitmapIndexed (bA .&. complement m) (A.delete aryA i)
+                st' | isLeafOrCollision st' && A.length aryA == 1 -> st'
+                    | st `ptrEq` st' -> a
+                    | otherwise -> BitmapIndexed bA (A.update aryA i st')
       where
         m = mask hB s
         i = sparseIndex bA m
     go_differenceWithKey s f a@(Full aryA) b@(Collision hB _)
-      = let (# !stA #) = A.index# aryA i
-        in case go_differenceWithKey (nextShift s) f stA b of
-          Empty ->
-              let aryA' = A.delete aryA i
-                  bm    = fullBitmap .&. complement (1 `unsafeShiftL` i)
-              in BitmapIndexed bm aryA'
-          stA' | stA `ptrEq` stA' -> a
-               | otherwise -> Full (updateFullArray aryA i stA')
+      = case A.index# aryA i of
+          (# !stA #) -> case go_differenceWithKey (nextShift s) f stA b of
+            Empty ->
+                let aryA' = A.delete aryA i
+                    bm    = fullBitmap .&. complement (1 `unsafeShiftL` i)
+                in BitmapIndexed bm aryA'
+            stA' | stA `ptrEq` stA' -> a
+                 | otherwise -> Full (updateFullArray aryA i stA')
       where i = index hB s
     go_differenceWithKey s f a@(Collision hA _) (BitmapIndexed bB aryB)
         | bB .&. m == 0 = a
