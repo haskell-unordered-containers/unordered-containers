@@ -250,8 +250,13 @@ data HashMap k v
 type role HashMap nominal representational
 
 pattern LeafOrCollision :: Hash -> HashMap k v
-pattern LeafOrCollision h <- (leafHashCode -> h)
+pattern LeafOrCollision h <- (leafOrCollision -> Just h)
 {-# COMPLETE LeafOrCollision, Empty, BitmapIndexed, Full #-}
+
+leafOrCollision :: HashMap k v -> Maybe Hash
+leafOrCollision (Leaf h _) = Just h
+leafOrCollision (Collision h _) = Just h
+leafOrCollision _ = Nothing
 
 -- | @since 0.2.17.0
 deriving instance (TH.Lift k, TH.Lift v) => TH.Lift (HashMap k v)
@@ -1947,16 +1952,6 @@ differenceWithKey = go_differenceWithKey 0
               Just v | v `ptrEq` vA -> a
                      | otherwise -> Leaf hA (L kA v))
           hA kA s b
-    go_differenceWithKey s f a@(Full aryA) b@(Leaf hB _)
-      = case A.index# aryA i of
-          (# !stA #) -> case go_differenceWithKey (nextShift s) f stA b of
-            Empty ->
-                let aryA' = A.delete aryA i
-                    bm    = fullBitmap .&. complement (1 `unsafeShiftL` i)
-                in BitmapIndexed bm aryA'
-            stA' | stA `ptrEq` stA' -> a
-                 | otherwise -> Full (updateFullArray aryA i stA')
-      where i = index hB s
     go_differenceWithKey _s f a@(Collision hA aryA) (Leaf hB (L kB vB))
       | hA == hB
         = lookupInArrayCont
@@ -1970,7 +1965,24 @@ differenceWithKey = go_differenceWithKey 0
                        | otherwise -> Collision hA (A.update aryA i (L kB v)))
             kB aryA
       | otherwise = a
-    go_differenceWithKey s f a@(Full aryA) b@(Collision hB _)
+    go_differenceWithKey s f a@(BitmapIndexed bA aryA) b@(LeafOrCollision hB)
+      | bA .&. m == 0 = a
+      | otherwise = case A.index# aryA i of
+          (# !stA #) -> case go_differenceWithKey (nextShift s) f stA b of
+            Empty | A.length aryA == 2
+                  , (# l #) <- A.index# aryA (otherOfOneOrZero i)
+                  , isLeafOrCollision l
+                  -> l
+                  | otherwise
+                  -> BitmapIndexed (bA .&. complement m) (A.delete aryA i)
+            stA' | isLeafOrCollision stA' && A.length aryA == 1 -> stA'
+                 | stA `ptrEq` stA' -> a
+                 | otherwise -> BitmapIndexed bA (A.update aryA i stA')
+      where
+        m = mask hB s
+        i = sparseIndex bA m
+
+    go_differenceWithKey s f a@(Full aryA) b@(LeafOrCollision hB)
       = case A.index# aryA i of
           (# !stA #) -> case go_differenceWithKey (nextShift s) f stA b of
             Empty ->
@@ -1980,6 +1992,7 @@ differenceWithKey = go_differenceWithKey 0
             stA' | stA `ptrEq` stA' -> a
                  | otherwise -> Full (updateFullArray aryA i stA')
       where i = index hB s
+
     go_differenceWithKey s f a@(Collision hA _) (BitmapIndexed bB aryB)
         | bB .&. m == 0 = a
         | otherwise =
@@ -1999,24 +2012,6 @@ differenceWithKey = go_differenceWithKey 0
       = differenceWithKey_Arrays s f fullBitmap aryA a fullBitmap aryB
     go_differenceWithKey _s f a@(Collision hA aryA) (Collision hB aryB)
       = differenceWithKey_Collisions f hA aryA a hB aryB
-
-    go_differenceWithKey s f a@(BitmapIndexed bA aryA) b
-      | bA .&. m == 0 = a
-      | otherwise = case A.index# aryA i of
-          (# !stA #) -> case go_differenceWithKey (nextShift s) f stA b of
-            Empty | A.length aryA == 2
-                  , (# l #) <- A.index# aryA (otherOfOneOrZero i)
-                  , isLeafOrCollision l
-                  -> l
-                  | otherwise
-                  -> BitmapIndexed (bA .&. complement m) (A.delete aryA i)
-            stA' | isLeafOrCollision stA' && A.length aryA == 1 -> stA'
-                 | stA `ptrEq` stA' -> a
-                 | otherwise -> BitmapIndexed bA (A.update aryA i stA')
-      where
-        hB = leafHashCode b
-        m = mask hB s
-        i = sparseIndex bA m
 
     differenceWithKey_Arrays !s f !bA !aryA tA !bB !aryB
       | bA .&. bB == 0 = tA
