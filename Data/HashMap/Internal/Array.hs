@@ -42,7 +42,6 @@ module Data.HashMap.Internal.Array
     , lengthM
     , read
     , write
-    , index
     , indexM
     , index#
     , update
@@ -267,12 +266,11 @@ write ary _i@(I# i#) b = ST $ \ s ->
             s' -> (# s' , () #)
 {-# INLINE write #-}
 
-index :: Array a -> Int -> a
-index ary _i@(I# i#) =
-    CHECK_BOUNDS("index", length ary, _i)
-        case indexSmallArray# (unArray ary) i# of (# b #) -> b
-{-# INLINE index #-}
-
+-- | Note that we don't have an 'index' function with type
+--
+-- > Array a -> Int -> a
+--
+-- We used to have it, but it was prone to creating thunks. See #538.
 index# :: Array a -> Int -> (# a #)
 index# ary _i@(I# i#) =
     CHECK_BOUNDS("index#", length ary, _i)
