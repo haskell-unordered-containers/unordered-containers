@@ -310,6 +310,21 @@ tests =
           toOrdMap (HM.differenceWith f x y) === M.differenceWith f (toOrdMap x) (toOrdMap y)
       , testProperty "valid" $
         \(Fn2 f) (x :: HMK A) (y :: HMK B) -> isValid (HM.differenceWith f x y)
+      , testProperty "differenceWith (\\x y -> Just $ f x y) xs ys == intersectionWith f xs ys `union` xs" $
+        \(Fn2 f) (x :: HMK A) (y :: HMK B) ->
+          HM.differenceWith (\a b -> Just $ f a b) x y
+          === HM.intersectionWith f x y `HM.union` x
+      ]
+    , testGroup "differenceWithKey"
+      [ testProperty "model" $
+        \(Fn3 f) (x :: HMK A) (y :: HMK B) ->
+          toOrdMap (HM.differenceWithKey f x y) === M.differenceWithKey f (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(Fn3 f) (x :: HMK A) (y :: HMK B) -> isValid (HM.differenceWithKey f x y)
+      , testProperty "differenceWithKey (\\k x y -> Just $ f k x y) xs ys == intersectionWithKey f xs ys `union` xs" $
+        \(Fn3 f) (x :: HMK A) (y :: HMK B) ->
+          HM.differenceWithKey (\k a b -> Just $ f k a b) x y
+          === HM.intersectionWithKey f x y `HM.union` x
       ]
     , testGroup "intersection"
       [ testProperty "model" $

@@ -34,7 +34,8 @@ main =
           bUnion,
           bUnions,
           bIntersection,
-          bDifference
+          bDifference,
+          bDifferenceWith
         ],
       bgroup "HashSet" [bSetFromList]
     ]
@@ -346,6 +347,42 @@ bDifferenceEqual =
   ]
   where
     b size = bench (show size) . whnf (\m -> HM.difference m m)
+
+bDifferenceWith :: Benchmark
+bDifferenceWith =
+  bgroup
+    "differenceWith"
+    [ bgroup "disjoint" bDifferenceWithDisjoint,
+      bgroup "overlap" bDifferenceWithOverlap,
+      bgroup "equal" bDifferenceWithEqual
+    ]
+
+differenceWithF :: Int -> Int -> Maybe Int
+differenceWithF x y = Just (x + y)
+
+bDifferenceWithDisjoint :: [Benchmark]
+bDifferenceWithDisjoint =
+  [ bgroup' "Bytes" genBytesMapsDisjoint b,
+    bgroup' "Int" genIntMapsDisjoint b
+  ]
+  where
+    b size = bench (show size) . whnf (\(xs, ys) -> HM.differenceWith differenceWithF xs ys)
+
+bDifferenceWithOverlap :: [Benchmark]
+bDifferenceWithOverlap =
+  [ bgroup' "Bytes" genBytesMapsOverlap b,
+    bgroup' "Int" genIntMapsOverlap b
+  ]
+  where
+    b size = bench (show size) . whnf (\(xs, ys) -> HM.differenceWith differenceWithF xs ys)
+
+bDifferenceWithEqual :: [Benchmark]
+bDifferenceWithEqual =
+  [ bgroup' "Bytes" genBytesMap b,
+    bgroup' "Int" genIntMap b
+  ]
+  where
+    b size = bench (show size) . whnf (\m -> HM.differenceWith differenceWithF m m)
 
 bSetFromList :: Benchmark
 bSetFromList =
