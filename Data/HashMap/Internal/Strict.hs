@@ -618,12 +618,15 @@ traverseWithKey f = go
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
 differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
-differenceWith f = differenceWithKey (const f)
+differenceWith f = HM.differenceWithKey $
+  \_k vA vB -> case f vA vB of
+     Nothing -> Nothing
+     x@(Just !_v) -> x
 {-# INLINABLE differenceWith #-}
 
 differenceWithKey :: Eq k => (k -> v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
 differenceWithKey f = HM.differenceWithKey $
-   \k vA vB -> case f k vA vB of
+  \k vA vB -> case f k vA vB of
      Nothing -> Nothing
      x@(Just !_v) -> x
 {-# INLINABLE differenceWithKey #-}
