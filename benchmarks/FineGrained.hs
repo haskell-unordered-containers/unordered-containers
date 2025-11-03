@@ -40,7 +40,7 @@ main =
     ]
 
 defaultSizes :: [Int]
-defaultSizes = [0, 1, 10, 100, 1000, 10_000, 100_000]
+defaultSizes = [0, 1, 10, 50, 100, 500, 1000, 5000, 10_000, 50_000, 100_000]
 
 -- | Length of a 'Bytes' key in bytes.
 --
