@@ -1565,7 +1565,89 @@ submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .
 -- >>> union (fromList [(1,'a'),(2,'b')]) (fromList [(2,'c'),(3,'d')])
 -- fromList [(1,'a'),(2,'b'),(3,'d')]
 union :: Eq k => HashMap k v -> HashMap k v -> HashMap k v
-union = unionWith const
+union = 
+union = go_union 0
+  where
+    -- empty vs. anything
+    go_union !_ t1 Empty = t1
+    go_union _ Empty t2 = t2
+    -- leaf vs. leaf
+    go_union s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 _))
+        | h1 == h2  = if k1 == k2
+                      then t1
+                      else collision h1 l1 l2
+        | otherwise = go_unionDifferentHash s h1 h2 t1 t2
+    go_union s (Leaf h1 k1 v1) !t2 = insert' h1 k1 v1 t2
+    go_union s t1 (Leaf h2 k2 v2) = undefined
+    go_union s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
+        | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k a b #)) k1 v1 ls2)
+        | otherwise = go_unionDifferentHash s h1 h2 t1 t2
+    go_union s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
+        | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k b a #)) k2 v2 ls1)
+        | otherwise = go_unionDifferentHash s h1 h2 t1 t2
+    go_union s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
+        | h1 == h2  = Collision h1 (updateOrConcatWithKey (\k a b -> (# f k a b #)) ls1 ls2)
+        | otherwise = go_unionDifferentHash s h1 h2 t1 t2
+    -- branch vs. branch
+    go_union s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
+        let b'   = b1 .|. b2
+            ary' = unionArrayBy (go_union (nextShift s)) b1 b2 ary1 ary2
+        in bitmapIndexedOrFull b' ary'
+    go_union s (BitmapIndexed b1 ary1) (Full ary2) =
+        let ary' = unionArrayBy (go_union (nextShift s)) b1 fullBitmap ary1 ary2
+        in Full ary'
+    go_union s (Full ary1) (BitmapIndexed b2 ary2) =
+        let ary' = unionArrayBy (go_union (nextShift s)) fullBitmap b2 ary1 ary2
+        in Full ary'
+    go_union s (Full ary1) (Full ary2) =
+        let ary' = unionArrayBy (go_union (nextShift s)) fullBitmap fullBitmap
+                   ary1 ary2
+        in Full ary'
+    -- leaf vs. branch
+    go_union s (BitmapIndexed b1 ary1) t2
+        | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
+                               b'   = b1 .|. m2
+                           in bitmapIndexedOrFull b' ary'
+        | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
+                                   go_union (nextShift s) st1 t2
+                           in BitmapIndexed b1 ary'
+        where
+          h2 = leafHashCode t2
+          m2 = mask h2 s
+          i = sparseIndex b1 m2
+    go_union s t1 (BitmapIndexed b2 ary2)
+        | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
+                               b'   = b2 .|. m1
+                           in bitmapIndexedOrFull b' ary'
+        | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
+                                   go_union (nextShift s) t1 st2
+                           in BitmapIndexed b2 ary'
+      where
+        h1 = leafHashCode t1
+        m1 = mask h1 s
+        i = sparseIndex b2 m1
+    go_union s (Full ary1) t2 =
+        let h2   = leafHashCode t2
+            i    = index h2 s
+            ary' = updateFullArrayWith' ary1 i $ \st1 -> go_union (nextShift s) st1 t2
+        in Full ary'
+    go_union s t1 (Full ary2) =
+        let h1   = leafHashCode t1
+            i    = index h1 s
+            ary' = updateFullArrayWith' ary2 i $ \st2 -> go_union (nextShift s) t1 st2
+        in Full ary'
+
+    leafHashCode (Leaf h _) = h
+    leafHashCode (Collision h _) = h
+    leafHashCode _ = error "leafHashCode"
+
+    goDifferentHash s h1 h2 t1 t2
+        | m1 == m2  = BitmapIndexed m1 (A.singleton $! goDifferentHash (nextShift s) h1 h2 t1 t2)
+        | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
+        | otherwise = BitmapIndexed (m1 .|. m2) (A.pair t2 t1)
+      where
+        m1 = mask h1 s
+        m2 = mask h2 s
 {-# INLINABLE union #-}
 
 -- | \(O(n+m)\) The union of two maps.  If a key occurs in both maps,
