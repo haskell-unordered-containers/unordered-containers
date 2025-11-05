@@ -622,14 +622,14 @@ differenceWith f = HM.differenceWithKey $
   \_k vA vB -> case f vA vB of
      Nothing -> Nothing
      x@(Just !_v) -> x
-{-# INLINABLE differenceWith #-}
+{-# INLINE differenceWith #-}
 
 differenceWithKey :: Eq k => (k -> v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
 differenceWithKey f = HM.differenceWithKey $
   \k vA vB -> case f k vA vB of
      Nothing -> Nothing
      x@(Just !_v) -> x
-{-# INLINABLE differenceWithKey #-}
+{-# INLINE differenceWithKey #-}
 
 -- | \(O(n+m)\) Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
