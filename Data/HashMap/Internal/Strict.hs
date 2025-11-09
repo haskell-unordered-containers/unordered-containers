@@ -624,6 +624,10 @@ differenceWith f = HM.differenceWithKey $
      x@(Just !_v) -> x
 {-# INLINE differenceWith #-}
 
+-- | \(O(n \log m)\) Difference with a combining function. When two equal keys are
+-- encountered, the combining function is applied to the values of these keys.
+-- If it returns 'Nothing', the element is discarded (proper set difference). If
+-- it returns (@'Just' y@), the element is updated with a new value @y@.
 differenceWithKey :: Eq k => (k -> v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
 differenceWithKey f = HM.differenceWithKey $
   \k vA vB -> case f k vA vB of
