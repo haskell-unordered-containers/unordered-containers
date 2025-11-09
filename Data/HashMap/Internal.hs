@@ -1940,17 +1940,7 @@ differenceWithKey f = go_differenceWithKey 0
                      | otherwise -> Leaf hA (L kA v))
           hA kA s b
     go_differenceWithKey _s a@(Collision hA aryA) (Leaf hB (L kB vB))
-      | hA == hB
-        = lookupInArrayCont
-            (\_ -> a)
-            (\vA i -> case f kB vA vB of
-                Nothing | A.length aryA == 2
-                        , (# l #) <- A.index# aryA (otherOfOneOrZero i)
-                        -> Leaf hA l
-                        | otherwise -> Collision hA (A.delete aryA i)
-                Just v | v `ptrEq` vA -> a
-                       | otherwise -> Collision hA (A.update aryA i (L kB v)))
-            kB aryA
+      | hA == hB = updateCollision (\vA -> f kB vA vB) hA kB aryA a
       | otherwise = a
     go_differenceWithKey s a@(BitmapIndexed bA aryA) b@(Leaf hB _)
       | bA .&. m == 0 = a
@@ -2065,6 +2055,29 @@ differenceWithKey f = go_differenceWithKey 0
                 else BitmapIndexed bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
             n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
 {-# INLINE differenceWithKey #-}
+
+-- | 'update', specialized to 'Collision' nodes.
+updateCollision
+  :: Eq k
+  => (v -> Maybe v)
+  -> Hash
+  -> k
+  -> A.Array (Leaf k v)
+  -> HashMap k v
+  -- ^ The original Collision node which will be re-used if the array is unchanged.
+  -> HashMap k v
+updateCollision f !h k !ary orig =
+  lookupInArrayCont
+    (\_ -> orig)
+    (\v i -> case f v of
+        Nothing | A.length ary == 2
+                , (# l #) <- A.index# ary (otherOfOneOrZero i)
+                -> Leaf h l
+                | otherwise -> Collision h (A.delete ary i)
+        Just v' | v' `ptrEq` v -> orig
+                | otherwise -> Collision h (A.update ary i (L k v')))
+    k ary
+{-# INLINABLE updateCollision #-}
 
 -- TODO: This could be faster if we would keep track of which elements of ary2
 -- we've already matched. Those could be skipped when we check the following
