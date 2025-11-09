@@ -621,7 +621,7 @@ differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> Ha
 differenceWith f = HM.differenceWithKey $
   \_k vA vB -> case f vA vB of
      Nothing -> Nothing
-     x@(Just !_v) -> x
+     x@(Just v) -> v `seq` x
 {-# INLINE differenceWith #-}
 
 -- | \(O(n \log m)\) Difference with a combining function. When two equal keys are
@@ -632,7 +632,7 @@ differenceWithKey :: Eq k => (k -> v -> w -> Maybe v) -> HashMap k v -> HashMap 
 differenceWithKey f = HM.differenceWithKey $
   \k vA vB -> case f k vA vB of
      Nothing -> Nothing
-     x@(Just !_v) -> x
+     x@(Just v) -> v `seq` x
 {-# INLINE differenceWithKey #-}
 
 -- | \(O(n+m)\) Intersection of two maps. If a key occurs in both maps
