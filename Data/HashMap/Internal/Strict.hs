@@ -90,6 +90,7 @@ module Data.HashMap.Internal.Strict
       -- * Difference and intersection
     , HM.difference
     , differenceWith
+    , differenceWithKey
     , HM.intersection
     , intersectionWith
     , intersectionWithKey
@@ -617,12 +618,22 @@ traverseWithKey f = go
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
 differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
-differenceWith f a b = HM.foldlWithKey' go HM.empty a
-  where
-    go m k v = case HM.lookup k b of
-                 Nothing -> v `seq` HM.unsafeInsert k v m
-                 Just w  -> maybe m (\ !y -> HM.unsafeInsert k y m) (f v w)
-{-# INLINABLE differenceWith #-}
+differenceWith f = HM.differenceWithKey $
+  \_k vA vB -> case f vA vB of
+     Nothing -> Nothing
+     x@(Just v) -> v `seq` x
+{-# INLINE differenceWith #-}
+
+-- | \(O(n \log m)\) Difference with a combining function. When two equal keys are
+-- encountered, the combining function is applied to the values of these keys.
+-- If it returns 'Nothing', the element is discarded (proper set difference). If
+-- it returns (@'Just' y@), the element is updated with a new value @y@.
+differenceWithKey :: Eq k => (k -> v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
+differenceWithKey f = HM.differenceWithKey $
+  \k vA vB -> case f k vA vB of
+     Nothing -> Nothing
+     x@(Just v) -> v `seq` x
+{-# INLINE differenceWithKey #-}
 
 -- | \(O(n+m)\) Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two

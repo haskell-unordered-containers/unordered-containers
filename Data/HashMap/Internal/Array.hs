@@ -72,6 +72,7 @@ module Data.HashMap.Internal.Array
     , map
     , map'
     , filter
+    , mapMaybe
     , traverse
     , traverse'
     , toList
@@ -518,6 +519,25 @@ filter f = \ ary ->
             go_filter ary mary (iAry + 1) (iMary + 1) n
           else go_filter ary mary (iAry + 1) iMary n
 {-# INLINE filter #-}
+
+mapMaybe :: (a -> Maybe b) -> Array a -> Array b
+mapMaybe f = \ ary ->
+    let !n = length ary
+    in run $ do
+      mary <- new_ n
+      len <- go_mapMaybe ary mary 0 0 n
+      shrink mary len
+  where
+    go_mapMaybe !ary !mary !iAry !iMary !n
+      | iAry >= n = return iMary
+      | otherwise = do
+        x <- indexM ary iAry
+        case f x of
+          Nothing -> go_mapMaybe ary mary (iAry + 1) iMary n
+          Just y -> do
+            write mary iMary y
+            go_mapMaybe ary mary (iAry + 1) (iMary + 1) n
+{-# INLINE mapMaybe #-}
 
 fromList :: Int -> [a] -> Array a
 fromList n xs0 =
