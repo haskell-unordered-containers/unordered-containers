@@ -1,5 +1,4 @@
--- | This file is formatted with https://hackage.haskell.org/package/ormolu
-
+-- This file is formatted with https://hackage.haskell.org/package/ormolu
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NumericUnderscores #-}
@@ -30,6 +29,8 @@ main =
         [ bFromList,
           bLookup,
           bInsert,
+          bUpdate,
+          bAlter,
           bDelete,
           bUnion,
           bUnions,
@@ -182,6 +183,115 @@ bInsertAbsentKey =
       let kvs = take 1000 $ Data.List.cycle $ map (,1) $ filter (not . flip HM.member m) ks
       return (m, kvs)
 
+bUpdate :: Benchmark
+bUpdate =
+  bgroup
+    "update (1000x)"
+    [ bgroup "presentKey" bUpdatePresentKey,
+      bgroup "absentKey" bUpdateAbsentKey
+    ]
+
+updateF :: Int -> Maybe Int
+updateF x
+  | intPredicate x = Nothing
+  | x `mod` 3 == 0 = Just (x + 1)
+  | otherwise = Just x
+
+bUpdateAbsentKey :: [Benchmark]
+bUpdateAbsentKey =
+  [ bgroup' "Bytes" setupBytes b,
+    bgroup' "Int" setupInts b
+  ]
+  where
+    b s =
+      bench (show s)
+        . whnf (\(m, ks) -> foldl' (\() k -> HM.update updateF k m `seq` ()) () ks)
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      ks <- genNBytes 2000 bytesLength gen
+      let ks' = take 1000 $ Data.List.cycle $ filter (not . flip HM.member m) ks
+      return (m, ks')
+    setupInts size gen = do
+      m <- genIntMap size gen
+      ks <- genInts 2000 gen
+      let ks' = take 1000 $ Data.List.cycle $ filter (not . flip HM.member m) ks
+      return (m, ks')
+
+bUpdatePresentKey :: [Benchmark]
+bUpdatePresentKey =
+  [ bgroup'WithSizes sizes "Bytes" setupBytes b,
+    bgroup'WithSizes sizes "Int" setupInts b
+  ]
+  where
+    sizes = filter (/= 0) defaultSizes
+    b s =
+      bench (show s)
+        . whnf (\(m, ks) -> foldl' (\() k -> HM.update updateF k m `seq` ()) () ks)
+    toKs = take 1000 . Data.List.cycle . HM.keys
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      return (m, toKs m)
+    setupInts size gen = do
+      m <- genIntMap size gen
+      return (m, toKs m)
+
+bAlter :: Benchmark
+bAlter =
+  bgroup
+    "alter (1000x)"
+    [ bgroup "presentKey" bAlterPresentKey,
+      bgroup "absentKey" bAlterAbsentKey
+    ]
+
+alterF' :: (Hashable k) => k -> Maybe Int -> Maybe Int
+alterF' k Nothing
+  | intPredicate (hash k) = Nothing
+  | otherwise = Just (hash k)
+alterF' k (Just v)
+  | odd n = Nothing
+  | intPredicate n = Just (n + 1)
+  | otherwise = Just v
+  where
+    n = hash k + v
+
+bAlterAbsentKey :: [Benchmark]
+bAlterAbsentKey =
+  [ bgroup' "Bytes" setupBytes b,
+    bgroup' "Int" setupInts b
+  ]
+  where
+    b s =
+      bench (show s)
+        . whnf (\(m, ks) -> foldl' (\() k -> HM.alter (alterF' k) k m `seq` ()) () ks)
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      ks <- genNBytes 2000 bytesLength gen
+      let ks' = take 1000 $ Data.List.cycle $ filter (not . flip HM.member m) ks
+      return (m, ks')
+    setupInts size gen = do
+      m <- genIntMap size gen
+      ks <- genInts 2000 gen
+      let ks' = take 1000 $ Data.List.cycle $ filter (not . flip HM.member m) ks
+      return (m, ks')
+
+bAlterPresentKey :: [Benchmark]
+bAlterPresentKey =
+  [ bgroup'WithSizes sizes "Bytes" setupBytes b,
+    bgroup'WithSizes sizes "Int" setupInts b
+  ]
+  where
+    sizes = filter (/= 0) defaultSizes
+    b s =
+      bench (show s)
+        . whnf (\(m, ks) -> foldl' (\() k -> HM.alter (alterF' k) k m `seq` ()) () ks)
+    toKs = take 1000 . Data.List.cycle . HM.keys
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      return (m, toKs m)
+    setupInts size gen = do
+      m <- genIntMap size gen
+      return (m, toKs m)
+
 -- 1000 deletions each, so we get more precise timings
 bDelete :: Benchmark
 bDelete =
@@ -266,10 +376,12 @@ bUnionEqual =
     b size = bench (show size) . whnf (\m -> HM.union m m)
 
 bUnions :: Benchmark
-bUnions = bgroup "unions"
-  [ bgroup'WithSizes sizes "Bytes" setupBytes b,
-    bgroup'WithSizes sizes "Int" setupInts b
-  ]
+bUnions =
+  bgroup
+    "unions"
+    [ bgroup'WithSizes sizes "Bytes" setupBytes b,
+      bgroup'WithSizes sizes "Int" setupInts b
+    ]
   where
     sizes = filter (>= 10) defaultSizes
     b size = bench (show size) . whnf (\ms -> HM.unions ms)
@@ -432,7 +544,7 @@ env' setup b size =
 -- Generators
 
 keysToMap :: (Hashable k) => [k] -> HashMap k Int
-keysToMap = HM.fromList . map (,1)
+keysToMap = HM.fromList . map (\k -> (k, hashWithSalt 123 k))
 
 genInts ::
   (StatefulGen g m) =>
@@ -482,7 +594,7 @@ genIntMapsDisjoint ::
   Int -> g -> m (HashMap Int Int, HashMap Int Int)
 genIntMapsDisjoint s gen = do
   ints <- genInts s gen
-  let (trues, falses) = Data.List.partition (flip testBit (31 :: Int)) ints
+  let (trues, falses) = Data.List.partition intPredicate ints
   return (keysToMap trues, keysToMap falses)
 
 genBytesMapsDisjoint ::
@@ -491,3 +603,6 @@ genBytesMapsDisjoint ::
 genBytesMapsDisjoint s gen = do
   (trues, falses) <- Key.Bytes.genDisjoint s bytesLength gen
   return (keysToMap trues, keysToMap falses)
+
+intPredicate :: Int -> Bool
+intPredicate n = testBit n 31
