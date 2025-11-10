@@ -708,7 +708,7 @@ lookupCont ::
   -> k
   -> Shift
   -> HashMap k v -> r
-lookupCont absent present !h0 !k0 !s0 !m0 = go h0 k0 s0 m0
+lookupCont absent present !h0 !k0 !s0 m0 = go h0 k0 s0 m0
   where
     go :: Eq k => Hash -> k -> Shift -> HashMap k v -> r
     go !_ !_ !_ Empty = absent (# #)
@@ -845,7 +845,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
 --  - the key equality check on a Leaf
 --  - check for its existence in the array for a hash collision
 insertNewKey :: Hash -> k -> v -> HashMap k v -> HashMap k v
-insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
+insertNewKey !h0 !k0 x0 m0 = go h0 k0 x0 0 m0
   where
     go !h !k x !_ Empty = Leaf h (L k x)
     go h k x s t@(Leaf hy l)
@@ -882,7 +882,7 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
 -- from 'lookupRecordCollision'. If there is no collision, pass (-1) as collPos
 -- (first argument).
 insertKeyExists :: Int -> Hash -> k -> v -> HashMap k v -> HashMap k v
-insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
+insertKeyExists !collPos0 !h0 !k0 x0 m0 = go collPos0 h0 k0 x0 m0
   where
     go !_collPos !_shiftedHash !k x (Leaf h _kx)
         = Leaf h (L k x)
@@ -1169,7 +1169,7 @@ deleteFromSubtree h k _ t@(Collision hy v)
 -- hash collision position if there was one. This information can be obtained
 -- from 'lookupRecordCollision'. If there is no collision, pass (-1) as collPos.
 deleteKeyExists :: Int -> Hash -> k -> HashMap k v -> HashMap k v
-deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
+deleteKeyExists !collPos0 !h0 !k0 m0 = go collPos0 h0 k0 m0
   where
     go :: Int -> ShiftedHash -> k -> HashMap k v -> HashMap k v
     go !_collPos !_shiftedHash !_k (Leaf _ _) = Empty
