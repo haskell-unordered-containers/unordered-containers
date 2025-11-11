@@ -1303,21 +1303,17 @@ alter' f h0 k0 m0 = go h0 k0 0 m0
           Just v' -> bitmapIndexedOrFull (b .|. m) $! A.insert ary i $! Leaf h $! L k v'
       | otherwise =
           case A.index# ary i of
-            (# !st #) -> do
-              let !st' = go h k (nextShift s) st
-              if st' `ptrEq` st
-                then t
-                else case st' of
-                  Empty
-                    | A.length ary == 2
-                    , (# l #) <- A.index# ary (otherOfOneOrZero i)
-                    , isLeafOrCollision l
-                      -> l
-                    | otherwise -> bIndexed
-                    where
-                      bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
-                  l | isLeafOrCollision l && A.length ary == 1 -> l
-                  _ -> BitmapIndexed b (A.update ary i st')
+            (# !st #) -> case go h k (nextShift s) st of
+              Empty
+                | A.length ary == 2
+                , (# l #) <- A.index# ary (otherOfOneOrZero i)
+                , isLeafOrCollision l
+                -> l
+                | otherwise -> BitmapIndexed (b .&. complement m) (A.delete ary i)
+              st'
+                | isLeafOrCollision st' && A.length ary == 1 -> st'
+                | st' `ptrEq` st -> t
+                | otherwise -> BitmapIndexed b (A.update ary i st')
       where
         m = mask h s
         i = sparseIndex b m
