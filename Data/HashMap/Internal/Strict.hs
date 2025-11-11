@@ -300,7 +300,7 @@ adjust f k0 m0 = go h0 k0 0 m0
 -- If it is @('Just' y)@, the key @k@ is bound to the new value @y@.
 update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
 update f = Exts.inline alter (>>= f)
-{-# INLINABLE update #-}
+{-# INLINE update #-}
 
 -- | \(O(\log n)\)  The expression @('alter' f k map)@ alters the value @x@ at @k@, or
 -- absence thereof.
@@ -314,7 +314,7 @@ alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashM
 alter f = Exts.inline HM.alter $ \m -> case f m of
   Nothing -> Nothing
   Just !x -> Just x
-{-# INLINABLE alter #-}
+{-# INLINE alter #-}
 
 -- | \(O(\log n)\)  The expression (@'alterF' f k map@) alters the value @x@ at
 -- @k@, or absence thereof.
