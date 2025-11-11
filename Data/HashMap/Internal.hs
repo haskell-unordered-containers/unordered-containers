@@ -1301,52 +1301,51 @@ alter' f h0 k0 m0 = go h0 k0 0 m0
       | b .&. m == 0 = case f Nothing of
           Nothing -> t
           Just v' -> bitmapIndexedOrFull (b .|. m) $! A.insert ary i $! Leaf h $! L k v'
-      | otherwise = do
-          let !st = A.index ary i
-              !st' = go h k (nextShift s) st
-          if st' `ptrEq` st
-            then t
-            else case st' of
-              Empty
-                | A.length ary == 1 -> Empty
-                | A.length ary == 2 ->
-                    case (i, A.index ary 0, A.index ary 1) of
-                      (0, _, l) | isLeafOrCollision l -> l
-                      (1, l, _) | isLeafOrCollision l -> l
-                      _ -> bIndexed
-                | otherwise -> bIndexed
-                where
-                  bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
-              l | isLeafOrCollision l && A.length ary == 1 -> l
-              _ -> BitmapIndexed b (A.update ary i st')
+      | otherwise =
+          case A.index# ary i of
+            (# !st #) -> do
+              let !st' = go h k (nextShift s) st
+              if st' `ptrEq` st
+                then t
+                else case st' of
+                  Empty
+                    | A.length ary == 2
+                    , (# l #) <- A.index# ary (otherOfOneOrZero i)
+                    , isLeafOrCollision l
+                      -> l
+                    | otherwise -> bIndexed
+                    where
+                      bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
+                  l | isLeafOrCollision l && A.length ary == 1 -> l
+                  _ -> BitmapIndexed b (A.update ary i st')
       where
         m = mask h s
         i = sparseIndex b m
     go h k s t@(Full ary) = do
-      let !st = A.index ary i
-          !st' = go h k (nextShift s) st
-      if st' `ptrEq` st
-        then t
-        else case st' of
-          Empty ->
-            let ary' = A.delete ary i
-                bm = fullBitmap .&. complement (1 `unsafeShiftL` i)
-             in BitmapIndexed bm ary'
-          _ -> Full (A.update ary i st')
-      where
-        i = index h s
+      case A.index# ary i of
+        (# !st #) -> do
+          let !st' = go h k (nextShift s) st
+          if st' `ptrEq` st
+            then t
+            else case st' of
+              Empty ->
+                let ary' = A.delete ary i
+                    bm = fullBitmap .&. complement (1 `unsafeShiftL` i)
+                 in BitmapIndexed bm ary'
+              _ -> Full (A.update ary i st')
+      where i = index h s
     go h k s t@(Collision hy ls)
       | h == hy = case indexOf k ls of
           Just i -> do
-            let !(L _ v) = A.index ls i
-            case f $ Just v of
-              Nothing
-                | A.length ls == 2 ->
-                    if i == 0
-                      then Leaf h (A.index ls 1)
-                      else Leaf h (A.index ls 0)
-                | otherwise -> Collision hy (A.delete ls i)
-              Just v' -> Collision hy $ A.update ls i $ L k v'
+            case A.index# ls i of
+              (# L _ v #) ->
+                case f $ Just v of
+                  Nothing
+                    | A.length ls == 2 ->
+                        case A.index# ls (otherOfOneOrZero i) of
+                          (# l #) -> Leaf h l
+                    | otherwise -> Collision hy (A.delete ls i)
+                  Just v' -> Collision hy $ A.update ls i $ L k v'
           Nothing -> case f Nothing of
             Nothing -> t
             Just v' -> Collision hy $ A.snoc ls $ L k v'
