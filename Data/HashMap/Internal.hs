@@ -1178,9 +1178,10 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
       case A.index# ary i of
         (# st #) -> case go collPos (nextSH shiftedHash) k st of
           Empty | A.length ary == 2
-                , (# l #) <- A.index# ary (otherOfOneOrZero i)
-                , isLeafOrCollision l
-                -> l
+                , (# st2 #) <- A.index# ary (otherOfOneOrZero i)
+                -> if isLeafOrCollision st2
+                   then st2
+                   else BitmapIndexed (b .&. complement m) (A.singleton st2)
                 | otherwise
                 -> BitmapIndexed (b .&. complement m) (A.delete ary i)
           st' | isLeafOrCollision st' && A.length ary == 1 -> st'
