@@ -1277,12 +1277,12 @@ alter f k = Exts.inline alter' f (hash k) k
 {-# INLINABLE alter #-}
 
 alter' :: Eq k => (Maybe v -> Maybe v) -> Hash -> k -> HashMap k v -> HashMap k v
-alter' f h0 k0 m0 = go h0 k0 0 m0
+alter' f h0 k0 m0 = go_alter' h0 k0 0 m0
   where
-    go !h !k !_ Empty = case f Nothing of
+    go_alter' !h !k !_ Empty = case f Nothing of
       Nothing -> Empty
       Just v -> Leaf h $ L k v
-    go h k s t@(Leaf hy l@(L ky v))
+    go_alter' h k s t@(Leaf hy l@(L ky v))
       | hy == h =
           if ky == k
             then case f $ Just v of
@@ -1297,13 +1297,13 @@ alter' f h0 k0 m0 = go h0 k0 0 m0
       | otherwise = case f Nothing of
           Nothing -> t
           Just v' -> runST $ two s h k v' hy t
-    go h k s t@(BitmapIndexed b ary)
+    go_alter' h k s t@(BitmapIndexed b ary)
       | b .&. m == 0 = case f Nothing of
           Nothing -> t
           Just v' -> bitmapIndexedOrFull (b .|. m) $! A.insert ary i $! Leaf h $! L k v'
       | otherwise =
           case A.index# ary i of
-            (# !st #) -> case go h k (nextShift s) st of
+            (# !st #) -> case go_alter' h k (nextShift s) st of
               Empty
                 | A.length ary == 2
                 , (# l #) <- A.index# ary (otherOfOneOrZero i)
@@ -1317,10 +1317,10 @@ alter' f h0 k0 m0 = go h0 k0 0 m0
       where
         m = mask h s
         i = sparseIndex b m
-    go h k s t@(Full ary) = do
+    go_alter' h k s t@(Full ary) = do
       case A.index# ary i of
         (# !st #) -> do
-          let !st' = go h k (nextShift s) st
+          let !st' = go_alter' h k (nextShift s) st
           if st' `ptrEq` st
             then t
             else case st' of
@@ -1330,7 +1330,7 @@ alter' f h0 k0 m0 = go h0 k0 0 m0
                  in BitmapIndexed bm ary'
               _ -> Full (A.update ary i st')
       where i = index h s
-    go h k s t@(Collision hy ls)
+    go_alter' h k s t@(Collision hy ls)
       | h == hy = case indexOf k ls of
           Just i -> do
             case A.index# ls i of
