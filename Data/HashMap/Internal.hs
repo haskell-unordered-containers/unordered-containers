@@ -1328,24 +1328,39 @@ alter' f !h0 !k0 = go_alter' h0 k0 0
               _ -> Full (A.update ary i st')
       where i = index h s
     go_alter' h k s t@(Collision hy ls)
-      | h == hy = case indexOf k ls of
-          Just i -> do
-            case A.index# ls i of
-              (# L _ v #) ->
-                case f $ Just v of
-                  Nothing
-                    | A.length ls == 2 ->
-                        case A.index# ls (otherOfOneOrZero i) of
-                          (# l #) -> Leaf h l
-                    | otherwise -> Collision hy (A.delete ls i)
-                  Just v' -> Collision hy $ A.update ls i $ L k v'
-          Nothing -> case f Nothing of
-            Nothing -> t
-            Just v' -> Collision hy $ A.snoc ls $ L k v'
+      | h == hy = alterCollision f h k ls t
       | otherwise = case f Nothing of
           Nothing -> t
           Just v' -> runST $ two s h k v' hy t
 {-# INLINE alter' #-}
+
+alterCollision
+  :: Eq k
+  => (Maybe v -> Maybe v)
+  -> Hash
+  -> k
+  -> A.Array (Leaf k v)
+  -> HashMap k v
+  -- ^ The original Collision node which will be re-used if the array is unchanged.
+  -- 
+  -- It is the caller's responsibility to ensure that this argument is in WHNF.
+  -> HashMap k v
+alterCollision f !h !k !ary orig =
+    case indexOf k ary of
+      Just i -> do
+        case A.index# ary i of
+          (# L _ v #) ->
+            case f $ Just v of
+              Nothing
+                | A.length ary == 2 ->
+                    case A.index# ary (otherOfOneOrZero i) of
+                      (# l #) -> Leaf h l
+                | otherwise -> Collision h (A.delete ary i)
+              Just v' -> Collision h $ A.update ary i $ L k v'
+      Nothing -> case f Nothing of
+        Nothing -> orig
+        Just v' -> Collision h $ A.snoc ary $ L k v'
+{-# INLINABLE alterCollision #-}
 
 -- | \(O(\log n)\)  The expression @('alterF' f k map)@ alters the value @x@ at
 -- @k@, or absence thereof.
