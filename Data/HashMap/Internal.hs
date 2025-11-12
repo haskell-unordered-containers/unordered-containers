@@ -1357,7 +1357,9 @@ alterCollision f !h !k !ary orig =
                     case A.index# ary (otherOfOneOrZero i) of
                       (# l #) -> Leaf h l
                 | otherwise -> Collision h (A.delete ary i)
-              Just v' -> Collision h $ A.update ary i $ L k v'
+              Just v'
+                | v' `ptrEq` v -> orig
+                | otherwise -> Collision h $ A.update ary i $ L k v'
       Nothing -> case f Nothing of
         Nothing -> orig
         Just v' -> Collision h $ A.snoc ary $ L k v'
