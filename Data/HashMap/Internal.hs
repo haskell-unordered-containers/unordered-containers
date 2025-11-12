@@ -799,44 +799,46 @@ bitmapIndexedOrFull b !ary
 -- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k v m = insert' (hash k) k v m
-{-# INLINABLE insert #-}
+{-# INLINE insert #-}
 
 insert' :: Eq k => Hash -> k -> v -> HashMap k v -> HashMap k v
-insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
-  where
-    go !h !k x !_ Empty = Leaf h (L k x)
-    go h k x s t@(Leaf hy l@(L ky y))
-        | hy == h = if ky == k
-                    then if x `ptrEq` y
-                         then t
-                         else Leaf h (L k x)
-                    else collision h l (L k x)
-        | otherwise = runST (two s h k x hy t)
-    go h k x s t@(BitmapIndexed b ary)
-        | b .&. m == 0 =
-            let !ary' = A.insert ary i $! Leaf h (L k x)
-            in bitmapIndexedOrFull (b .|. m) ary'
-        | otherwise =
-            case A.index# ary i of
-              (# !st #) ->
-                let !st' = go h k x (nextShift s) st
-                in if st' `ptrEq` st
-                   then t
-                   else BitmapIndexed b (A.update ary i st')
-      where m = mask h s
-            i = sparseIndex b m
-    go h k x s t@(Full ary) =
+insert' h k v = insertInSubtree h k v 0
+{-# INLINE insert' #-}
+
+insertInSubtree :: Eq k => Hash -> k -> v -> Shift -> HashMap k v -> HashMap k v
+insertInSubtree !h !k x !_s Empty = Leaf h (L k x)
+insertInSubtree h k x s t@(Leaf hy l@(L ky y))
+    | hy == h = if ky == k
+                then if x `ptrEq` y
+                     then t
+                     else Leaf h (L k x)
+                else collision h l (L k x)
+    | otherwise = runST (two s h k x hy t)
+insertInSubtree h k x s t@(BitmapIndexed b ary)
+    | b .&. m == 0 =
+        let !ary' = A.insert ary i $! Leaf h (L k x)
+        in bitmapIndexedOrFull (b .|. m) ary'
+    | otherwise =
         case A.index# ary i of
           (# !st #) ->
-            let !st' = go h k x (nextShift s) st
+            let !st' = insertInSubtree h k x (nextShift s) st
             in if st' `ptrEq` st
                then t
-               else Full (updateFullArray ary i st')
-      where i = index h s
-    go h k x s t@(Collision hy v)
-        | h == hy   = Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-{-# INLINABLE insert' #-}
+               else BitmapIndexed b (A.update ary i st')
+  where m = mask h s
+        i = sparseIndex b m
+insertInSubtree h k x s t@(Full ary) =
+    case A.index# ary i of
+      (# !st #) ->
+        let !st' = insertInSubtree h k x (nextShift s) st
+        in if st' `ptrEq` st
+           then t
+           else Full (updateFullArray ary i st')
+  where i = index h s
+insertInSubtree h k x s t@(Collision hy v)
+    | h == hy   = Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
+    | otherwise = insertInSubtree h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+{-# INLINABLE insertInSubtree #-}
 
 -- | Insert optimized for the case when we know the key is not in the map.
 --
@@ -1578,7 +1580,7 @@ unionSubtrees s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 _))
                   then t1
                   else collision h1 l1 l2
     | otherwise = goDifferentHash s h1 h2 t1 t2
-unionSubtrees s (Leaf h1 k1 v1) !t2 = insert' h1 k1 v1 t2 -- Bug: Shift
+unionSubtrees s (Leaf h1 k1 v1) !t2 = insertInSubtree h1 k1 v1 s t2
 unionSubtrees s t1 (Leaf h2 k2 v2) = undefined
 unionSubtrees s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
     | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k a b #)) k1 v1 ls2)
