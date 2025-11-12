@@ -1347,6 +1347,11 @@ alter' f !h0 !k0 = go_alter' h0 k0 0
           Just v' -> runST $ two s h k v' hy t
 {-# INLINE alter' #-}
 
+-- | \(O(\log n)\)  The expression @('alterF' f k map)@ alters the value @x@ at
+-- @k@, or absence thereof.
+--
+--  'alterF' can be used to insert, delete, or update a value in a map.
+--
 -- Note: 'alterF' is a flipped version of the 'at' combinator from
 -- <https://hackage.haskell.org/package/lens/docs/Control-Lens-At.html#v:at Control.Lens.At>.
 --
