@@ -1345,8 +1345,6 @@ alterCollision
   -> A.Array (Leaf k v)
   -> HashMap k v
   -- ^ The original Collision node which will be re-used if the array is unchanged.
-  -- 
-  -- It is the caller's responsibility to ensure that this argument is in WHNF.
   -> HashMap k v
 alterCollision f !h !k !ary orig =
     case indexOf k ary of
