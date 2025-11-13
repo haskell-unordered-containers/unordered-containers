@@ -1658,7 +1658,7 @@ union = unionSubtrees 0
                 | testBit (b1 .&. b2) = do
                     x1 <- A.indexM ary1 i1
                     x2 <- A.indexM ary2 i2
-                    A.write mary i $! unionSubtrees s x1 x2
+                    A.write mary i $! unionSubtrees (nextShift s) x1 x2
                     go (i+1) (i1+1) (i2+1) b'
                 | testBit b1 = do
                     A.write mary i =<< A.indexM ary1 i1
