@@ -1580,7 +1580,7 @@ union = unionSubtrees 0
                       else collision h1 l1 l2
         | otherwise = goDifferentHash s h1 h2 t1 t2
     unionSubtrees s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
-        -- TODO: Check whether the array has changed!
+        -- TODO: Return t2 if the result is the same.
         | h1 == h2  = Collision h1 (updateOrSnocWith (\a _ -> (# a #)) k1 v1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     unionSubtrees s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
@@ -1653,23 +1653,31 @@ union = unionSubtrees 0
         h1 = leafHashCode t1
         m1 = mask h1 s
         i = sparseIndex b2 m1
-    unionSubtrees s (Full ary1) t2 =
-        let h2   = leafHashCode t2
-            i    = index h2 s
-            -- TODO: Check whether the array has changed!
-            ary' = updateFullArrayWith' ary1 i $ \st1 -> unionSubtrees (nextShift s) st1 t2
-        in Full ary'
-    unionSubtrees s t1 (Full ary2) =
-        let h1   = leafHashCode t1
-            i    = index h1 s
-            -- TODO: Check whether the array has changed!
-            ary' = updateFullArrayWith' ary2 i $ \st2 -> unionSubtrees (nextShift s) t1 st2
-        in Full ary'
+    unionSubtrees s t1@(Full ary1) t2 =
+        case A.index# ary1 i of
+          (# !st1 #) ->
+            let !st' = unionSubtrees (nextShift s) st1 t2
+            in if st' `ptrEq` st1
+              then t1
+              else Full (updateFullArray ary1 i st')
+      where
+        h2   = leafHashCode t2
+        i    = index h2 s
+    unionSubtrees s t1 t2@(Full ary2) =
+        case A.index# ary2 i of
+          (# !st2 #) ->
+            let !st' = unionSubtrees (nextShift s) t1 st2
+            in if st' `ptrEq` st2
+              then t2
+              else Full (updateFullArray ary2 i st')
+      where
+        h1   = leafHashCode t1
+        i    = index h1 s
     {-# INLINABLE unionSubtrees #-}
 
     leafHashCode (Leaf h _) = h
     leafHashCode (Collision h _) = h
-    leafHashCode _ = error "leafHashCode"
+    leafHashCode _ = error "leafHashCode" -- return 0?! Or 7
 
     goDifferentHash s h1 h2 t1 t2
         | m1 == m2  = BitmapIndexed m1 (A.singleton $! goDifferentHash (nextShift s) h1 h2 t1 t2)
@@ -1679,30 +1687,34 @@ union = unionSubtrees 0
         m1 = mask h1 s
         m2 = mask h2 s
 
-    unionArrays !s !b1 !b2 !ary1 !ary2 = A.run $ do
+    unionArrays !s !b1 !b2 !ary1 !ary2 = runST $ do
         let bCombined = b1 .|. b2
         mary <- A.new_ (popCount bCombined)
         -- iterate over nonzero bits of b1 .|. b2
-        -- TODO: Add change-tracking
-        let go !i !i1 !i2 !b
-                | b == 0 = return ()
+        let go !i !i1 !i2 !b !nChanges
+                | b == 0 = return nChanges
                 | testBit (b1 .&. b2) = do
-                    x1 <- A.indexM ary1 i1
+                    !x1 <- A.indexM ary1 i1
                     x2 <- A.indexM ary2 i2
-                    A.write mary i $! unionSubtrees (nextShift s) x1 x2
-                    go (i+1) (i1+1) (i2+1) b'
+                    let !x' = unionSubtrees (nextShift s) x1 x2
+                    A.write mary i x'
+                    let same = I# (Exts.reallyUnsafePtrEquality# x' x1)
+                    let nChanges' = nChanges + (1 - same)
+                    go (i+1) (i1+1) (i2+1) b' nChanges'
                 | testBit b1 = do
                     A.write mary i =<< A.indexM ary1 i1
-                    go (i+1) (i1+1) i2 b'
+                    go (i+1) (i1+1) i2 b' nChanges
                 | otherwise = do
                     A.write mary i =<< A.indexM ary2 i2
-                    go (i+1) i1 (i2+1) b'
+                    go (i+1) i1 (i2+1) b' (nChanges + 1)
               where
                 m = 1 `unsafeShiftL` countTrailingZeros b
                 testBit x = x .&. m /= 0
                 b' = b .&. complement m
-        go 0 0 0 bCombined
-        return mary
+        nChanges <- go 0 0 0 bCombined 0
+        if nChanges == 0
+          then return ary1
+          else A.unsafeFreeze mary
     {-# INLINABLE unionArrays #-}
 {-# INLINE union #-}
 
