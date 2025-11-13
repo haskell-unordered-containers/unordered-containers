@@ -776,6 +776,10 @@ lookupDefault = findWithDefault
 
 infixl 9 !
 
+-- | \(O(\log n)\) For a given key, return the equal key stored in the map,
+-- if present.
+--
+-- This function can be used for /interning/, i.e. to reduce memory usage.
 lookupKey :: Hashable k => k -> HashMap k v -> Maybe k
 lookupKey k = \m -> fromMaybe# (lookupKeyInSubtree# 0 (hash k) k m)
   where
@@ -799,7 +803,7 @@ lookupKeyInSubtree# !s !hx kx = \case
     | hx == hy
     , Just i <- indexOf kx ary
     , (# L ky _ #) <- A.index# ary i
-    -> (# | ky #)
+      -> (# | ky #)
   _ -> (# (##) | #)
 {-# INLINABLE lookupKeyInSubtree# #-}
 
