@@ -148,6 +148,7 @@ module Data.HashMap.Internal
     , deleteKeyExists
     , insertModifying
     , ptrEq
+    , hashOfLeafOrCollision
     , adjust#
     ) where
 
@@ -1675,7 +1676,7 @@ unionWithKey f = go 0
                                    go (nextShift s) st1 t2
                            in BitmapIndexed b1 ary'
         where
-          h2 = leafHashCode t2
+          h2 = hashOfLeafOrCollision t2
           m2 = mask h2 s
           i = sparseIndex b1 m2
     go s t1 (BitmapIndexed b2 ary2)
@@ -1686,23 +1687,19 @@ unionWithKey f = go 0
                                    go (nextShift s) t1 st2
                            in BitmapIndexed b2 ary'
       where
-        h1 = leafHashCode t1
+        h1 = hashOfLeafOrCollision t1
         m1 = mask h1 s
         i = sparseIndex b2 m1
     go s (Full ary1) t2 =
-        let h2   = leafHashCode t2
+        let h2   = hashOfLeafOrCollision t2
             i    = index h2 s
             ary' = updateFullArrayWith' ary1 i $ \st1 -> go (nextShift s) st1 t2
         in Full ary'
     go s t1 (Full ary2) =
-        let h1   = leafHashCode t1
+        let h1   = hashOfLeafOrCollision t1
             i    = index h1 s
             ary' = updateFullArrayWith' ary2 i $ \st2 -> go (nextShift s) t1 st2
         in Full ary'
-
-    leafHashCode (Leaf h _) = h
-    leafHashCode (Collision h _) = h
-    leafHashCode _ = error "leafHashCode"
 
     goDifferentHash s h1 h2 t1 t2
         | m1 == m2  = BitmapIndexed m1 (A.singleton $! goDifferentHash (nextShift s) h1 h2 t1 t2)
@@ -2987,6 +2984,19 @@ otherOfOneOrZero i = 1 - i
 {-# INLINE otherOfOneOrZero #-}
 
 #if defined(__GLASGOW_HASKELL__)
+------------------------------------------------------------------------
+-- Tools for reducing duplication in code handling 'Leaf' and 'Collision' nodes
+
+-- | The 'Hash' of a 'Leaf' or 'Collision' node.
+--
+-- This function is marked @NOINLINE@ to prevent GHC from generating separate
+-- alternatives for 'Leaf' and 'Collision' nodes.
+hashOfLeafOrCollision :: HashMap k v -> Hash
+hashOfLeafOrCollision (Leaf h _) = h
+hashOfLeafOrCollision (Collision h _) = h
+hashOfLeafOrCollision _ = error "hashOfLeafOrCollision"
+{-# NOINLINE hashOfLeafOrCollision #-}
+
 ------------------------------------------------------------------------
 -- IsList instance
 instance Hashable k => Exts.IsList (HashMap k v) where
