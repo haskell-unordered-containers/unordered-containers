@@ -1623,26 +1623,32 @@ union = unionSubtrees 0
               then t1
               else Full ary'
     -- leaf vs. branch
-    unionSubtrees s (BitmapIndexed b1 ary1) t2
+    unionSubtrees s t1@(BitmapIndexed b1 ary1) t2
         | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
                                b'   = b1 .|. m2
                            in bitmapIndexedOrFull b' ary'
-        | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
-                                   unionSubtrees (nextShift s) st1 t2
-                           -- TODO: Check whether the array has changed!
-                           in BitmapIndexed b1 ary'
+        | otherwise =
+            case A.index# ary1 i of
+              (# !st1 #) ->
+                let !st' = unionSubtrees (nextShift s) st1 t2
+                in if st' `ptrEq` st1
+                  then t1
+                  else BitmapIndexed b1 (A.update ary1 i st')
         where
           h2 = leafHashCode t2
           m2 = mask h2 s
           i = sparseIndex b1 m2
-    unionSubtrees s t1 (BitmapIndexed b2 ary2)
+    unionSubtrees s t1 t2@(BitmapIndexed b2 ary2)
         | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
                                b'   = b2 .|. m1
                            in bitmapIndexedOrFull b' ary'
-        | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
-                                   unionSubtrees (nextShift s) t1 st2
-                           -- TODO: Check whether the array has changed!
-                           in BitmapIndexed b2 ary'
+        | otherwise =
+            case A.index# ary2 i of
+              (# !st2 #) ->
+                let !st' = unionSubtrees (nextShift s) t1 st2
+                in if st' `ptrEq` st2
+                  then t2
+                  else BitmapIndexed b2 (A.update ary2 i st')
       where
         h1 = leafHashCode t1
         m1 = mask h1 s
