@@ -1580,28 +1580,48 @@ union = unionSubtrees 0
                       else collision h1 l1 l2
         | otherwise = goDifferentHash s h1 h2 t1 t2
     unionSubtrees s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
+        -- TODO: Check whether the array has changed!
         | h1 == h2  = Collision h1 (updateOrSnocWith (\a _ -> (# a #)) k1 v1 ls2)
         | otherwise = goDifferentHash s h1 h2 t1 t2
     unionSubtrees s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
-        | h1 == h2  = Collision h1 (updateOrSnocWith (\_ b -> (# b #)) k2 v2 ls1)
+        | h1 == h2  =
+            let ary = updateOrSnocWith (\_ b -> (# b #)) k2 v2 ls1
+            in if A.length ary == A.length ls1
+              then t1
+              else Collision h1 ary
         | otherwise = goDifferentHash s h1 h2 t1 t2
     unionSubtrees s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
-        | h1 == h2  = Collision h1 (updateOrConcatWithKey (\_ a _ -> (# a #)) ls1 ls2)
+        | h1 == h2 =
+            let ary = updateOrConcatWithKey (\_ a _ -> (# a #)) ls1 ls2
+            in if A.length ary == A.length ls1
+              then t1
+              else Collision h1 ary
         | otherwise = goDifferentHash s h1 h2 t1 t2
     -- branch vs. branch
-    unionSubtrees s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
-        let b'   = b1 .|. b2
-            ary' = unionArrays s b1 b2 ary1 ary2
-        in bitmapIndexedOrFull b' ary'
+    unionSubtrees s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
+        | A.unsafeSameArray ary1 ary2 = t1
+        | otherwise =
+            let b' = b1 .|. b2
+                !ary' = unionArrays s b1 b2 ary1 ary2
+            in if A.unsafeSameArray ary' ary1
+              then t1
+              else bitmapIndexedOrFull b' ary'
     unionSubtrees s (BitmapIndexed b1 ary1) (Full ary2) =
         let ary' = unionArrays s b1 fullBitmap ary1 ary2
         in Full ary'
-    unionSubtrees s (Full ary1) (BitmapIndexed b2 ary2) =
+    unionSubtrees s t1@(Full ary1) (BitmapIndexed b2 ary2) =
         let ary' = unionArrays s fullBitmap b2 ary1 ary2
-        in Full ary'
-    unionSubtrees s (Full ary1) (Full ary2) =
-        let ary' = unionArrays s fullBitmap fullBitmap ary1 ary2
-        in Full ary'
+        in if A.unsafeSameArray ary' ary1
+          then t1
+          else Full ary'
+    unionSubtrees s t1@(Full ary1) (Full ary2)
+        | A.unsafeSameArray ary1 ary2 = t1
+        | otherwise =
+            -- TODO: Define and use unionFullArrays?!
+            let !ary' = unionArrays s fullBitmap fullBitmap ary1 ary2
+            in if A.unsafeSameArray ary' ary1
+              then t1
+              else Full ary'
     -- leaf vs. branch
     unionSubtrees s (BitmapIndexed b1 ary1) t2
         | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
@@ -1609,6 +1629,7 @@ union = unionSubtrees 0
                            in bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
                                    unionSubtrees (nextShift s) st1 t2
+                           -- TODO: Check whether the array has changed!
                            in BitmapIndexed b1 ary'
         where
           h2 = leafHashCode t2
@@ -1620,6 +1641,7 @@ union = unionSubtrees 0
                            in bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
                                    unionSubtrees (nextShift s) t1 st2
+                           -- TODO: Check whether the array has changed!
                            in BitmapIndexed b2 ary'
       where
         h1 = leafHashCode t1
@@ -1628,11 +1650,13 @@ union = unionSubtrees 0
     unionSubtrees s (Full ary1) t2 =
         let h2   = leafHashCode t2
             i    = index h2 s
+            -- TODO: Check whether the array has changed!
             ary' = updateFullArrayWith' ary1 i $ \st1 -> unionSubtrees (nextShift s) st1 t2
         in Full ary'
     unionSubtrees s t1 (Full ary2) =
         let h1   = leafHashCode t1
             i    = index h1 s
+            -- TODO: Check whether the array has changed!
             ary' = updateFullArrayWith' ary2 i $ \st2 -> unionSubtrees (nextShift s) t1 st2
         in Full ary'
     {-# INLINABLE unionSubtrees #-}
@@ -1653,6 +1677,7 @@ union = unionSubtrees 0
         let bCombined = b1 .|. b2
         mary <- A.new_ (popCount bCombined)
         -- iterate over nonzero bits of b1 .|. b2
+        -- TODO: Add change-tracking
         let go !i !i1 !i2 !b
                 | b == 0 = return ()
                 | testBit (b1 .&. b2) = do
