@@ -1639,16 +1639,22 @@ unionWithKey f = go 0
         h1 = leafHashCode t1
         m1 = mask h1 s
         i = sparseIndex b2 m1
-    go s (Full ary1) t2 =
-        let h2   = leafHashCode t2
-            i    = index h2 s
-            ary' = updateFullArrayWith' ary1 i $ \st1 -> go (nextShift s) st1 t2
-        in Full ary'
-    go s t1 (Full ary2) =
-        let h1   = leafHashCode t1
-            i    = index h1 s
+    go s (Full ary1) t2@(Leaf h2 _) = fullVsLeaf s ary1 h2 t2
+    go s (Full ary1) t2@(Collision h2 _) = fullVsLeaf s ary1 h2 t2
+    go s t1@(Leaf h1 _) (Full ary2) = leafVsFull s h1 t1 ary2
+    go s t1@(Collision h1 _) (Full ary2) = leafVsFull s h1 t1 ary2
+
+    leafVsFull !s !h1 t1 !ary2 =
+        Full ary'
+      where i    = index h1 s
             ary' = updateFullArrayWith' ary2 i $ \st2 -> go (nextShift s) t1 st2
-        in Full ary'
+    {-# NOINLINE leafVsFull #-}
+
+    fullVsLeaf !s !ary1 !h2 t2 =
+        Full ary'
+      where i    = index h2 s
+            ary' = updateFullArrayWith' ary1 i $ \st1 -> go (nextShift s) st1 t2
+    {-# NOINLINE fullVsLeaf #-}
 
     leafHashCode (Leaf h _) = h
     leafHashCode (Collision h _) = h
