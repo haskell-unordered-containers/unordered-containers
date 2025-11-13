@@ -1568,76 +1568,74 @@ submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .
 -- fromList [(1,'a'),(2,'b'),(3,'d')]
 union :: Eq k => HashMap k v -> HashMap k v -> HashMap k v
 union = unionSubtrees 0
-{-# INLINE union #-}
-
-unionSubtrees :: Eq k => Shift -> HashMap k v -> HashMap k v -> HashMap k v
--- empty vs. anything
-unionSubtrees !_ t1 Empty = t1
-unionSubtrees _ Empty t2 = t2
--- leaf vs. leaf
-unionSubtrees s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 _))
-    | h1 == h2  = if k1 == k2
-                  then t1
-                  else collision h1 l1 l2
-    | otherwise = goDifferentHash s h1 h2 t1 t2
-unionSubtrees s (Leaf h1 k1 v1) !t2 = insertInSubtree h1 k1 v1 s t2
-unionSubtrees s t1 (Leaf h2 k2 v2) = undefined
-unionSubtrees s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
-    | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k a b #)) k1 v1 ls2)
-    | otherwise = goDifferentHash s h1 h2 t1 t2
-unionSubtrees s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
-    | h1 == h2  = Collision h1 (updateOrSnocWithKey (\k a b -> (# f k b a #)) k2 v2 ls1)
-    | otherwise = goDifferentHash s h1 h2 t1 t2
-unionSubtrees s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
-    | h1 == h2  = Collision h1 (updateOrConcatWithKey (\k a b -> (# f k a b #)) ls1 ls2)
-    | otherwise = goDifferentHash s h1 h2 t1 t2
--- branch vs. branch
-unionSubtrees s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
-    let b'   = b1 .|. b2
-        ary' = unionArrays s b1 b2 ary1 ary2
-    in bitmapIndexedOrFull b' ary'
-unionSubtrees s (BitmapIndexed b1 ary1) (Full ary2) =
-    let ary' = unionArrays s b1 fullBitmap ary1 ary2
-    in Full ary'
-unionSubtrees s (Full ary1) (BitmapIndexed b2 ary2) =
-    let ary' = unionArrays s fullBitmap b2 ary1 ary2
-    in Full ary'
-unionSubtrees s (Full ary1) (Full ary2) =
-    let ary' = unionArrays s fullBitmap fullBitmap ary1 ary2
-    in Full ary'
--- leaf vs. branch
-unionSubtrees s (BitmapIndexed b1 ary1) t2
-    | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
-                           b'   = b1 .|. m2
-                       in bitmapIndexedOrFull b' ary'
-    | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
-                               unionSubtrees (nextShift s) st1 t2
-                       in BitmapIndexed b1 ary'
-    where
-      h2 = leafHashCode t2
-      m2 = mask h2 s
-      i = sparseIndex b1 m2
-unionSubtrees s t1 (BitmapIndexed b2 ary2)
-    | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
-                           b'   = b2 .|. m1
-                       in bitmapIndexedOrFull b' ary'
-    | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
-                               unionSubtrees (nextShift s) t1 st2
-                       in BitmapIndexed b2 ary'
   where
-    h1 = leafHashCode t1
-    m1 = mask h1 s
-    i = sparseIndex b2 m1
-unionSubtrees s (Full ary1) t2 =
-    let h2   = leafHashCode t2
-        i    = index h2 s
-        ary' = updateFullArrayWith' ary1 i $ \st1 -> unionSubtrees (nextShift s) st1 t2
-    in Full ary'
-unionSubtrees s t1 (Full ary2) =
-    let h1   = leafHashCode t1
-        i    = index h1 s
-        ary' = updateFullArrayWith' ary2 i $ \st2 -> unionSubtrees (nextShift s) t1 st2
-    in Full ary'
+    unionSubtrees :: Eq k => Shift -> HashMap k v -> HashMap k v -> HashMap k v
+    -- empty vs. anything
+    unionSubtrees !_ t1 Empty = t1
+    unionSubtrees _ Empty t2 = t2
+    -- leaf vs. leaf
+    unionSubtrees s t1@(Leaf h1 l1@(L k1 _)) t2@(Leaf h2 l2@(L k2 _))
+        | h1 == h2  = if k1 == k2
+                      then t1
+                      else collision h1 l1 l2
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    unionSubtrees s t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
+        | h1 == h2  = Collision h1 (updateOrSnocWith (\a _ -> (# a #)) k1 v1 ls2)
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    unionSubtrees s t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
+        | h1 == h2  = Collision h1 (updateOrSnocWith (\_ b -> (# b #)) k2 v2 ls1)
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    unionSubtrees s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
+        | h1 == h2  = Collision h1 (updateOrConcatWithKey (\_ a _ -> (# a #)) ls1 ls2)
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    -- branch vs. branch
+    unionSubtrees s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
+        let b'   = b1 .|. b2
+            ary' = unionArrays s b1 b2 ary1 ary2
+        in bitmapIndexedOrFull b' ary'
+    unionSubtrees s (BitmapIndexed b1 ary1) (Full ary2) =
+        let ary' = unionArrays s b1 fullBitmap ary1 ary2
+        in Full ary'
+    unionSubtrees s (Full ary1) (BitmapIndexed b2 ary2) =
+        let ary' = unionArrays s fullBitmap b2 ary1 ary2
+        in Full ary'
+    unionSubtrees s (Full ary1) (Full ary2) =
+        let ary' = unionArrays s fullBitmap fullBitmap ary1 ary2
+        in Full ary'
+    -- leaf vs. branch
+    unionSubtrees s (BitmapIndexed b1 ary1) t2
+        | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
+                               b'   = b1 .|. m2
+                           in bitmapIndexedOrFull b' ary'
+        | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
+                                   unionSubtrees (nextShift s) st1 t2
+                           in BitmapIndexed b1 ary'
+        where
+          h2 = leafHashCode t2
+          m2 = mask h2 s
+          i = sparseIndex b1 m2
+    unionSubtrees s t1 (BitmapIndexed b2 ary2)
+        | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
+                               b'   = b2 .|. m1
+                           in bitmapIndexedOrFull b' ary'
+        | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
+                                   unionSubtrees (nextShift s) t1 st2
+                           in BitmapIndexed b2 ary'
+      where
+        h1 = leafHashCode t1
+        m1 = mask h1 s
+        i = sparseIndex b2 m1
+    unionSubtrees s (Full ary1) t2 =
+        let h2   = leafHashCode t2
+            i    = index h2 s
+            ary' = updateFullArrayWith' ary1 i $ \st1 -> unionSubtrees (nextShift s) st1 t2
+        in Full ary'
+    unionSubtrees s t1 (Full ary2) =
+        let h1   = leafHashCode t1
+            i    = index h1 s
+            ary' = updateFullArrayWith' ary2 i $ \st2 -> unionSubtrees (nextShift s) t1 st2
+        in Full ary'
+    {-# INLINABLE unionSubtrees #-}
 
     leafHashCode (Leaf h _) = h
     leafHashCode (Collision h _) = h
@@ -1650,34 +1648,32 @@ unionSubtrees s t1 (Full ary2) =
       where
         m1 = mask h1 s
         m2 = mask h2 s
-{-# INLINABLE unionSubtrees #-}
 
-unionArrays :: Shift -> Bitmap -> Bitmap -> A.Array a -> A.Array a
-             -> A.Array a
-unionArrays !s !b1 !b2 !ary1 !ary2 = A.run $ do
-    let bCombined = b1 .|. b2
-    mary <- A.new_ (popCount bCombined)
-    -- iterate over nonzero bits of b1 .|. b2
-    let go !i !i1 !i2 !b
-            | b == 0 = return ()
-            | testBit (b1 .&. b2) = do
-                x1 <- A.indexM ary1 i1
-                x2 <- A.indexM ary2 i2
-                A.write mary i $! unionSubtrees s x1 x2
-                go (i+1) (i1+1) (i2+1) b'
-            | testBit b1 = do
-                A.write mary i =<< A.indexM ary1 i1
-                go (i+1) (i1+1) i2 b'
-            | otherwise = do
-                A.write mary i =<< A.indexM ary2 i2
-                go (i+1) i1 (i2+1) b'
-          where
-            m = 1 `unsafeShiftL` countTrailingZeros b
-            testBit x = x .&. m /= 0
-            b' = b .&. complement m
-    go 0 0 0 bCombined
-    return mary
-{-# INLINE unionArrayBy #-}
+    unionArrays !s !b1 !b2 !ary1 !ary2 = A.run $ do
+        let bCombined = b1 .|. b2
+        mary <- A.new_ (popCount bCombined)
+        -- iterate over nonzero bits of b1 .|. b2
+        let go !i !i1 !i2 !b
+                | b == 0 = return ()
+                | testBit (b1 .&. b2) = do
+                    x1 <- A.indexM ary1 i1
+                    x2 <- A.indexM ary2 i2
+                    A.write mary i $! unionSubtrees s x1 x2
+                    go (i+1) (i1+1) (i2+1) b'
+                | testBit b1 = do
+                    A.write mary i =<< A.indexM ary1 i1
+                    go (i+1) (i1+1) i2 b'
+                | otherwise = do
+                    A.write mary i =<< A.indexM ary2 i2
+                    go (i+1) i1 (i2+1) b'
+              where
+                m = 1 `unsafeShiftL` countTrailingZeros b
+                testBit x = x .&. m /= 0
+                b' = b .&. complement m
+        go 0 0 0 bCombined
+        return mary
+    {-# INLINABLE unionArrays #-}
+{-# INLINE union #-}
 
 -- | \(O(n+m)\) The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the
