@@ -785,13 +785,10 @@ lookupKey k = \m -> fromMaybe# (lookupKeyInSubtree# 0 (hash k) k m)
 
 lookupKeyInSubtree# :: Eq k => Shift -> Hash -> k -> HashMap k v -> (# (##) | k #)
 lookupKeyInSubtree# !s !hx kx = \case
-  Empty -> (# (##) | #)
   Leaf hy (L ky _)
     | hx == hy && kx == ky -> (# | ky #)
-    | otherwise -> (# (##) | #)
   BitmapIndexed b ary
-    | m .&. b == 0 -> (# (##) | #)
-    | otherwise -> case A.index# ary i of
+    | m .&. b /= 0 -> case A.index# ary i of
         (# st #) -> lookupKeyInSubtree# (nextShift s) hx kx st
     where
       m = mask hx s
@@ -803,7 +800,7 @@ lookupKeyInSubtree# !s !hx kx = \case
     , Just i <- indexOf kx ary
     , (# L ky _ #) <- A.index# ary i
     -> (# | ky #)
-    | otherwise -> (# (##) | #)
+  _ -> (# (##) | #)
 {-# INLINABLE lookupKeyInSubtree# #-}
 
 -- | Create a 'Collision' value with two 'Leaf' values.
