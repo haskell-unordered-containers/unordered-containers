@@ -52,6 +52,7 @@ module Data.HashSet.Internal
     , null
     , size
     , member
+    , lookup
     , insert
     , delete
     , isSubsetOf
@@ -98,7 +99,7 @@ import Data.Hashable.Lifted  (Hashable1 (..), Hashable2 (..))
 import Data.HashMap.Internal (HashMap, equalKeys, equalKeys1, foldMapWithKey,
                               foldlWithKey, foldrWithKey)
 import Data.Semigroup        (Semigroup (..), stimesIdempotentMonoid)
-import Prelude               hiding (Foldable(..), filter, map)
+import Prelude               hiding (Foldable(..), filter, lookup, map)
 import Text.Read
 
 import qualified Data.Data                  as Data
@@ -349,6 +350,14 @@ member a s = case H.lookup a (asMap s) of
                Just _ -> True
                _      -> False
 {-# INLINABLE member #-}
+
+-- | \(O(\log n)\) For a given value, return the equal element in the set, if
+-- present, or 'Nothing' otherwise.
+--
+-- This is useful for /interning/, i.e. to reduce memory usage.
+lookup :: Hashable a => a -> HashSet a -> Maybe a
+lookup a = H.lookupKey a . asMap
+{-# INLINABLE lookup #-}
 
 -- | \(O(\log n)\) Add the specified value to this set.
 --

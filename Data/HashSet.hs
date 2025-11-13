@@ -107,6 +107,7 @@ module Data.HashSet
     , null
     , size
     , member
+    , lookup
     , insert
     , delete
     , isSubsetOf

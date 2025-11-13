@@ -41,6 +41,7 @@ module Data.HashMap.Strict
     , findWithDefault
     , lookupDefault
     , (!)
+    , lookupKey
     , insert
     , insertWith
     , delete
