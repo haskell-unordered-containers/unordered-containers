@@ -144,13 +144,13 @@ unsafeSameArray (Array xs) (Array ys) =
 sameArray1 :: (a -> b -> Bool) -> Array a -> Array b -> Bool
 sameArray1 eq !xs0 !ys0
   | lenxs /= lenys = False
-  | otherwise = go 0 xs0 ys0
+  | otherwise = go_sameArray1 0 xs0 ys0
   where
-    go !k !xs !ys
+    go_sameArray1 !k !xs !ys
       | k == lenxs = True
       | (# x #) <- index# xs k
       , (# y #) <- index# ys k
-      = eq x y && go (k + 1) xs ys
+      = eq x y && go_sameArray1 (k + 1) xs ys
 
     !lenxs = length xs0
     !lenys = length ys0
@@ -182,13 +182,13 @@ instance NFData a => NFData (Array a) where
     rnf = rnfArray
 
 rnfArray :: NFData a => Array a -> ()
-rnfArray ary0 = go ary0 n0 0
+rnfArray ary0 = go_rnfArray ary0 n0 0
   where
     n0 = length ary0
-    go !ary !n !i
+    go_rnfArray !ary !n !i
         | i >= n = ()
         | (# x #) <- index# ary i
-        = rnf x `seq` go ary n (i+1)
+        = rnf x `seq` go_rnfArray ary n (i+1)
 -- We use index# just in case GHC can't see that the
 -- relevant rnf is strict, or in case it actually isn't.
 {-# INLINE rnfArray #-}
@@ -198,13 +198,13 @@ instance NFData1 Array where
     liftRnf = liftRnfArray
 
 liftRnfArray :: (a -> ()) -> Array a -> ()
-liftRnfArray rnf0 ary0 = go ary0 n0 0
+liftRnfArray rnf0 ary0 = go_liftRnfArray ary0 n0 0
   where
     n0 = length ary0
-    go !ary !n !i
+    go_liftRnfArray !ary !n !i
         | i >= n = ()
         | (# x #) <- index# ary i
-        = rnf0 x `seq` go ary n (i+1)
+        = rnf0 x `seq` go_liftRnfArray ary n (i+1)
 {-# INLINE liftRnfArray #-}
 
 -- | Create a new mutable array of specified size, in the specified
@@ -380,41 +380,41 @@ unsafeUpdateM ary idx b =
 {-# INLINE unsafeUpdateM #-}
 
 foldl' :: (b -> a -> b) -> b -> Array a -> b
-foldl' f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
+foldl' f = \ z0 ary0 -> go_foldl' ary0 (length ary0) 0 z0
   where
-    go ary n i !z
+    go_foldl' ary n i !z
         | i >= n = z
         | otherwise
         = case index# ary i of
-            (# x #) -> go ary n (i+1) (f z x)
+            (# x #) -> go_foldl' ary n (i+1) (f z x)
 {-# INLINE foldl' #-}
 
 foldr' :: (a -> b -> b) -> b -> Array a -> b
-foldr' f = \ z0 ary0 -> go ary0 (length ary0 - 1) z0
+foldr' f = \ z0 ary0 -> go_foldr' ary0 (length ary0 - 1) z0
   where
-    go !_ary (-1) z = z
-    go !ary i !z
+    go_foldr' !_ary (-1) z = z
+    go_foldr' !ary i !z
       | (# x #) <- index# ary i
-      = go ary (i - 1) (f x z)
+      = go_foldr' ary (i - 1) (f x z)
 {-# INLINE foldr' #-}
 
 foldr :: (a -> b -> b) -> b -> Array a -> b
-foldr f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
+foldr f = \ z0 ary0 -> go_foldr ary0 (length ary0) 0 z0
   where
-    go ary n i z
+    go_foldr ary n i z
         | i >= n = z
         | otherwise
         = case index# ary i of
-            (# x #) -> f x (go ary n (i+1) z)
+            (# x #) -> f x (go_foldr ary n (i+1) z)
 {-# INLINE foldr #-}
 
 foldl :: (b -> a -> b) -> b -> Array a -> b
-foldl f = \ z0 ary0 -> go ary0 (length ary0 - 1) z0
+foldl f = \ z0 ary0 -> go_foldl ary0 (length ary0 - 1) z0
   where
-    go _ary (-1) z = z
-    go ary i z
+    go_foldl _ary (-1) z = z
+    go_foldl ary i z
       | (# x #) <- index# ary i
-      = f (go ary (i - 1) z) x
+      = f (go_foldl ary (i - 1) z) x
 {-# INLINE foldl #-}
 
 -- We go to a bit of trouble here to avoid appending an extra mempty.
@@ -426,9 +426,9 @@ foldMap f = \ary0 -> case length ary0 of
   0 -> mempty
   len ->
     let !lst = len - 1
-        go i | (# x #) <- index# ary0 i, let fx = f x =
-          if i == lst then fx else fx `mappend` go (i + 1)
-    in go 0
+        go_foldMap i | (# x #) <- index# ary0 i, let fx = f x =
+          if i == lst then fx else fx `mappend` go_foldMap (i + 1)
+    in go_foldMap 0
 {-# INLINE foldMap #-}
 
 -- | Verifies that a predicate holds for all elements of an array.
@@ -470,15 +470,15 @@ map f = \ ary ->
     let !n = length ary
     in run $ do
         mary <- new_ n
-        go ary mary 0 n
+        go_map ary mary 0 n
         return mary
   where
-    go ary mary i n
+    go_map ary mary i n
         | i >= n    = return ()
         | otherwise = do
              x <- indexM ary i
              write mary i $ f x
-             go ary mary (i+1) n
+             go_map ary mary (i+1) n
 {-# INLINE map #-}
 
 -- | Strict version of 'map'.
@@ -487,15 +487,15 @@ map' f = \ ary ->
     let !n = length ary
     in run $ do
         mary <- new_ n
-        go ary mary 0 n
+        go_map' ary mary 0 n
         return mary
   where
-    go ary mary i n
+    go_map' ary mary i n
         | i >= n    = return ()
         | otherwise = do
              x <- indexM ary i
              write mary i $! f x
-             go ary mary (i+1) n
+             go_map' ary mary (i+1) n
 {-# INLINE map' #-}
 
 filter :: (a -> Bool) -> Array a -> Array a
@@ -544,24 +544,24 @@ fromList n xs0 =
     CHECK_EQ("fromList", n, Prelude.length xs0)
         run $ do
             mary <- new_ n
-            go xs0 mary 0
+            go_fromList xs0 mary 0
             return mary
   where
-    go []     !_   !_ = return ()
-    go (x:xs) mary i  = do write mary i x
-                           go xs mary (i+1)
+    go_fromList []     !_   !_ = return ()
+    go_fromList (x:xs) mary i  = do write mary i x
+                                    go_fromList xs mary (i+1)
 
 fromList' :: Int -> [a] -> Array a
 fromList' n xs0 =
     CHECK_EQ("fromList'", n, Prelude.length xs0)
         run $ do
             mary <- new_ n
-            go xs0 mary 0
+            go_fromList' xs0 mary 0
             return mary
   where
-    go []      !_   !_ = return ()
-    go (!x:xs) mary i  = do write mary i x
-                            go xs mary (i+1)
+    go_fromList' []      !_   !_ = return ()
+    go_fromList' (!x:xs) mary i  = do write mary i x
+                                      go_fromList' xs mary (i+1)
 
 -- | @since 0.2.17.0
 instance TH.Lift a => TH.Lift (Array a) where
@@ -582,13 +582,13 @@ traverse :: Applicative f => (a -> f b) -> Array a -> f (Array b)
 traverse f = \ !ary ->
   let
     !len = length ary
-    go !i
+    go_traverse !i
       | i == len = pure $ STA $ \mary -> unsafeFreeze (MArray mary)
       | (# x #) <- index# ary i
       = liftA2 (\b (STA m) -> STA $ \mary ->
                   write (MArray mary) i b >> m mary)
-               (f x) (go (i + 1))
-  in runSTA len <$> go 0
+               (f x) (go_traverse (i + 1))
+  in runSTA len <$> go_traverse 0
 {-# INLINE [1] traverse #-}
 
 -- TODO: Would it be better to just use a lazy traversal
@@ -598,13 +598,13 @@ traverse' :: Applicative f => (a -> f b) -> Array a -> f (Array b)
 traverse' f = \ !ary ->
   let
     !len = length ary
-    go !i
+    go_traverse' !i
       | i == len = pure $ STA $ \mary -> unsafeFreeze (MArray mary)
       | (# x #) <- index# ary i
       = liftA2 (\ !b (STA m) -> STA $ \mary ->
                     write (MArray mary) i b >> m mary)
-               (f x) (go (i + 1))
-  in runSTA len <$> go 0
+               (f x) (go_traverse' (i + 1))
+  in runSTA len <$> go_traverse' 0
 {-# INLINE [1] traverse' #-}
 
 -- Traversing in ST, we don't need to get fancy; we
@@ -613,28 +613,28 @@ traverseST :: (a -> ST s b) -> Array a -> ST s (Array b)
 traverseST f = \ ary0 ->
   let
     !len = length ary0
-    go k !mary
+    go_traverseST k !mary
       | k == len = return mary
       | otherwise = do
           x <- indexM ary0 k
           y <- f x
           write mary k y
-          go (k + 1) mary
-  in new_ len >>= (go 0 >=> unsafeFreeze)
+          go_traverseST (k + 1) mary
+  in new_ len >>= (go_traverseST 0 >=> unsafeFreeze)
 {-# INLINE traverseST #-}
 
 traverseIO :: (a -> IO b) -> Array a -> IO (Array b)
 traverseIO f = \ ary0 ->
   let
     !len = length ary0
-    go k !mary
+    go_traverseIO k !mary
       | k == len = return mary
       | otherwise = do
           x <- stToIO $ indexM ary0 k
           y <- f x
           stToIO $ write mary k y
-          go (k + 1) mary
-  in stToIO (new_ len) >>= (go 0 >=> stToIO . unsafeFreeze)
+          go_traverseIO (k + 1) mary
+  in stToIO (new_ len) >>= (go_traverseIO 0 >=> stToIO . unsafeFreeze)
 {-# INLINE traverseIO #-}
 
 
