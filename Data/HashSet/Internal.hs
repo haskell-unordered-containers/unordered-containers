@@ -450,7 +450,9 @@ fromList :: (Eq a, Hashable a) => [a] -> HashSet a
 fromList = HashSet . List.foldl' (\ m k -> H.unsafeInsert k () m) H.empty
 {-# INLINE fromList #-}
 
+#if defined(__GLASGOW_HASKELL__)
 instance (Eq a, Hashable a) => Exts.IsList (HashSet a) where
     type Item (HashSet a) = a
     fromList = fromList
     toList   = toList
+#endif
