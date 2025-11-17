@@ -149,6 +149,8 @@ module Data.HashMap.Internal
     , insertModifying
     , ptrEq
     , adjust#
+    
+    , mkSizePlan
     ) where
 
 import Data.Traversable           -- MicroHs needs this since its Prelude does not have Foldable&Traversable.
@@ -2715,6 +2717,68 @@ fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m) empty
 {-# INLINE fromListWithKey #-}
+
+fromListOfApproximately :: Hashable k => Int -> [(k, v)] -> HashMap k v
+fromListOfApproximately n =
+  shrink sizePlan .
+  List.foldl' (\ m (k, v) -> unsafeInsertOA sizePlan k v m) (OA empty)
+  where
+    !sizePlan = mkSizePlan n
+
+mkSizePlan :: Int -> SizePlan
+mkSizePlan n0 = x (reverse (List.unfoldr f (max 0 (n0 - 1))))
+  where
+    f 0 = Nothing
+    f n = Just (32, n `unsafeShiftR` 5)
+    x = x' 0
+    x' !n [] = n
+    x' n (y:ys) = x' ((n `unsafeShiftL` bitsPerSubkey) .|. (y - 1)) ys
+
+shrink :: SizePlan -> HashMapOA k v -> HashMap k v
+shrink = undefined
+
+-- | HashMaps with over-allocated array nodes.
+newtype HashMapOA k v = OA { unOA :: HashMap k v }
+
+type SizePlan = Word
+
+plannedSizeAt :: SizePlan -> Shift -> Int
+plannedSizeAt sp s = index sp s + 1
+
+unsafeInsertOA :: forall k v. Hashable k => SizePlan -> k -> v -> HashMapOA k v -> HashMapOA k v
+unsafeInsertOA sp0 k0 v0 (OA m0) = OA $ runST (go sp0 h0 k0 v0 0 m0)
+  where
+    h0 = hash k0
+    go :: forall s. SizePlan -> Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
+    go !sp !h !k x !_ Empty = return $! Leaf h (L k x)
+    go sp h k x s t@(Leaf hy l@(L ky y))
+        | hy == h = if ky == k
+                    then if x `ptrEq` y
+                         then return t
+                         else return $! Leaf h (L k x)
+                    else return $! collision h l (L k x)
+        | otherwise = two s h k x hy t
+    go sp h k x s t@(BitmapIndexed b ary)
+        | b .&. m == 0 = do
+            ary' <- A.insertM ary i $! Leaf h (L k x)
+            return $! bitmapIndexedOrFull (b .|. m) ary'
+        | otherwise = do
+            st <- A.indexM ary i
+            st' <- go sp h k x (nextShift s) st
+            A.unsafeUpdateM ary i st'
+            return t
+      where m = mask h s
+            i = sparseIndex b m
+    go sp h k x s t@(Full ary) = do
+        st <- A.indexM ary i
+        st' <- go sp h k x (nextShift s) st
+        A.unsafeUpdateM ary i st'
+        return t
+      where i = index h s
+    go sp h k x s t@(Collision hy v)
+        | h == hy   = return $! Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
+        | otherwise = go sp h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+{-# INLINABLE unsafeInsertOA #-}
 
 ------------------------------------------------------------------------
 -- Array operations
