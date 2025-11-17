@@ -2757,10 +2757,10 @@ unsafeInsertOA sp0 k0 v0 (OA m0) = OA $ runST (go sp0 h0 k0 v0 0 m0)
                          then return t
                          else return $! Leaf h (L k x)
                     else return $! collision h l (L k x)
-        | otherwise = two s h k x hy t
+        | otherwise = two s h k x hy t -- TODO
     go sp h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- A.insertM ary i $! Leaf h (L k x)
+            ary' <- A.insertM ary i $! Leaf h (L k x) -- TODO
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
