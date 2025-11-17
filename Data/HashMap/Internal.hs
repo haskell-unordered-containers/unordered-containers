@@ -2742,6 +2742,7 @@ newtype HashMapOA k v = OA { unOA :: HashMap k v }
 
 type SizePlan = Word
 
+-- | Minimum size returned: 1 (never 0)
 plannedSizeAt :: SizePlan -> Shift -> Int
 plannedSizeAt sp s = index sp s + 1
 
@@ -2757,10 +2758,10 @@ unsafeInsertOA sp0 k0 v0 (OA m0) = OA $ runST (go sp0 h0 k0 v0 0 m0)
                          then return t
                          else return $! Leaf h (L k x)
                     else return $! collision h l (L k x)
-        | otherwise = two s h k x hy t -- TODO
+        | otherwise = twoOA sp s h k x hy t -- TODO
     go sp h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- A.insertM ary i $! Leaf h (L k x) -- TODO
+            ary' <- insertOA ary (popCount b) i $! Leaf h (L k x) -- TODO
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
@@ -2779,6 +2780,39 @@ unsafeInsertOA sp0 k0 v0 (OA m0) = OA $ runST (go sp0 h0 k0 v0 0 m0)
         | h == hy   = return $! Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
         | otherwise = go sp h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsertOA #-}
+
+twoOA :: SizePlan -> Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
+twoOA = go
+  where
+    go sp s h1 k1 v1 h2 t2
+        | bp1 == bp2 = do
+            st <- go sp (nextShift s) h1 k1 v1 h2 t2
+            mary <- A.new_ (plannedSizeAt sp s)
+            A.write mary 0 st
+            ary <- A.unsafeFreeze mary
+            return $ BitmapIndexed bp1 ary
+        | otherwise  = do
+            let sz = plannedSizeAt sp s `max` 2
+            mary <- A.new_ sz
+            A.write mary (otherOfOneOrZero idx2) $! Leaf h1 (L k1 v1)
+            A.write mary idx2 t2
+            ary <- A.unsafeFreeze mary
+            return $ BitmapIndexed (bp1 .|. bp2) ary
+      where
+        bp1  = mask h1 s
+        bp2  = mask h2 s
+        !(I# i1) = index h1 s
+        !(I# i2) = index h2 s
+        !idx2 = I# (i1 Exts.<# i2)
+
+-- | Assumption: The array has been over-allocated and has size 'maxChildren'!
+insertOA :: A.Array e -> Int -> Int -> e -> ST s (A.Array e)
+insertOA ary nElem idx b =
+        do mary <- A.unsafeThaw ary
+           A.copyM mary idx mary (idx+1) (nElem-idx)
+           A.write mary idx b
+           A.unsafeFreeze mary
+{-# INLINE insertOA #-}
 
 ------------------------------------------------------------------------
 -- Array operations
