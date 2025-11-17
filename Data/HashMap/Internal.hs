@@ -2735,7 +2735,20 @@ mkSizePlan n0 = x (reverse (List.unfoldr f (max 0 (n0 - 1))))
     x' n (y:ys) = x' ((n `unsafeShiftL` bitsPerSubkey) .|. (y - 1)) ys
 
 shrink :: SizePlan -> HashMapOA k v -> HashMap k v
-shrink = undefined
+shrink !n = shrink_ n . unOA
+  where
+    shrink_ !n = \case
+      Empty -> Empty
+      m@Leaf{} -> m
+      m@Collision{} -> m
+      m@Full{} -> m -- TODO
+      m@(BitmapIndexed b ary) -> undefined
+    doShrink ary n = runST $ do
+      mary <- A.unsafeThaw ary
+      mary' <- A.shrink mary n
+      ary <- A.unsafeFreeze mary'
+      return () -- TODO
+      
 
 -- | HashMaps with over-allocated array nodes.
 newtype HashMapOA k v = OA { unOA :: HashMap k v }
@@ -2761,7 +2774,7 @@ unsafeInsertOA sp0 k0 v0 (OA m0) = OA $ runST (go sp0 h0 k0 v0 0 m0)
         | otherwise = twoOA sp s h k x hy t -- TODO
     go sp h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- insertOA ary (popCount b) i $! Leaf h (L k x) -- TODO
+            ary' <- insertOA (plannedSizeAt sp s) ary (popCount b) i $! Leaf h (L k x) -- TODO
             return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
@@ -2806,11 +2819,20 @@ twoOA = go
         !idx2 = I# (i1 Exts.<# i2)
 
 -- | Assumption: The array has been over-allocated and has size 'maxChildren'!
-insertOA :: A.Array e -> Int -> Int -> e -> ST s (A.Array e)
-insertOA ary nElem idx b =
+-- FIXME: That's a bad assumption!!! We may use this at a level where _no_
+-- over-allocation has been used.
+insertOA :: Int -> A.Array e -> Int -> Int -> e -> ST s (A.Array e)
+insertOA !pSz ary nElem idx b
+  | A.length ary > nElem =
         do mary <- A.unsafeThaw ary
            A.copyM mary idx mary (idx+1) (nElem-idx)
            A.write mary idx b
+           A.unsafeFreeze mary
+  | otherwise =
+        do mary <- A.new_ (pSz `max` (nElem + 1))
+           A.copy ary 0 mary 0 idx
+           A.write mary idx b
+           A.copy ary idx mary (idx+1) (nElem-idx)
            A.unsafeFreeze mary
 {-# INLINE insertOA #-}
 
