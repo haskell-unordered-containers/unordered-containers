@@ -2729,26 +2729,33 @@ mkSizePlan :: Int -> SizePlan
 mkSizePlan n0 = x (reverse (List.unfoldr f (max 0 (n0 - 1))))
   where
     f 0 = Nothing
-    f n = Just (32, n `unsafeShiftR` 5)
+    f n = Just (32, n `unsafeShiftR` bitsPerSubkey)
     x = x' 0
     x' !n [] = n
     x' n (y:ys) = x' ((n `unsafeShiftL` bitsPerSubkey) .|. (y - 1)) ys
 
 shrink :: SizePlan -> HashMapOA k v -> HashMap k v
-shrink !n = shrink_ n . unOA
+shrink !n (OA m) = runST $ do
+    shrink_ n m
+    return m
   where
+    shrink_ 0 = const (return ())
     shrink_ !n = \case
-      Empty -> Empty
-      m@Leaf{} -> m
-      m@Collision{} -> m
-      m@Full{} -> m -- TODO
-      m@(BitmapIndexed b ary) -> undefined
-    doShrink ary n = runST $ do
+      m@Full{} -> return ()
+      m@(BitmapIndexed b ary) -> do
+        doShrink ary (popCount b)
+        let !n' = n `unsafeShiftR` bitsPerSubkey
+        if n' == 0
+          then return ()
+          else A.foldMap (shrink_ n') ary
+        return ()
+      m -> pure ()
+        
+    doShrink ary n = do
       mary <- A.unsafeThaw ary
       mary' <- A.shrink mary n
       ary <- A.unsafeFreeze mary'
-      return () -- TODO
-      
+      return ()
 
 -- | HashMaps with over-allocated array nodes.
 newtype HashMapOA k v = OA { unOA :: HashMap k v }
@@ -2818,9 +2825,6 @@ twoOA = go
         !(I# i2) = index h2 s
         !idx2 = I# (i1 Exts.<# i2)
 
--- | Assumption: The array has been over-allocated and has size 'maxChildren'!
--- FIXME: That's a bad assumption!!! We may use this at a level where _no_
--- over-allocation has been used.
 insertOA :: Int -> A.Array e -> Int -> Int -> e -> ST s (A.Array e)
 insertOA !pSz ary nElem idx b
   | A.length ary > nElem =
