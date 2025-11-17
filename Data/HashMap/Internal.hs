@@ -2741,7 +2741,12 @@ shrink !n (OA m) = runST $ do
   where
     shrink_ 0 = const (return ())
     shrink_ !n = \case
-      m@Full{} -> return ()
+      Full ary -> do
+        let !n' = n `unsafeShiftR` bitsPerSubkey
+        if n' == 0
+          then return ()
+          else A.foldMap (shrink_ n') ary
+        return ()
       m@(BitmapIndexed b ary) -> do
         doShrink ary (popCount b)
         let !n' = n `unsafeShiftR` bitsPerSubkey
