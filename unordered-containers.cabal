@@ -57,8 +57,10 @@ library
   build-depends:
     base >= 4.14 && < 5,
     deepseq >= 1.4.3,
-    hashable >= 1.4 && < 1.6,
-    template-haskell >= 2.16 && < 2.24
+    hashable >= 1.4 && < 1.6
+  if impl(ghc)
+    build-depends:
+      template-haskell >= 2.16 && < 2.24
 
   default-language: Haskell2010
 
