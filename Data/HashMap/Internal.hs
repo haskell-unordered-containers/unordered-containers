@@ -1838,113 +1838,122 @@ mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 -- | \(O(n \log m)\) Difference of two maps. Return elements of the first map
 -- not existing in the second.
 difference :: Eq k => HashMap k v -> HashMap k w -> HashMap k v
-difference = go_difference 0
+difference = differenceSubtrees 0
+{-# INLINE difference #-}
+
+differenceSubtrees :: Eq k => Shift -> HashMap k v -> HashMap k w -> HashMap k v
+differenceSubtrees !_s Empty _ = Empty
+differenceSubtrees s t1@(Leaf h1 (L k1 _)) t2
+  = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
+differenceSubtrees _ t1 Empty = t1
+differenceSubtrees s t1 (Leaf h2 (L k2 _)) = deleteFromSubtree h2 k2 s t1
+
+differenceSubtrees s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
+  | b1 .&. b2 == 0 = t1
+  | A.unsafeSameArray ary1 ary2 = Empty
+  | otherwise = differenceArrays s b1 ary1 t1 b2 ary2
+differenceSubtrees s t1@(Full ary1) (BitmapIndexed b2 ary2)
+  = differenceArrays s fullBitmap ary1 t1 b2 ary2
+differenceSubtrees s t1@(BitmapIndexed b1 ary1) (Full ary2)
+  = differenceArrays s b1 ary1 t1 fullBitmap ary2
+differenceSubtrees s t1@(Full ary1) (Full ary2)
+  | A.unsafeSameArray ary1 ary2 = Empty
+  | otherwise = differenceArrays s fullBitmap ary1 t1 fullBitmap ary2
+
+differenceSubtrees s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
+    | b2 .&. m == 0 = t1
+    | otherwise =
+      case A.index# ary2 (sparseIndex b2 m) of
+        (# st2 #) -> differenceSubtrees (nextShift s) t1 st2
+  where m = mask h1 s
+differenceSubtrees s t1@(Collision h1 _) (Full ary2)
+  = case A.index# ary2 (index h1 s) of
+      (# st2 #) -> differenceSubtrees (nextShift s) t1 st2
+
+differenceSubtrees s t1@(BitmapIndexed b1 ary1) t2@(Collision h2 _)
+    | b1 .&. m == 0 = t1
+    | otherwise =
+      case A.index# ary1 i1 of
+        (# !st #) ->
+          case differenceSubtrees (nextShift s) st t2 of
+            Empty | A.length ary1 == 2
+                  , (# l #) <- A.index# ary1 (otherOfOneOrZero i1)
+                  , isLeafOrCollision l
+                  -> l
+                  | otherwise
+                  -> BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
+            st' | isLeafOrCollision st' && A.length ary1 == 1 -> st'
+                | st `ptrEq` st' -> t1
+                | otherwise -> BitmapIndexed b1 (A.update ary1 i1 st')
   where
-    go_difference !_s Empty _ = Empty
-    go_difference s t1@(Leaf h1 (L k1 _)) t2
-      = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
-    go_difference _ t1 Empty = t1
-    go_difference s t1 (Leaf h2 (L k2 _)) = deleteFromSubtree h2 k2 s t1
+    m = mask h2 s
+    i1 = sparseIndex b1 m
+differenceSubtrees s t1@(Full ary1) t2@(Collision h2 _)
+  = case A.index# ary1 i of
+      (# !st #) -> case differenceSubtrees (nextShift s) st t2 of
+        Empty ->
+            let ary1' = A.delete ary1 i
+                bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
+            in BitmapIndexed bm ary1'
+        st' | st `ptrEq` st' -> t1
+            | otherwise -> Full (updateFullArray ary1 i st')
+  where i = index h2 s
 
-    go_difference s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
-      | b1 .&. b2 == 0 = t1
-      | A.unsafeSameArray ary1 ary2 = Empty
-      | otherwise = differenceArrays s b1 ary1 t1 b2 ary2
-    go_difference s t1@(Full ary1) (BitmapIndexed b2 ary2)
-      = differenceArrays s fullBitmap ary1 t1 b2 ary2
-    go_difference s t1@(BitmapIndexed b1 ary1) (Full ary2)
-      = differenceArrays s b1 ary1 t1 fullBitmap ary2
-    go_difference s t1@(Full ary1) (Full ary2)
-      | A.unsafeSameArray ary1 ary2 = Empty
-      | otherwise = differenceArrays s fullBitmap ary1 t1 fullBitmap ary2
+differenceSubtrees _ t1@(Collision h1 ary1) (Collision h2 ary2)
+  = differenceCollisions h1 ary1 t1 h2 ary2
+{-# INLINABLE differenceSubtrees #-}
 
-    go_difference s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
-        | b2 .&. m == 0 = t1
-        | otherwise =
-          case A.index# ary2 (sparseIndex b2 m) of
-            (# st2 #) -> go_difference (nextShift s) t1 st2
-      where m = mask h1 s
-    go_difference s t1@(Collision h1 _) (Full ary2)
-      = case A.index# ary2 (index h1 s) of
-          (# st2 #) -> go_difference (nextShift s) t1 st2
+-- | Precondition: b1 and b2 overlap.
+--
+-- TODO: If we keep 'Full' (#399), differenceArrays could be optimized for
+-- each combination of 'Full' and 'BitmapIndexed`.
+differenceArrays
+  :: Eq k
+  => Shift
+  -> Bitmap
+  -> A.Array (HashMap k v)
+  -> HashMap k v
+  -> Bitmap
+  -> A.Array (HashMap k w)
+  -> HashMap k v
+differenceArrays !s !b1 !ary1 t1 !b2 !ary2 = runST $ do
+  mary <- A.new_ $ A.length ary1
 
-    go_difference s t1@(BitmapIndexed b1 ary1) t2@(Collision h2 _)
-        | b1 .&. m == 0 = t1
-        | otherwise =
-          case A.index# ary1 i1 of
-            (# !st #) ->
-              case go_difference (nextShift s) st t2 of
-                Empty | A.length ary1 == 2
-                      , (# l #) <- A.index# ary1 (otherOfOneOrZero i1)
-                      , isLeafOrCollision l
-                      -> l
-                      | otherwise
-                      -> BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
-                st' | isLeafOrCollision st' && A.length ary1 == 1 -> st'
-                    | st `ptrEq` st' -> t1
-                    | otherwise -> BitmapIndexed b1 (A.update ary1 i1 st')
-      where
-        m = mask h2 s
-        i1 = sparseIndex b1 m
-    go_difference s t1@(Full ary1) t2@(Collision h2 _)
-      = case A.index# ary1 i of
-          (# !st #) -> case go_difference (nextShift s) st t2 of
-            Empty ->
-                let ary1' = A.delete ary1 i
-                    bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
-                in BitmapIndexed bm ary1'
-            st' | st `ptrEq` st' -> t1
-                | otherwise -> Full (updateFullArray ary1 i st')
-      where i = index h2 s
+  -- TODO: i == popCount bResult. Not sure if that would be faster.
+  -- Also i1 is in some relation with b1'
+  let goDA !i !i1 !b1' !bResult !nChanges
+        | b1' == 0 = pure (bResult, nChanges)
+        | otherwise = do
+          !st1 <- A.indexM ary1 i1
+          case m .&. b2 of
+            0 -> do
+              A.write mary i st1
+              goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges
+            _ -> do
+              !st2 <- A.indexM ary2 (sparseIndex b2 m)
+              case differenceSubtrees (nextShift s) st1 st2 of
+                Empty -> goDA i (i1 + 1) nextB1' bResult (nChanges + 1)
+                st -> do
+                  A.write mary i st
+                  let same = I# (Exts.reallyUnsafePtrEquality# st st1)
+                  let nChanges' = nChanges + (1 - same)
+                  goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges'
+        where
+          m = b1' .&. negate b1'
+          nextB1' = b1' .&. complement m
 
-    go_difference _ t1@(Collision h1 ary1) (Collision h2 ary2)
-      = differenceCollisions h1 ary1 t1 h2 ary2
-
-    -- | Assumptions:
-    --
-    --  * b1 and b2 overlap.
-    --  * ary1 and ary2 are not pointer-equal.
-    --
-    -- TODO: If we keep 'Full' (#399), differenceArrays could be optimized for
-    -- each combination of 'Full' and 'BitmapIndexed`.
-    differenceArrays !s !b1 !ary1 t1 !b2 !ary2 = runST $ do
-      mary <- A.new_ $ A.length ary1
-    
-      -- TODO: i == popCount bResult. Not sure if that would be faster.
-      -- Also i1 is in some relation with b1'
-      let goDA !i !i1 !b1' !bResult !nChanges
-            | b1' == 0 = pure (bResult, nChanges)
-            | otherwise = do
-              !st1 <- A.indexM ary1 i1
-              case m .&. b2 of
-                0 -> do
-                  A.write mary i st1
-                  goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges
-                _ -> do
-                  !st2 <- A.indexM ary2 (sparseIndex b2 m)
-                  case go_difference (nextShift s) st1 st2 of
-                    Empty -> goDA i (i1 + 1) nextB1' bResult (nChanges + 1)
-                    st -> do
-                      A.write mary i st
-                      let same = I# (Exts.reallyUnsafePtrEquality# st st1)
-                      let nChanges' = nChanges + (1 - same)
-                      goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges'
-            where
-              m = b1' .&. negate b1'
-              nextB1' = b1' .&. complement m
-    
-      (bResult, nChanges) <- goDA 0 0 b1 0 0
-      if nChanges == 0
-        then pure t1
-        else case popCount bResult of
-          0 -> pure Empty
-          1 -> do
-            l <- A.read mary 0
-            if isLeafOrCollision l
-              then pure l
-              else BitmapIndexed bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
-          n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
-{-# INLINABLE difference #-}
+  (bResult, nChanges) <- goDA 0 0 b1 0 0
+  if nChanges == 0
+    then pure t1
+    else case popCount bResult of
+      0 -> pure Empty
+      1 -> do
+        l <- A.read mary 0
+        if isLeafOrCollision l
+          then pure l
+          else BitmapIndexed bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
+      n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
+{-# INLINABLE differenceArrays #-}
 
 -- TODO: This could be faster if we would keep track of which elements of ary2
 -- we've already matched. Those could be skipped when we check the following
