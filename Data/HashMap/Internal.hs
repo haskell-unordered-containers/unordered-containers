@@ -47,6 +47,7 @@ module Data.HashMap.Internal
     , findWithDefault
     , lookupDefault
     , (!)
+    , lookupKey
     , insert
     , insertWith
     , unsafeInsert
@@ -783,6 +784,40 @@ lookupDefault = findWithDefault
 {-# INLINABLE (!) #-}
 
 infixl 9 !
+
+-- | \(O(\log n)\) For a given key, return the equal key stored in the map,
+-- if present, otherwise return 'Nothing'.
+--
+-- This function can be used for /interning/, i.e. to reduce memory usage.
+lookupKey :: Hashable k => k -> HashMap k v -> Maybe k
+lookupKey k = \m -> fromMaybe# (lookupKeyInSubtree# 0 (hash k) k m)
+  where
+    fromMaybe# (# (##) | #) = Nothing
+    fromMaybe# (# | a #) = Just a
+{-# INLINE lookupKey #-}
+
+lookupKeyInSubtree# :: Eq k => Shift -> Hash -> k -> HashMap k v -> (# (##) | k #)
+lookupKeyInSubtree# !s !hx kx = \case
+  Empty -> (# (##) | #)
+  Leaf hy (L ky _)
+    | hx == hy && kx == ky -> (# | ky #)
+    | otherwise -> (# (##) | #)
+  BitmapIndexed b ary
+    | m .&. b == 0 -> (# (##) | #)
+    | otherwise -> case A.index# ary i of
+        (# st #) -> lookupKeyInSubtree# (nextShift s) hx kx st
+    where
+      m = mask hx s
+      i = sparseIndex b m
+  Full ary -> case A.index# ary (index hx s) of
+    (# st #) -> lookupKeyInSubtree# (nextShift s) hx kx st
+  Collision hy ary
+    | hx == hy
+    , Just i <- indexOf kx ary
+    , (# L ky _ #) <- A.index# ary i
+    -> (# | ky #)
+    | otherwise -> (# (##) | #)
+{-# INLINABLE lookupKeyInSubtree# #-}
 
 -- | Create a 'Collision' value with two 'Leaf' values.
 collision :: Hash -> Leaf k v -> Leaf k v -> HashMap k v

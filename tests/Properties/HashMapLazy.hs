@@ -24,6 +24,7 @@ import Data.Function               (on)
 import Data.Functor.Identity       (Identity (..))
 import Data.Hashable               (Hashable (hashWithSalt))
 import Data.HashMap.Internal.Debug (Validity (..), valid)
+import Data.Maybe                  (isJust)
 import Data.Ord                    (comparing)
 import Test.QuickCheck             (Arbitrary (..), Fun, Property, pattern Fn,
                                     pattern Fn2, pattern Fn3, (===), (==>))
@@ -173,6 +174,10 @@ tests =
       \(k :: Key) (m :: HMKI) -> HM.lookup k m === M.lookup k (toOrdMap m)
     , testProperty "!?" $
       \(k :: Key) (m :: HMKI) -> m HM.!? k === M.lookup k (toOrdMap m)
+    , testGroup "lookupKey" $
+      [ testProperty "isJust (lookupKey k m) == member k m" $
+        \(k :: Key) (m :: HMKI) -> isJust (HM.lookupKey k m) === HM.member k m
+      ]
     , testGroup "insert"
       [ testProperty "model" $
         \(k :: Key) (v :: Int) x ->

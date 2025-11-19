@@ -52,6 +52,7 @@ module Data.HashSet.Internal
     , null
     , size
     , member
+    , lookupElement
     , insert
     , delete
     , isSubsetOf
@@ -349,6 +350,14 @@ member a s = case H.lookup a (asMap s) of
                Just _ -> True
                _      -> False
 {-# INLINABLE member #-}
+
+-- | \(O(\log n)\) For a given value, return the equal element in the set if
+-- present, otherwise return 'Nothing'.
+--
+-- This is useful for /interning/, i.e. to reduce memory usage.
+lookupElement :: Hashable a => a -> HashSet a -> Maybe a
+lookupElement a = H.lookupKey a . asMap
+{-# INLINE lookupElement #-}
 
 -- | \(O(\log n)\) Add the specified value to this set.
 --

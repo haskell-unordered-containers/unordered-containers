@@ -62,6 +62,7 @@ module Data.HashMap.Internal.Strict
     , HM.findWithDefault
     , HM.lookupDefault
     , (HM.!)
+    , HM.lookupKey
     , insert
     , insertWith
     , HM.delete
