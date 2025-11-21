@@ -83,6 +83,7 @@ module Data.HashMap.Internal
     , intersectionWith
     , intersectionWithKey
     , intersectionWithKey#
+    , disjoint
 
       -- * Folds
     , foldr'
@@ -2314,6 +2315,67 @@ searchSwap mary n toFind start = go start toFind start
             pure $ Just l
           else go i0 k (i + 1)
 {-# INLINE searchSwap #-}
+
+disjoint :: Eq k => HashMap k a -> HashMap k b -> Bool
+disjoint = disjointSubtrees 0
+{-# INLINE disjoint #-}
+
+disjointSubtrees :: Eq k => Shift -> HashMap k a -> HashMap k b -> Bool
+disjointSubtrees _s Empty _b = True
+disjointSubtrees _s _a Empty = True
+disjointSubtrees _ (Leaf hA (L kA _)) (Leaf hB (L kB _)) = hA == hB && kA /= kB
+disjointSubtrees s (Leaf hA (L kA _)) b = lookupCont (\_ -> True) (\_ _ -> False) hA kA s b
+disjointSubtrees s a (Leaf hB (L kB _)) = lookupCont (\_ -> True) (\_ _ -> False) hB kB s a
+disjointSubtrees s (BitmapIndexed bA aryA) (BitmapIndexed bB aryB)
+  | bA .&. bB == 0 = True
+  | aryA `A.unsafeSameArray` aryB = False
+  | otherwise = disjointArrays s bA aryA bB aryB
+disjointSubtrees s (Full aryA) (Full aryB)
+  | aryA `A.unsafeSameArray` aryB = False
+  | otherwise = disjointArrays s fullBitmap aryA fullBitmap aryB
+disjointSubtrees s (BitmapIndexed bA aryA) (Full aryB) =
+  disjointArrays s bA aryA fullBitmap aryB
+disjointSubtrees s (Full aryA) (BitmapIndexed bB aryB) =
+  disjointArrays s fullBitmap aryA bB aryB
+disjointSubtrees s a@(Collision hA _) (BitmapIndexed bB aryB)
+  | m .&. bB == 0 = True
+  | otherwise = case A.index# aryB i of
+      (# stB #) -> disjointSubtrees (nextShift s) a stB
+  where
+    m = mask hA s
+    i = sparseIndex bB m
+disjointSubtrees s a@(Collision hA _) (Full aryB) =
+    case A.index# aryB i of
+      (# stB #) -> disjointSubtrees (nextShift s) a stB
+  where
+    i = index hA s
+disjointSubtrees _ (Collision hA aryA) (Collision hB aryB) =
+  disjointCollisions hA aryA hB aryB
+disjointSubtrees s a b@Collision{} = disjointSubtrees s b a
+{-# INLINABLE disjointSubtrees #-}
+
+disjointArrays :: Eq k => Shift -> Bitmap -> A.Array (HashMap k a) -> Bitmap -> A.Array (HashMap k b) -> Bool
+disjointArrays !s !bA !aryA !bB !aryB = go (bA .&. bB)
+  where
+    go 0 = True
+    go b = case A.index# aryA iA of
+        (# stA #) -> case A.index# aryB iB of
+          (# stB #) ->
+            disjointSubtrees (nextShift s) stA stB &&
+            go (b .&. complement m)
+      where
+        m = b .&. negate b
+        iA = sparseIndex bA m
+        iB = sparseIndex bB m
+{-# INLINABLE disjointArrays #-}
+
+disjointCollisions :: Eq k => Hash -> A.Array (Leaf k a) -> Hash -> A.Array (Leaf k b) -> Bool
+disjointCollisions !hA !aryA !hB !aryB
+  | hA /= hB = True
+  | otherwise = A.all f aryA
+  where
+    f (L kA _) = lookupInArrayCont (\_ -> True) (\_ _ -> False) kA aryB
+{-# INLINABLE disjointCollisions #-}
 
 ------------------------------------------------------------------------
 -- * Folds
