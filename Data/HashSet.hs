@@ -118,6 +118,7 @@ module Data.HashSet
       -- * Difference and intersection
     , difference
     , intersection
+    , disjoint
 
     -- * Folds
     , foldl'

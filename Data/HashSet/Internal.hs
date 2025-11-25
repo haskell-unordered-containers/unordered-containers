@@ -67,6 +67,7 @@ module Data.HashSet.Internal
       -- * Difference and intersection
     , difference
     , intersection
+    , disjoint
 
     -- * Folds
     , foldr
@@ -403,6 +404,10 @@ difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
 intersection :: Eq a => HashSet a -> HashSet a -> HashSet a
 intersection (HashSet a) (HashSet b) = HashSet (H.intersection a b)
 {-# INLINABLE intersection #-}
+
+disjoint :: Eq k => HashSet k -> HashSet k -> Bool
+disjoint (HashSet a) (HashSet b) = H.disjoint a b
+{-# INLINE disjoint #-}
 
 -- | \(O(n)\) Reduce this set by applying a binary operator to all
 -- elements, using the given starting value (typically the

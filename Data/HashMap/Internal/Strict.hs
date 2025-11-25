@@ -96,6 +96,7 @@ module Data.HashMap.Internal.Strict
     , HM.intersection
     , intersectionWith
     , intersectionWithKey
+    , HM.disjoint
 
       -- * Folds
     , HM.foldMapWithKey

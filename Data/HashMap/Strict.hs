@@ -75,6 +75,7 @@ module Data.HashMap.Strict
     , intersection
     , intersectionWith
     , intersectionWithKey
+    , disjoint
 
       -- * Folds
     , foldMapWithKey

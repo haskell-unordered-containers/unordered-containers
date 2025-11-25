@@ -76,6 +76,7 @@ module Data.HashMap.Lazy
     , intersection
     , intersectionWith
     , intersectionWithKey
+    , disjoint
 
       -- * Folds
     , foldMapWithKey
