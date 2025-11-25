@@ -2322,10 +2322,8 @@ disjoint = disjointSubtrees 0
 
 disjointSubtrees :: Eq k => Shift -> HashMap k a -> HashMap k b -> Bool
 disjointSubtrees _s Empty _b = True
-disjointSubtrees _s _a Empty = True
-disjointSubtrees _ (Leaf hA (L kA _)) (Leaf hB (L kB _)) = hA == hB && kA /= kB
+disjointSubtrees _ (Leaf hA (L kA _)) (Leaf hB (L kB _)) = hA /= hB || kA /= kB
 disjointSubtrees s (Leaf hA (L kA _)) b = lookupCont (\_ -> True) (\_ _ -> False) hA kA s b
-disjointSubtrees s a (Leaf hB (L kB _)) = lookupCont (\_ -> True) (\_ _ -> False) hB kB s a
 disjointSubtrees s (BitmapIndexed bA aryA) (BitmapIndexed bB aryB)
   | bA .&. bB == 0 = True
   | aryA `A.unsafeSameArray` aryB = False
@@ -2351,6 +2349,8 @@ disjointSubtrees s a@(Collision hA _) (Full aryB) =
     i = index hA s
 disjointSubtrees _ (Collision hA aryA) (Collision hB aryB) =
   disjointCollisions hA aryA hB aryB
+disjointSubtrees _s _a Empty = True
+disjointSubtrees s a (Leaf hB (L kB _)) = lookupCont (\_ -> True) (\_ _ -> False) hB kB s a
 disjointSubtrees s a b@Collision{} = disjointSubtrees s b a
 {-# INLINABLE disjointSubtrees #-}
 
@@ -2367,14 +2367,14 @@ disjointArrays !s !bA !aryA !bB !aryB = go (bA .&. bB)
         m = b .&. negate b
         iA = sparseIndex bA m
         iB = sparseIndex bB m
-{-# INLINABLE disjointArrays #-}
+{-# INLINE disjointArrays #-}
 
 disjointCollisions :: Eq k => Hash -> A.Array (Leaf k a) -> Hash -> A.Array (Leaf k b) -> Bool
 disjointCollisions !hA !aryA !hB !aryB
-  | hA /= hB = True
-  | otherwise = A.all f aryA
+  | hA == hB = A.all predicate aryA
+  | otherwise = True
   where
-    f (L kA _) = lookupInArrayCont (\_ -> True) (\_ _ -> False) kA aryB
+    predicate (L kA _) = lookupInArrayCont (\_ -> True) (\_ _ -> False) kA aryB
 {-# INLINABLE disjointCollisions #-}
 
 ------------------------------------------------------------------------
