@@ -13,7 +13,7 @@ description:
   .
   This package currently provides no defenses against hash collision attacks
   such as HashDoS.
-  Users who need to store input from untrusted sources are advised to use
+  Users who need to store keys derived from untrusted input are advised to use
   @Data.Map@ or @Data.Set@ from the @containers@ package instead.
 license:        BSD3
 license-file:   LICENSE
