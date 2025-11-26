@@ -382,14 +382,14 @@ main = do
 ------------------------------------------------------------------------
 -- * HashMap
 
-lookup :: (Eq k, Hashable k) => [k] -> HM.HashMap k Int -> Int
+lookup :: Hashable k => [k] -> HM.HashMap k Int -> Int
 lookup xs m = foldl' (\z k -> fromMaybe z (HM.lookup k m)) 0 xs
 {-# SPECIALIZE lookup :: [Int] -> HM.HashMap Int Int -> Int #-}
 {-# SPECIALIZE lookup :: [String] -> HM.HashMap String Int -> Int #-}
 {-# SPECIALIZE lookup :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
                       -> Int #-}
 
-insert :: (Eq k, Hashable k) => [(k, Int)] -> HM.HashMap k Int
+insert :: Hashable k => [(k, Int)] -> HM.HashMap k Int
        -> HM.HashMap k Int
 insert xs m0 = foldl' (\m (k, v) -> HM.insert k v m) m0 xs
 {-# SPECIALIZE insert :: [(Int, Int)] -> HM.HashMap Int Int
@@ -399,7 +399,7 @@ insert xs m0 = foldl' (\m (k, v) -> HM.insert k v m) m0 xs
 {-# SPECIALIZE insert :: [(BS.ByteString, Int)] -> HM.HashMap BS.ByteString Int
                       -> HM.HashMap BS.ByteString Int #-}
 
-delete :: (Eq k, Hashable k) => [k] -> HM.HashMap k Int -> HM.HashMap k Int
+delete :: Hashable k => [k] -> HM.HashMap k Int -> HM.HashMap k Int
 delete xs m0 = foldl' (\m k -> HM.delete k m) m0 xs
 {-# SPECIALIZE delete :: [Int] -> HM.HashMap Int Int -> HM.HashMap Int Int #-}
 {-# SPECIALIZE delete :: [String] -> HM.HashMap String Int
@@ -407,7 +407,7 @@ delete xs m0 = foldl' (\m k -> HM.delete k m) m0 xs
 {-# SPECIALIZE delete :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
                       -> HM.HashMap BS.ByteString Int #-}
 
-alterInsert :: (Eq k, Hashable k) => [(k, Int)] -> HM.HashMap k Int
+alterInsert :: Hashable k => [(k, Int)] -> HM.HashMap k Int
              -> HM.HashMap k Int
 alterInsert xs m0 =
   foldl' (\m (k, v) -> HM.alter (const . Just $ v) k m) m0 xs
@@ -418,7 +418,7 @@ alterInsert xs m0 =
 {-# SPECIALIZE alterInsert :: [(BS.ByteString, Int)] -> HM.HashMap BS.ByteString Int
                            -> HM.HashMap BS.ByteString Int #-}
 
-alterDelete :: (Eq k, Hashable k) => [k] -> HM.HashMap k Int
+alterDelete :: Hashable k => [k] -> HM.HashMap k Int
              -> HM.HashMap k Int
 alterDelete xs m0 =
   foldl' (\m k -> HM.alter (const Nothing) k m) m0 xs
@@ -429,7 +429,7 @@ alterDelete xs m0 =
 {-# SPECIALIZE alterDelete :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
                            -> HM.HashMap BS.ByteString Int #-}
 
-alterFInsert :: (Eq k, Hashable k) => [(k, Int)] -> HM.HashMap k Int
+alterFInsert :: Hashable k => [(k, Int)] -> HM.HashMap k Int
              -> HM.HashMap k Int
 alterFInsert xs m0 =
   foldl' (\m (k, v) -> runIdentity $ HM.alterF (const . Identity . Just $ v) k m) m0 xs
@@ -440,7 +440,7 @@ alterFInsert xs m0 =
 {-# SPECIALIZE alterFInsert :: [(BS.ByteString, Int)] -> HM.HashMap BS.ByteString Int
                             -> HM.HashMap BS.ByteString Int #-}
 
-alterFDelete :: (Eq k, Hashable k) => [k] -> HM.HashMap k Int
+alterFDelete :: Hashable k => [k] -> HM.HashMap k Int
              -> HM.HashMap k Int
 alterFDelete xs m0 =
   foldl' (\m k -> runIdentity $ HM.alterF (const . Identity $ Nothing) k m) m0 xs
@@ -451,7 +451,7 @@ alterFDelete xs m0 =
 {-# SPECIALIZE alterFDelete :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
                             -> HM.HashMap BS.ByteString Int #-}
 
-isSubmapOfNaive :: (Eq k, Hashable k) => HM.HashMap k Int -> HM.HashMap k Int -> Bool
+isSubmapOfNaive :: Hashable k => HM.HashMap k Int -> HM.HashMap k Int -> Bool
 isSubmapOfNaive m1 m2 = and [ Just v1 == HM.lookup k1 m2 | (k1,v1) <- HM.toList m1 ]
 {-# SPECIALIZE isSubmapOfNaive :: HM.HashMap Int Int -> HM.HashMap Int Int -> Bool #-}
 {-# SPECIALIZE isSubmapOfNaive :: HM.HashMap String Int -> HM.HashMap String Int -> Bool #-}
@@ -484,13 +484,13 @@ deleteM xs m0 = foldl' (\m k -> M.delete k m) m0 xs
 ------------------------------------------------------------------------
 -- * Map from the hashmap package
 
-lookupIHM :: (Eq k, Hashable k, Ord k) => [k] -> IHM.Map k Int -> Int
+lookupIHM :: (Hashable k, Ord k) => [k] -> IHM.Map k Int -> Int
 lookupIHM xs m = foldl' (\z k -> fromMaybe z (IHM.lookup k m)) 0 xs
 {-# SPECIALIZE lookupIHM :: [String] -> IHM.Map String Int -> Int #-}
 {-# SPECIALIZE lookupIHM :: [BS.ByteString] -> IHM.Map BS.ByteString Int
                          -> Int #-}
 
-insertIHM :: (Eq k, Hashable k, Ord k) => [(k, Int)] -> IHM.Map k Int
+insertIHM :: (Hashable k, Ord k) => [(k, Int)] -> IHM.Map k Int
           -> IHM.Map k Int
 insertIHM xs m0 = foldl' (\m (k, v) -> IHM.insert k v m) m0 xs
 {-# SPECIALIZE insertIHM :: [(String, Int)] -> IHM.Map String Int
@@ -498,7 +498,7 @@ insertIHM xs m0 = foldl' (\m (k, v) -> IHM.insert k v m) m0 xs
 {-# SPECIALIZE insertIHM :: [(BS.ByteString, Int)] -> IHM.Map BS.ByteString Int
                          -> IHM.Map BS.ByteString Int #-}
 
-deleteIHM :: (Eq k, Hashable k, Ord k) => [k] -> IHM.Map k Int -> IHM.Map k Int
+deleteIHM :: (Hashable k, Ord k) => [k] -> IHM.Map k Int -> IHM.Map k Int
 deleteIHM xs m0 = foldl' (\m k -> IHM.delete k m) m0 xs
 {-# SPECIALIZE deleteIHM :: [String] -> IHM.Map String Int
                          -> IHM.Map String Int #-}

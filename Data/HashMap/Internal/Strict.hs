@@ -178,7 +178,7 @@ singleton k !v = HM.singleton k v
 -- | \(O(\log n)\) Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
-insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
+insert :: Hashable k => k -> v -> HashMap k v -> HashMap k v
 insert k !v = HM.insert k v
 {-# INLINABLE insert #-}
 
@@ -189,7 +189,7 @@ insert k !v = HM.insert k v
 --
 -- > insertWith f k v map
 -- >   where f new old = new + old
-insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
+insertWith :: Hashable k => (v -> v -> v) -> k -> v -> HashMap k v
            -> HashMap k v
 insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
   where
@@ -225,12 +225,12 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
 {-# INLINABLE insertWith #-}
 
 -- | In-place update version of insertWith
-unsafeInsertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
+unsafeInsertWith :: Hashable k => (v -> v -> v) -> k -> v -> HashMap k v
                  -> HashMap k v
 unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (const f) k0 v0 m0
 {-# INLINABLE unsafeInsertWith #-}
 
-unsafeInsertWithKey :: forall k v. (Eq k, Hashable k) => (k -> v -> v -> v) -> k -> v -> HashMap k v
+unsafeInsertWithKey :: forall k v. Hashable k => (k -> v -> v -> v) -> k -> v -> HashMap k v
                     -> HashMap k v
 unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
@@ -268,7 +268,7 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 
 -- | \(O(\log n)\) Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
-adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
+adjust :: Hashable k => (v -> v) -> k -> HashMap k v -> HashMap k v
 adjust f k0 m0 = go h0 k0 0 m0
   where
     h0 = hash k0
@@ -301,7 +301,7 @@ adjust f k0 m0 = go h0 k0 0 m0
 -- | \(O(\log n)\)  The expression @('update' f k map)@ updates the value @x@ at @k@
 -- (if it is in the map). If @(f x)@ is 'Nothing', the element is deleted.
 -- If it is @('Just' y)@, the key @k@ is bound to the new value @y@.
-update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
+update :: Hashable k => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
 update f = alter (>>= f)
 {-# INLINABLE update #-}
 
@@ -313,7 +313,7 @@ update f = alter (>>= f)
 -- @
 -- 'lookup' k ('alter' f k m) = f ('lookup' k m)
 -- @
-alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
+alter :: Hashable k => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
 alter f k m =
     let !h = hash k
         !lookupRes = HM.lookupRecordCollision h k m
@@ -338,7 +338,7 @@ alter f k m =
 -- <https://hackage.haskell.org/package/lens/docs/Control-Lens-At.html#v:at Control.Lens.At>.
 --
 -- @since 0.2.10
-alterF :: (Functor f, Eq k, Hashable k)
+alterF :: (Functor f, Hashable k)
        => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
 -- Special care is taken to only calculate the hash once. When we rewrite
 -- with RULES, we also ensure that we only compare the key for equality
@@ -405,7 +405,7 @@ impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
 --
 -- Failure to abide by these laws will make demons come out of your nose.
 alterFWeird
-       :: (Functor f, Eq k, Hashable k)
+       :: (Functor f, Hashable k)
        => f (Maybe v)
        -> f (Maybe v)
        -> (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
@@ -415,7 +415,7 @@ alterFWeird _ _ f = alterFEager f
 -- | This is the default version of alterF that we use in most non-trivial
 -- cases. It's called "eager" because it looks up the given key in the map
 -- eagerly, whether or not the given function requires that information.
-alterFEager :: (Functor f, Eq k, Hashable k)
+alterFEager :: (Functor f, Hashable k)
        => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
 alterFEager f !k !m = (<$> f mv) $ \fres ->
   case fres of
@@ -620,7 +620,7 @@ traverseWithKey f = go
 -- encountered, the combining function is applied to the values of these keys.
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
-differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
+differenceWith :: Hashable k => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
 differenceWith f = HM.differenceWithKey $
   \_k vA vB -> case f vA vB of
      Nothing -> Nothing
@@ -660,7 +660,7 @@ intersectionWithKey f = HM.intersectionWithKey# $ \k v1 v2 -> let !v3 = f k v1 v
 -- | \(O(n \log n)\) Construct a map with the supplied mappings.  If the
 -- list contains duplicate mappings, the later mappings take
 -- precedence.
-fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
+fromList :: Hashable k => [(k, v)] -> HashMap k v
 fromList = List.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) HM.empty
 {-# INLINABLE fromList #-}
 
@@ -694,7 +694,7 @@ fromList = List.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) HM.empty
 --
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
-fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
+fromListWith :: Hashable k => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) HM.empty
 {-# INLINE fromListWith #-}
 
@@ -724,7 +724,7 @@ fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) HM.empty
 -- > = fromList [(k, f k d (f k c (f k b a)))]
 --
 -- @since 0.2.11
-fromListWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
+fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) HM.empty
 {-# INLINE fromListWithKey #-}
 

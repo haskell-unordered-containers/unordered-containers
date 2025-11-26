@@ -27,11 +27,11 @@ import qualified Data.List         as List
 import qualified Data.Set          as S
 import qualified Test.QuickCheck   as QC
 
-instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
+instance (Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
   arbitrary = HM.fromList <$> arbitrary
   shrink = fmap HM.fromList . shrink . HM.toList
 
-instance (Eq a, Hashable a, Arbitrary a) => Arbitrary (HashSet a) where
+instance (Hashable a, Arbitrary a) => Arbitrary (HashSet a) where
   arbitrary = HS.fromMap <$> arbitrary
   shrink = fmap HS.fromMap . shrink . HS.toMap
 
