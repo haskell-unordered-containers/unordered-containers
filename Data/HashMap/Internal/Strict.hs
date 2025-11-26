@@ -1,11 +1,11 @@
-{-# LANGUAGE BangPatterns  #-}
-{-# LANGUAGE CPP           #-}
-{-# LANGUAGE LambdaCase    #-}
-{-# LANGUAGE MagicHash     #-}
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE PatternGuards       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE Trustworthy   #-}
-{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE Trustworthy         #-}
+{-# LANGUAGE UnboxedTuples       #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
 ------------------------------------------------------------------------
@@ -126,15 +126,15 @@ module Data.HashMap.Internal.Strict
     ) where
 
 import Control.Applicative   (Const (..))
-import Control.Monad.ST      (runST, ST)
+import Control.Monad.ST      (ST, runST)
 import Data.Bits             ((.&.), (.|.))
 import Data.Coerce           (coerce)
 import Data.Functor.Identity (Identity (..))
 -- See Note [Imports from Data.HashMap.Internal]
 import Data.Hashable         (Hashable)
 import Data.HashMap.Internal (Hash, HashMap (..), Leaf (..), LookupRes (..),
-                              fullBitmap, hash, index, mask, nextShift, ptrEq,
-                              sparseIndex)
+                              Shift, fullBitmap, hash, index, mask, nextShift,
+                              ptrEq, sparseIndex)
 import Prelude               hiding (lookup, map)
 
 -- See Note [Imports from Data.HashMap.Internal]
@@ -235,7 +235,7 @@ unsafeInsertWithKey :: forall k v. (Eq k, Hashable k) => (k -> v -> v -> v) -> k
 unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
-    go :: forall s. Hash -> k -> v -> Int -> HashMap k v -> ST s (HashMap k v)
+    go :: forall s. Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
     go !h !k x !_ Empty = return $! leaf h k x
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
