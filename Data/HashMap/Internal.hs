@@ -2321,7 +2321,7 @@ disjoint = disjointSubtrees 0
 {-# INLINE disjoint #-}
 
 disjointSubtrees :: Eq k => Shift -> HashMap k a -> HashMap k b -> Bool
-disjointSubtrees _s Empty _b = True
+disjointSubtrees !_s Empty _b = True
 disjointSubtrees _ (Leaf hA (L kA _)) (Leaf hB (L kB _)) = hA /= hB || kA /= kB
 disjointSubtrees s (Leaf hA (L kA _)) b = lookupCont (\_ -> True) (\_ _ -> False) hA kA s b
 disjointSubtrees s (BitmapIndexed bA aryA) (BitmapIndexed bB aryB)
