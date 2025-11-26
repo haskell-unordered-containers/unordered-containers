@@ -2325,7 +2325,7 @@ disjointSubtrees !_s Empty _b = True
 disjointSubtrees _ (Leaf hA (L kA _)) (Leaf hB (L kB _)) = hA /= hB || kA /= kB
 disjointSubtrees s (Leaf hA (L kA _)) b = lookupCont (\_ -> True) (\_ _ -> False) hA kA s b
 disjointSubtrees s (BitmapIndexed bA aryA) (BitmapIndexed bB aryB)
-  | bA .&. bB == 0 = True -- Skip this?!
+  | bA .&. bB == 0 = True -- TODO: Maybe skip this Skip this?!
   | aryA `A.unsafeSameArray` aryB = False
   | otherwise = disjointArrays s bA aryA bB aryB
 disjointSubtrees s (BitmapIndexed bA aryA) (Full aryB) =
