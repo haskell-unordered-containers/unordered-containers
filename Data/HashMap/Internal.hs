@@ -2326,15 +2326,15 @@ disjointSubtrees _ (Leaf hA (L kA _)) (Leaf hB (L kB _)) =
   hA /= hB || kA /= kB
 disjointSubtrees s (Leaf hA (L kA _)) b =
   lookupCont (\_ -> True) (\_ _ -> False) hA kA s b
-disjointSubtrees s (BitmapIndexed bA aryA) (BitmapIndexed bB aryB)
+disjointSubtrees s (BitmapIndexed bmA aryA) (BitmapIndexed bmB aryB)
     -- TODO: Try removing this check and just rely on disjointArrays.
-  | bA .&. bB == 0 = True
+  | bmA .&. bmB == 0 = True
   | aryA `A.unsafeSameArray` aryB = False
-  | otherwise = disjointArrays s bA aryA bB aryB
-disjointSubtrees s (BitmapIndexed bA aryA) (Full aryB) =
-  disjointArrays s bA aryA fullBitmap aryB
-disjointSubtrees s (Full aryA) (BitmapIndexed bB aryB) =
-  disjointArrays s fullBitmap aryA bB aryB
+  | otherwise = disjointArrays s bmA aryA bmB aryB
+disjointSubtrees s (BitmapIndexed bmA aryA) (Full aryB) =
+  disjointArrays s bmA aryA fullBitmap aryB
+disjointSubtrees s (Full aryA) (BitmapIndexed bmB aryB) =
+  disjointArrays s fullBitmap aryA bmB aryB
 disjointSubtrees s (Full aryA) (Full aryB)
   | aryA `A.unsafeSameArray` aryB = False
   | otherwise = go (maxChildren - 1)
@@ -2346,13 +2346,13 @@ disjointSubtrees s (Full aryA) (Full aryB)
             (# stB #) ->
               disjointSubtrees (nextShift s) stA stB &&
               go (i - 1)
-disjointSubtrees s a@(Collision hA _) (BitmapIndexed bB aryB)
-  | m .&. bB == 0 = True
+disjointSubtrees s a@(Collision hA _) (BitmapIndexed bmB aryB)
+  | m .&. bmB == 0 = True
   | otherwise = case A.index# aryB i of
       (# stB #) -> disjointSubtrees (nextShift s) a stB
   where
     m = mask hA s
-    i = sparseIndex bB m
+    i = sparseIndex bmB m
 disjointSubtrees s a@(Collision hA _) (Full aryB) =
     case A.index# aryB i of
       (# stB #) -> disjointSubtrees (nextShift s) a stB
@@ -2367,18 +2367,18 @@ disjointSubtrees s a b@Collision{} = disjointSubtrees s b a
 {-# INLINABLE disjointSubtrees #-}
 
 disjointArrays :: Eq k => Shift -> Bitmap -> A.Array (HashMap k a) -> Bitmap -> A.Array (HashMap k b) -> Bool
-disjointArrays !s !bA !aryA !bB !aryB = go (bA .&. bB)
+disjointArrays !s !bmA !aryA !bmB !aryB = go (bmA .&. bmB)
   where
     go 0 = True
-    go b = case A.index# aryA iA of
+    go bm = case A.index# aryA iA of
         (# stA #) -> case A.index# aryB iB of
           (# stB #) ->
             disjointSubtrees (nextShift s) stA stB &&
-            go (b .&. complement m)
+            go (bm .&. complement m)
       where
-        m = b .&. negate b
-        iA = sparseIndex bA m
-        iB = sparseIndex bB m
+        m = bm .&. negate bm
+        iA = sparseIndex bmA m
+        iB = sparseIndex bmB m
 {-# INLINE disjointArrays #-}
 
 disjointCollisions :: Eq k => Hash -> A.Array (Leaf k a) -> Hash -> A.Array (Leaf k b) -> Bool
