@@ -2316,6 +2316,11 @@ searchSwap mary n toFind start = go start toFind start
           else go i0 k (i + 1)
 {-# INLINE searchSwap #-}
 
+-- | Check whether the key sets of two maps are disjoint (i.e., their 'intersection' is empty).
+--
+-- @
+-- xs ``disjoint`` ys = null (xs ``intersection`` ys)
+-- @
 disjoint :: Eq k => HashMap k a -> HashMap k b -> Bool
 disjoint = disjointSubtrees 0
 {-# INLINE disjoint #-}
