@@ -2322,8 +2322,10 @@ disjoint = disjointSubtrees 0
 
 disjointSubtrees :: Eq k => Shift -> HashMap k a -> HashMap k b -> Bool
 disjointSubtrees !_s Empty _b = True
-disjointSubtrees _ (Leaf hA (L kA _)) (Leaf hB (L kB _)) = hA /= hB || kA /= kB
-disjointSubtrees s (Leaf hA (L kA _)) b = lookupCont (\_ -> True) (\_ _ -> False) hA kA s b
+disjointSubtrees _ (Leaf hA (L kA _)) (Leaf hB (L kB _)) =
+  hA /= hB || kA /= kB
+disjointSubtrees s (Leaf hA (L kA _)) b =
+  lookupCont (\_ -> True) (\_ _ -> False) hA kA s b
 disjointSubtrees s (BitmapIndexed bA aryA) (BitmapIndexed bB aryB)
     -- TODO: Try removing this check and just rely on disjointArrays.
   | bA .&. bB == 0 = True
@@ -2359,7 +2361,8 @@ disjointSubtrees s a@(Collision hA _) (Full aryB) =
 disjointSubtrees _ (Collision hA aryA) (Collision hB aryB) =
   disjointCollisions hA aryA hB aryB
 disjointSubtrees _s _a Empty = True
-disjointSubtrees s a (Leaf hB (L kB _)) = lookupCont (\_ -> True) (\_ _ -> False) hB kB s a
+disjointSubtrees s a (Leaf hB (L kB _)) =
+  lookupCont (\_ -> True) (\_ _ -> False) hB kB s a
 disjointSubtrees s a b@Collision{} = disjointSubtrees s b a
 {-# INLINABLE disjointSubtrees #-}
 
