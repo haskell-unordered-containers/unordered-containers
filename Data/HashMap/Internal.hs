@@ -2354,10 +2354,8 @@ disjointSubtrees s a@(Collision hA _) (BitmapIndexed bmB aryB)
     m = mask hA s
     i = sparseIndex bmB m
 disjointSubtrees s a@(Collision hA _) (Full aryB) =
-    case A.index# aryB i of
-      (# stB #) -> disjointSubtrees (nextShift s) a stB
-  where
-    i = index hA s
+  case A.index# aryB (index hA s) of
+    (# stB #) -> disjointSubtrees (nextShift s) a stB
 disjointSubtrees _ (Collision hA aryA) (Collision hB aryB) =
   disjointCollisions hA aryA hB aryB
 disjointSubtrees _s _a Empty = True
