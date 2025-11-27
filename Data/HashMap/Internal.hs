@@ -720,23 +720,23 @@ lookupCont ::
   -> k
   -> Shift
   -> HashMap k v -> r
-lookupCont absent present !h0 !k0 !s0 m0 = go h0 k0 s0 m0
+lookupCont absent present !h0 !k0 !s0 m0 = lookupCont_ h0 k0 s0 m0
   where
-    go :: Eq k => Hash -> k -> Shift -> HashMap k v -> r
-    go !_ !_ !_ Empty = absent (# #)
-    go h k _ (Leaf hx (L kx x))
+    lookupCont_ :: Eq k => Hash -> k -> Shift -> HashMap k v -> r
+    lookupCont_ !_ !_ !_ Empty = absent (# #)
+    lookupCont_ h k _ (Leaf hx (L kx x))
         | h == hx && k == kx = present x (-1)
         | otherwise          = absent (# #)
-    go h k s (BitmapIndexed b v)
+    lookupCont_ h k s (BitmapIndexed b v)
         | b .&. m == 0 = absent (# #)
         | otherwise =
             case A.index# v (sparseIndex b m) of
-              (# st #) -> go h k (nextShift s) st
+              (# st #) -> lookupCont_ h k (nextShift s) st
       where m = mask h s
-    go h k s (Full v) =
+    lookupCont_ h k s (Full v) =
       case A.index# v (index h s) of
-        (# st #) -> go h k (nextShift s) st
-    go h k _ (Collision hx v)
+        (# st #) -> lookupCont_ h k (nextShift s) st
+    lookupCont_ h k _ (Collision hx v)
         | h == hx   = lookupInArrayCont absent present k v
         | otherwise = absent (# #)
 {-# INLINE lookupCont #-}
@@ -2713,15 +2713,16 @@ lookupInArrayCont ::
   forall r k v.
 #endif
   Eq k => ((# #) -> r) -> (v -> Int -> r) -> k -> A.Array (Leaf k v) -> r
-lookupInArrayCont absent present k0 ary0 = go k0 ary0 0 (A.length ary0)
+lookupInArrayCont absent present k0 ary0 =
+    lookupInArrayCont_ k0 ary0 0 (A.length ary0)
   where
-    go :: Eq k => k -> A.Array (Leaf k v) -> Int -> Int -> r
-    go !k !ary !i !n
+    lookupInArrayCont_ :: Eq k => k -> A.Array (Leaf k v) -> Int -> Int -> r
+    lookupInArrayCont_ !k !ary !i !n
         | i >= n    = absent (# #)
         | otherwise = case A.index# ary i of
             (# L kx v #)
                 | k == kx   -> present v i
-                | otherwise -> go k ary (i+1) n
+                | otherwise -> lookupInArrayCont_ k ary (i+1) n
 {-# INLINE lookupInArrayCont #-}
 
 -- | \(O(n)\) Lookup the value associated with the given key in this
