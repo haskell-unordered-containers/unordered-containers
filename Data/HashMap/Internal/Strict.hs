@@ -302,8 +302,8 @@ adjust f k0 m0 = go h0 k0 0 m0
 -- (if it is in the map). If @(f x)@ is 'Nothing', the element is deleted.
 -- If it is @('Just' y)@, the key @k@ is bound to the new value @y@.
 update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
-update f = alter (>>= f)
-{-# INLINABLE update #-}
+update f = Exts.inline alter (>>= f)
+{-# INLINE update #-}
 
 -- | \(O(\log n)\)  The expression @('alter' f k map)@ alters the value @x@ at @k@, or
 -- absence thereof.
@@ -314,20 +314,10 @@ update f = alter (>>= f)
 -- 'lookup' k ('alter' f k m) = f ('lookup' k m)
 -- @
 alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
-alter f k m =
-    let !h = hash k
-        !lookupRes = HM.lookupRecordCollision h k m
-    in case f (HM.lookupResToMaybe lookupRes) of
-        Nothing -> case lookupRes of
-            Absent            -> m
-            Present _ collPos -> HM.deleteKeyExists collPos h k m
-        Just !v' -> case lookupRes of
-            Absent             -> HM.insertNewKey h k v' m
-            Present v collPos ->
-                if v `ptrEq` v'
-                    then m
-                    else HM.insertKeyExists collPos h k v' m
-{-# INLINABLE alter #-}
+alter f = Exts.inline HM.alter $ \m -> case f m of
+  Nothing -> Nothing
+  Just !x -> Just x
+{-# INLINE alter #-}
 
 -- | \(O(\log n)\)  The expression (@'alterF' f k map@) alters the value @x@ at
 -- @k@, or absence thereof.

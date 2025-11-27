@@ -994,14 +994,11 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsert #-}
 
--- | Create a map from two key-value pairs which hashes don't collide. To
--- enhance sharing, the second key-value pair is represented by the hash of its
--- key and a singleton HashMap pairing its key with its value.
+-- | Create a map from a key-value pair and a 'Leaf' or 'Collision' node with
+-- a different hash.
 --
--- Note: to avoid silly thunks, this function must be strict in the
--- key. See issue #232. We don't need to force the HashMap argument
--- because it's already in WHNF (having just been matched) and we
--- just put it directly in an array.
+-- It is the caller's responsibility to ensure that the 'HashMap' argument is
+-- in WHNF.
 two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
 two = go
   where
@@ -1306,9 +1303,8 @@ adjust# f k0 m0 = go h0 k0 0 m0
 -- (if it is in the map). If @(f x)@ is 'Nothing', the element is deleted.
 -- If it is @('Just' y)@, the key @k@ is bound to the new value @y@.
 update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
-update f = alter (>>= f)
-{-# INLINABLE update #-}
-
+update f = Exts.inline alter (>>= f)
+{-# INLINE update #-}
 
 -- | \(O(\log n)\)  The expression @('alter' f k map)@ alters the value @x@ at @k@, or
 -- absence thereof.
@@ -1319,20 +1315,100 @@ update f = alter (>>= f)
 -- 'lookup' k ('alter' f k m) = f ('lookup' k m)
 -- @
 alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
-alter f k m =
-    let !h = hash k
-        !lookupRes = lookupRecordCollision h k m
-    in case f (lookupResToMaybe lookupRes) of
-        Nothing -> case lookupRes of
-            Absent            -> m
-            Present _ collPos -> deleteKeyExists collPos h k m
-        Just v' -> case lookupRes of
-            Absent            -> insertNewKey h k v' m
-            Present v collPos ->
-                if v `ptrEq` v'
-                    then m
-                    else insertKeyExists collPos h k v' m
-{-# INLINABLE alter #-}
+alter f !k = Exts.inline alter' f (hash k) k
+{-# INLINE alter #-}
+
+alter' :: Eq k => (Maybe v -> Maybe v) -> Hash -> k -> HashMap k v -> HashMap k v
+alter' f !h0 !k0 = go_alter' h0 k0 0
+  where
+    go_alter' !h !k !_ Empty = case f Nothing of
+      Nothing -> Empty
+      Just v -> Leaf h $ L k v
+    go_alter' h k s t@(Leaf hy l@(L ky v))
+      | hy == h =
+          if ky == k
+            then case f $ Just v of
+              Nothing -> Empty
+              Just v'
+                | v `ptrEq` v' -> t
+                | otherwise -> Leaf h $ L k v'
+            else do
+              case f Nothing of
+                Nothing -> t
+                Just v' -> collision h l $ L k v'
+      | otherwise = case f Nothing of
+          Nothing -> t
+          Just v' -> runST $ two s h k v' hy t
+    go_alter' h k s t@(BitmapIndexed b ary)
+      | b .&. m == 0 = case f Nothing of
+          Nothing -> t
+          Just v' -> bitmapIndexedOrFull (b .|. m) $! A.insert ary i $! Leaf h $! L k v'
+      | otherwise =
+          case A.index# ary i of
+            (# !st #) -> do
+              let !st' = go_alter' h k (nextShift s) st
+              if st' `ptrEq` st
+                then t
+                else case st' of
+                  Empty
+                    | A.length ary == 2
+                    , (# l #) <- A.index# ary (otherOfOneOrZero i)
+                    , isLeafOrCollision l
+                      -> l
+                    | otherwise
+                      -> BitmapIndexed (b .&. complement m) (A.delete ary i)
+                  l | isLeafOrCollision l && A.length ary == 1 -> l
+                  _ -> BitmapIndexed b (A.update ary i st')
+      where
+        m = mask h s
+        i = sparseIndex b m
+    go_alter' h k s t@(Full ary) = do
+      case A.index# ary i of
+        (# !st #) -> do
+          let !st' = go_alter' h k (nextShift s) st
+          if st' `ptrEq` st
+            then t
+            else case st' of
+              Empty ->
+                let ary' = A.delete ary i
+                    bm = fullBitmap .&. complement (1 `unsafeShiftL` i)
+                 in BitmapIndexed bm ary'
+              _ -> Full (A.update ary i st')
+      where i = index h s
+    go_alter' h k s t@(Collision hy ls)
+      | h == hy = alterCollision f h k ls t
+      | otherwise = case f Nothing of
+          Nothing -> t
+          Just v' -> runST $ two s h k v' hy t
+{-# INLINE alter' #-}
+
+alterCollision
+  :: Eq k
+  => (Maybe v -> Maybe v)
+  -> Hash
+  -> k
+  -> A.Array (Leaf k v)
+  -> HashMap k v
+  -- ^ The original Collision node which will be re-used if the array is unchanged.
+  -> HashMap k v
+alterCollision f !h !k !ary orig =
+    case indexOf k ary of
+      Just i -> do
+        case A.index# ary i of
+          (# L _ v #) ->
+            case f $ Just v of
+              Nothing
+                | A.length ary == 2 ->
+                    case A.index# ary (otherOfOneOrZero i) of
+                      (# l #) -> Leaf h l
+                | otherwise -> Collision h (A.delete ary i)
+              Just v'
+                | v' `ptrEq` v -> orig
+                | otherwise -> Collision h $ A.update ary i $ L k v'
+      Nothing -> case f Nothing of
+        Nothing -> orig
+        Just v' -> Collision h $ A.snoc ary $ L k v'
+{-# INLINABLE alterCollision #-}
 
 -- | \(O(\log n)\)  The expression @('alterF' f k map)@ alters the value @x@ at
 -- @k@, or absence thereof.
