@@ -642,7 +642,6 @@ lookup k m = case lookup# k m of
 {-# INLINE lookup #-}
 
 lookup# :: (Eq k, Hashable k) => k -> HashMap k v -> (# (# #) | v #)
-lookup# _k Empty = (# (# #) | #)
 lookup# k m = lookupInSubtree# (hash k) k 0 m
 {-# INLINE lookup# #-}
 
