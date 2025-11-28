@@ -642,8 +642,13 @@ lookup k m = case lookup# k m of
 {-# INLINE lookup #-}
 
 lookup# :: (Eq k, Hashable k) => k -> HashMap k v -> (# (# #) | v #)
-lookup# k m = lookupCont (\_ -> (# (# #) | #)) (\v _i -> (# | v #)) (hash k) k 0 m
-{-# INLINABLE lookup# #-}
+lookup# _k Empty = (# (# #) | #)
+lookup# k m = lookupInSubtree# (hash k) k 0 m
+{-# INLINE lookup# #-}
+
+lookupInSubtree# :: Eq k => Hash -> k -> Shift -> HashMap k v -> (# (# #) | v #)
+lookupInSubtree# !h !k !s = \m -> lookupCont (\_ -> (# (# #) | #)) (\v _i -> (# | v #)) h k s m
+{-# INLINABLE lookupInSubtree# #-}
 
 -- | lookup' is a version of lookup that takes the hash separately.
 -- It is used to implement alterF.
