@@ -2331,18 +2331,22 @@ disjointSubtrees _ (Leaf hA (L kA _)) (Leaf hB (L kB _)) =
   hA /= hB || kA /= kB
 disjointSubtrees s (Leaf hA (L kA _)) b =
   lookupCont (\_ -> True) (\_ _ -> False) hA kA s b
-disjointSubtrees s (BitmapIndexed bmA aryA) (BitmapIndexed bmB aryB)
-    -- TODO: Try removing this check and just rely on disjointArrays.
-  | bmA .&. bmB == 0 = True
-  | aryA `A.unsafeSameArray` aryB = False
-  | otherwise = disjointArrays s bmA aryA bmB aryB
+disjointSubtrees s (BitmapIndexed bmA aryA) (BitmapIndexed bmB aryB) =
+  -- We could do a pointer equality check here but it's probably not worth it
+  -- since it would save only O(1) extra work:
+  --
+  -- not (aryA `A.unsafeSameArray` aryB) &&
+  disjointArrays s bmA aryA bmB aryB
 disjointSubtrees s (BitmapIndexed bmA aryA) (Full aryB) =
   disjointArrays s bmA aryA fullBitmap aryB
 disjointSubtrees s (Full aryA) (BitmapIndexed bmB aryB) =
   disjointArrays s fullBitmap aryA bmB aryB
-disjointSubtrees s (Full aryA) (Full aryB)
-  | aryA `A.unsafeSameArray` aryB = False
-  | otherwise = go (maxChildren - 1)
+disjointSubtrees s (Full aryA) (Full aryB) =
+    -- We could do a pointer equality check here but it's probably not worth it
+    -- since it would save only O(1) extra work:
+    --
+    -- not (aryA `A.unsafeSameArray` aryB) &&
+    go (maxChildren - 1)
   where
     go i
       | i < 0 = True
