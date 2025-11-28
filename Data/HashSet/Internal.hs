@@ -405,6 +405,11 @@ intersection :: Eq a => HashSet a -> HashSet a -> HashSet a
 intersection (HashSet a) (HashSet b) = HashSet (H.intersection a b)
 {-# INLINABLE intersection #-}
 
+-- | Check whether two sets are disjoint (i.e., their intersection is empty).
+--
+-- @
+-- xs ``disjoint`` ys = null (xs ``intersection`` ys)
+-- @
 disjoint :: Eq k => HashSet k -> HashSet k -> Bool
 disjoint (HashSet a) (HashSet b) = H.disjoint a b
 {-# INLINE disjoint #-}
