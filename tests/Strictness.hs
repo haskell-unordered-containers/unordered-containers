@@ -21,7 +21,7 @@ import Prelude hiding (Foldable (..))
 
 import qualified Data.HashMap.Strict as HM
 
-instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
+instance (Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
   arbitrary = HM.fromList <$> arbitrary
   shrink = fmap HM.fromList . shrink . HM.toList
 

@@ -145,7 +145,7 @@ instance NFData1 HashSet where
 --
 -- In general, the lack of extensionality can be observed with any function
 -- that depends on the key ordering, such as folds and traversals.
-instance (Eq a) => Eq (HashSet a) where
+instance Eq a => Eq (HashSet a) where
     HashSet a == HashSet b = equalKeys a b
     {-# INLINE (==) #-}
 
@@ -187,7 +187,7 @@ instance Foldable.Foldable HashSet where
 --
 -- >>> fromList [1,2] <> fromList [2,3]
 -- fromList [1,2,3]
-instance (Hashable a, Eq a) => Semigroup (HashSet a) where
+instance Hashable a => Semigroup (HashSet a) where
     (<>) = union
     {-# INLINE (<>) #-}
     stimes = stimesIdempotentMonoid
@@ -206,13 +206,13 @@ instance (Hashable a, Eq a) => Semigroup (HashSet a) where
 --
 -- >>> mappend (fromList [1,2]) (fromList [2,3])
 -- fromList [1,2,3]
-instance (Hashable a, Eq a) => Monoid (HashSet a) where
+instance Hashable a => Monoid (HashSet a) where
     mempty = empty
     {-# INLINE mempty #-}
     mappend = (<>)
     {-# INLINE mappend #-}
 
-instance (Eq a, Hashable a, Read a) => Read (HashSet a) where
+instance (Hashable a, Read a) => Read (HashSet a) where
     readPrec = parens $ prec 10 $ do
       Ident "fromList" <- lexP
       fromList <$> readPrec
@@ -227,7 +227,7 @@ instance (Show a) => Show (HashSet a) where
     showsPrec d m = showParen (d > 10) $
       showString "fromList " . shows (toList m)
 
-instance (Data a, Eq a, Hashable a) => Data (HashSet a) where
+instance (Data a, Hashable a) => Data (HashSet a) where
     gfoldl f z m   = z fromList `f` toList m
     toConstr _     = fromListConstr
     gunfold k z c  = case Data.constrIndex c of
@@ -297,7 +297,7 @@ keysSet m = fromMap (() <$ m)
 -- False
 --
 -- @since 0.2.12
-isSubsetOf :: (Eq a, Hashable a) => HashSet a -> HashSet a -> Bool
+isSubsetOf :: Hashable a => HashSet a -> HashSet a -> Bool
 isSubsetOf s1 s2 = H.isSubmapOfBy (\_ _ -> True) (asMap s1) (asMap s2)
 
 -- | \(O(n+m)\) Construct a set containing all elements from both sets.
@@ -345,7 +345,7 @@ size = H.size . asMap
 -- True
 -- >>> HashSet.member 1 (Hashset.fromList [4,5,6])
 -- False
-member :: (Eq a, Hashable a) => a -> HashSet a -> Bool
+member :: Hashable a => a -> HashSet a -> Bool
 member a s = case H.lookup a (asMap s) of
                Just _ -> True
                _      -> False
@@ -363,7 +363,7 @@ lookupElement a = H.lookupKey a . asMap
 --
 -- >>> HashSet.insert 1 HashSet.empty
 -- fromList [1]
-insert :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
+insert :: Hashable a => a -> HashSet a -> HashSet a
 insert a = HashSet . H.insert a () . asMap
 {-# INLINABLE insert #-}
 
@@ -373,7 +373,7 @@ insert a = HashSet . H.insert a () . asMap
 -- fromList [2,3]
 -- >>> HashSet.delete 1 (HashSet.fromList [4,5,6])
 -- fromList [4,5,6]
-delete :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
+delete :: Hashable a => a -> HashSet a -> HashSet a
 delete a = HashSet . H.delete a . asMap
 {-# INLINABLE delete #-}
 
@@ -382,7 +382,7 @@ delete a = HashSet . H.delete a . asMap
 --
 -- >>> HashSet.map show (HashSet.fromList [1,2,3])
 -- HashSet.fromList ["1","2","3"]
-map :: (Hashable b, Eq b) => (a -> b) -> HashSet a -> HashSet b
+map :: Hashable b => (a -> b) -> HashSet a -> HashSet b
 map f = fromList . List.map f . toList
 {-# INLINE map #-}
 
@@ -391,7 +391,7 @@ map f = fromList . List.map f . toList
 --
 -- >>> HashSet.difference (HashSet.fromList [1,2,3]) (HashSet.fromList [2,3,4])
 -- fromList [1]
-difference :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
+difference :: Hashable a => HashSet a -> HashSet a -> HashSet a
 difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
 {-# INLINABLE difference #-}
 
@@ -455,12 +455,12 @@ toList t = Exts.build (\ c z -> foldrWithKey (const . c) z (asMap t))
 {-# INLINE toList #-}
 
 -- | \(O(n \min(W, n))\) Construct a set from a list of elements.
-fromList :: (Eq a, Hashable a) => [a] -> HashSet a
+fromList :: Hashable a => [a] -> HashSet a
 fromList = HashSet . List.foldl' (\ m k -> H.unsafeInsert k () m) H.empty
 {-# INLINE fromList #-}
 
 #if defined(__GLASGOW_HASKELL__)
-instance (Eq a, Hashable a) => Exts.IsList (HashSet a) where
+instance Hashable a => Exts.IsList (HashSet a) where
     type Item (HashSet a) = a
     fromList = fromList
     toList   = toList

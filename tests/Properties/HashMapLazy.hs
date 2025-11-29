@@ -47,7 +47,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map.Lazy     as M
 #endif
 
-instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
+instance (Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
   arbitrary = HM.fromList <$> arbitrary
   shrink = fmap HM.fromList . shrink . HM.toList
 
@@ -63,7 +63,7 @@ sortByKey = List.sortBy (compare `on` fst)
 toOrdMap :: Ord k => HashMap k v -> M.Map k v
 toOrdMap = M.fromList . HM.toList
 
-isValid :: (Eq k, Hashable k, Show k) => HashMap k v -> Property
+isValid :: (Hashable k, Show k) => HashMap k v -> Property
 isValid m = valid m === Valid
 
 -- The free magma is used to test that operations are applied in the

@@ -311,7 +311,7 @@ instance Bifoldable HashMap where
 --
 -- >>> fromList [(1,'a'),(2,'b')] <> fromList [(2,'c'),(3,'d')]
 -- fromList [(1,'a'),(2,'b'),(3,'d')]
-instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
+instance Hashable k => Semigroup (HashMap k v) where
   (<>) = union
   {-# INLINE (<>) #-}
   stimes = stimesIdempotentMonoid
@@ -327,13 +327,13 @@ instance (Eq k, Hashable k) => Semigroup (HashMap k v) where
 --
 -- >>> mappend (fromList [(1,'a'),(2,'b')]) (fromList [(2,'c'),(3,'d')])
 -- fromList [(1,'a'),(2,'b'),(3,'d')]
-instance (Eq k, Hashable k) => Monoid (HashMap k v) where
+instance Hashable k => Monoid (HashMap k v) where
   mempty = empty
   {-# INLINE mempty #-}
   mappend = (<>)
   {-# INLINE mappend #-}
 
-instance (Data k, Data v, Eq k, Hashable k) => Data (HashMap k v) where
+instance (Data k, Data v, Hashable k) => Data (HashMap k v) where
     gfoldl f z m   = z fromList `f` toList m
     toConstr _     = fromListConstr
     gunfold k z c  = case Data.constrIndex c of
@@ -376,14 +376,14 @@ instance Show2 HashMap where
 instance Show k => Show1 (HashMap k) where
     liftShowsPrec = liftShowsPrec2 showsPrec showList
 
-instance (Eq k, Hashable k, Read k) => Read1 (HashMap k) where
+instance (Hashable k, Read k) => Read1 (HashMap k) where
     liftReadsPrec rp rl = FC.readsData $
         FC.readsUnaryWith (liftReadsPrec rp' rl') "fromList" fromList
       where
         rp' = liftReadsPrec rp rl
         rl' = liftReadList rp rl
 
-instance (Eq k, Hashable k, Read k, Read e) => Read (HashMap k e) where
+instance (Hashable k, Read k, Read e) => Read (HashMap k e) where
     readPrec = parens $ prec 10 $ do
       Ident "fromList" <- lexP
       fromList <$> readPrec
@@ -624,7 +624,7 @@ size t = go t 0
 
 -- | \(O(\log n)\) Return 'True' if the specified key is present in the
 -- map, 'False' otherwise.
-member :: (Eq k, Hashable k) => k -> HashMap k a -> Bool
+member :: Hashable k => k -> HashMap k a -> Bool
 member k m = case lookup k m of
     Nothing -> False
     Just _  -> True
@@ -632,7 +632,7 @@ member k m = case lookup k m of
 
 -- | \(O(\log n)\) Return the value to which the specified key is mapped,
 -- or 'Nothing' if this map contains no mapping for the key.
-lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
+lookup :: Hashable k => k -> HashMap k v -> Maybe v
 -- GHC does not yet perform a worker-wrapper transformation on
 -- unboxed sums automatically. That seems likely to happen at some
 -- point (possibly as early as GHC 8.6) but for now we do it manually.
@@ -641,7 +641,7 @@ lookup k m = case lookup# k m of
   (# | a #) -> Just a
 {-# INLINE lookup #-}
 
-lookup# :: (Eq k, Hashable k) => k -> HashMap k v -> (# (# #) | v #)
+lookup# :: Hashable k => k -> HashMap k v -> (# (# #) | v #)
 lookup# k m = lookupCont (\_ -> (# (# #) | #)) (\v _i -> (# | v #)) (hash k) k 0 m
 {-# INLINABLE lookup# #-}
 
@@ -746,7 +746,7 @@ lookupCont absent present !h0 !k0 !s0 m0 = go h0 k0 s0 m0
 -- This is a flipped version of 'lookup'.
 --
 -- @since 0.2.11
-(!?) :: (Eq k, Hashable k) => HashMap k v -> k -> Maybe v
+(!?) :: Hashable k => HashMap k v -> k -> Maybe v
 (!?) m k = lookup k m
 {-# INLINE (!?) #-}
 
@@ -755,7 +755,7 @@ lookupCont absent present !h0 !k0 !s0 m0 = go h0 k0 s0 m0
 -- or the default value if this map contains no mapping for the key.
 --
 -- @since 0.2.11
-findWithDefault :: (Eq k, Hashable k)
+findWithDefault :: Hashable k
               => v          -- ^ Default value to return.
               -> k -> HashMap k v -> v
 findWithDefault def k t = case lookup k t of
@@ -769,7 +769,7 @@ findWithDefault def k t = case lookup k t of
 --
 -- DEPRECATED: lookupDefault is deprecated as of version 0.2.11, replaced
 -- by 'findWithDefault'.
-lookupDefault :: (Eq k, Hashable k)
+lookupDefault :: Hashable k
               => v          -- ^ Default value to return.
               -> k -> HashMap k v -> v
 lookupDefault = findWithDefault
@@ -777,7 +777,7 @@ lookupDefault = findWithDefault
 
 -- | \(O(\log n)\) Return the value to which the specified key is mapped.
 -- Calls 'error' if this map contains no mapping for the key.
-(!) :: (Eq k, Hashable k, HasCallStack) => HashMap k v -> k -> v
+(!) :: (Hashable k, HasCallStack) => HashMap k v -> k -> v
 (!) m k = case lookup k m of
     Just v  -> v
     Nothing -> error "Data.HashMap.Internal.(!): key not found"
@@ -841,7 +841,7 @@ bitmapIndexedOrFull b !ary
 -- | \(O(\log n)\) Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
-insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
+insert :: Hashable k => k -> v -> HashMap k v -> HashMap k v
 insert k v m = insert' (hash k) k v m
 {-# INLINABLE insert #-}
 
@@ -959,7 +959,7 @@ setAtPosition i k x ary = A.update ary i (L k x)
 
 
 -- | In-place update version of insert
-unsafeInsert :: forall k v. (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
+unsafeInsert :: forall k v. Hashable k => k -> v -> HashMap k v -> HashMap k v
 unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
@@ -1036,7 +1036,7 @@ two = go
 --
 -- > insertWith f k v map
 -- >   where f new old = new + old
-insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
+insertWith :: Hashable k => (v -> v -> v) -> k -> v -> HashMap k v
             -> HashMap k v
 -- We're not going to worry about allocating a function closure
 -- to pass to insertModifying. See comments at 'adjust'.
@@ -1048,7 +1048,7 @@ insertWith f k new m = insertModifying new (\old -> (# f new old #)) k m
 -- to apply to calculate a new value when the key is present. Thanks
 -- to the unboxed unary tuple, we avoid introducing any unnecessary
 -- thunks in the tree.
-insertModifying :: (Eq k, Hashable k) => v -> (v -> (# v #)) -> k -> HashMap k v
+insertModifying :: Hashable k => v -> (v -> (# v #)) -> k -> HashMap k v
             -> HashMap k v
 insertModifying x f k0 m0 = go h0 k0 0 m0
   where
@@ -1112,13 +1112,13 @@ insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
 {-# INLINE insertModifyingArr #-}
 
 -- | In-place update version of insertWith
-unsafeInsertWith :: forall k v. (Eq k, Hashable k)
+unsafeInsertWith :: forall k v. Hashable k
                  => (v -> v -> v) -> k -> v -> HashMap k v
                  -> HashMap k v
 unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (\_ a b -> (# f a b #)) k0 v0 m0
 {-# INLINABLE unsafeInsertWith #-}
 
-unsafeInsertWithKey :: forall k v. (Eq k, Hashable k)
+unsafeInsertWithKey :: forall k v. Hashable k
                  => (k -> v -> v -> (# v #)) -> k -> v -> HashMap k v
                  -> HashMap k v
 unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
@@ -1156,7 +1156,7 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 
 -- | \(O(\log n)\) Remove the mapping for the specified key from this map
 -- if present.
-delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
+delete :: Hashable k => k -> HashMap k v -> HashMap k v
 delete k m = delete' (hash k) k m
 {-# INLINABLE delete #-}
 
@@ -1251,7 +1251,7 @@ deleteKeyExists !collPos0 !h0 !k0 m0 = go collPos0 h0 k0 m0
 
 -- | \(O(\log n)\) Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
-adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
+adjust :: Hashable k => (v -> v) -> k -> HashMap k v -> HashMap k v
 -- This operation really likes to leak memory, so using this
 -- indirect implementation shouldn't hurt much. Furthermore, it allows
 -- GHC to avoid a leak when the function is lazy. In particular,
@@ -1263,7 +1263,7 @@ adjust f k m = adjust# (\v -> (# f v #)) k m
 {-# INLINE adjust #-}
 
 -- | Much like 'adjust', but not inherently leaky.
-adjust# :: (Eq k, Hashable k) => (v -> (# v #)) -> k -> HashMap k v -> HashMap k v
+adjust# :: Hashable k => (v -> (# v #)) -> k -> HashMap k v -> HashMap k v
 adjust# f k0 m0 = go h0 k0 0 m0
   where
     h0 = hash k0
@@ -1305,7 +1305,7 @@ adjust# f k0 m0 = go h0 k0 0 m0
 -- | \(O(\log n)\)  The expression @('update' f k map)@ updates the value @x@ at @k@
 -- (if it is in the map). If @(f x)@ is 'Nothing', the element is deleted.
 -- If it is @('Just' y)@, the key @k@ is bound to the new value @y@.
-update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
+update :: Hashable k => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
 update f = alter (>>= f)
 {-# INLINABLE update #-}
 
@@ -1318,7 +1318,7 @@ update f = alter (>>= f)
 -- @
 -- 'lookup' k ('alter' f k m) = f ('lookup' k m)
 -- @
-alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
+alter :: Hashable k => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
 alter f k m =
     let !h = hash k
         !lookupRes = lookupRecordCollision h k m
@@ -1343,7 +1343,7 @@ alter f k m =
 -- <https://hackage.haskell.org/package/lens/docs/Control-Lens-At.html#v:at Control.Lens.At>.
 --
 -- @since 0.2.10
-alterF :: (Functor f, Eq k, Hashable k)
+alterF :: (Functor f, Hashable k)
        => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
 -- We only calculate the hash once, but unless this is rewritten
 -- by rules we may test for key equality multiple times.
@@ -1433,7 +1433,7 @@ bogus# _ = error "Data.HashMap.alterF internal error: hit bogus#"
 --
 -- Failure to abide by these laws will make demons come out of your nose.
 alterFWeird
-       :: (Functor f, Eq k, Hashable k)
+       :: (Functor f, Hashable k)
        => f (Maybe v)
        -> f (Maybe v)
        -> (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
@@ -1443,7 +1443,7 @@ alterFWeird _ _ f = alterFEager f
 -- | This is the default version of alterF that we use in most non-trivial
 -- cases. It's called "eager" because it looks up the given key in the map
 -- eagerly, whether or not the given function requires that information.
-alterFEager :: (Functor f, Eq k, Hashable k)
+alterFEager :: (Functor f, Hashable k)
        => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
 alterFEager f !k m = (<$> f mv) $ \case
 
@@ -1492,7 +1492,7 @@ alterFEager f !k m = (<$> f mv) $ \case
 -- False
 --
 -- @since 0.2.12
-isSubmapOf :: (Eq k, Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
+isSubmapOf :: (Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
 isSubmapOf = Exts.inline isSubmapOfBy (==)
 {-# INLINABLE isSubmapOf #-}
 
@@ -1512,7 +1512,7 @@ isSubmapOf = Exts.inline isSubmapOfBy (==)
 -- False
 --
 -- @since 0.2.12
-isSubmapOfBy :: (Eq k, Hashable k) => (v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2 -> Bool
+isSubmapOfBy :: Hashable k => (v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2 -> Bool
 -- For maps without collisions the complexity is O(n*log m), where n is the size
 -- of m1 and m the size of m2: the inclusion operation visits every leaf in m1 at least once.
 -- For each leaf in m1, it looks up the key in m2.
@@ -1766,7 +1766,7 @@ unions = List.foldl' union empty
 -- @
 --
 -- @since 0.2.13.0
-compose :: (Eq b, Hashable b) => HashMap b c -> HashMap a b -> HashMap a c
+compose :: Hashable b => HashMap b c -> HashMap a b -> HashMap a c
 compose bc !ab
   | null bc = empty
   | otherwise = mapMaybe (bc !?) ab
@@ -1829,7 +1829,7 @@ traverseWithKey f = go
 -- fromList [(3,"c")]
 --
 -- @since 0.2.14.0
-mapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
+mapKeys :: Hashable k2 => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
 mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 
 ------------------------------------------------------------------------
@@ -2559,7 +2559,7 @@ toList t = Exts.build (\ c z -> foldrWithKey (curry c) z t)
 
 -- | \(O(n \log n)\) Construct a map with the supplied mappings.  If the list
 -- contains duplicate mappings, the later mappings take precedence.
-fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
+fromList :: Hashable k => [(k, v)] -> HashMap k v
 fromList = List.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 {-# INLINABLE fromList #-}
 
@@ -2593,7 +2593,7 @@ fromList = List.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 --
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
-fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
+fromListWith :: Hashable k => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 {-# INLINE fromListWith #-}
 
@@ -2623,7 +2623,7 @@ fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 -- > = fromList [(k, f k d (f k c (f k b a)))]
 --
 -- @since 0.2.11
-fromListWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
+fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m) empty
 {-# INLINE fromListWithKey #-}
 
@@ -2893,7 +2893,7 @@ otherOfOneOrZero i = 1 - i
 #if defined(__GLASGOW_HASKELL__)
 ------------------------------------------------------------------------
 -- IsList instance
-instance (Eq k, Hashable k) => Exts.IsList (HashMap k v) where
+instance Hashable k => Exts.IsList (HashMap k v) where
     type Item (HashMap k v) = (k, v)
     fromList = fromList
     toList   = toList
