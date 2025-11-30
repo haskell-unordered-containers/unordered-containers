@@ -187,7 +187,7 @@ instance Foldable.Foldable HashSet where
 --
 -- >>> fromList [1,2] <> fromList [2,3]
 -- fromList [1,2,3]
-instance Hashable a => Semigroup (HashSet a) where
+instance Eq a => Semigroup (HashSet a) where
     (<>) = union
     {-# INLINE (<>) #-}
     stimes = stimesIdempotentMonoid
@@ -206,7 +206,7 @@ instance Hashable a => Semigroup (HashSet a) where
 --
 -- >>> mappend (fromList [1,2]) (fromList [2,3])
 -- fromList [1,2,3]
-instance Hashable a => Monoid (HashSet a) where
+instance Eq a => Monoid (HashSet a) where
     mempty = empty
     {-# INLINE mempty #-}
     mappend = (<>)

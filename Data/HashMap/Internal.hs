@@ -311,7 +311,7 @@ instance Bifoldable HashMap where
 --
 -- >>> fromList [(1,'a'),(2,'b')] <> fromList [(2,'c'),(3,'d')]
 -- fromList [(1,'a'),(2,'b'),(3,'d')]
-instance Hashable k => Semigroup (HashMap k v) where
+instance Eq k => Semigroup (HashMap k v) where
   (<>) = union
   {-# INLINE (<>) #-}
   stimes = stimesIdempotentMonoid
@@ -327,7 +327,7 @@ instance Hashable k => Semigroup (HashMap k v) where
 --
 -- >>> mappend (fromList [(1,'a'),(2,'b')]) (fromList [(2,'c'),(3,'d')])
 -- fromList [(1,'a'),(2,'b'),(3,'d')]
-instance Hashable k => Monoid (HashMap k v) where
+instance Eq k => Monoid (HashMap k v) where
   mempty = empty
   {-# INLINE mempty #-}
   mappend = (<>)
