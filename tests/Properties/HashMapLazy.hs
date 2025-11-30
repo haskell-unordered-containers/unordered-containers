@@ -357,6 +357,11 @@ tests =
         \(Fn3 f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
           isValid (HM.intersectionWithKey f x y)
       ]
+    , testGroup "disjoint"
+      [ testProperty "model" $
+        \(x :: HMKI) (y :: HMKI) ->
+          HM.disjoint x y === M.disjoint (toOrdMap x) (toOrdMap y)
+      ]
     , testGroup "compose"
       [ testProperty "valid" $
         \(x :: HMK Int) (y :: HMK Key) -> isValid (HM.compose x y)
