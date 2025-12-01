@@ -1,4 +1,5 @@
 package unordered-containers
+  -- https://downloads.haskell.org/ghc/latest/docs/users_guide/debugging.html
   ghc-options: -ddump-simpl
   ghc-options: -ddump-prep
   ghc-options: -ddump-cmm
