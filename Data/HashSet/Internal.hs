@@ -377,7 +377,7 @@ delete :: Hashable a => a -> HashSet a -> HashSet a
 delete a = HashSet . H.delete a . asMap
 {-# INLINABLE delete #-}
 
--- | \(O(n)\) Transform this set by applying a function to every value.
+-- | \(O(n \log n)\) Transform this set by applying a function to every value.
 -- The resulting set may be smaller than the source.
 --
 -- >>> HashSet.map show (HashSet.fromList [1,2,3])
@@ -386,7 +386,7 @@ map :: Hashable b => (a -> b) -> HashSet a -> HashSet b
 map f = fromList . List.map f . toList
 {-# INLINE map #-}
 
--- | \(O(n)\) Difference of two sets. Return elements of the first set
+-- | \(O(n \log m)\) Difference of two sets. Return elements of the first set
 -- not existing in the second.
 --
 -- >>> HashSet.difference (HashSet.fromList [1,2,3]) (HashSet.fromList [2,3,4])
@@ -395,7 +395,7 @@ difference :: Eq a => HashSet a -> HashSet a -> HashSet a
 difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
 {-# INLINABLE difference #-}
 
--- | \(O(n)\) Intersection of two sets. Return elements present in both
+-- | \(O(n \log m)\) Intersection of two sets. Return elements present in both
 -- the first set and the second.
 --
 -- >>> HashSet.intersection (HashSet.fromList [1,2,3]) (HashSet.fromList [2,3,4])
@@ -454,7 +454,7 @@ toList :: HashSet a -> [a]
 toList t = Exts.build (\ c z -> foldrWithKey (const . c) z (asMap t))
 {-# INLINE toList #-}
 
--- | \(O(n \min(W, n))\) Construct a set from a list of elements.
+-- | \(O(n \log n)\) Construct a set from a list of elements.
 fromList :: Hashable a => [a] -> HashSet a
 fromList = HashSet . List.foldl' (\ m k -> H.unsafeInsert k () m) H.empty
 {-# INLINE fromList #-}
