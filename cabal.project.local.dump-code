@@ -3,9 +3,12 @@ package unordered-containers
   ghc-options: -ddump-prep
   ghc-options: -ddump-cmm
   ghc-options: -ddump-asm
+
+  ghc-options: -ddump-to-file
+
+  -- Enable or disable as needed:
+  ghc-options: -dsuppress-timestamps
+  ghc-options: -dsuppress-module-prefixes
   ghc-options: -dsuppress-coercions
   ghc-options: -dsuppress-unfoldings
-  ghc-options: -dsuppress-module-prefixes
   ghc-options: -dsuppress-uniques
-  ghc-options: -dsuppress-timestamps
-  ghc-options: -ddump-to-file
