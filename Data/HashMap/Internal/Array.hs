@@ -382,7 +382,7 @@ unsafeUpdateM ary idx b =
 foldl' :: (b -> a -> b) -> b -> Array a -> b
 foldl' f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
   where
-    go ary n i !z
+    go !ary n i !z
         | i >= n = z
         | otherwise
         = case index# ary i of
@@ -411,7 +411,7 @@ foldr f = \ z0 ary0 -> foldr_ ary0 (length ary0) 0 z0
 foldl :: (b -> a -> b) -> b -> Array a -> b
 foldl f = \ z0 ary0 -> go ary0 (length ary0 - 1) z0
   where
-    go _ary (-1) z = z
+    go !_ary (-1) z = z
     go ary i z
       | (# x #) <- index# ary i
       = f (go ary (i - 1) z) x
@@ -474,7 +474,7 @@ map f = \ ary ->
         return mary
   where
     go :: forall s. Array a -> MArray s b -> Int -> Int -> ST s ()
-    go ary mary i n
+    go !ary mary i n
         | i >= n    = return ()
         | otherwise = do
              x <- indexM ary i
@@ -492,7 +492,7 @@ map' f = \ ary ->
         return mary
   where
     go :: forall s . Array a -> MArray s b -> Int -> Int -> ST s ()
-    go ary mary i n
+    go !ary mary i n
         | i >= n    = return ()
         | otherwise = do
              x <- indexM ary i
