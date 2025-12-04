@@ -2395,8 +2395,7 @@ disjointArrays !s !bmA !aryA !bmB !aryB = go (bmA .&. bmB)
 
 -- TODO: GHC 9.12.2 inlines disjointCollisions into `disjoint @Int`.
 -- How do you prevent this while preserving specialization?
---
--- TODO: GHC 9.12.2 also likes to rebox aryA when it is _not_ inlined. :/
+-- https://stackoverflow.com/questions/79838305/ensuring-specialization-while-preventing-inlining
 disjointCollisions :: Eq k => Hash -> A.Array (Leaf k a) -> Hash -> A.Array (Leaf k b) -> Bool
 disjointCollisions !hA !aryA !hB !aryB
   | hA == hB = A.all predicate aryA
