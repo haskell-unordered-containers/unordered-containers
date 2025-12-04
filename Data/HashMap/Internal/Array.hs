@@ -401,7 +401,7 @@ foldr' f = \ z0 ary0 -> go ary0 (length ary0 - 1) z0
 foldr :: (a -> b -> b) -> b -> Array a -> b
 foldr f = \ z0 ary0 -> foldr_ ary0 (length ary0) 0 z0
   where
-    foldr_ ary n i z
+    foldr_ !ary n i z
         | i >= n = z
         | otherwise
         = case index# ary i of
