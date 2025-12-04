@@ -2733,6 +2733,7 @@ subsetArray cmpV ary1 ary2 = A.length ary1 <= A.length ary2 && A.all inAry2 ary1
   where
     inAry2 (L k1 v1) = lookupInArrayCont (\_ -> False) (\v2 _ -> cmpV v1 v2) k1 ary2
     {-# INLINE inAry2 #-}
+{-# INLINABLE subsetArray #-}
 
 ------------------------------------------------------------------------
 -- Manually unrolled loops
