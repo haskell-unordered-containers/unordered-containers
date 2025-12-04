@@ -62,36 +62,76 @@ cpp-options: -DBENCH_containers_Map -DBENCH_containers_IntMap -DBENCH_hashmap_Ma
 
 ## Inspecting the generated code
 
-The library section in `unordered-containers.cabal` contains a commented-out set of `ghc-options` for
-dumping Core and other forms of generated code. To dump this code, uncomment these options and run
+The file `cabal.project.local.dump-code` contains `ghc-options` for dumping Core and
+other forms of generated code. To generate these dump files, run
 
 ```
+cp cabal.project.local.dump-code cabal.project.local
 cabal clean
-cabal build
+cabal build benches tests
 ```
 
-You can find the resulting `.dump-*` files in `dist-newstyle/build/**/unordered-containers-*/build/`, e.g.
+You can find the resulting `.dump-*` files in `dist-newstyle/build/*/*/unordered-containers-*/`, e.g.
 
 ```
-$ tree dist-newstyle/build/x86_64-linux/ghc-9.2.2/unordered-containers-0.2.16.0/build/
-dist-newstyle/build/x86_64-linux/ghc-9.2.2/unordered-containers-0.2.16.0/build/
-├── Data
-│   ├── HashMap
-│   │   ├── Internal
-│   │   │   ├── Array.dump-asm
-│   │   │   ├── Array.dump-cmm
-│   │   │   ├── Array.dump-simpl
-│   │   │   ├── Array.dump-stg-final
+$ tree dist-newstyle/build/*/*/unordered-containers-*/
+dist-newstyle/build/x86_64-linux/ghc-9.12.2/unordered-containers-0.2.20.1/
+├── b
+│   ├── fine-grained
+│   │   ├── build
+│   │   │   └── fine-grained
+│   │   │       ├── autogen
+│   │   │       │   ├── cabal_macros.h
+│   │   │       │   ├── PackageInfo_unordered_containers.hs
+│   │   │       │   └── Paths_unordered_containers.hs
+│   │   │       ├── fine-grained
+│   │   │       └── fine-grained-tmp
+│   │   │           ├── benchmarks
+│   │   │           │   ├── FineGrained.dump-asm
+│   │   │           │   ├── FineGrained.dump-cmm
+│   │   │           │   ├── FineGrained.dump-prep
+│   │   │           │   ├── FineGrained.dump-simpl
 ...
 ```
 
-To visually compare the generated code from two different states of the source tree, you can copy
-the `dist-newstyle/build/**/unordered-containers-*/build/` directory from each state to two
-directories `a` and `b` and then use a diff tool like [Meld](https://meldmerge.org/) to compare
-them:
+To visually compare the generated code from two different states of the source tree,
+you can copy the `dist-newstyle/build/*/*/unordered-containers-*/` directory from
+each state to separate directories and then use a diff tool like
+[Meld](https://meldmerge.org/) to compare them:
 
 ```
-meld a/ b/
+cabal clean
+cabal build benches tests
+mkdir dump-$(git rev-parse HEAD)
+cp -r dist-newstyle/build/*/*/unordered-containers-*/ dump-$(git rev-parse HEAD)
+# Repeat at different commit
+meld dump-*
+```
+
+Because the files with the generated code are so large, it can be helpful to
+temporarily add a small "playground module" to the library:
+
+In `unordered-containers`:
+
+```diff
+library:
+  exposed-modules:
+     ...
+     Data.HashSet
+     Data.HashSet.Internal
++    Playground
+```
+
+`Playground.hs`:
+
+```
+{-# language TypeApplications #-}
+module Playground where
+
+import qualified Data.HashMap.Internal as HMI
+import qualified Data.HashMap.Strict as HS
+
+f = HS.union @String
 ```
 
 ### References
