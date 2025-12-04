@@ -2316,7 +2316,8 @@ searchSwap mary n toFind start = go start toFind start
           else go i0 k (i + 1)
 {-# INLINE searchSwap #-}
 
--- | Check whether the key sets of two maps are disjoint (i.e., their 'intersection' is empty).
+-- | \(O(n \log m)\) Check whether the key sets of two maps are disjoint
+-- (i.e., their 'intersection' is empty).
 --
 -- @
 -- xs ``disjoint`` ys = null (xs ``intersection`` ys)
