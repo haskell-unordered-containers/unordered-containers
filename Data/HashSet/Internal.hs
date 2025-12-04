@@ -411,6 +411,8 @@ intersection (HashSet a) (HashSet b) = HashSet (H.intersection a b)
 -- @
 -- xs ``disjoint`` ys = null (xs ``intersection`` ys)
 -- @
+--
+-- @since FIXME
 disjoint :: Eq k => HashSet k -> HashSet k -> Bool
 disjoint (HashSet a) (HashSet b) = H.disjoint a b
 {-# INLINE disjoint #-}

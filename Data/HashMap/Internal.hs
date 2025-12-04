@@ -2322,6 +2322,8 @@ searchSwap mary n toFind start = go start toFind start
 -- @
 -- xs ``disjoint`` ys = null (xs ``intersection`` ys)
 -- @
+--
+-- @since FIXME
 disjoint :: Eq k => HashMap k a -> HashMap k b -> Bool
 disjoint = disjointSubtrees 0
 {-# INLINE disjoint #-}
