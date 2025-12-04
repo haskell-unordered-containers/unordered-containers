@@ -559,7 +559,7 @@ instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
     hashWithSalt salt hm = go salt hm
       where
         go :: Int -> HashMap k v -> Int
-        go s Empty = s
+        go !s Empty = s
         go s (BitmapIndexed _ a) = A.foldl' go s a
         go s (Leaf h (L _ v))
           = s `H.hashWithSalt` h `H.hashWithSalt` v

@@ -382,7 +382,7 @@ unsafeUpdateM ary idx b =
 foldl' :: (b -> a -> b) -> b -> Array a -> b
 foldl' f = \ z0 ary0 -> foldl'_ ary0 (length ary0) 0 z0
   where
-    foldl'_ ary n i !z
+    foldl'_ !ary n i !z
         | i >= n = z
         | otherwise
         = case index# ary i of
