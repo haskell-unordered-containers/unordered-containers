@@ -2328,6 +2328,10 @@ disjoint :: Eq k => HashMap k a -> HashMap k b -> Bool
 disjoint = disjointSubtrees 0
 {-# INLINE disjoint #-}
 
+-- Note that as of GHC 9.12, SpecConstr creates a specialized worker for
+-- handling the Collision vs. {BitmapIndexed,Full} and vice-versa cases,
+-- but this worker fails to be properly specialized for different key
+-- types. See https://gitlab.haskell.org/ghc/ghc/-/issues/26615.
 disjointSubtrees :: Eq k => Shift -> HashMap k a -> HashMap k b -> Bool
 disjointSubtrees !_s Empty _b = True
 disjointSubtrees s (Leaf hA (L kA _)) b =
