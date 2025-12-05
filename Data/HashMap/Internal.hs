@@ -1165,7 +1165,7 @@ delete' :: Eq k => Hash -> k -> HashMap k v -> HashMap k v
 delete' = deleteFromSubtree 0
 {-# INLINE delete' #-}
 
--- | This version of 'delete' can be used on subtrees when a the
+-- | This version of 'delete' can be used on a subtree when the
 -- corresponding 'Shift' argument is supplied.
 deleteFromSubtree :: Eq k => Shift -> Hash -> k -> HashMap k v -> HashMap k v
 deleteFromSubtree !s !h !k = \case
