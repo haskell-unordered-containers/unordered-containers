@@ -83,6 +83,7 @@ module Data.HashMap.Internal
     , intersectionWith
     , intersectionWithKey
     , intersectionWithKey#
+    , disjoint
 
       -- * Folds
     , foldr'
@@ -719,23 +720,23 @@ lookupCont ::
   -> k
   -> Shift
   -> HashMap k v -> r
-lookupCont absent present !h0 !k0 !s0 m0 = go h0 k0 s0 m0
+lookupCont absent present !h0 !k0 !s0 m0 = lookupCont_ h0 k0 s0 m0
   where
-    go :: Eq k => Hash -> k -> Shift -> HashMap k v -> r
-    go !_ !_ !_ Empty = absent (# #)
-    go h k _ (Leaf hx (L kx x))
+    lookupCont_ :: Eq k => Hash -> k -> Shift -> HashMap k v -> r
+    lookupCont_ !_ !_ !_ Empty = absent (# #)
+    lookupCont_ h k _ (Leaf hx (L kx x))
         | h == hx && k == kx = present x (-1)
         | otherwise          = absent (# #)
-    go h k s (BitmapIndexed b v)
+    lookupCont_ h k s (BitmapIndexed b v)
         | b .&. m == 0 = absent (# #)
         | otherwise =
             case A.index# v (sparseIndex b m) of
-              (# st #) -> go h k (nextShift s) st
+              (# st #) -> lookupCont_ h k (nextShift s) st
       where m = mask h s
-    go h k s (Full v) =
+    lookupCont_ h k s (Full v) =
       case A.index# v (index h s) of
-        (# st #) -> go h k (nextShift s) st
-    go h k _ (Collision hx v)
+        (# st #) -> lookupCont_ h k (nextShift s) st
+    lookupCont_ h k _ (Collision hx v)
         | h == hx   = lookupInArrayCont absent present k v
         | otherwise = absent (# #)
 {-# INLINE lookupCont #-}
@@ -2315,6 +2316,94 @@ searchSwap mary n toFind start = go start toFind start
           else go i0 k (i + 1)
 {-# INLINE searchSwap #-}
 
+-- | \(O(n \log m)\) Check whether the key sets of two maps are disjoint
+-- (i.e., their 'intersection' is empty).
+--
+-- @
+-- xs ``disjoint`` ys = null (xs ``intersection`` ys)
+-- @
+--
+-- @since FIXME
+disjoint :: Eq k => HashMap k a -> HashMap k b -> Bool
+disjoint = disjointSubtrees 0
+{-# INLINE disjoint #-}
+
+-- Note that as of GHC 9.12, SpecConstr creates a specialized worker for
+-- handling the Collision vs. {BitmapIndexed,Full} and vice-versa cases,
+-- but this worker fails to be properly specialized for different key
+-- types. See https://gitlab.haskell.org/ghc/ghc/-/issues/26615.
+disjointSubtrees :: Eq k => Shift -> HashMap k a -> HashMap k b -> Bool
+disjointSubtrees !_s Empty _b = True
+disjointSubtrees s (Leaf hA (L kA _)) b =
+  lookupCont (\_ -> True) (\_ _ -> False) hA kA s b
+disjointSubtrees s (BitmapIndexed bmA aryA) (BitmapIndexed bmB aryB) =
+  -- We could do a pointer equality check here but it's probably not worth it
+  -- since it would save only O(1) extra work:
+  --
+  -- not (aryA `A.unsafeSameArray` aryB) &&
+  disjointArrays s bmA aryA bmB aryB
+disjointSubtrees s (BitmapIndexed bmA aryA) (Full aryB) =
+  disjointArrays s bmA aryA fullBitmap aryB
+disjointSubtrees s (Full aryA) (BitmapIndexed bmB aryB) =
+  disjointArrays s fullBitmap aryA bmB aryB
+disjointSubtrees s (Full aryA) (Full aryB) =
+    -- We could do a pointer equality check here but it's probably not worth it
+    -- since it would save only O(1) extra work:
+    --
+    -- not (aryA `A.unsafeSameArray` aryB) &&
+    go (maxChildren - 1)
+  where
+    go i
+      | i < 0 = True
+      | otherwise = case A.index# aryA i of
+          (# stA #) -> case A.index# aryB i of
+            (# stB #) ->
+              disjointSubtrees (nextShift s) stA stB &&
+              go (i - 1)
+disjointSubtrees s a@(Collision hA _) (BitmapIndexed bmB aryB)
+  | m .&. bmB == 0 = True
+  | otherwise = case A.index# aryB i of
+      (# stB #) -> disjointSubtrees (nextShift s) a stB
+  where
+    m = mask hA s
+    i = sparseIndex bmB m
+disjointSubtrees s a@(Collision hA _) (Full aryB) =
+  case A.index# aryB (index hA s) of
+    (# stB #) -> disjointSubtrees (nextShift s) a stB
+disjointSubtrees _ (Collision hA aryA) (Collision hB aryB) =
+  disjointCollisions hA aryA hB aryB
+disjointSubtrees _s _a Empty = True
+disjointSubtrees s a (Leaf hB (L kB _)) =
+  lookupCont (\_ -> True) (\_ _ -> False) hB kB s a
+disjointSubtrees s a b@Collision{} = disjointSubtrees s b a
+{-# INLINABLE disjointSubtrees #-}
+
+disjointArrays :: Eq k => Shift -> Bitmap -> A.Array (HashMap k a) -> Bitmap -> A.Array (HashMap k b) -> Bool
+disjointArrays !s !bmA !aryA !bmB !aryB = go (bmA .&. bmB)
+  where
+    go 0 = True
+    go bm = case A.index# aryA iA of
+        (# stA #) -> case A.index# aryB iB of
+          (# stB #) ->
+            disjointSubtrees (nextShift s) stA stB &&
+            go (bm .&. complement m)
+      where
+        m = bm .&. negate bm
+        iA = sparseIndex bmA m
+        iB = sparseIndex bmB m
+{-# INLINE disjointArrays #-}
+
+-- TODO: GHC 9.12.2 inlines disjointCollisions into `disjoint @Int`.
+-- How do you prevent this while preserving specialization?
+-- https://stackoverflow.com/questions/79838305/ensuring-specialization-while-preventing-inlining
+disjointCollisions :: Eq k => Hash -> A.Array (Leaf k a) -> Hash -> A.Array (Leaf k b) -> Bool
+disjointCollisions !hA !aryA !hB !aryB
+  | hA == hB = A.all predicate aryA
+  | otherwise = True
+  where
+    predicate (L kA _) = lookupInArrayCont (\_ -> True) (\_ _ -> False) kA aryB
+{-# INLINABLE disjointCollisions #-}
+
 ------------------------------------------------------------------------
 -- * Folds
 
@@ -2639,15 +2728,16 @@ lookupInArrayCont ::
   forall r k v.
 #endif
   Eq k => ((# #) -> r) -> (v -> Int -> r) -> k -> A.Array (Leaf k v) -> r
-lookupInArrayCont absent present k0 ary0 = go k0 ary0 0 (A.length ary0)
+lookupInArrayCont absent present k0 ary0 =
+    lookupInArrayCont_ k0 ary0 0 (A.length ary0)
   where
-    go :: Eq k => k -> A.Array (Leaf k v) -> Int -> Int -> r
-    go !k !ary !i !n
+    lookupInArrayCont_ :: Eq k => k -> A.Array (Leaf k v) -> Int -> Int -> r
+    lookupInArrayCont_ !k !ary !i !n
         | i >= n    = absent (# #)
         | otherwise = case A.index# ary i of
             (# L kx v #)
                 | k == kx   -> present v i
-                | otherwise -> go k ary (i+1) n
+                | otherwise -> lookupInArrayCont_ k ary (i+1) n
 {-# INLINE lookupInArrayCont #-}
 
 -- | \(O(n)\) Lookup the value associated with the given key in this

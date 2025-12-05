@@ -399,13 +399,13 @@ foldr' f = \ z0 ary0 -> go ary0 (length ary0 - 1) z0
 {-# INLINE foldr' #-}
 
 foldr :: (a -> b -> b) -> b -> Array a -> b
-foldr f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
+foldr f = \ z0 ary0 -> foldr_ ary0 (length ary0) 0 z0
   where
-    go ary n i z
+    foldr_ !ary n i z
         | i >= n = z
         | otherwise
         = case index# ary i of
-            (# x #) -> f x (go ary n (i+1) z)
+            (# x #) -> f x (foldr_ ary n (i+1) z)
 {-# INLINE foldr #-}
 
 foldl :: (b -> a -> b) -> b -> Array a -> b
