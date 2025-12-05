@@ -1158,26 +1158,27 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 -- | \(O(\log n)\) Remove the mapping for the specified key from this map
 -- if present.
 delete :: Hashable k => k -> HashMap k v -> HashMap k v
-delete k m = delete' (hash k) k m
-{-# INLINABLE delete #-}
+delete k = delete' (hash k) k
+{-# INLINE delete #-}
 
 delete' :: Eq k => Hash -> k -> HashMap k v -> HashMap k v
-delete' h0 k0 m0 = deleteFromSubtree h0 k0 0 m0
-{-# INLINABLE delete' #-}
+delete' = deleteFromSubtree 0
+{-# INLINE delete' #-}
 
 -- | This version of 'delete' can be used on subtrees when a the
 -- corresponding 'Shift' argument is supplied.
-deleteFromSubtree :: Eq k => Hash -> k -> Shift -> HashMap k v -> HashMap k v
-deleteFromSubtree !_ !_ !_ Empty = Empty
-deleteFromSubtree h k _ t@(Leaf hy (L ky _))
-    | hy == h && ky == k = Empty
-    | otherwise          = t
-deleteFromSubtree h k s t@(BitmapIndexed b ary)
-    | b .&. m == 0 = t
-    | otherwise
-    = case A.index# ary i of
+deleteFromSubtree :: Eq k => Shift -> Hash -> k -> HashMap k v -> HashMap k v
+deleteFromSubtree !s !h !k = \case
+  Empty -> Empty
+  t@(Leaf hy (L ky _))
+    | hy == h && ky == k -> Empty
+    | otherwise          -> t
+  t@(BitmapIndexed b ary)
+    | b .&. m == 0 -> t
+    | otherwise ->
+      case A.index# ary i of
         (# !st #) ->
-          case deleteFromSubtree h k (nextShift s) st of
+          case deleteFromSubtree (nextShift s) h k st of
             Empty | A.length ary == 2
                   , (# l #) <- A.index# ary (otherOfOneOrZero i)
                   , isLeafOrCollision l
@@ -1187,27 +1188,27 @@ deleteFromSubtree h k s t@(BitmapIndexed b ary)
             st' | isLeafOrCollision st' && A.length ary == 1 -> st'
                 | st' `ptrEq` st -> t
                 | otherwise -> BitmapIndexed b (A.update ary i st')
-  where m = mask h s
-        i = sparseIndex b m
-deleteFromSubtree h k s t@(Full ary) =
+    where m = mask h s
+          i = sparseIndex b m
+  t@(Full ary) ->
     case A.index# ary i of
       (# !st #) ->
-        case deleteFromSubtree h k (nextShift s) st of
+        case deleteFromSubtree (nextShift s) h k st of
           Empty ->
               let ary' = A.delete ary i
                   bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
               in BitmapIndexed bm ary'
           st' | st' `ptrEq` st -> t
               | otherwise -> Full (updateFullArray ary i st')
-  where i = index h s
-deleteFromSubtree h k _ t@(Collision hy v)
+    where i = index h s
+  t@(Collision hy v)
     | h == hy
     , Just i <- indexOf k v
-    = if A.length v == 2
+    -> if A.length v == 2
       then case A.index# v (otherOfOneOrZero i) of
         (# l #) -> Leaf h l
       else Collision h (A.delete v i)
-    | otherwise = t
+    | otherwise -> t
 {-# INLINABLE deleteFromSubtree #-}
 
 -- | Delete optimized for the case when we know the key is in the map.
@@ -1845,7 +1846,7 @@ difference = go_difference 0
     go_difference s t1@(Leaf h1 (L k1 _)) t2
       = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
     go_difference _ t1 Empty = t1
-    go_difference s t1 (Leaf h2 (L k2 _)) = deleteFromSubtree h2 k2 s t1
+    go_difference s t1 (Leaf h2 (L k2 _)) = deleteFromSubtree s h2 k2 t1
 
     go_difference s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
       = differenceArrays s b1 ary1 t1 b2 ary2
