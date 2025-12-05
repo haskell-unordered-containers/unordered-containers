@@ -1175,8 +1175,7 @@ deleteFromSubtree !s !h !k = \case
     | otherwise          -> t
   t@(BitmapIndexed b ary)
     | b .&. m == 0 -> t
-    | otherwise ->
-      case A.index# ary i of
+    | otherwise -> case A.index# ary i of
         (# !st #) ->
           case deleteFromSubtree (nextShift s) h k st of
             Empty | A.length ary == 2
@@ -1204,10 +1203,10 @@ deleteFromSubtree !s !h !k = \case
   t@(Collision hy v)
     | h == hy
     , Just i <- indexOf k v
-    -> if A.length v == 2
-      then case A.index# v (otherOfOneOrZero i) of
-        (# l #) -> Leaf h l
-      else Collision h (A.delete v i)
+      -> if A.length v == 2
+         then case A.index# v (otherOfOneOrZero i) of
+           (# l #) -> Leaf h l
+         else Collision h (A.delete v i)
     | otherwise -> t
 {-# INLINABLE deleteFromSubtree #-}
 
