@@ -1185,8 +1185,8 @@ deleteFromSubtree !s !h !k = \case
                     -> l
                   | otherwise
                     -> BitmapIndexed (b .&. complement m) (A.delete ary i)
-            st' | isLeafOrCollision st' && A.length ary == 1 -> st'
-                | st' `ptrEq` st -> t
+            st' | st' `ptrEq` st -> t
+                | isLeafOrCollision st' && A.length ary == 1 -> st'
                 | otherwise -> BitmapIndexed b (A.update ary i st')
     where m = mask h s
           i = sparseIndex b m
