@@ -1200,13 +1200,13 @@ deleteFromSubtree !s !h !k = \case
           st' | st' `ptrEq` st -> t
               | otherwise -> Full (updateFullArray ary i st')
     where i = index h s
-  t@(Collision hy v)
+  t@(Collision hy ary)
     | h == hy
-    , Just i <- indexOf k v
-      -> if A.length v == 2
-         then case A.index# v (otherOfOneOrZero i) of
+    , Just i <- indexOf k ary
+      -> if A.length ary == 2
+         then case A.index# ary (otherOfOneOrZero i) of
            (# l #) -> Leaf h l
-         else Collision h (A.delete v i)
+         else Collision h (A.delete ary i)
     | otherwise -> t
 {-# INLINABLE deleteFromSubtree #-}
 
