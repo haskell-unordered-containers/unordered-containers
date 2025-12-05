@@ -2933,9 +2933,10 @@ instance Hashable k => Exts.IsList (HashMap k v) where
     toList   = toList
 #endif
 
-nub :: Hashable a => [a] -> [a]
+nub :: forall a. Hashable a => [a] -> [a]
 nub = \l -> runST (nub_ l empty)
   where
+    nub_ :: forall s. [a] -> HashMap a () -> ST s [a]
     nub_ [] _seen = pure []
     nub_ (x:xs) seen
       | Just _ <- lookup' h x seen = nub_ xs seen
