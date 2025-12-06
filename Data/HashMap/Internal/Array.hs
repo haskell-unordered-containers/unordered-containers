@@ -380,13 +380,13 @@ unsafeUpdateM ary idx b =
 {-# INLINE unsafeUpdateM #-}
 
 foldl' :: (b -> a -> b) -> b -> Array a -> b
-foldl' f = \ z0 ary0 -> go ary0 (length ary0) 0 z0
+foldl' f = \ z0 ary0 -> foldl'_ ary0 (length ary0) 0 z0
   where
-    go ary n i !z
+    foldl'_ !ary n i !z
         | i >= n = z
         | otherwise
         = case index# ary i of
-            (# x #) -> go ary n (i+1) (f z x)
+            (# x #) -> foldl'_ ary n (i+1) (f z x)
 {-# INLINE foldl' #-}
 
 foldr' :: (a -> b -> b) -> b -> Array a -> b
