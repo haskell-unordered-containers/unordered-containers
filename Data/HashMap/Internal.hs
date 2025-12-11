@@ -149,6 +149,7 @@ module Data.HashMap.Internal
     , insertModifying
     , ptrEq
     , adjust#
+    , nub
     ) where
 
 import Data.Traversable           -- MicroHs needs this since its Prelude does not have Foldable&Traversable.
@@ -157,6 +158,7 @@ import Data.Traversable           -- MicroHs needs this since its Prelude does n
 import Control.Applicative        (Const (..))
 import Control.DeepSeq            (NFData (..), NFData1 (..), NFData2 (..))
 import Control.Monad.ST           (ST, runST)
+import Control.Monad.ST.Unsafe    (unsafeInterleaveST)
 import Data.Bifoldable            (Bifoldable (..))
 import Data.Bits                  (complement, countTrailingZeros, popCount,
                                    shiftL, unsafeShiftL, unsafeShiftR, (.&.),
@@ -994,6 +996,38 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | h == hy   = return $! Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsert #-}
+
+unsafeInsertNewKeyM :: Hash -> k -> v -> HashMap k v -> ST s (HashMap k v)
+unsafeInsertNewKeyM = unsafeInsertNewKeyInSubtreeM 0
+{-# INLINE unsafeInsertNewKeyM #-}
+
+unsafeInsertNewKeyInSubtreeM :: Shift -> Hash -> k -> v -> HashMap k v -> ST s (HashMap k v)
+unsafeInsertNewKeyInSubtreeM !s !h !k v = \case
+  Empty -> pure $! Leaf h (L k v)
+  t@(Leaf hy ly)
+    | h == hy -> pure $! collision h ly (L k v)
+    | otherwise -> two s h k v hy t
+  t@(BitmapIndexed bm ary)
+    | bm .&. m == 0 -> do
+        ary' <- A.insertM ary i $! Leaf h (L k v)
+        pure $! bitmapIndexedOrFull (bm .|. m) ary'
+    | otherwise -> do
+        st <- A.indexM ary i
+        st' <- unsafeInsertNewKeyInSubtreeM (nextShift s) h k v st
+        A.unsafeUpdateM ary i st'
+        pure t
+    where
+      m = mask h s
+      i = sparseIndex bm m
+  t@(Full ary) -> do
+    let !i = index h s
+    st <- A.indexM ary i
+    st' <- unsafeInsertNewKeyInSubtreeM (nextShift s) h k v st
+    A.unsafeUpdateM ary i st'
+    pure t
+  t@(Collision hy ary)
+    | h == hy -> pure $! Collision h (A.snoc ary $! L k v)
+    | otherwise -> two s h k v hy t
 
 -- | Create a map from two key-value pairs which hashes don't collide. To
 -- enhance sharing, the second key-value pair is represented by the hash of its
@@ -2988,3 +3022,19 @@ instance Hashable k => Exts.IsList (HashMap k v) where
     fromList = fromList
     toList   = toList
 #endif
+
+nub :: forall a. Hashable a => [a] -> [a]
+nub = \l -> runST (nub_ l empty)
+  where
+    nub_ :: forall s. [a] -> HashMap a () -> ST s [a]
+    nub_ [] _seen = pure []
+    nub_ (x:xs) seen
+      | Just _ <- lookup' h x seen = nub_ xs seen
+      | otherwise = do
+           rest <- unsafeInterleaveST $ do
+               seen' <- unsafeInsertNewKeyM h x () seen
+               nub_ xs seen'
+           pure (x : rest)
+      where
+        h = hash x
+{-# INLINABLE nub #-}
