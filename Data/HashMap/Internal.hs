@@ -1848,13 +1848,16 @@ differenceSubtrees s t1@(Leaf h1 (L k1 _)) t2
   = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
 
 differenceSubtrees s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
-  = differenceArrays s b1 ary1 t1 b2 ary2
+  | b1 .&. b2 == 0 = t1
+  | A.unsafeSameArray ary1 ary2 = Empty
+  | otherwise = differenceArrays s b1 ary1 t1 b2 ary2
 differenceSubtrees s t1@(Full ary1) (BitmapIndexed b2 ary2)
   = differenceArrays s fullBitmap ary1 t1 b2 ary2
 differenceSubtrees s t1@(BitmapIndexed b1 ary1) (Full ary2)
   = differenceArrays s b1 ary1 t1 fullBitmap ary2
 differenceSubtrees s t1@(Full ary1) (Full ary2)
-  = differenceArrays s fullBitmap ary1 t1 fullBitmap ary2
+  | A.unsafeSameArray ary1 ary2 = Empty
+  | otherwise = differenceArrays s fullBitmap ary1 t1 fullBitmap ary2
 
 differenceSubtrees s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
     | b2 .&. m == 0 = t1
@@ -1902,49 +1905,44 @@ differenceSubtrees _ t1 Empty = t1
 differenceSubtrees s t1 (Leaf h2 (L k2 _)) = deleteFromSubtree s h2 k2 t1
 {-# INLINABLE differenceSubtrees #-}
 
--- TODO: If we keep 'Full' (#399), differenceArrays could be optimized for
--- each combination of 'Full' and 'BitmapIndexed`.
 differenceArrays :: Eq k => Shift -> Bitmap -> A.Array (HashMap k v) -> HashMap k v -> Bitmap -> A.Array (HashMap k w) -> HashMap k v
-differenceArrays !s !b1 !ary1 t1 !b2 !ary2
-  | b1 .&. b2 == 0 = t1
-  | A.unsafeSameArray ary1 ary2 = Empty
-  | otherwise = runST $ do
-    mary <- A.new_ $ A.length ary1
+differenceArrays !s !b1 !ary1 t1 !b2 !ary2 = runST $ do
+  mary <- A.new_ $ A.length ary1
 
-    -- TODO: i == popCount bResult. Not sure if that would be faster.
-    -- Also i1 is in some relation with b1'
-    let goDA !i !i1 !b1' !bResult !nChanges
-          | b1' == 0 = pure (bResult, nChanges)
-          | otherwise = do
-            !st1 <- A.indexM ary1 i1
-            case m .&. b2 of
-              0 -> do
-                A.write mary i st1
-                goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges
-              _ -> do
-                !st2 <- A.indexM ary2 (sparseIndex b2 m)
-                case differenceSubtrees (nextShift s) st1 st2 of
-                  Empty -> goDA i (i1 + 1) nextB1' bResult (nChanges + 1)
-                  st -> do
-                    A.write mary i st
-                    let same = I# (Exts.reallyUnsafePtrEquality# st st1)
-                    let nChanges' = nChanges + (1 - same)
-                    goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges'
-          where
-            m = b1' .&. negate b1'
-            nextB1' = b1' .&. complement m
+  -- TODO: i == popCount bResult. Not sure if that would be faster.
+  -- Also i1 is in some relation with b1'
+  let goDA !i !i1 !b1' !bResult !nChanges
+        | b1' == 0 = pure (bResult, nChanges)
+        | otherwise = do
+          !st1 <- A.indexM ary1 i1
+          case m .&. b2 of
+            0 -> do
+              A.write mary i st1
+              goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges
+            _ -> do
+              !st2 <- A.indexM ary2 (sparseIndex b2 m)
+              case differenceSubtrees (nextShift s) st1 st2 of
+                Empty -> goDA i (i1 + 1) nextB1' bResult (nChanges + 1)
+                st -> do
+                  A.write mary i st
+                  let same = I# (Exts.reallyUnsafePtrEquality# st st1)
+                  let nChanges' = nChanges + (1 - same)
+                  goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges'
+        where
+          m = b1' .&. negate b1'
+          nextB1' = b1' .&. complement m
 
-    (bResult, nChanges) <- goDA 0 0 b1 0 0
-    if nChanges == 0
-      then pure t1
-      else case popCount bResult of
-        0 -> pure Empty
-        1 -> do
-          l <- A.read mary 0
-          if isLeafOrCollision l
-            then pure l
-            else BitmapIndexed bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
-        n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
+  (bResult, nChanges) <- goDA 0 0 b1 0 0
+  if nChanges == 0
+    then pure t1
+    else case popCount bResult of
+      0 -> pure Empty
+      1 -> do
+        l <- A.read mary 0
+        if isLeafOrCollision l
+          then pure l
+          else BitmapIndexed bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
+      n -> bitmapIndexedOrFull bResult <$> (A.unsafeFreeze =<< A.shrink mary n)
 {-# INLINABLE differenceArrays #-}
 
 -- TODO: This could be faster if we would keep track of which elements of ary2
