@@ -1844,8 +1844,6 @@ difference = go_difference 0
     go_difference !_s Empty _ = Empty
     go_difference s t1@(Leaf h1 (L k1 _)) t2
       = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
-    go_difference _ t1 Empty = t1
-    go_difference s t1 (Leaf h2 (L k2 _)) = deleteFromSubtree s h2 k2 t1
 
     go_difference s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
       = differenceArrays s b1 ary1 t1 b2 ary2
@@ -1897,6 +1895,9 @@ difference = go_difference 0
 
     go_difference _ t1@(Collision h1 ary1) (Collision h2 ary2)
       = differenceCollisions h1 ary1 t1 h2 ary2
+
+    go_difference _ t1 Empty = t1
+    go_difference s t1 (Leaf h2 (L k2 _)) = deleteFromSubtree s h2 k2 t1
 
     -- TODO: If we keep 'Full' (#399), differenceArrays could be optimized for
     -- each combination of 'Full' and 'BitmapIndexed`.
