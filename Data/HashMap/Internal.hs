@@ -1846,7 +1846,6 @@ differenceSubtrees :: Eq k => Shift -> HashMap k v -> HashMap k w -> HashMap k v
 differenceSubtrees !_s Empty _ = Empty
 differenceSubtrees s t1@(Leaf h1 (L k1 _)) t2
   = lookupCont (\_ -> t1) (\_ _ -> Empty) h1 k1 s t2
-
 differenceSubtrees s t1@(BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2)
   | b1 .&. b2 == 0 = t1
   | A.unsafeSameArray ary1 ary2 = Empty
@@ -1858,7 +1857,6 @@ differenceSubtrees s t1@(BitmapIndexed b1 ary1) (Full ary2)
 differenceSubtrees s t1@(Full ary1) (Full ary2)
   | A.unsafeSameArray ary1 ary2 = Empty
   | otherwise = differenceArrays s fullBitmap ary1 t1 fullBitmap ary2
-
 differenceSubtrees s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
     | b2 .&. m == 0 = t1
     | otherwise =
@@ -1868,7 +1866,6 @@ differenceSubtrees s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
 differenceSubtrees s t1@(Collision h1 _) (Full ary2)
   = case A.index# ary2 (index h1 s) of
       (# st2 #) -> differenceSubtrees (nextShift s) t1 st2
-
 differenceSubtrees s t1@(BitmapIndexed b1 ary1) t2@(Collision h2 _)
     | b1 .&. m == 0 = t1
     | otherwise =
@@ -1897,10 +1894,8 @@ differenceSubtrees s t1@(Full ary1) t2@(Collision h2 _)
         st' | st `ptrEq` st' -> t1
             | otherwise -> Full (updateFullArray ary1 i st')
   where i = index h2 s
-
 differenceSubtrees _ t1@(Collision h1 ary1) (Collision h2 ary2)
   = differenceCollisions h1 ary1 t1 h2 ary2
-
 differenceSubtrees _ t1 Empty = t1
 differenceSubtrees s t1 (Leaf h2 (L k2 _)) = deleteFromSubtree s h2 k2 t1
 {-# INLINABLE differenceSubtrees #-}
