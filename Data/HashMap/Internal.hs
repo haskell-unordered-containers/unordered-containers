@@ -790,6 +790,8 @@ infixl 9 !
 -- if present, otherwise return 'Nothing'.
 --
 -- This function can be used for /interning/, i.e. to reduce memory usage.
+--
+-- @since 0.2.21
 lookupKey :: Hashable k => k -> HashMap k v -> Maybe k
 lookupKey k = \m -> fromMaybe# (lookupKeyInSubtree# 0 (hash k) k m)
   where
@@ -1972,6 +1974,8 @@ differenceWith f = differenceWithKey (const f)
 -- encountered, the combining function is applied to the values of these keys.
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
+--
+-- @since 0.2.21
 differenceWithKey :: Eq k => (k -> v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
 differenceWithKey f = go_differenceWithKey 0
   where
@@ -2323,7 +2327,7 @@ searchSwap mary n toFind start = go start toFind start
 -- xs ``disjoint`` ys = null (xs ``intersection`` ys)
 -- @
 --
--- @since FIXME
+-- @since 0.2.21
 disjoint :: Eq k => HashMap k a -> HashMap k b -> Bool
 disjoint = disjointSubtrees 0
 {-# INLINE disjoint #-}

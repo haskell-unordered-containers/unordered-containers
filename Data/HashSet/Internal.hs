@@ -356,6 +356,8 @@ member a s = case H.lookup a (asMap s) of
 -- present, otherwise return 'Nothing'.
 --
 -- This is useful for /interning/, i.e. to reduce memory usage.
+--
+-- @since 0.2.21
 lookupElement :: Hashable a => a -> HashSet a -> Maybe a
 lookupElement a = H.lookupKey a . asMap
 {-# INLINE lookupElement #-}
@@ -412,7 +414,7 @@ intersection (HashSet a) (HashSet b) = HashSet (H.intersection a b)
 -- xs ``disjoint`` ys = null (xs ``intersection`` ys)
 -- @
 --
--- @since FIXME
+-- @since 0.2.21
 disjoint :: Eq k => HashSet k -> HashSet k -> Bool
 disjoint (HashSet a) (HashSet b) = H.disjoint a b
 {-# INLINE disjoint #-}
