@@ -1878,8 +1878,8 @@ differenceSubtrees s t1@(BitmapIndexed b1 ary1) t2@(Collision h2 _)
                   -> l
                   | otherwise
                   -> BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
-            st' | isLeafOrCollision st' && A.length ary1 == 1 -> st'
-                | st `ptrEq` st' -> t1
+            st' | st `ptrEq` st' -> t1
+                | isLeafOrCollision st' && A.length ary1 == 1 -> st'
                 | otherwise -> BitmapIndexed b1 (A.update ary1 i1 st')
   where
     m = mask h2 s
