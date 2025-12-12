@@ -9,7 +9,6 @@
   * [`HashSet.fromList`: Use `unsafeInsert`](https://github.com/haskell-unordered-containers/unordered-containers/pull/515)
   * [Use tree-diffing for `difference`](https://github.com/haskell-unordered-containers/unordered-containers/pull/535)
   * [Remove some unnecessary forcing of HashMaps](https://github.com/haskell-unordered-containers/unordered-containers/pull/545)
-  * [Optimize indexing in arrays of length 2](https://github.com/haskell-unordered-containers/unordered-containers/pull/528)
   * [Remove the `Array.index` function](https://github.com/haskell-unordered-containers/unordered-containers/pull/539)
   * [`hashWithSalt`: Ensure that the salt `Int` is unboxed](https://github.com/haskell-unordered-containers/unordered-containers/pull/569)
 
@@ -22,6 +21,7 @@
 * Other changes:
   * [Drop support for GHC < 8.10](https://github.com/haskell-unordered-containers/unordered-containers/pull/510)
   * [Address deprecation warnings and other warnings](https://github.com/haskell-unordered-containers/unordered-containers/pull/512)
+  * [Optimize indexing in arrays of length 2](https://github.com/haskell-unordered-containers/unordered-containers/pull/528)
   * [Introduce `ShiftedHash`](https://github.com/haskell-unordered-containers/unordered-containers/pull/529)
   * [New "fine-grained" benchmarks](https://github.com/haskell-unordered-containers/unordered-containers/pull/526)
   * [Make it compile with MicroHs](https://github.com/haskell-unordered-containers/unordered-containers/pull/553). Thanks, @augustss!
