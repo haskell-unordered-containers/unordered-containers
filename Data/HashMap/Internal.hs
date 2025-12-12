@@ -1858,29 +1858,29 @@ differenceSubtrees s t1@(Full ary1) (Full ary2)
   | A.unsafeSameArray ary1 ary2 = Empty
   | otherwise = differenceArrays s fullBitmap ary1 t1 fullBitmap ary2
 differenceSubtrees s t1@(Collision h1 _) (BitmapIndexed b2 ary2)
-    | b2 .&. m == 0 = t1
-    | otherwise =
-      case A.index# ary2 (sparseIndex b2 m) of
-        (# st2 #) -> differenceSubtrees (nextShift s) t1 st2
+  | b2 .&. m == 0 = t1
+  | otherwise =
+    case A.index# ary2 (sparseIndex b2 m) of
+      (# st2 #) -> differenceSubtrees (nextShift s) t1 st2
   where m = mask h1 s
 differenceSubtrees s t1@(Collision h1 _) (Full ary2)
   = case A.index# ary2 (index h1 s) of
       (# st2 #) -> differenceSubtrees (nextShift s) t1 st2
 differenceSubtrees s t1@(BitmapIndexed b1 ary1) t2@(Collision h2 _)
-    | b1 .&. m == 0 = t1
-    | otherwise =
-      case A.index# ary1 i1 of
-        (# !st #) ->
-          case differenceSubtrees (nextShift s) st t2 of
-            Empty | A.length ary1 == 2
-                  , (# l #) <- A.index# ary1 (otherOfOneOrZero i1)
-                  , isLeafOrCollision l
-                  -> l
-                  | otherwise
-                  -> BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
-            st' | st `ptrEq` st' -> t1
-                | isLeafOrCollision st' && A.length ary1 == 1 -> st'
-                | otherwise -> BitmapIndexed b1 (A.update ary1 i1 st')
+  | b1 .&. m == 0 = t1
+  | otherwise =
+    case A.index# ary1 i1 of
+      (# !st #) ->
+        case differenceSubtrees (nextShift s) st t2 of
+          Empty | A.length ary1 == 2
+                , (# l #) <- A.index# ary1 (otherOfOneOrZero i1)
+                , isLeafOrCollision l
+                -> l
+                | otherwise
+                -> BitmapIndexed (b1 .&. complement m) (A.delete ary1 i1)
+          st' | st `ptrEq` st' -> t1
+              | isLeafOrCollision st' && A.length ary1 == 1 -> st'
+              | otherwise -> BitmapIndexed b1 (A.update ary1 i1 st')
   where
     m = mask h2 s
     i1 = sparseIndex b1 m
