@@ -392,7 +392,7 @@ map f = fromList . List.map f . toList
 --
 -- >>> HashSet.difference (HashSet.fromList [1,2,3]) (HashSet.fromList [2,3,4])
 -- fromList [1]
-difference :: Eq a => HashSet a -> HashSet a -> HashSet a
+difference :: Hashable a => HashSet a -> HashSet a -> HashSet a
 difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
 {-# INLINABLE difference #-}
 

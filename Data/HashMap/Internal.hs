@@ -1838,7 +1838,7 @@ mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 
 -- | \(O(n \log m)\) Difference of two maps. Return elements of the first map
 -- not existing in the second.
-difference :: Eq k => HashMap k v -> HashMap k w -> HashMap k v
+difference :: Hashable k => HashMap k v -> HashMap k w -> HashMap k v
 difference = go_difference 0
   where
     go_difference !_s Empty _ = Empty
@@ -1964,7 +1964,7 @@ differenceCollisions !h1 !ary1 t1 !h2 !ary2
 -- encountered, the combining function is applied to the values of these keys.
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
-differenceWith :: Eq k => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
+differenceWith :: Hashable k => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
 differenceWith f = differenceWithKey (const f)
 {-# INLINE differenceWith #-}
 
