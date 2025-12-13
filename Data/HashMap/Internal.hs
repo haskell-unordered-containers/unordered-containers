@@ -2756,24 +2756,27 @@ shrink !n (OA m) = runST $ do
     shrink_ !n = \case
       Full ary -> do
         let !n' = n `unsafeShiftR` bitsPerSubkey
-        if n' == 0
+        if n' < 2
           then return ()
           else A.foldMap (shrink_ n') ary
         return ()
       m@(BitmapIndexed b ary) -> do
         doShrink ary (popCount b)
         let !n' = n `unsafeShiftR` bitsPerSubkey
-        if n' == 0
+        if n' < 2
           then return ()
           else A.foldMap (shrink_ n') ary
         return ()
       m -> pure ()
         
-    doShrink ary n = do
-      mary <- A.unsafeThaw ary
-      mary' <- A.shrink mary n
-      ary <- A.unsafeFreeze mary'
-      return ()
+    doShrink ary n =
+      if A.length ary <= n
+        then return ()
+        else do
+          mary <- A.unsafeThaw ary
+          mary' <- A.shrink mary n
+          ary' <- A.unsafeFreeze mary'
+          return ()
 
 -- | HashMaps with over-allocated array nodes.
 newtype HashMapOA k v = OA { unOA :: HashMap k v }
