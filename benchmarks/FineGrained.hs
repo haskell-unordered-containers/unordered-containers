@@ -27,6 +27,7 @@ main =
     [ bgroup
         "HashMap.Strict"
         [ bFromList,
+          bFromListOfApproximately,
           bLookup,
           bInsert,
           bUpdate,
@@ -66,6 +67,22 @@ bFromList =
   where
     setupBytes s gen = genNBytes s bytesLength gen
     b s = bench (show s) . whnf (HM.fromList . map (,()))
+
+bFromListOfApproximately :: Benchmark
+bFromListOfApproximately =
+  bgroup
+    "fromListOfApproximately"
+    [ bgroup' "Bytes" setupBytes b,
+      bgroup' "Int" setupInts b
+    ]
+  where
+    setupBytes s gen = do
+      bytes <- genNBytes s bytesLength gen
+      return (s, bytes)
+    setupInts s gen = do
+      ints <- genInts s gen
+      return (s, ints)
+    b s = bench (show s) . whnf (\(n, ks) -> HM.fromListOfApproximately n (map (,()) ks))
 
 -- 1000 lookups each, so we get more precise timings
 bLookup :: Benchmark
