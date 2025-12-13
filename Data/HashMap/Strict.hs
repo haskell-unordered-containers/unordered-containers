@@ -103,6 +103,7 @@ module Data.HashMap.Strict
     , fromList
     , fromListWith
     , fromListWithKey
+    , fromListOfApproximately
 
       -- ** HashSets
     , HS.keysSet

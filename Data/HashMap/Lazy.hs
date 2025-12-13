@@ -104,6 +104,7 @@ module Data.HashMap.Lazy
     , fromList
     , fromListWith
     , fromListWithKey
+    , fromListOfApproximately
 
       -- ** HashSets
     , HS.keysSet

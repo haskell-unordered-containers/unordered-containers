@@ -124,6 +124,7 @@ module Data.HashMap.Internal.Strict
     , fromList
     , fromListWith
     , fromListWithKey
+    , HM.fromListOfApproximately -- FIXME
     ) where
 
 import Control.Applicative   (Const (..))

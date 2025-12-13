@@ -111,6 +111,7 @@ module Data.HashMap.Internal
     , fromList
     , fromListWith
     , fromListWithKey
+    , fromListOfApproximately
 
       -- ** Internals used by the strict version
     , Hash

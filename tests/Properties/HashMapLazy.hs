@@ -462,6 +462,12 @@ tests =
       , testProperty "valid" $
         \(kvs :: [(Key, Int)]) -> isValid (HM.fromList kvs)
       ]
+    , testGroup "fromListOfApproximately"
+      [ testProperty "model" $
+        \(kvs :: [(Key, Int)]) n -> toOrdMap (HM.fromListOfApproximately n kvs) === M.fromList kvs
+      , testProperty "valid" $
+        \(kvs :: [(Key, Int)]) n -> isValid (HM.fromListOfApproximately n kvs)
+      ]
     , testGroup "fromListWith"
       [ testProperty "model" $
         \(kvs :: [(Key, Int)]) ->
