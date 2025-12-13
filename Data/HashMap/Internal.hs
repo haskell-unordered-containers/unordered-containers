@@ -2736,7 +2736,7 @@ mkSizePlan :: Int -> SizePlan
 mkSizePlan n0 = go 0 n0 0
   where
     go !s !n !sp
-      | n <= 2 = sp
+      | n <= 3 = sp -- TODO: Vary this limit: 2, 3, 4?!
       | n >= maxChildren =
           go
             (nextShift s)
@@ -2753,26 +2753,23 @@ sizePlanToLevels sp
 -- TODO: Benchmark this by itself?!
 -- What does the Core look like?
 shrink :: SizePlan -> HashMapOA k v -> HashMap k v
-shrink !n (OA m) = runST $ do
-    shrink_ n m
+shrink !sp0 (OA m) = runST $ do
+    shrink_ sp0 m
     return m
   where
-    shrink_ 0 = const (return ())
     shrink_ !n = \case
       Full ary -> do
         let !n' = n `unsafeShiftR` bitsPerSubkey
         if n' < 2
           then return ()
           else A.foldMap (shrink_ n') ary
-        return ()
-      m@(BitmapIndexed b ary) -> do
+      BitmapIndexed b ary -> do
         doShrink ary (popCount b)
         let !n' = n `unsafeShiftR` bitsPerSubkey
         if n' < 2
           then return ()
           else A.foldMap (shrink_ n') ary
-        return ()
-      m -> pure ()
+      _ -> pure ()
         
     doShrink ary n =
       if A.length ary <= n
@@ -2780,11 +2777,11 @@ shrink !n (OA m) = runST $ do
         else do
           mary <- A.unsafeThaw ary
           mary' <- A.shrink mary n
-          ary' <- A.unsafeFreeze mary'
+          _ary' <- A.unsafeFreeze mary'
           return ()
 
 -- | HashMaps with over-allocated array nodes.
-newtype HashMapOA k v = OA { unOA :: HashMap k v }
+newtype HashMapOA k v = OA { _unOA :: HashMap k v }
 
 type SizePlan = Word
 
@@ -2793,11 +2790,11 @@ plannedSizeAt :: SizePlan -> Shift -> Int
 plannedSizeAt sp s = index sp s + 1
 
 unsafeInsertOA :: forall k v. Hashable k => SizePlan -> k -> v -> HashMapOA k v -> HashMapOA k v
-unsafeInsertOA sp0 k0 v0 (OA m0) = OA $ runST (go sp0 h0 k0 v0 0 m0)
+unsafeInsertOA !sp0 k0 v0 (OA m0) = OA $ runST (go sp0 h0 k0 v0 0 m0)
   where
     h0 = hash k0
     go :: forall s. SizePlan -> Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
-    go !sp !h !k x !_ Empty = return $! Leaf h (L k x)
+    go !_sp !h !k x !_ Empty = return $! Leaf h (L k x)
     go sp h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then if x `ptrEq` y
@@ -2830,7 +2827,7 @@ unsafeInsertOA sp0 k0 v0 (OA m0) = OA $ runST (go sp0 h0 k0 v0 0 m0)
 twoOA :: SizePlan -> Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
 twoOA = go
   where
-    go sp s h1 k1 v1 h2 t2
+    go !sp !s !h1 k1 v1 !h2 t2
         | bp1 == bp2 = do
             st <- go sp (nextShift s) h1 k1 v1 h2 t2
             mary <- A.new_ (plannedSizeAt sp s)
@@ -2852,7 +2849,7 @@ twoOA = go
         !idx2 = I# (i1 Exts.<# i2)
 
 insertOA :: Int -> A.Array e -> Int -> Int -> e -> ST s (A.Array e)
-insertOA !pSz ary nElem idx b
+insertOA !pSz !ary !nElem !idx b
   | A.length ary > nElem =
         do mary <- A.unsafeThaw ary
            A.copyM mary idx mary (idx+1) (nElem-idx)
