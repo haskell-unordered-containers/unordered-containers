@@ -2720,17 +2720,18 @@ fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (
 {-# INLINE fromListWithKey #-}
 
 fromListOfApproximately :: Hashable k => Int -> [(k, v)] -> HashMap k v
-fromListOfApproximately n =
-  shrink sizePlan .
-  List.foldl' (\ m (k, v) -> unsafeInsertOA sizePlan k v m) (OA empty)
-  where
-    !sizePlan = mkSizePlan n
+fromListOfApproximately n = fromListWithSizePlan (mkSizePlan n)
+
+fromListWithSizePlan :: Hashable k => SizePlan -> [(k, v)] -> HashMap k v
+fromListWithSizePlan !sp =
+  shrink sp .
+  List.foldl' (\ m (k, v) -> unsafeInsertOA sp k v m) (OA empty)
 
 mkSizePlan :: Int -> SizePlan
 mkSizePlan n0 = x (reverse (List.unfoldr f (max 0 (n0 - 1))))
   where
-    f 0 = Nothing
-    f n = Just (32, n `unsafeShiftR` bitsPerSubkey)
+    f n | n <= 0 = Nothing
+        | otherwise = Just (32, n `unsafeShiftR` bitsPerSubkey)
     x = x' 0
     x' !n [] = n
     x' n (y:ys) = x' ((n `unsafeShiftL` bitsPerSubkey) .|. (y - 1)) ys
