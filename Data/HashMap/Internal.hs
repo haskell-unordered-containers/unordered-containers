@@ -151,7 +151,7 @@ module Data.HashMap.Internal
     , adjust#
     ) where
 
--- MicroHs needs this since its Prelude does not have Foldable&Traversable.
+-- MicroHs needs this import since its Prelude does not have Foldable&Traversable.
 -- It's harmless for GHC, and putting it first avoids a warning.
 import Data.Traversable
 
