@@ -131,12 +131,13 @@ import Control.Monad.ST      (ST, runST)
 import Data.Bits             ((.&.), (.|.))
 import Data.Coerce           (coerce)
 import Data.Functor.Identity (Identity (..))
--- See Note [Imports from Data.HashMap.Internal]
 import Data.Hashable         (Hashable)
-import Data.HashMap.Internal (Hash, HashMap (..), Leaf (..), LookupRes (..),
-                              Shift, fullBitmap, hash, index, mask, nextShift,
-                              ptrEq, sparseIndex)
-import Prelude               hiding (lookup, map)
+-- See Note [Imports from Data.HashMap.Internal]
+import Data.HashMap.Internal       (Hash, HashMap (..), Leaf (..),
+                                    LookupRes (..), Shift, fullBitmap, hash,
+                                    index, mask, nextShift, ptrEq, sparseIndex)
+import Data.HashMap.Internal.Array (Array)
+import Prelude                     hiding (lookup, map)
 
 -- See Note [Imports from Data.HashMap.Internal]
 import qualified Data.HashMap.Internal       as HM
@@ -732,7 +733,7 @@ fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) HM.e
 ------------------------------------------------------------------------
 -- Array operations
 
-updateWith :: Eq k => (v -> v) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+updateWith :: Eq k => (v -> v) -> k -> Array (Leaf k v) -> Array (Leaf k v)
 updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
@@ -747,8 +748,8 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
 -- the given function to the new and old value (in that order). The
 -- value is always evaluated to WHNF before being inserted into the
 -- array.
-updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
+updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> Array (Leaf k v)
+                 -> Array (Leaf k v)
 updateOrSnocWith f = updateOrSnocWithKey (const f)
 {-# INLINABLE updateOrSnocWith #-}
 
@@ -757,8 +758,8 @@ updateOrSnocWith f = updateOrSnocWithKey (const f)
 -- the given function to the new and old value (in that order). The
 -- value is always evaluated to WHNF before being inserted into the
 -- array.
-updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
+updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> Array (Leaf k v)
+                 -> Array (Leaf k v)
 updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
   where
     go !k v !ary !i !n
