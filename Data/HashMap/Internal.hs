@@ -2730,13 +2730,22 @@ fromListWithSizePlan !sp =
 {-# INLINE fromListWithSizePlan #-}
 
 mkSizePlan :: Int -> SizePlan
-mkSizePlan n0 = x (reverse (List.unfoldr f (max 0 (n0 - 1))))
+mkSizePlan n0 = go 0 n0 0
   where
-    f n | n <= 0 = Nothing
-        | otherwise = Just (32, n `unsafeShiftR` bitsPerSubkey)
-    x = x' 0
-    x' !n [] = n
-    x' n (y:ys) = x' ((n `unsafeShiftL` bitsPerSubkey) .|. (y - 1)) ys
+    go !s !n !sp
+      | n <= 2 = sp
+      | n >= maxChildren =
+          go
+            (nextShift s)
+            (n `unsafeShiftR` bitsPerSubkey)
+            (sp .|. (subkeyMask `unsafeShiftL` s))
+      | otherwise =
+          sp .|. (fromIntegral n `unsafeShiftL` s)
+
+{-
+sizePlanToLevels :: SizePlan -> [Word]
+sizePlanToLevels sp
+-}
 
 shrink :: SizePlan -> HashMapOA k v -> HashMap k v
 shrink !n (OA m) = runST $ do
