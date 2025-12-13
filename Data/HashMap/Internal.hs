@@ -2719,6 +2719,8 @@ fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m) empty
 {-# INLINE fromListWithKey #-}
 
+-- TODO: The name suggests that the size argument is for the input list.
+-- However we actually want the approximate size of the result map.
 fromListOfApproximately :: Hashable k => Int -> [(k, v)] -> HashMap k v
 fromListOfApproximately n = fromListWithSizePlan (mkSizePlan n)
 {-# INLINE fromListOfApproximately #-}
@@ -2729,6 +2731,7 @@ fromListWithSizePlan !sp =
   List.foldl' (\ m (k, v) -> unsafeInsertOA sp k v m) (OA empty)
 {-# INLINE fromListWithSizePlan #-}
 
+-- TODO: Tests
 mkSizePlan :: Int -> SizePlan
 mkSizePlan n0 = go 0 n0 0
   where
@@ -2740,13 +2743,15 @@ mkSizePlan n0 = go 0 n0 0
             (n `unsafeShiftR` bitsPerSubkey)
             (sp .|. (subkeyMask `unsafeShiftL` s))
       | otherwise =
-          sp .|. (fromIntegral n `unsafeShiftL` s)
+          sp .|. (fromIntegral n `unsafeShiftL` s) -- TODO: Round up maybe?!
 
 {-
 sizePlanToLevels :: SizePlan -> [Word]
 sizePlanToLevels sp
 -}
 
+-- TODO: Benchmark this by itself?!
+-- What does the Core look like?
 shrink :: SizePlan -> HashMapOA k v -> HashMap k v
 shrink !n (OA m) = runST $ do
     shrink_ n m
