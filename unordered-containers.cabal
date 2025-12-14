@@ -146,8 +146,8 @@ benchmark fine-grained
     bytestring >= 0.11.3,
     deepseq,
     hashable,
-    random,
-    tasty-bench,
+    random >= 1.3.0,
+    tasty-bench >= 0.4.1,
     unordered-containers
 
   default-language: Haskell2010
