@@ -81,10 +81,10 @@ The actual implementation is as follows:
 ``` haskell
 data HashMap k v
     = Empty
-    | BitmapIndexed !Bitmap !(A.Array (HashMap k v))
+    | BitmapIndexed !Bitmap !(Array (HashMap k v))
     | Leaf !Hash !(Leaf k v)
-    | Full !(A.Array (HashMap k v))
-    | Collision !Hash !(A.Array (Leaf k v))
+    | Full !(Array (HashMap k v))
+    | Collision !Hash !(Array (Leaf k v))
 ```
 
 Here's a quick overview in order of simplicity:
