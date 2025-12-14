@@ -151,31 +151,33 @@ module Data.HashMap.Internal
     , adjust#
     ) where
 
-import Data.Traversable           -- MicroHs needs this since its Prelude does not have Foldable&Traversable.
-                                  -- It's harmless for GHC, and putting it first avoid a warning.
+-- MicroHs needs this import since its Prelude does not have Foldable&Traversable.
+-- It's harmless for GHC, and putting it first avoids a warning.
+import Data.Traversable
 
-import Control.Applicative        (Const (..))
-import Control.DeepSeq            (NFData (..), NFData1 (..), NFData2 (..))
-import Control.Monad.ST           (ST, runST)
-import Data.Bifoldable            (Bifoldable (..))
-import Data.Bits                  (complement, countTrailingZeros, popCount,
-                                   shiftL, unsafeShiftL, unsafeShiftR, (.&.),
-                                   (.|.))
-import Data.Coerce                (coerce)
-import Data.Data                  (Constr, Data (..), DataType)
-import Data.Functor.Classes       (Eq1 (..), Eq2 (..), Ord1 (..), Ord2 (..),
-                                   Read1 (..), Show1 (..), Show2 (..))
-import Data.Functor.Identity      (Identity (..))
-import Data.Hashable              (Hashable)
-import Data.Hashable.Lifted       (Hashable1, Hashable2)
-import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
-import Data.Maybe                 (isNothing)
-import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
-import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
-import GHC.Stack                  (HasCallStack)
-import Prelude                    hiding (Foldable (..), filter, lookup, map,
-                                   pred)
-import Text.Read                  hiding (step)
+import Control.Applicative         (Const (..))
+import Control.DeepSeq             (NFData (..), NFData1 (..), NFData2 (..))
+import Control.Monad.ST            (ST, runST)
+import Data.Bifoldable             (Bifoldable (..))
+import Data.Bits                   (complement, countTrailingZeros, popCount,
+                                    shiftL, unsafeShiftL, unsafeShiftR, (.&.),
+                                    (.|.))
+import Data.Coerce                 (coerce)
+import Data.Data                   (Constr, Data (..), DataType)
+import Data.Functor.Classes        (Eq1 (..), Eq2 (..), Ord1 (..), Ord2 (..),
+                                    Read1 (..), Show1 (..), Show2 (..))
+import Data.Functor.Identity       (Identity (..))
+import Data.Hashable               (Hashable)
+import Data.Hashable.Lifted        (Hashable1, Hashable2)
+import Data.HashMap.Internal.Array (Array, MArray)
+import Data.HashMap.Internal.List  (isPermutationBy, unorderedCompare)
+import Data.Maybe                  (isNothing)
+import Data.Semigroup              (Semigroup (..), stimesIdempotentMonoid)
+import GHC.Exts                    (Int (..), Int#, TYPE, (==#))
+import GHC.Stack                   (HasCallStack)
+import Prelude                     hiding (Foldable (..), filter, lookup, map,
+                                    pred)
+import Text.Read                   hiding (step)
 
 import qualified Data.Data                   as Data
 import qualified Data.Foldable               as Foldable
@@ -218,7 +220,7 @@ data HashMap k v
     -- ^ Invariants:
     --
     -- * 'Empty' is not a valid sub-node. It can only appear at the root. (INV1)
-    | BitmapIndexed !Bitmap !(A.Array (HashMap k v))
+    | BitmapIndexed !Bitmap !(Array (HashMap k v))
     -- ^ Invariants:
     --
     -- * Only the lower @maxChildren@ bits of the 'Bitmap' may be set. The
@@ -236,11 +238,11 @@ data HashMap k v
     --   compatible with its 'Hash'. (INV6)
     --   (TODO: Document this properly (#425))
     -- * The 'Hash' of a 'Leaf' node must be the 'hash' of its key. (INV7)
-    | Full !(A.Array (HashMap k v))
+    | Full !(Array (HashMap k v))
     -- ^ Invariants:
     --
     -- * The array of a 'Full' node stores exactly 'maxChildren' sub-nodes. (INV8)
-    | Collision !Hash !(A.Array (Leaf k v))
+    | Collision !Hash !(Array (Leaf k v))
     -- ^ Invariants:
     --
     -- * The location of a 'Leaf' or 'Collision' node in the tree must be
@@ -546,11 +548,11 @@ instance Hashable2 HashMap where
         -- hashLeafWithSalt :: Int -> Leaf k v -> Int
         hashLeafWithSalt s (L k v) = (s `hk` k) `hv` v
 
-        -- hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
+        -- hashCollisionWithSalt :: Int -> Array (Leaf k v) -> Int
         hashCollisionWithSalt s
           = List.foldl' H.hashWithSalt s . arrayHashesSorted s
 
-        -- arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
+        -- arrayHashesSorted :: Int -> Array (Leaf k v) -> [Int]
         arrayHashesSorted s = List.sort . List.map (hashLeafWithSalt s) . A.toList
 
 instance (Hashable k) => Hashable1 (HashMap k) where
@@ -573,11 +575,11 @@ instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
         hashLeafWithSalt :: Int -> Leaf k v -> Int
         hashLeafWithSalt s (L k v) = s `H.hashWithSalt` k `H.hashWithSalt` v
 
-        hashCollisionWithSalt :: Int -> A.Array (Leaf k v) -> Int
+        hashCollisionWithSalt :: Int -> Array (Leaf k v) -> Int
         hashCollisionWithSalt s
           = List.foldl' H.hashWithSalt s . arrayHashesSorted s
 
-        arrayHashesSorted :: Int -> A.Array (Leaf k v) -> [Int]
+        arrayHashesSorted :: Int -> Array (Leaf k v) -> [Int]
         arrayHashesSorted s = List.sort . List.map (hashLeafWithSalt s) . A.toList
 
 -- | Helper to get 'Leaf's and 'Collision's as a list.
@@ -832,7 +834,7 @@ collision h !e1 !e2 =
 {-# INLINE collision #-}
 
 -- | Create a 'BitmapIndexed' or 'Full' node.
-bitmapIndexedOrFull :: Bitmap -> A.Array (HashMap k v) -> HashMap k v
+bitmapIndexedOrFull :: Bitmap -> Array (HashMap k v) -> HashMap k v
 -- The strictness in @ary@ helps achieve a nice code size reduction in
 -- @unionWith[Key]@ with GHC 9.2.2. See the Core diffs in
 -- https://github.com/haskell-unordered-containers/unordered-containers/pull/376.
@@ -956,7 +958,7 @@ insertKeyExists !collPos0 !h0 !k0 x0 m0 = go collPos0 h0 k0 x0 m0
 -- | Replace the ith Leaf with Leaf k v.
 --
 -- This does not check that @i@ is within bounds of the array.
-setAtPosition :: Int -> k -> v -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+setAtPosition :: Int -> k -> v -> Array (Leaf k v) -> Array (Leaf k v)
 setAtPosition i k x ary = A.update ary i (L k x)
 {-# INLINE setAtPosition #-}
 
@@ -1097,8 +1099,8 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
 {-# INLINABLE insertModifying #-}
 
 -- | Like insertModifying for arrays; used to implement insertModifying
-insertModifyingArr :: Eq k => v -> (v -> (# v #)) -> k -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
+insertModifyingArr :: Eq k => v -> (v -> (# v #)) -> k -> Array (Leaf k v)
+                 -> Array (Leaf k v)
 insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
@@ -1574,7 +1576,7 @@ isSubmapOfBy comp !m1 !m2 = go 0 m1 m2
 {-# INLINABLE isSubmapOfBy #-}
 
 -- | \(O(\min n m))\) Checks if a bitmap indexed node is a submap of another.
-submapBitmapIndexed :: (HashMap k v1 -> HashMap k v2 -> Bool) -> Bitmap -> A.Array (HashMap k v1) -> Bitmap -> A.Array (HashMap k v2) -> Bool
+submapBitmapIndexed :: (HashMap k v1 -> HashMap k v2 -> Bool) -> Bitmap -> Array (HashMap k v1) -> Bitmap -> Array (HashMap k v2) -> Bool
 submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .&. negate b1Orb2)
   where
     go :: Int -> Int -> Bitmap -> Bool
@@ -1712,8 +1714,8 @@ unionWithKey f = go 0
 {-# INLINE unionWithKey #-}
 
 -- | Strict in the result of @f@.
-unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.Array a -> A.Array a
-             -> A.Array a
+unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> Array a -> Array a
+             -> Array a
 -- The manual forcing of @b1@, @b2@, @ary1@ and @ary2@ results in handsome
 -- Core size reductions with GHC 9.2.2. See the Core diffs in
 -- https://github.com/haskell-unordered-containers/unordered-containers/pull/376.
@@ -1947,7 +1949,7 @@ difference = go_difference 0
 -- TODO: This could be faster if we would keep track of which elements of ary2
 -- we've already matched. Those could be skipped when we check the following
 -- elements of ary1.
-differenceCollisions :: Eq k => Hash -> A.Array (Leaf k v1) -> HashMap k v1 -> Hash -> A.Array (Leaf k v2) -> HashMap k v1
+differenceCollisions :: Eq k => Hash -> Array (Leaf k v1) -> HashMap k v1 -> Hash -> Array (Leaf k v2) -> HashMap k v1
 differenceCollisions !h1 !ary1 t1 !h2 !ary2
   | h1 == h2 =
     if A.unsafeSameArray ary1 ary2
@@ -2112,7 +2114,7 @@ updateCollision
   => (v -> Maybe v)
   -> Hash
   -> k
-  -> A.Array (Leaf k v)
+  -> Array (Leaf k v)
   -> HashMap k v
   -- ^ The original Collision node which will be re-used if the array is unchanged.
   -> HashMap k v
@@ -2133,7 +2135,7 @@ updateCollision f !h k !ary orig =
 -- we've already matched. Those could be skipped when we check the following
 -- elements of ary1.
 -- TODO: Return tA when the array is unchanged.
-differenceWithKey_Collisions :: Eq k => (k -> v -> w -> Maybe v) -> Word -> A.Array (Leaf k v) -> HashMap k v -> Word -> A.Array (Leaf k w) -> HashMap k v
+differenceWithKey_Collisions :: Eq k => (k -> v -> w -> Maybe v) -> Word -> Array (Leaf k v) -> HashMap k v -> Word -> Array (Leaf k w) -> HashMap k v
 differenceWithKey_Collisions f !hA !aryA !tA !hB !aryB
   | hA == hB =
       let f' l@(L kA vA) =
@@ -2234,8 +2236,8 @@ intersectionArrayBy ::
   ) ->
   Bitmap ->
   Bitmap ->
-  A.Array (HashMap k v1) ->
-  A.Array (HashMap k v2) ->
+  Array (HashMap k v1) ->
+  Array (HashMap k v2) ->
   HashMap k v3
 intersectionArrayBy f !b1 !b2 !ary1 !ary2
   | b1 .&. b2 == 0 = Empty
@@ -2272,7 +2274,7 @@ intersectionArrayBy f !b1 !b2 !ary1 !ary2
     bIntersect = b1 .&. b2
 {-# INLINE intersectionArrayBy #-}
 
-intersectionCollisions :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> Hash -> Hash -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> HashMap k v3
+intersectionCollisions :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> Hash -> Hash -> Array (Leaf k v1) -> Array (Leaf k v2) -> HashMap k v3
 intersectionCollisions f h1 h2 ary1 ary2
   | h1 == h2 = runST $ do
     let !n2 = A.length ary2
@@ -2306,7 +2308,7 @@ intersectionCollisions f h1 h2 ary1 ary2
 -- undefined 2 1 4
 -- @
 -- We don't actually need to write undefined, we just have to make sure that the next search starts 1 after the current one.
-searchSwap :: Eq k => A.MArray s (Leaf k v) -> Int -> k -> Int -> ST s (Maybe (Leaf k v))
+searchSwap :: Eq k => MArray s (Leaf k v) -> Int -> k -> Int -> ST s (Maybe (Leaf k v))
 searchSwap mary n toFind start = go start toFind start
   where
     go i0 k i
@@ -2382,7 +2384,7 @@ disjointSubtrees s a (Leaf hB (L kB _)) =
 disjointSubtrees s a b@Collision{} = disjointSubtrees s b a
 {-# INLINABLE disjointSubtrees #-}
 
-disjointArrays :: Eq k => Shift -> Bitmap -> A.Array (HashMap k a) -> Bitmap -> A.Array (HashMap k b) -> Bool
+disjointArrays :: Eq k => Shift -> Bitmap -> Array (HashMap k a) -> Bitmap -> Array (HashMap k b) -> Bool
 disjointArrays !s !bmA !aryA !bmB !aryB = go (bmA .&. bmB)
   where
     go 0 = True
@@ -2400,7 +2402,7 @@ disjointArrays !s !bmA !aryA !bmB !aryB = go (bmA .&. bmB)
 -- TODO: GHC 9.12.2 inlines disjointCollisions into `disjoint @Int`.
 -- How do you prevent this while preserving specialization?
 -- https://stackoverflow.com/questions/79838305/ensuring-specialization-while-preventing-inlining
-disjointCollisions :: Eq k => Hash -> A.Array (Leaf k a) -> Hash -> A.Array (Leaf k b) -> Bool
+disjointCollisions :: Eq k => Hash -> Array (Leaf k a) -> Hash -> Array (Leaf k b) -> Bool
 disjointCollisions !hA !aryA !hB !aryB
   | hA == hB = A.all predicate aryA
   | otherwise = True
@@ -2566,7 +2568,7 @@ filterMapAux onLeaf onColl = go
             mary <- A.new_ n
             step ary0 mary b0 0 0 1 n
       where
-        step :: A.Array (HashMap k v1) -> A.MArray s (HashMap k v2)
+        step :: Array (HashMap k v1) -> MArray s (HashMap k v2)
              -> Bitmap -> Int -> Int -> Bitmap -> Int
              -> ST s (HashMap k v2)
         step !ary !mary !b i !j !bi n
@@ -2598,7 +2600,7 @@ filterMapAux onLeaf onColl = go
             mary <- A.new_ n
             step ary0 mary 0 0 n
       where
-        step :: A.Array (Leaf k v1) -> A.MArray s (Leaf k v2)
+        step :: Array (Leaf k v1) -> MArray s (Leaf k v2)
              -> Int -> Int -> Int
              -> ST s (HashMap k v2)
         step !ary !mary i !j n
@@ -2731,11 +2733,11 @@ lookupInArrayCont ::
 #else
   forall r k v.
 #endif
-  Eq k => ((# #) -> r) -> (v -> Int -> r) -> k -> A.Array (Leaf k v) -> r
+  Eq k => ((# #) -> r) -> (v -> Int -> r) -> k -> Array (Leaf k v) -> r
 lookupInArrayCont absent present k0 ary0 =
     lookupInArrayCont_ k0 ary0 0 (A.length ary0)
   where
-    lookupInArrayCont_ :: Eq k => k -> A.Array (Leaf k v) -> Int -> Int -> r
+    lookupInArrayCont_ :: Eq k => k -> Array (Leaf k v) -> Int -> Int -> r
     lookupInArrayCont_ !k !ary !i !n
         | i >= n    = absent (# #)
         | otherwise = case A.index# ary i of
@@ -2746,7 +2748,7 @@ lookupInArrayCont absent present k0 ary0 =
 
 -- | \(O(n)\) Lookup the value associated with the given key in this
 -- array.  Returns 'Nothing' if the key wasn't found.
-indexOf :: Eq k => k -> A.Array (Leaf k v) -> Maybe Int
+indexOf :: Eq k => k -> Array (Leaf k v) -> Maybe Int
 indexOf k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
@@ -2757,7 +2759,7 @@ indexOf k0 ary0 = go k0 ary0 0 (A.length ary0)
                 | otherwise -> go k ary (i+1) n
 {-# INLINABLE indexOf #-}
 
-updateWith# :: Eq k => (v -> (# v #)) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+updateWith# :: Eq k => (v -> (# v #)) -> k -> Array (Leaf k v) -> Array (Leaf k v)
 updateWith# f k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
@@ -2770,13 +2772,13 @@ updateWith# f k0 ary0 = go k0 ary0 0 (A.length ary0)
                          | otherwise -> go k ary (i+1) n
 {-# INLINABLE updateWith# #-}
 
-updateOrSnocWith :: Eq k => (v -> v -> (# v #)) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
+updateOrSnocWith :: Eq k => (v -> v -> (# v #)) -> k -> v -> Array (Leaf k v)
+                 -> Array (Leaf k v)
 updateOrSnocWith f = updateOrSnocWithKey (const f)
 {-# INLINABLE updateOrSnocWith #-}
 
-updateOrSnocWithKey :: Eq k => (k -> v -> v -> (# v #)) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
+updateOrSnocWithKey :: Eq k => (k -> v -> v -> (# v #)) -> k -> v -> Array (Leaf k v)
+                 -> Array (Leaf k v)
 updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
   where
     go !k v !ary !i !n
@@ -2789,7 +2791,7 @@ updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
                              | otherwise -> go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWithKey #-}
 
-updateOrConcatWithKey :: Eq k => (k -> v -> v -> (# v #)) -> A.Array (Leaf k v) -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+updateOrConcatWithKey :: Eq k => (k -> v -> v -> (# v #)) -> Array (Leaf k v) -> Array (Leaf k v) -> Array (Leaf k v)
 updateOrConcatWithKey f ary1 ary2 = A.run $ do
     -- TODO: instead of mapping and then folding, should we traverse?
     -- We'll have to be careful to avoid allocating pairs or similar.
@@ -2822,7 +2824,7 @@ updateOrConcatWithKey f ary1 ary2 = A.run $ do
 {-# INLINABLE updateOrConcatWithKey #-}
 
 -- | \(O(n*m)\) Check if the first array is a subset of the second array.
-subsetArray :: Eq k => (v1 -> v2 -> Bool) -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> Bool
+subsetArray :: Eq k => (v1 -> v2 -> Bool) -> Array (Leaf k v1) -> Array (Leaf k v2) -> Bool
 subsetArray cmpV ary1 ary2 = A.length ary1 <= A.length ary2 && A.all inAry2 ary1
   where
     inAry2 (L k1 v1) = lookupInArrayCont (\_ -> False) (\v2 _ -> cmpV v1 v2) k1 ary2
@@ -2832,12 +2834,12 @@ subsetArray cmpV ary1 ary2 = A.length ary1 <= A.length ary2 && A.all inAry2 ary1
 -- Manually unrolled loops
 
 -- | \(O(n)\) Update the element at the given position in this array.
-updateFullArray :: A.Array e -> Int -> e -> A.Array e
+updateFullArray :: Array e -> Int -> e -> Array e
 updateFullArray ary idx b = runST (updateFullArrayM ary idx b)
 {-# INLINE updateFullArray #-}
 
 -- | \(O(n)\) Update the element at the given position in this array.
-updateFullArrayM :: A.Array e -> Int -> e -> ST s (A.Array e)
+updateFullArrayM :: Array e -> Int -> e -> ST s (Array e)
 updateFullArrayM ary idx b = do
     mary <- clone ary
     A.write mary idx b
@@ -2845,7 +2847,7 @@ updateFullArrayM ary idx b = do
 {-# INLINE updateFullArrayM #-}
 
 -- | \(O(n)\) Update the element at the given position in this array, by applying a function to it.
-updateFullArrayWith' :: A.Array e -> Int -> (e -> e) -> A.Array e
+updateFullArrayWith' :: Array e -> Int -> (e -> e) -> Array e
 updateFullArrayWith' ary idx f =
   case A.index# ary idx of
     (# x #) -> updateFullArray ary idx $! f x
@@ -2853,7 +2855,7 @@ updateFullArrayWith' ary idx f =
 
 -- | Unsafely clone an array of (2^bitsPerSubkey) elements.  The length of the input
 -- array is not checked.
-clone :: A.Array e -> ST s (A.MArray s e)
+clone :: Array e -> ST s (MArray s e)
 clone ary =
     A.thaw ary 0 (2^bitsPerSubkey)
 
