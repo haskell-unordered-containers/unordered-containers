@@ -203,8 +203,12 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
         | otherwise = x `seq` runST (HM.two s h k x hy t)
     go h k x s (BitmapIndexed b ary)
         | b .&. m == 0 =
-            let ary' = A.insert ary i $! leaf h k x
-            in HM.bitmapIndexedOrFull (b .|. m) ary'
+            let !l = leaf h k x
+            in if b == 0
+              then l
+              else
+                let ary' = A.insert ary i l
+                in HM.bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             case A.index# ary i of
               (# st #) ->
