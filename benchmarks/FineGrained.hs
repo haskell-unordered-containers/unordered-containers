@@ -26,7 +26,8 @@ main =
   defaultMain
     [ bgroup
         "HashMap.Strict"
-        [ bFromList,
+        [ bSize,
+          bFromList,
           bLookup,
           bInsert,
           bUpdate,
@@ -55,6 +56,11 @@ bytesLength = 32
 -- Change the seed to generate different random elements.
 defaultGen :: StdGen
 defaultGen = mkStdGen 42
+
+bSize :: Benchmark
+bSize = bgroup "size" [bgroup' "Int" genIntMap b]
+  where
+    b s = bench (show s) . whnf (\m -> HM.size m)
 
 bFromList :: Benchmark
 bFromList =
