@@ -857,8 +857,12 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
         | otherwise = runST (two s h k x hy t)
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 =
-            let !ary' = A.insert ary i $! Leaf h (L k x)
-            in bitmapIndexedOrFull (b .|. m) ary'
+            let !l = Leaf h (L k x)
+            in if b == 0
+              then l
+              else
+                let !ary' = A.insert ary i l
+                in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             case A.index# ary i of
               (# !st #) ->
@@ -896,8 +900,12 @@ insertNewKey !h0 !k0 x0 m0 = go h0 k0 x0 0 m0
       | otherwise = runST (two s h k x hy t)
     go h k x s (BitmapIndexed b ary)
         | b .&. m == 0 =
-            let !ary' = A.insert ary i $! Leaf h (L k x)
-            in bitmapIndexedOrFull (b .|. m) ary'
+            let !l = Leaf h (L k x)
+            in if b == 0
+              then l
+              else
+                let !ary' = A.insert ary i l
+                in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             case A.index# ary i of
               (# st #) ->
@@ -1062,8 +1070,12 @@ insertModifying x f k0 m0 = go h0 k0 0 m0
         | otherwise = runST (two s h k x hy t)
     go h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 =
-            let ary' = A.insert ary i $! Leaf h (L k x)
-            in bitmapIndexedOrFull (b .|. m) ary'
+            let !l = Leaf h (L k x)
+            in if b == 0
+              then l
+              else
+                let ary' = A.insert ary i l
+                in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             case A.index# ary i of
               (# !st #) ->
