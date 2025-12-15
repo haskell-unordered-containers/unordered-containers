@@ -1985,7 +1985,7 @@ differenceWith f = differenceWithKey (const f)
 differenceWithKey :: Eq k => (k -> v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
 differenceWithKey f = go_differenceWithKey 0
   where
-    go_differenceWithKey s a@(Leaf hA (L kA vA)) b
+    go_differenceWithKey !s a@(Leaf hA (L kA vA)) b
       = lookupCont
           (\_ -> a)
           (\vB _ -> case f kA vA vB of
@@ -2178,7 +2178,7 @@ intersectionWithKey# :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> HashMap k v1 -> H
 intersectionWithKey# f = go 0
   where
     -- leaf vs. anything
-    go s (Leaf h1 (L k1 v1)) t2 =
+    go !s (Leaf h1 (L k1 v1)) t2 =
       lookupCont
         (\_ -> empty)
         (\v _ -> case f k1 v1 v of (# v' #) -> Leaf h1 $ L k1 v')
