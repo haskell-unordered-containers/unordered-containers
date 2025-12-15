@@ -618,15 +618,15 @@ size :: HashMap k v -> Int
 size = \case
   BitmapIndexed b ary
     | b == 0    -> 0
-    | otherwise -> A.foldl' size_ 0 ary
-  m -> size_ 0 m
+    | otherwise -> A.foldr' size_ 0 ary
+  m -> size_ m 0
 {-# INLINE size #-}
 
-size_ :: Int -> HashMap k v -> Int
-size_ !n = \case
+size_ :: HashMap k v -> Int -> Int
+size_ m !n = case m of
   Leaf _ _            -> n + 1
-  BitmapIndexed _ ary -> A.foldl' size_ n ary
-  Full ary            -> A.foldl' size_ n ary
+  BitmapIndexed _ ary -> A.foldr' size_ n ary
+  Full ary            -> A.foldr' size_ n ary
   Collision _ ary     -> n + A.length ary
 
 -- | \(O(\log n)\) Return 'True' if the specified key is present in the

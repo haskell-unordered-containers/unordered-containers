@@ -395,12 +395,12 @@ foldl' f = \ z0 ary0 -> foldl'_ ary0 (length ary0) 0 z0
 {-# INLINE foldl' #-}
 
 foldr' :: (a -> b -> b) -> b -> Array a -> b
-foldr' f = \ z0 ary0 -> go ary0 (length ary0 - 1) z0
+foldr' f = \ z0 ary0 -> foldr'_ ary0 (length ary0 - 1) z0
   where
-    go !_ary (-1) z = z
-    go !ary i !z
+    foldr'_ !ary i !z
+      | i < 0 = z
       | (# x #) <- index# ary i
-      = go ary (i - 1) (f x z)
+      = foldr'_ ary (i - 1) (f x z)
 {-# INLINE foldr' #-}
 
 foldr :: (a -> b -> b) -> b -> Array a -> b
