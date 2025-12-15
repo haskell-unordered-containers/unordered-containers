@@ -173,7 +173,7 @@ import Data.HashMap.Internal.Array (Array, MArray)
 import Data.HashMap.Internal.List  (isPermutationBy, unorderedCompare)
 import Data.Maybe                  (isNothing)
 import Data.Semigroup              (Semigroup (..), stimesIdempotentMonoid)
-import GHC.Exts                    (Int (..), Int#, TYPE, (==#))
+import GHC.Exts                    (Int (..), Int#, TYPE, Word(..), (==#))
 import GHC.Stack                   (HasCallStack)
 import Prelude                     hiding (Foldable (..), filter, lookup, map,
                                     pred)
@@ -1008,6 +1008,47 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 -- because it's already in WHNF (having just been matched) and we
 -- just put it directly in an array.
 two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
+two !s !h1 !k1 v1 !h2 t2 = do
+    let !t1 = Leaf h1 (L k1 v1)
+    mary <- A.new 2 t1
+    if m1 == m2
+      then do
+        let f = shiftHash (nextShift s)
+        st <- two_ (f h1) t1 (f h2) t2
+        A.write mary 0 st
+        mary' <- A.shrink mary 1
+        ary <- A.unsafeFreeze mary'
+        pure (BitmapIndexed m1 ary)
+      else do
+        A.write mary i2 t2
+        ary <- A.unsafeFreeze mary
+        return $ BitmapIndexed (m1 .|. m2) ary
+  where
+    !m1@(W# m1#) = mask h1 s
+    !m2@(W# m2#) = mask h2 s
+    i2 = I# (Exts.ltWord# m1# m2#)
+{-# INLINE two #-}
+
+two_ :: ShiftedHash -> HashMap k v -> ShiftedHash -> HashMap k v -> ST s (HashMap k v)
+two_ !sh1 t1 !sh2 t2 = do
+    mary <- A.new 2 t1
+    if m1 == m2
+      then do
+        st <- two_ (nextSH sh1) t1 (nextSH sh2) t2
+        A.write mary 0 st
+        mary' <- A.shrink mary 1
+        ary <- A.unsafeFreeze mary'
+        pure (BitmapIndexed m1 ary)
+      else do
+        A.write mary i2 t2
+        ary <- A.unsafeFreeze mary
+        return $ BitmapIndexed (m1 .|. m2) ary
+  where
+    !m1@(W# m1#) = maskSH sh1
+    !m2@(W# m2#) = maskSH sh2
+    i2 = I# (Exts.ltWord# m1# m2#)
+
+{-
 two = go
   where
     go s h1 k1 v1 h2 t2
@@ -1032,7 +1073,7 @@ two = go
         --      | otherwise               = 0
         --
         -- See https://github.com/haskell-unordered-containers/unordered-containers/issues/75#issuecomment-1128419337
-{-# INLINE two #-}
+-}
 
 -- | \(O(\log n)\) Associate the value with the key in this map.  If
 -- this map previously contained a mapping for the key, the old value
@@ -2943,12 +2984,10 @@ nextShift s = s + bitsPerSubkey
 -- of keeping track of an additional 'Shift' value.
 type ShiftedHash = Hash
 
-{-
 -- | Construct a 'ShiftedHash' from a 'Shift' and a 'Hash'.
 shiftHash :: Shift -> Hash -> ShiftedHash
 shiftHash s h = h `unsafeShiftR` s
 {-# INLINE shiftHash #-}
--}
 
 -- | Update a 'ShiftedHash' for the next level of the tree.
 nextSH :: ShiftedHash -> ShiftedHash
