@@ -1534,6 +1534,9 @@ isSubmapOfBy :: Hashable k => (v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2
 -- matching key in m2, hence O(n*m).
 isSubmapOfBy comp !m1 !m2 = go 0 m1 m2
   where
+    -- An empty map is always a submap of any other map.
+    go _ Empty _ = True
+
     -- If the first map contains only one entry, lookup the key in the second map.
     go s (Leaf h1 (L k1 v1)) t2 = lookupCont (\_ -> False) (\v2 _ -> comp v1 v2) h1 k1 s t2
 
