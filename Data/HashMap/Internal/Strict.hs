@@ -196,7 +196,6 @@ insertWith :: Hashable k => (v -> v -> v) -> k -> v -> HashMap k v
 insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
   where
     h0 = hash k0
-    go !h !k x !_ Empty = leaf h k x
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then leaf h k (f x y)
@@ -238,7 +237,6 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
     go :: forall s. Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
-    go !h !k x !_ Empty = return $! leaf h k x
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then return $! leaf h k (f k x y)
@@ -274,7 +272,6 @@ adjust :: Hashable k => (v -> v) -> k -> HashMap k v -> HashMap k v
 adjust f k0 m0 = go h0 k0 0 m0
   where
     h0 = hash k0
-    go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky y))
         | hy == h && ky == k = leaf h k (f y)
         | otherwise          = t
@@ -468,9 +465,6 @@ unionWithKey :: Eq k => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
 unionWithKey f = go 0
   where
-    -- empty vs. anything
-    go !_ t1 Empty = t1
-    go _ Empty t2 = t2
     -- leaf vs. leaf
     go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
@@ -555,7 +549,6 @@ unionWithKey f = go 0
 mapWithKey :: (k -> v1 -> v2) -> HashMap k v1 -> HashMap k v2
 mapWithKey f = go
   where
-    go Empty                 = Empty
     go (Leaf h (L k v))      = leaf h k (f k v)
     go (BitmapIndexed b ary) = BitmapIndexed b $ A.map' go ary
     go (Full ary)            = Full $ A.map' go ary
@@ -607,7 +600,6 @@ traverseWithKey
   -> HashMap k v1 -> f (HashMap k v2)
 traverseWithKey f = go
   where
-    go Empty                 = pure Empty
     go (Leaf h (L k v))      = leaf h k <$> f k v
     go (BitmapIndexed b ary) = BitmapIndexed b <$> A.traverse' go ary
     go (Full ary)            = Full <$> A.traverse' go ary

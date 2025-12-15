@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MagicHash             #-}
 {-# LANGUAGE PatternGuards         #-}
+{-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE RoleAnnotations       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
@@ -32,6 +33,7 @@
 module Data.HashMap.Internal
     (
       HashMap(..)
+    , pattern Empty
     , Leaf(..)
 
       -- * Construction
@@ -253,6 +255,8 @@ data HashMap k v
     --   'Eq' instance. (INV10)
 
 type role HashMap nominal representational
+
+pattern Empty <- BitmapIndexed 0 _
 
 -- | @since 0.2.17.0
 deriving instance (TH.Lift k, TH.Lift v) => TH.Lift (HashMap k v)
@@ -593,7 +597,8 @@ isLeafOrCollision _               = False
 
 -- | \(O(1)\) Construct an empty map.
 empty :: HashMap k v
-empty = BitmapIndexed 0 []
+empty = BitmapIndexed 0 A.empty
+{-# NOINLINE empty #-}
 
 -- | \(O(1)\) Construct a map with a single element.
 singleton :: (Hashable k) => k -> v -> HashMap k v

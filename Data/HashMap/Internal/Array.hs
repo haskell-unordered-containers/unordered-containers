@@ -32,6 +32,7 @@ module Data.HashMap.Internal.Array
       -- * Creation
     , new
     , new_
+    , empty
     , singleton
     , singletonM
     , snoc
@@ -229,6 +230,10 @@ shrink mary _n@(I# n#) =
   ST $ \s -> case Exts.shrinkSmallMutableArray# (unMArray mary) n# s of
     s' -> (# s', mary #)
 {-# INLINE shrink #-}
+
+empty :: Array a
+empty = run (new_ 0)
+{-# NOINLINE empty #-}
 
 singleton :: a -> Array a
 singleton x = runST (singletonM x)
