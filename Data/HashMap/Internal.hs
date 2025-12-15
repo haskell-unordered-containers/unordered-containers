@@ -1241,25 +1241,38 @@ deleteKeyExists !collPos0 !h0 !k0 m0 = go collPos0 h0 k0 m0
     go !_collPos !_shiftedHash !_k (Leaf _ _) = empty
     go collPos shiftedHash k (BitmapIndexed b ary) =
       case A.index# ary i of
-        (# st #) -> case go collPos (nextSH shiftedHash) k st of
-          Empty | A.length ary == 2
-                , (# l #) <- A.index# ary (otherOfOneOrZero i)
-                , isLeafOrCollision l
-                -> l
-                | otherwise
-                -> BitmapIndexed (b .&. complement m) (A.delete ary i)
-          st' | isLeafOrCollision st' && A.length ary == 1 -> st'
-              | otherwise -> BitmapIndexed b (A.update ary i st')
+        (# st #) ->
+          let !st' = go collPos (nextSH shiftedHash) k st
+              -- These let-bindings help GHC form join points in order to
+              -- prevent code duplication.
+              deletion = BitmapIndexed (b .&. complement m) (A.delete ary i)
+              update_ = BitmapIndexed b (A.update ary i st')
+              {-# NOINLINE update_ #-}
+          in case st' of
+            Empty | A.length ary == 2
+                  , (# l #) <- A.index# ary (otherOfOneOrZero i)
+                  , isLeafOrCollision l
+                  -> l
+                  | otherwise
+                  -> deletion
+            _ | isLeafOrCollision st' && A.length ary == 1 -> st'
+              | otherwise -> update_
       where m = maskSH shiftedHash
             i = sparseIndex b m
     go collPos shiftedHash k (Full ary) =
         case A.index# ary i of
-          (# st #) -> case go collPos (nextSH shiftedHash) k st of
-            Empty ->
+          (# st #) ->
+            let !st' = go collPos (nextSH shiftedHash) k st
+                -- This let-binding helps GHC form a join point in order to
+                -- prevent code duplication.
+                update_ = Full (updateFullArray ary i st')
+                {-# NOINLINE update_ #-}
+            in if null st'
+              then
                 let ary' = A.delete ary i
                     bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
                 in BitmapIndexed bm ary'
-            st' -> Full (updateFullArray ary i st')
+              else update_
       where i = indexSH shiftedHash
     go collPos _shiftedHash _k (Collision h v)
       | A.length v == 2
