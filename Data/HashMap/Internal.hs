@@ -256,6 +256,7 @@ data HashMap k v
 
 type role HashMap nominal representational
 
+pattern Empty :: HashMap k v
 pattern Empty <- BitmapIndexed 0 _
 
 -- | @since 0.2.17.0
@@ -969,8 +970,12 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = two s h k x hy t
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- A.insertM ary i $! Leaf h (L k x)
-            return $! bitmapIndexedOrFull (b .|. m) ary'
+            let !l = Leaf h (L k x)
+            if b == 0
+              then return l
+              else do
+                ary' <- A.insertM ary i l
+                return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
             st' <- go h k x (nextShift s) st
@@ -1127,8 +1132,12 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = two s h k x hy t
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- A.insertM ary i $! Leaf h (L k x)
-            return $! bitmapIndexedOrFull (b .|. m) ary'
+            let !l = Leaf h (L k x)
+            if b == 0
+              then return l
+              else do
+                ary' <- A.insertM ary i l
+                return $! bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
             st' <- go h k x (nextShift s) st

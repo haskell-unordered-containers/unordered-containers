@@ -246,8 +246,12 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = x `seq` HM.two s h k x hy t
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- A.insertM ary i $! leaf h k x
-            return $! HM.bitmapIndexedOrFull (b .|. m) ary'
+            let !l = leaf h k x
+            if b == 0
+              then return l
+              else do
+                ary' <- A.insertM ary i l
+                return $! HM.bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
             st' <- go h k x (nextShift s) st
