@@ -615,12 +615,19 @@ null _ = False
 
 -- | \(O(n)\) Return the number of key-value mappings in this map.
 size :: HashMap k v -> Int
-size t = go t 0
-  where
-    go (Leaf _ _)           !n = n + 1
-    go (BitmapIndexed _ ary) n = A.foldl' (flip go) n ary
-    go (Full ary)            n = A.foldl' (flip go) n ary
-    go (Collision _ ary)     n = n + A.length ary
+size = \case
+  BitmapIndexed b ary
+    | b == 0    -> 0
+    | otherwise -> A.foldl' size_ 0 ary
+  m -> size_ 0 m
+{-# INLINE size #-}
+
+size_ :: Int -> HashMap k v -> Int
+size_ !n = \case
+  Leaf _ _            -> n + 1
+  BitmapIndexed _ ary -> A.foldl' size_ n ary
+  Full ary            -> A.foldl' size_ n ary
+  Collision _ ary     -> n + A.length ary
 
 -- | \(O(\log n)\) Return 'True' if the specified key is present in the
 -- map, 'False' otherwise.
