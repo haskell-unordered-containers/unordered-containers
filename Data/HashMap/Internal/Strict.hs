@@ -505,9 +505,13 @@ unionWithKey f = go 0
         in Full ary'
     -- leaf vs. branch
     go s (BitmapIndexed b1 ary1) t2
-        | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
-                               b'   = b1 .|. m2
-                           in HM.bitmapIndexedOrFull b' ary'
+        | b1 .&. m2 == 0 =
+            if b1 == 0
+              then t2
+              else
+                let ary' = A.insert ary1 i t2
+                    b'   = b1 .|. m2
+                in HM.bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
                                    go (nextShift s) st1 t2
                            in BitmapIndexed b1 ary'
@@ -516,9 +520,13 @@ unionWithKey f = go 0
           m2 = mask h2 s
           i = sparseIndex b1 m2
     go s t1 (BitmapIndexed b2 ary2)
-        | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
-                               b'   = b2 .|. m1
-                           in HM.bitmapIndexedOrFull b' ary'
+        | b2 .&. m1 == 0 =
+            if b2 == 0
+              then t1
+              else
+                let ary' = A.insert ary2 i t1
+                    b'   = b2 .|. m1
+                in HM.bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
                                    go (nextShift s) t1 st2
                            in BitmapIndexed b2 ary'

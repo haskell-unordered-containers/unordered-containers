@@ -1637,7 +1637,7 @@ unionWithKey :: Eq k => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
 unionWithKey f = go 0
   where
     -- leaf vs. leaf
-    go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
+    go !s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
                       then Leaf h1 (L k1 (f k1 v1 v2))
                       else collision h1 l1 l2
@@ -1668,9 +1668,13 @@ unionWithKey f = go 0
         in Full ary'
     -- leaf vs. branch
     go s (BitmapIndexed b1 ary1) t2
-        | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
-                               b'   = b1 .|. m2
-                           in bitmapIndexedOrFull b' ary'
+        | b1 .&. m2 == 0 =
+            if b1 == 0
+              then t2
+              else
+                let ary' = A.insert ary1 i t2
+                    b'   = b1 .|. m2
+                in bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
                                    go (nextShift s) st1 t2
                            in BitmapIndexed b1 ary'
@@ -1679,9 +1683,13 @@ unionWithKey f = go 0
           m2 = mask h2 s
           i = sparseIndex b1 m2
     go s t1 (BitmapIndexed b2 ary2)
-        | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
-                               b'   = b2 .|. m1
-                           in bitmapIndexedOrFull b' ary'
+        | b2 .&. m1 == 0 =
+            if b2 == 0
+              then t1
+              else
+                let ary' = A.insert ary2 i t1
+                    b'   = b2 .|. m1
+                in bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
                                    go (nextShift s) t1 st2
                            in BitmapIndexed b2 ary'
