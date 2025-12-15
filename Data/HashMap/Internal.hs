@@ -722,7 +722,7 @@ lookupCont ::
 lookupCont absent present !h0 !k0 !s0 m0 = lookupCont_ h0 k0 s0 m0
   where
     lookupCont_ :: Eq k => Hash -> k -> Shift -> HashMap k v -> r
-    lookupCont_ h k _ (Leaf hx (L kx x))
+    lookupCont_ !h !k !_s (Leaf hx (L kx x))
         | h == hx && k == kx = present x (-1)
         | otherwise          = absent (# #)
     lookupCont_ h k s (BitmapIndexed b v)
