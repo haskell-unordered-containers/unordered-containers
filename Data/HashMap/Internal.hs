@@ -895,7 +895,7 @@ insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
 insertNewKey :: Hash -> k -> v -> HashMap k v -> HashMap k v
 insertNewKey !h0 !k0 x0 m0 = go h0 k0 x0 0 m0
   where
-    go h k x s t@(Leaf hy l)
+    go !h !k x !s t@(Leaf hy l)
       | hy == h = collision h l (L k x)
       | otherwise = runST (two s h k x hy t)
     go h k x s (BitmapIndexed b ary)
@@ -969,7 +969,7 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
     go :: forall s. Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
-    go h k x s t@(Leaf hy l@(L ky y))
+    go !h !k x !s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then if x `ptrEq` y
                          then return t
@@ -1061,7 +1061,7 @@ insertModifying :: Hashable k => v -> (v -> (# v #)) -> k -> HashMap k v
 insertModifying x f k0 m0 = go h0 k0 0 m0
   where
     !h0 = hash k0
-    go h k s t@(Leaf hy l@(L ky y))
+    go !h !k !s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then case f y of
                       (# v' #) | ptrEq y v' -> t
@@ -1136,7 +1136,7 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
     go :: Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
-    go h k x s t@(Leaf hy l@(L ky y))
+    go !h !k x !s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then case f k x y of
                         (# v #) -> return $! Leaf h (L k v)
@@ -1279,7 +1279,7 @@ adjust# :: Hashable k => (v -> (# v #)) -> k -> HashMap k v -> HashMap k v
 adjust# f k0 m0 = go h0 k0 0 m0
   where
     h0 = hash k0
-    go h k _ t@(Leaf hy (L ky y))
+    go !h !k !_ t@(Leaf hy (L ky y))
         | hy == h && ky == k = case f y of
             (# y' #) | ptrEq y y' -> t
                      | otherwise -> Leaf h (L k y')
