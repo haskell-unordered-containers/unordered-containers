@@ -12,7 +12,7 @@ jobs:
     steps:
 
     - name: checkout mhs repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         repository: augustss/MicroHs
         ref: v0.14.23.1
@@ -23,7 +23,7 @@ jobs:
         make minstall
 
     - name: checkout unordered-containers repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         path: unordered-containers
     - name: compile and install unordered-containers package
