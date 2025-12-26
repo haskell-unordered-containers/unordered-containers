@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP              #-}
 {-# LANGUAGE MagicHash        #-}
+{-# LANGUAGE PatternSynonyms  #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UnboxedTuples    #-}
 
@@ -32,7 +33,8 @@ import Data.Bits             (complement, countTrailingZeros, popCount, shiftL,
 import Data.Hashable         (Hashable)
 import Data.HashMap.Internal (Bitmap, Hash, HashMap (..), Leaf (..),
                               bitsPerSubkey, fullBitmap, hash,
-                              isLeafOrCollision, maxChildren, sparseIndex)
+                              isLeafOrCollision, maxChildren, pattern Empty,
+                              sparseIndex)
 import Data.Semigroup        (Sum (..))
 
 import qualified Data.HashMap.Internal.Array as A
