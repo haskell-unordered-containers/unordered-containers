@@ -8,9 +8,9 @@
 #
 # For more information, see https://github.com/haskell-CI/haskell-ci
 #
-# version: 0.19.20250917
+# version: 0.19.20260104
 #
-# REGENDATA ("0.19.20250917",["github","unordered-containers.cabal"])
+# REGENDATA ("0.19.20260104",["github","unordered-containers.cabal"])
 #
 name: Haskell-CI
 on:
@@ -35,14 +35,19 @@ jobs:
     strategy:
       matrix:
         include:
+          - compiler: ghc-9.14.1
+            compilerKind: ghc
+            compilerVersion: 9.14.1
+            setup-method: ghcup
+            allow-failure: false
           - compiler: ghc-9.12.2
             compilerKind: ghc
             compilerVersion: 9.12.2
             setup-method: ghcup
             allow-failure: false
-          - compiler: ghc-9.10.2
+          - compiler: ghc-9.10.3
             compilerKind: ghc
-            compilerVersion: 9.10.2
+            compilerVersion: 9.10.3
             setup-method: ghcup
             allow-failure: false
           - compiler: ghc-9.8.4
@@ -197,7 +202,7 @@ jobs:
           if [ $((HCNUMVER >= 90000)) -ne 0 ] ; then echo "    ghc-options: -Werror=incomplete-patterns -Werror=incomplete-uni-patterns" >> cabal.project ; fi
           cat >> cabal.project <<EOF
           EOF
-          $HCPKG list --simple-output --names-only | perl -ne 'for (split /\s+/) { print "constraints: any.$_ installed\n" unless /^(binary|bytestring|containers|text|unordered-containers)$/; }' >> cabal.project.local
+          $HCPKG list --simple-output --names-only | perl -ne 'for (split /\s+/) { print "constraints: any.$_ installed\n" unless /^(binary|bytestring|containers|text|time|unordered-containers)$/; }' >> cabal.project.local
           cat cabal.project
           cat cabal.project.local
       - name: dump install plan
