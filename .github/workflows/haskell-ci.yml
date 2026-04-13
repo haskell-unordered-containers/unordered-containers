@@ -205,6 +205,16 @@ jobs:
           $HCPKG list --simple-output --names-only | perl -ne 'for (split /\s+/) { print "constraints: any.$_ installed\n" unless /^(binary|bytestring|containers|text|time|unordered-containers)$/; }' >> cabal.project.local
           cat cabal.project
           cat cabal.project.local
+      - name: add containers from git (for upsert/fromListUpsert)
+        run: |
+          cat >> cabal.project <<EOF
+          source-repository-package
+            type: git
+            location: https://github.com/haskell/containers
+            tag: 11887d43dbf65898d48b9a486e85f8b91a53e0f7
+            subdir: containers
+          EOF
+          cat cabal.project
       - name: dump install plan
         run: |
           $CABAL v2-build $ARG_COMPILER $ARG_TESTS $ARG_BENCH --dry-run all
