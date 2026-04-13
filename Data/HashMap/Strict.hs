@@ -104,6 +104,7 @@ module Data.HashMap.Strict
     , fromList
     , fromListWith
     , fromListWithKey
+    , fromListUpsert
 
       -- ** HashSets
     , HS.keysSet

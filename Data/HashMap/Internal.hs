@@ -112,6 +112,7 @@ module Data.HashMap.Internal
     , fromList
     , fromListWith
     , fromListWithKey
+    , fromListUpsert
 
       -- ** Internals used by the strict version
     , Hash
@@ -2745,6 +2746,33 @@ fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m) empty
 {-# INLINE fromListWithKey #-}
+
+-- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
+-- the provided function to combine values.
+--
+-- The result is equivalent to performing an 'upsert' for every key\/value
+-- in the list.
+--
+-- @
+-- fromListUpsert f = 'List.foldl'' (\\m (k, x) -> 'upsert' (f x) k m) 'empty'
+-- @
+--
+-- ==== __Examples__
+--
+-- Group all values by their keys:
+--
+-- > let xs = [('a', 1), ('b', 2), ('a', 3)]
+-- > in fromListUpsert (\x -> maybe [x] (x:)) xs
+-- >
+-- > = fromList [('a', [3, 1]), ('b', [2])]
+--
+-- Note that the lists in the resulting map contain elements in reverse order
+-- from their occurrences in the original list.
+--
+-- @since FIXME
+fromListUpsert :: Hashable k => (a -> Maybe v -> v) -> [(k, a)] -> HashMap k v
+fromListUpsert f = List.foldl' (\ m (k, x) -> upsert (f x) k m) empty
+{-# INLINE fromListUpsert #-}
 
 ------------------------------------------------------------------------
 -- Array operations
