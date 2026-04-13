@@ -47,6 +47,7 @@ module Data.HashMap.Strict
     , delete
     , adjust
     , update
+    , upsert
     , alter
     , alterF
     , isSubmapOf

@@ -68,6 +68,7 @@ module Data.HashMap.Internal.Strict
     , HM.delete
     , adjust
     , update
+    , upsert
     , alter
     , alterF
     , HM.isSubmapOf
@@ -306,6 +307,30 @@ adjust f k0 m0 = go h0 k0 0 m0
 update :: Hashable k => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
 update f = alter (>>= f)
 {-# INLINABLE update #-}
+
+-- | \(O(\log n)\) Update the value at a key or insert a value if the key is
+-- not in the map.
+--
+-- @
+-- let inc = maybe 1 (+1)
+-- upsert inc 'a' (fromList [('a',1),('c',2)]) == fromList [('a',2),('c',2)]
+-- upsert inc 'b' (fromList [('a',1),('c',2)]) == fromList [('a',1),('b',1),('c',2)]
+-- @
+--
+-- @since FIXME
+upsert :: Hashable k => (Maybe v -> v) -> k -> HashMap k v -> HashMap k v
+upsert f k m =
+    let !h = hash k
+        !lookupRes = HM.lookupRecordCollision h k m
+    in case lookupRes of
+        Absent          -> HM.insertNewKey h k v' m
+          where !v' = f Nothing
+        Present v collPos ->
+            let !v' = f (Just v)
+            in if v `ptrEq` v'
+               then m
+               else HM.insertKeyExists collPos h k v' m
+{-# INLINABLE upsert #-}
 
 -- | \(O(\log n)\)  The expression @('alter' f k map)@ alters the value @x@ at @k@, or
 -- absence thereof.

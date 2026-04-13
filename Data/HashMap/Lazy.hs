@@ -48,6 +48,7 @@ module Data.HashMap.Lazy
     , delete
     , adjust
     , update
+    , upsert
     , alter
     , alterF
     , isSubmapOf

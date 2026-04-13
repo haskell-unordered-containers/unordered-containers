@@ -208,12 +208,19 @@ tests =
       , testProperty "valid" $
         \(Fn f) k (x :: HMKI) -> isValid (HM.adjust f k x)
       ]
-    , testGroup "update" 
+    , testGroup "update"
       [ testProperty "model" $
         \(Fn f) k (x :: HMKI) ->
           toOrdMap (HM.update f k x) === M.update f k (toOrdMap x)
       , testProperty "valid" $
         \(Fn f) k (x :: HMKI) -> isValid (HM.update f k x)
+      ]
+    , testGroup "upsert"
+      [ testProperty "model" $
+        \(Fn f) k (x :: HMKI) ->
+          toOrdMap (HM.upsert f k x) === M.upsert f k (toOrdMap x)
+      , testProperty "valid" $
+        \(Fn f) k (x :: HMKI) -> isValid (HM.upsert f k x)
       ]
     , testGroup "alter"
       [ testProperty "model" $
