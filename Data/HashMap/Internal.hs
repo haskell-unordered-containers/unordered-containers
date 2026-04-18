@@ -1331,14 +1331,9 @@ upsert f k m =
     let !h = hash k
         !lookupRes = lookupRecordCollision h k m
     in case lookupRes of
-        Absent          -> insertNewKey h k (f Nothing) m
-        Present v collPos ->
-            let !v' = f (Just v)
-            in if v `ptrEq` v'
-               then m
-               else insertKeyExists collPos h k v' m
+        Absent -> insertNewKey h k (f Nothing) m
+        Present v collPos -> insertKeyExists collPos h k (f (Just v)) m
 {-# INLINABLE upsert #-}
-
 
 -- | \(O(\log n)\)  The expression @('alter' f k map)@ alters the value @x@ at @k@, or
 -- absence thereof.
