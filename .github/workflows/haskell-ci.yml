@@ -211,7 +211,7 @@ jobs:
           source-repository-package
             type: git
             location: https://github.com/haskell/containers
-            tag: 11887d43dbf65898d48b9a486e85f8b91a53e0f7
+            tag: 6f9b7681ed3d85edd7aca3ff5656c48971fe9884
             subdir: containers
           EOF
           cat cabal.project
