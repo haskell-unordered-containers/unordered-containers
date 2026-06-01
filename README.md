@@ -71,6 +71,22 @@ immediately without inspecting the contents. The `Eq` instances of `Text` and
 `ByteString` already short-circuit on length, and `Hashed` compares cached
 hashes before comparing the underlying values.
 
+#### Re-use the old value instead of inserting an equal one
+
+Update functions such as `insertWith`, `adjust`, `update`, `alter` and `alterF`
+check whether the value you produce is *pointer-equal* to the one already
+stored. When it is, the original map is returned unchanged, with no new `Leaf`
+and no copying of the nodes along the path from the root to the key.
+
+You can take advantage of this by returning the existing value itself when an
+update turns out to be a no-op, rather than constructing a fresh but equal value:
+
+```haskell
+-- `f` returns its argument unchanged when there is nothing to do, so
+-- unordered-containers re-uses the existing value and the whole map:
+adjust (\v -> if shouldUpdate v then update v else v) k m
+```
+
 ### More documentation
 
 For background information and design considerations on this package see the
