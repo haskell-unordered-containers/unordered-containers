@@ -502,18 +502,28 @@ unionWithKey f = go 0
                    ary1 ary2
         in Full ary'
     -- leaf vs. branch
-    go s (BitmapIndexed b1 ary1) t2
+    go s (BitmapIndexed b1 ary1) t2@(Leaf h2 _)      = bitmapIndexedVsLeafOrCollision s b1 ary1 h2 t2
+    go s (BitmapIndexed b1 ary1) t2@(Collision h2 _) = bitmapIndexedVsLeafOrCollision s b1 ary1 h2 t2
+    go s t1@(Leaf h1 _)      (BitmapIndexed b2 ary2) = leafOrCollisionVsBitmapIndexed s h1 t1 b2 ary2
+    go s t1@(Collision h1 _) (BitmapIndexed b2 ary2) = leafOrCollisionVsBitmapIndexed s h1 t1 b2 ary2
+    go s (Full ary1) t2@(Leaf h2 _)      = fullVsLeafOrCollision s ary1 h2 t2
+    go s (Full ary1) t2@(Collision h2 _) = fullVsLeafOrCollision s ary1 h2 t2
+    go s t1@(Leaf h1 _)      (Full ary2) = leafOrCollisionVsFull s h1 t1 ary2
+    go s t1@(Collision h1 _) (Full ary2) = leafOrCollisionVsFull s h1 t1 ary2
+
+    bitmapIndexedVsLeafOrCollision !s !b1 !ary1 !h2 t2
         | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
                                b'   = b1 .|. m2
                            in HM.bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
                                    go (nextShift s) st1 t2
                            in BitmapIndexed b1 ary'
-        where
-          h2 = HM.hashOfLeafOrCollision t2
-          m2 = mask h2 s
-          i = sparseIndex b1 m2
-    go s t1 (BitmapIndexed b2 ary2)
+      where
+        m2 = mask h2 s
+        i = sparseIndex b1 m2
+    {-# NOINLINE bitmapIndexedVsLeafOrCollision #-}
+
+    leafOrCollisionVsBitmapIndexed !s !h1 t1 !b2 !ary2
         | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
                                b'   = b2 .|. m1
                            in HM.bitmapIndexedOrFull b' ary'
@@ -521,19 +531,23 @@ unionWithKey f = go 0
                                    go (nextShift s) t1 st2
                            in BitmapIndexed b2 ary'
       where
-        h1 = HM.hashOfLeafOrCollision t1
         m1 = mask h1 s
         i = sparseIndex b2 m1
-    go s (Full ary1) t2 =
-        let h2   = HM.hashOfLeafOrCollision t2
-            i    = index h2 s
-            ary' = HM.updateFullArrayWith' ary1 i $ \st1 -> go (nextShift s) st1 t2
-        in Full ary'
-    go s t1 (Full ary2) =
-        let h1   = HM.hashOfLeafOrCollision t1
-            i    = index h1 s
-            ary' = HM.updateFullArrayWith' ary2 i $ \st2 -> go (nextShift s) t1 st2
-        in Full ary'
+    {-# NOINLINE leafOrCollisionVsBitmapIndexed #-}
+
+    fullVsLeafOrCollision !s !ary1 !h2 t2 =
+        Full ary'
+      where
+        i    = index h2 s
+        ary' = HM.updateFullArrayWith' ary1 i $ \st1 -> go (nextShift s) st1 t2
+    {-# NOINLINE fullVsLeafOrCollision #-}
+
+    leafOrCollisionVsFull !s !h1 t1 !ary2 =
+        Full ary'
+      where
+        i    = index h1 s
+        ary' = HM.updateFullArrayWith' ary2 i $ \st2 -> go (nextShift s) t1 st2
+    {-# NOINLINE leafOrCollisionVsFull #-}
 
     goDifferentHash s h1 h2 t1 t2
         | m1 == m2  = BitmapIndexed m1 (A.singleton $! goDifferentHash (nextShift s) h1 h2 t1 t2)
