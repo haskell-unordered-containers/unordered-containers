@@ -254,6 +254,25 @@ data HashMap k v
     -- * No two keys stored in a 'Collision' can be equal according to their
     --   'Eq' instance. (INV10)
 
+{-
+Note [Canonical form]
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The invariants above imply that HashMaps have a canonical form: two
+HashMaps that contain the same key-value pairs have the same tree
+structure, modulo the order of keys within a Collision node -- regardless
+of the order in which they were constructed. This is because each key's
+hash fully determines the path to its leaf, while INV3, INV5 and INV8
+rule out alternative encodings of the same sub-tree (e.g. a redundant
+BitmapIndexed node wrapping a single child, or a BitmapIndexed node that
+could be a Full node).
+
+Several functions rely on this. They walk the leaves of two trees in tree
+order and compare or combine them pairwise, treating only Collision nodes
+as unordered -- for example, equal1. Without a canonical form these could
+give inconsistent results for maps with equal contents.
+-}
+
 type role HashMap nominal representational
 
 -- | @since 0.2.17.0
@@ -428,6 +447,7 @@ instance Eq k => Eq1 (HashMap k) where
 instance (Eq k, Eq v) => Eq (HashMap k v) where
     (==) = equal1 (==)
 
+-- See Note [Canonical form]
 equal1 :: Eq k
        => (v -> v' -> Bool)
        -> HashMap k v -> HashMap k v' -> Bool
@@ -444,6 +464,7 @@ equal1 eq = go
 
     leafEq (L k1 v1) (L k2 v2) = k1 == k2 && eq v1 v2
 
+-- See Note [Canonical form]
 equal2 :: (k -> k' -> Bool) -> (v -> v' -> Bool)
       -> HashMap k v -> HashMap k' v' -> Bool
 equal2 eqk eqv t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
@@ -478,6 +499,7 @@ instance Ord k => Ord1 (HashMap k) where
 instance (Ord k, Ord v) => Ord (HashMap k v) where
     compare = cmp compare compare
 
+-- See Note [Canonical form]
 cmp :: (k -> k' -> Ordering) -> (v -> v' -> Ordering)
     -> HashMap k v -> HashMap k' v' -> Ordering
 cmp cmpk cmpv t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
@@ -504,6 +526,7 @@ cmp cmpk cmpv t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
 equalKeys1 :: (k -> k' -> Bool) -> HashMap k v -> HashMap k' v' -> Bool
 equalKeys1 eq t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
   where
+    -- See Note [Canonical form]
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
       | k1 == k2 && leafEq l1 l2
       = go tl1 tl2
@@ -520,6 +543,7 @@ equalKeys1 eq t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
 equalKeys :: Eq k => HashMap k v -> HashMap k v' -> Bool
 equalKeys = go
   where
+    -- See Note [Canonical form]
     go :: Eq k => HashMap k v -> HashMap k v' -> Bool
     go Empty Empty = True
     go (BitmapIndexed bm1 ary1) (BitmapIndexed bm2 ary2)
@@ -532,6 +556,7 @@ equalKeys = go
 
     leafEq (L k1 _) (L k2 _) = k1 == k2
 
+-- See Note [Canonical form]
 instance Hashable2 HashMap where
     liftHashWithSalt2 hk hv salt hm = go salt (leavesAndCollisions hm [])
       where
@@ -558,6 +583,7 @@ instance Hashable2 HashMap where
 instance (Hashable k) => Hashable1 (HashMap k) where
     liftHashWithSalt = H.liftHashWithSalt2 H.hashWithSalt
 
+-- See Note [Canonical form]
 instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
     hashWithSalt salt hm = go salt hm
       where
