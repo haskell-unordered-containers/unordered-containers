@@ -160,6 +160,8 @@ instance (Ord a) => Ord (HashSet a) where
 instance Ord1 HashSet where
     liftCompare c (HashSet a) (HashSet b) = liftCompare2 c compare a b
 
+-- | Note that 'Foldable.elem' is \(O(n)\). For a 'Hashable' element
+-- type, use 'member', which is \(O(\log n)\).
 instance Foldable.Foldable HashSet where
     foldMap f = foldMapWithKey (\a _ -> f a) . asMap
     foldr = foldr
