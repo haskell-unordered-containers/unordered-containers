@@ -141,10 +141,9 @@ unsafeSameArray :: Array a -> Array b -> Bool
 unsafeSameArray (Array xs) (Array ys) =
   tagToEnum# (unsafeCoerce# reallyUnsafePtrEquality# xs ys)
 
+-- | Precondition: the two arrays have the same length. This is not checked.
 sameArray1 :: (a -> b -> Bool) -> Array a -> Array b -> Bool
-sameArray1 eq !xs0 !ys0
-  | lenxs /= lenys = False
-  | otherwise = go 0 xs0 ys0
+sameArray1 eq !xs0 !ys0 = go 0 xs0 ys0
   where
     go !k !xs !ys
       | k == lenxs = True
@@ -153,7 +152,6 @@ sameArray1 eq !xs0 !ys0
       = eq x y && go (k + 1) xs ys
 
     !lenxs = length xs0
-    !lenys = length ys0
 
 length :: Array a -> Int
 length ary = I# (sizeofSmallArray# (unArray ary))
