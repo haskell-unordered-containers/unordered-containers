@@ -367,6 +367,8 @@ type Bitmap = Word
 -- 'bitsPerSubkey', @2*'bitsPerSubkey'@ etc.
 --
 -- Valid values are non-negative and less than @bitSize (0 :: Word)@.
+--
+-- See Note [Subkey].
 type Shift  = Int
 
 instance Show2 HashMap where
@@ -2862,10 +2864,35 @@ clone ary =
 ------------------------------------------------------------------------
 -- Bit twiddling
 
--- TODO: Name this 'bitsPerLevel'?! What is a "subkey"?
--- https://github.com/haskell-unordered-containers/unordered-containers/issues/425
+{-
+Note [Subkey]
+~~~~~~~~~~~~~
+A "subkey" is a contiguous slice of 'bitsPerSubkey' bits of a 'Hash'. A hash
+can be understood as a sequence of subkeys, ordered from the least significant
+bits to the most significant ones. For example, with 'bitsPerSubkey' = 5 a
+32-bit hash decomposes into seven subkeys (the highest one being truncated):
 
--- | Number of bits that are inspected at each level of the hash tree.
+    hash    = 0b10_00101_00100_00011_00010_00001_00000
+    subkeys =   [0b00000, 0b00001, 0b00010, 0b00011, 0b00100, 0b00101, 0b10]
+                  ^^^^^^^ first subkey, from the least significant bits
+
+The tree consumes one subkey per level: the subkey at position i selects which
+child to descend into at level i. The 'Shift' of a level is the bit offset of
+its subkey within the hash, i.e. @i * 'bitsPerSubkey'@, and 'index' extracts
+the subkey at a given 'Shift':
+
+    index hash shift = (hash `unsafeShiftR` shift) .&. subkeyMask
+
+Because a subkey is 'bitsPerSubkey' bits wide, it has 'maxChildren'
+(= @2 ^ 'bitsPerSubkey'@) possible values. This is why 'Full' nodes have
+exactly that many children and a 'Bitmap' has that many meaningful bits.
+
+The term "subkey" is specific to this implementation; it does not appear in
+Bagwell's /Ideal Hash Trees/, where 'bitsPerSubkey' is called /t/.
+-}
+
+-- | Number of bits that are inspected at each level of the hash tree, i.e. the
+-- width of a subkey. See Note [Subkey].
 --
 -- This constant is named /t/ in the original /Ideal Hash Trees/ paper.
 --
@@ -2883,12 +2910,15 @@ bitsPerSubkey = 5
 maxChildren :: Int
 maxChildren = 1 `unsafeShiftL` bitsPerSubkey
 
--- | Bit mask with the lowest 'bitsPerSubkey' bits set, i.e. @0b11111@.
+-- | Bit mask with the lowest 'bitsPerSubkey' bits set, i.e. @0b11111@. Used to
+-- extract a single subkey from a (shifted) 'Hash'. See Note [Subkey].
 subkeyMask :: Word
 subkeyMask = 1 `unsafeShiftL` bitsPerSubkey - 1
 
 -- | Given a 'Hash' and a 'Shift' that indicates the level in the tree, compute
 -- the index into a 'Full' node or into the bitmap of a `BitmapIndexed` node.
+--
+-- This is the subkey at the given 'Shift'. See Note [Subkey].
 --
 -- >>> index 0b0010_0010 0
 -- 0b0000_0010
