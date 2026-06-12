@@ -111,6 +111,7 @@ module Data.HashMap.Internal
     , fromList
     , fromListWith
     , fromListWithKey
+    , fromListWorker
 
       -- ** Internals used by the strict version
     , Hash
@@ -2655,7 +2656,7 @@ toList t = Exts.build (\ c z -> foldrWithKey (curry c) z t)
 -- | \(O(n \log n)\) Construct a map with the supplied mappings.  If the list
 -- contains duplicate mappings, the later mappings take precedence.
 fromList :: Hashable k => [(k, v)] -> HashMap k v
-fromList = List.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
+fromList = fromListWorker fst snd (\ v -> (# v #)) (\ _ new _ -> (# new #))
 {-# INLINABLE fromList #-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
@@ -2689,7 +2690,7 @@ fromList = List.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
 fromListWith :: Hashable k => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
+fromListWith f = fromListWorker fst snd (\ v -> (# v #)) (\ _ new old -> (# f new old #))
 {-# INLINE fromListWith #-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
@@ -2719,8 +2720,174 @@ fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 --
 -- @since 0.2.11
 fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m) empty
+fromListWithKey f = fromListWorker fst snd (\ v -> (# v #)) (\ k new old -> (# f k new old #))
 {-# INLINE fromListWithKey #-}
+
+------------------------------------------------------------------------
+-- fromList builder
+
+-- Note [fromList builder]
+-- ~~~~~~~~~~~~~~~~~~~~~~~
+-- 'fromListWorker' constructs the whole map within a single 'runST',
+-- mutating the still-unshared tree in place via 'A.unsafeThaw'. To avoid
+-- copying a 'BitmapIndexed' node's array on every new child, the arrays are
+-- over-allocated, relaxing invariant (INV4) while building to
+--
+--   A.length ary >= popCount b
+--
+-- A node's capacity is the length of its array, its used prefix has length
+-- @popCount b@, and the unused suffix is filled with @undefinedElem@. Given
+-- spare capacity, a new child is inserted by shifting part of the used
+-- prefix in place ('A.insertSlotM'); only when capacity runs out is the
+-- array reallocated, with 'growCapacity' slots. A 'BitmapIndexed' node is
+-- replaced by a 'Full' node as soon as its bitmap fills up, so 'Full' nodes
+-- are never over-allocated.
+--
+-- Before the map escapes the 'runST', 'shrinkTreeB' restores (INV4) by
+-- shrinking every over-allocated array in place: 'A.shrink' merely updates
+-- the length in the array header, so this pass allocates nothing and the
+-- node constructors can be reused as they are.
+
+-- | Capacity of the reallocated array when a node has outgrown the old
+-- one's capacity @cap@.
+growCapacity :: Shift -> Int -> Int
+growCapacity _s cap = (cap `unsafeShiftL` 1) `min` maxChildren
+{-# INLINE growCapacity #-}
+
+-- | Insert a new child into a possibly over-allocated 'BitmapIndexed' node.
+--
+-- The bit @m@ must not be set in @b@; @i@ must be the sparse index of @m@
+-- in @b@. See Note [fromList builder].
+insertNewChildB
+    :: Shift -> Bitmap -> A.Array (HashMap k v) -> Bitmap -> Int
+    -> HashMap k v -> ST s (HashMap k v)
+insertNewChildB !s b ary m i !child
+    | used < cap = do
+        mary <- A.unsafeThaw ary
+        A.insertSlotM mary i used child
+        _ <- A.unsafeFreeze mary
+        return $! bitmapIndexedOrFull b' ary
+    | otherwise = do
+        mary' <- A.new_ (growCapacity s cap)
+        A.copy ary 0 mary' 0 i
+        A.write mary' i child
+        A.copy ary i mary' (i+1) (used-i)
+        ary' <- A.unsafeFreeze mary'
+        return $! bitmapIndexedOrFull b' ary'
+  where
+    !used = popCount b
+    !cap  = A.length ary
+    !b'   = b .|. m
+{-# INLINE insertNewChildB #-}
+
+-- | Restore invariant (INV4) by shrinking over-allocated arrays in place.
+-- See Note [fromList builder].
+shrinkTreeB :: HashMap k v -> ST s ()
+shrinkTreeB t0 = case t0 of
+    BitmapIndexed b ary -> do
+        let !used = popCount b
+        if A.length ary == used
+            then return ()
+            else do
+                mary <- A.unsafeThaw ary
+                _ <- A.shrink mary used
+                _ <- A.unsafeFreeze mary
+                return ()
+        shrinkChildren ary used
+    Full ary -> shrinkChildren ary maxChildren
+    _ -> return ()
+  where
+    shrinkChildren ary n = go 0
+      where
+        go i | i >= n = return ()
+             | otherwise = do
+                 st <- A.indexM ary i
+                 shrinkTreeB st
+                 go (i+1)
+
+-- | Shared worker of the @fromList@ family, for 'Data.HashMap.Lazy',
+-- 'Data.HashMap.Strict' and 'Data.HashSet'. See Note [fromList builder].
+--
+-- @prep@ is applied to a value just before it is first stored for its key;
+-- the strict variants force the value there. @combine new old@ produces the
+-- updated value when the key is already present; if it returns a pointer to
+-- the old value, the old leaf is reused. @getK@ and @getV@ extract key and
+-- value from a list element, allowing 'Data.HashSet.fromList' to avoid
+-- allocating pairs.
+fromListWorker
+    :: forall e k v. Hashable k
+    => (e -> k)
+    -> (e -> v)
+    -> (v -> (# v #))
+    -> (k -> v -> v -> (# v #))
+    -> [e] -> HashMap k v
+fromListWorker getK getV prep combine = \ es0 -> runST $ do
+    m <- foldList es0 Empty
+    shrinkTreeB m
+    return m
+  where
+    foldList :: forall s. [e] -> HashMap k v -> ST s (HashMap k v)
+    foldList [] !m = return m
+    foldList (e:es) !m = do
+        let !k = getK e
+        m' <- go (hash k) k (getV e) 0 m
+        foldList es m'
+
+    -- Mirrors the 'go' of 'unsafeInsertWithKey', except for the
+    -- new-child branch and the eager Full conversion.
+    go :: forall s. Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
+    go !h !k x !_ Empty = case prep x of
+        (# x' #) -> return $! Leaf h (L k x')
+    go h k x s t@(Leaf hy l@(L ky y))
+        | hy == h = if ky == k
+                    then case combine k x y of
+                        (# y' #) | y' `ptrEq` y -> return t
+                                 | otherwise    -> return $! Leaf h (L k y')
+                    else case prep x of
+                        (# x' #) -> return $! collision h l (L k x')
+        | otherwise = case prep x of
+            (# x' #) -> two s h k x' hy t
+    go h k x s t@(BitmapIndexed b ary)
+        | b .&. m == 0 = case prep x of
+            (# x' #) -> insertNewChildB s b ary m i $! Leaf h (L k x')
+        | otherwise = do
+            st <- A.indexM ary i
+            st' <- go h k x (nextShift s) st
+            A.unsafeUpdateM ary i st'
+            return t
+      where m = mask h s
+            i = sparseIndex b m
+    go h k x s t@(Full ary) = do
+        st <- A.indexM ary i
+        st' <- go h k x (nextShift s) st
+        A.unsafeUpdateM ary i st'
+        return t
+      where i = index h s
+    go h k x s t@(Collision hy v)
+        | h == hy   = return $! Collision h (updateOrSnocWithKeyB prep combine k x v)
+        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+{-# INLINE fromListWorker #-}
+
+-- | Like 'updateOrSnocWithKey', but applies @prep@ before storing a value
+-- for a previously absent key, and reuses the array if @f@ returns a
+-- pointer to the old value. See 'fromListWorker'.
+updateOrSnocWithKeyB
+    :: Eq k
+    => (v -> (# v #)) -> (k -> v -> v -> (# v #)) -> k -> v
+    -> Array (Leaf k v) -> Array (Leaf k v)
+updateOrSnocWithKeyB prep f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
+  where
+    go !k v !ary !i !n
+        -- Not found, append to the end.
+        | i >= n = case prep v of
+            (# v' #) -> A.snoc ary (L k v')
+        | otherwise = case A.index# ary i of
+            (# L kx y #)
+                | k == kx -> case f k v y of
+                    (# y' #) | y' `ptrEq` y -> ary
+                             | otherwise    -> A.update ary i (L k y')
+                | otherwise -> go k v ary (i+1) n
+{-# INLINABLE updateOrSnocWithKeyB #-}
 
 ------------------------------------------------------------------------
 -- Array operations
