@@ -59,6 +59,7 @@ module Data.HashMap.Internal.Array
     , copy
     , copyM
     , cloneM
+    , insertSlotM
 
       -- * Folds
     , foldl
@@ -341,6 +342,17 @@ insertM ary idx b =
            unsafeFreeze mary
   where !count = length ary
 {-# INLINE insertM #-}
+
+-- | \(O(n)\) In-place insert: shift the elements in @[idx, used)@ one slot
+-- to the right and write the new element at @idx@. The array must have a
+-- capacity of at least @used + 1@.
+insertSlotM :: MArray s e -> Int -> Int -> e -> ST s ()
+insertSlotM mary idx used x = do
+    -- copySmallMutableArray# permits overlapping ranges when source and
+    -- destination are the same array.
+    copyM mary idx mary (idx+1) (used-idx)
+    write mary idx x
+{-# INLINE insertSlotM #-}
 
 -- | \(O(n)\) Update the element at the given position in this array.
 update :: Array e -> Int -> e -> Array e
