@@ -1,3 +1,8 @@
+## Unreleased
+
+* Performance improvements:
+  * [Build the `fromList` family with a single-pass builder using over-allocated arrays](https://github.com/haskell-unordered-containers/unordered-containers/issues/532)
+
 ## [0.2.21] - December 2025
 
 * API enhancements:
