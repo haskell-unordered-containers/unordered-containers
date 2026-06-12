@@ -11,6 +11,7 @@ import Control.DeepSeq (NFData)
 import Control.Monad (replicateM)
 import Data.Bifunctor (second)
 import Data.Bits (testBit)
+import qualified Data.HashMap.Lazy
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet
@@ -28,6 +29,7 @@ main =
         "HashMap.Strict"
         [ bSize,
           bFromList,
+          bFromListWith,
           bLookup,
           bInsert,
           bUpdate,
@@ -39,6 +41,7 @@ main =
           bDifference,
           bDifferenceWith
         ],
+      bgroup "HashMap.Lazy" [bLazyFromList],
       bgroup "HashSet" [bSetFromList]
     ]
 
@@ -72,6 +75,29 @@ bFromList =
   where
     setupBytes s gen = genNBytes s bytesLength gen
     b s = bench (show s) . whnf (HM.fromList . map (,()))
+
+bFromListWith :: Benchmark
+bFromListWith =
+  bgroup
+    "fromListWith"
+    [ bgroup "distinctKeys" [bgroup' "Int" setupDistinct b],
+      bgroup "duplicateKeys" [bgroup' "Int" setupDuplicate b]
+    ]
+  where
+    b s = bench (show s) . whnf (HM.fromListWith (+))
+    setupDistinct s gen = map (,1 :: Int) <$> genInts s gen
+    -- ~4 occurrences of each key on average
+    setupDuplicate s gen = map (,1 :: Int) <$> genIntsR (s `div` 4) s gen
+
+bLazyFromList :: Benchmark
+bLazyFromList =
+  bgroup
+    "fromList"
+    [ bgroup' "Bytes" (\s gen -> genNBytes s bytesLength gen) b,
+      bgroup' "Int" genInts b
+    ]
+  where
+    b s = bench (show s) . whnf (Data.HashMap.Lazy.fromList . map (,()))
 
 -- 1000 lookups each, so we get more precise timings
 bLookup :: Benchmark
@@ -558,6 +584,15 @@ genInts ::
   g ->
   m [Int]
 genInts n = replicateM n . uniformM
+
+-- | Generate uniform random ints in the inclusive range @[0, upper]@.
+genIntsR ::
+  (StatefulGen g m) =>
+  Int ->
+  Int ->
+  g ->
+  m [Int]
+genIntsR upper n = replicateM n . uniformRM (0, upper)
 
 genBytesMap :: (StatefulGen g m) => Int -> g -> m (HashMap Bytes Int)
 genBytesMap s gen = do
