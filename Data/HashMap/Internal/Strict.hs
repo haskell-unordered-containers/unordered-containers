@@ -622,8 +622,8 @@ intersectionWithKey f = HM.intersectionWithKey# $ \k v1 v2 -> let !v3 = f k v1 v
 -- list contains duplicate mappings, the later mappings take
 -- precedence.
 fromList :: Hashable k => [(k, v)] -> HashMap k v
-fromList = HM.fromListWorker fst snd (\ !v -> (# v #)) (\ _ new _ -> let !n = new in (# n #))
-{-# INLINABLE fromList #-}
+fromList = HM.fromListWorker (\ (k_, v_) -> (# k_, v_ #)) (\ !v -> (# v #)) (\ _ new _ -> let !n = new in (# n #))
+{-# INLINE fromList #-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
 -- the provided function @f@ to merge duplicate entries with
@@ -656,7 +656,7 @@ fromList = HM.fromListWorker fst snd (\ !v -> (# v #)) (\ _ new _ -> let !n = ne
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
 fromListWith :: Hashable k => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f = HM.fromListWorker fst snd (\ !v -> (# v #)) (\ _ new old -> let !r = f new old in (# r #))
+fromListWith f = HM.fromListWorker (\ (k_, v_) -> (# k_, v_ #)) (\ !v -> (# v #)) (\ _ new old -> let !r = f new old in (# r #))
 {-# INLINE fromListWith #-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
@@ -686,7 +686,7 @@ fromListWith f = HM.fromListWorker fst snd (\ !v -> (# v #)) (\ _ new old -> let
 --
 -- @since 0.2.11
 fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWithKey f = HM.fromListWorker fst snd (\ !v -> (# v #)) (\ k new old -> let !r = f k new old in (# r #))
+fromListWithKey f = HM.fromListWorker (\ (k_, v_) -> (# k_, v_ #)) (\ !v -> (# v #)) (\ k new old -> let !r = f k new old in (# r #))
 {-# INLINE fromListWithKey #-}
 
 ------------------------------------------------------------------------

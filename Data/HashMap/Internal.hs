@@ -1117,49 +1117,6 @@ insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
               | otherwise -> go k ary (i+1) n
 {-# INLINE insertModifyingArr #-}
 
--- | In-place update version of insertWith
-unsafeInsertWith :: forall k v. Hashable k
-                 => (v -> v -> v) -> k -> v -> HashMap k v
-                 -> HashMap k v
-unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (\_ a b -> (# f a b #)) k0 v0 m0
-{-# INLINABLE unsafeInsertWith #-}
-
-unsafeInsertWithKey :: forall k v. Hashable k
-                 => (k -> v -> v -> (# v #)) -> k -> v -> HashMap k v
-                 -> HashMap k v
-unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
-  where
-    h0 = hash k0
-    go :: Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
-    go !h !k x !_ Empty = return $! Leaf h (L k x)
-    go h k x s t@(Leaf hy l@(L ky y))
-        | hy == h = if ky == k
-                    then case f k x y of
-                        (# v #) -> return $! Leaf h (L k v)
-                    else return $! collision h l (L k x)
-        | otherwise = two s h k x hy t
-    go h k x s t@(BitmapIndexed b ary)
-        | b .&. m == 0 = do
-            ary' <- A.insertM ary i $! Leaf h (L k x)
-            return $! bitmapIndexedOrFull (b .|. m) ary'
-        | otherwise = do
-            st <- A.indexM ary i
-            st' <- go h k x (nextShift s) st
-            A.unsafeUpdateM ary i st'
-            return t
-      where m = mask h s
-            i = sparseIndex b m
-    go h k x s t@(Full ary) = do
-        st <- A.indexM ary i
-        st' <- go h k x (nextShift s) st
-        A.unsafeUpdateM ary i st'
-        return t
-      where i = index h s
-    go h k x s t@(Collision hy v)
-        | h == hy   = return $! Collision h (updateOrSnocWithKey f k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-{-# INLINABLE unsafeInsertWithKey #-}
-
 -- | \(O(\log n)\) Remove the mapping for the specified key from this map
 -- if present.
 delete :: Hashable k => k -> HashMap k v -> HashMap k v
@@ -2656,8 +2613,8 @@ toList t = Exts.build (\ c z -> foldrWithKey (curry c) z t)
 -- | \(O(n \log n)\) Construct a map with the supplied mappings.  If the list
 -- contains duplicate mappings, the later mappings take precedence.
 fromList :: Hashable k => [(k, v)] -> HashMap k v
-fromList = fromListWorker fst snd (\ v -> (# v #)) (\ _ new _ -> (# new #))
-{-# INLINABLE fromList #-}
+fromList = fromListWorker (\ (k_, v_) -> (# k_, v_ #)) (\ v -> (# v #)) (\ _ new _ -> (# new #))
+{-# INLINE fromList #-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
 -- the provided function @f@ to merge duplicate entries with
@@ -2690,7 +2647,7 @@ fromList = fromListWorker fst snd (\ v -> (# v #)) (\ _ new _ -> (# new #))
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
 fromListWith :: Hashable k => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f = fromListWorker fst snd (\ v -> (# v #)) (\ _ new old -> (# f new old #))
+fromListWith f = fromListWorker (\ (k_, v_) -> (# k_, v_ #)) (\ v -> (# v #)) (\ _ new old -> (# f new old #))
 {-# INLINE fromListWith #-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
@@ -2720,7 +2677,7 @@ fromListWith f = fromListWorker fst snd (\ v -> (# v #)) (\ _ new old -> (# f ne
 --
 -- @since 0.2.11
 fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWithKey f = fromListWorker fst snd (\ v -> (# v #)) (\ k new old -> (# f k new old #))
+fromListWithKey f = fromListWorker (\ (k_, v_) -> (# k_, v_ #)) (\ v -> (# v #)) (\ k new old -> (# f k new old #))
 {-# INLINE fromListWithKey #-}
 
 ------------------------------------------------------------------------
@@ -2808,33 +2765,33 @@ shrinkTreeB t0 = case t0 of
 -- | Shared worker of the @fromList@ family, for 'Data.HashMap.Lazy',
 -- 'Data.HashMap.Strict' and 'Data.HashSet'. See Note [fromList builder].
 --
--- @prep@ is applied to a value just before it is first stored for its key;
--- the strict variants force the value there. @combine new old@ produces the
--- updated value when the key is already present; if it returns a pointer to
--- the old value, the old leaf is reused. @getK@ and @getV@ extract key and
--- value from a list element, allowing 'Data.HashSet.fromList' to avoid
--- allocating pairs.
+-- @unpack@ extracts key and value from a list element, binding a pair's
+-- fields directly so that no selector thunks arise; 'Data.HashSet.fromList'
+-- passes @\\ k -> (# k, () #)@. @prep@ is applied to a value just before it
+-- is first stored for its key; the strict variants force the value there.
+-- @combine new old@ produces the updated value when the key is already
+-- present; if it returns a pointer to the old value, the old leaf is reused.
+--
+-- The list is consumed with 'List.foldr' in accumulator-passing style, so
+-- that @fromList@ is a good consumer and fuses with list producers.
 fromListWorker
     :: forall e k v. Hashable k
-    => (e -> k)
-    -> (e -> v)
+    => (e -> (# k, v #))
     -> (v -> (# v #))
     -> (k -> v -> v -> (# v #))
     -> [e] -> HashMap k v
-fromListWorker getK getV prep combine = \ es0 -> runST $ do
-    m <- foldList es0 Empty
+fromListWorker unpack prep combine = \ es0 -> runST $ do
+    m <- List.foldr step return es0 Empty
     shrinkTreeB m
     return m
   where
-    foldList :: forall s. [e] -> HashMap k v -> ST s (HashMap k v)
-    foldList [] !m = return m
-    foldList (e:es) !m = do
-        let !k = getK e
-        m' <- go (hash k) k (getV e) 0 m
-        foldList es m'
+    step :: forall s. e -> (HashMap k v -> ST s (HashMap k v))
+         -> HashMap k v -> ST s (HashMap k v)
+    step e cont !m = case unpack e of
+        (# k, v #) -> go (hash k) k v 0 m >>= cont
 
-    -- Mirrors the 'go' of 'unsafeInsertWithKey', except for the
-    -- new-child branch and the eager Full conversion.
+    -- Mirrors the 'go' of 'unsafeInsert', except for the combining
+    -- function, the new-child branch and the eager Full conversion.
     go :: forall s. Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
     go !h !k x !_ Empty = case prep x of
         (# x' #) -> return $! Leaf h (L k x')
