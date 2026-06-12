@@ -2707,6 +2707,9 @@ fromListWithKey f = fromListWorker (\ (k_, v_) -> (# k_, v_ #)) (\ v -> (# v #))
 
 -- | Capacity of the reallocated array when a node has outgrown the old
 -- one's capacity @cap@.
+-- Plain doubling beat a level-scaled variant (jump to maxChildren at the
+-- root) in the policy comparison for #532: allocation was within 0.5% at
+-- large sizes but 50% lower for tiny maps.
 growCapacity :: Shift -> Int -> Int
 growCapacity _s cap = (cap `unsafeShiftL` 1) `min` maxChildren
 {-# INLINE growCapacity #-}
