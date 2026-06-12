@@ -4,6 +4,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE Trustworthy        #-}
 {-# LANGUAGE TypeFamilies       #-}
+{-# LANGUAGE UnboxedTuples      #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
 ------------------------------------------------------------------------
@@ -473,7 +474,7 @@ toList t = Exts.build (\ c z -> foldrWithKey (const . c) z (asMap t))
 
 -- | \(O(n \log n)\) Construct a set from a list of elements.
 fromList :: Hashable a => [a] -> HashSet a
-fromList = HashSet . List.foldl' (\ m k -> H.unsafeInsert k () m) H.empty
+fromList = HashSet . H.fromListWorker id (const ()) (\ v -> (# v #)) (\ _ new _ -> (# new #))
 {-# INLINE fromList #-}
 
 #if defined(__GLASGOW_HASKELL__)
