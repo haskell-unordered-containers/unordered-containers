@@ -2766,11 +2766,13 @@ shrinkTreeB t0 = case t0 of
                  go (i+1)
 
 -- | Initial capacity of a new node's array at shift @s@, given that @n@
--- slots are needed right away. The root array starts with 6 slots — sized
--- to one cache line (2 header words + 6 slots = 64 bytes) — skipping its
--- first growth steps; deeper nodes start exact, since most never grow.
+-- slots are needed right away. The root array starts with 8 slots: with
+-- doubling this yields the schedule 8,16,32, which allocates fewer words
+-- than exact-start 2,4,8,16,32 for any final occupancy >= 3, at the cost
+-- of 6 words for 2-entry maps. Deeper nodes start exact, since most of
+-- them never grow.
 initialCapacityB :: Shift -> Int -> Int
-initialCapacityB s n = if s == 0 then 6 else n
+initialCapacityB s n = if s == 0 then 8 else n
 {-# INLINE initialCapacityB #-}
 
 -- | Like 'two', but over-allocates per 'initialCapacityB'.
