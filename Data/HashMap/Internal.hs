@@ -2765,6 +2765,41 @@ shrinkTreeB t0 = case t0 of
                  shrinkTreeB st
                  go (i+1)
 
+-- | Initial capacity of a new node's array at shift @s@, given that @n@
+-- slots are needed right away. The root array starts with 6 slots — sized
+-- to one cache line (2 header words + 6 slots = 64 bytes) — skipping its
+-- first growth steps; deeper nodes start exact, since most never grow.
+initialCapacityB :: Shift -> Int -> Int
+initialCapacityB s n = if s == 0 then 6 else n
+{-# INLINE initialCapacityB #-}
+
+-- | Like 'two', but over-allocates per 'initialCapacityB'.
+-- See Note [fromList builder].
+twoB :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
+twoB = go
+  where
+    go !s !h1 !k1 v1 !h2 t2
+        | bp1 == bp2 = do
+            st <- go (nextShift s) h1 k1 v1 h2 t2
+            mary <- A.new_ (initialCapacityB s 1)
+            A.write mary 0 st
+            ary <- A.unsafeFreeze mary
+            return $ BitmapIndexed bp1 ary
+        | otherwise = do
+            mary <- A.new_ (initialCapacityB s 2)
+            A.write mary (1-idx2) $! Leaf h1 (L k1 v1)
+            A.write mary idx2 t2
+            ary <- A.unsafeFreeze mary
+            return $ BitmapIndexed (bp1 .|. bp2) ary
+      where
+        bp1  = mask h1 s
+        bp2  = mask h2 s
+        !(I# i1) = index h1 s
+        !(I# i2) = index h2 s
+        idx2 = I# (i1 Exts.<# i2)
+        -- See the comment on idx2 in 'two'.
+{-# INLINE twoB #-}
+
 -- | Shared worker of the @fromList@ family, for 'Data.HashMap.Lazy',
 -- 'Data.HashMap.Strict' and 'Data.HashSet'. See Note [fromList builder].
 --
@@ -2806,7 +2841,7 @@ fromListWorker unpack prep combine = \ es0 -> runST $ do
                     else case prep x of
                         (# x' #) -> return $! collision h l (L k x')
         | otherwise = case prep x of
-            (# x' #) -> two s h k x' hy t
+            (# x' #) -> twoB s h k x' hy t
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = case prep x of
             (# x' #) -> insertNewChildB s b ary m i $! Leaf h (L k x')
