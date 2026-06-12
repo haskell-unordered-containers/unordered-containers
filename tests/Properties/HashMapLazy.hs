@@ -461,6 +461,17 @@ tests =
         \(kvs :: [(Key, Int)]) -> toOrdMap (HM.fromList kvs) === M.fromList kvs
       , testProperty "valid" $
         \(kvs :: [(Key, Int)]) -> isValid (HM.fromList kvs)
+      , testProperty "foldl'-insert" $
+        \(kvs :: [(Key, Int)]) ->
+          HM.fromList kvs === List.foldl' (\m (k, v) -> HM.insert k v m) HM.empty kvs
+        -- Contiguous Int keys produce dense maps, exercising the
+        -- array-growth and Full-conversion paths of the fromList builder.
+      , testProperty "dense" $
+        QC.forAll (QC.chooseInt (0, 5000)) $ \n ->
+          let kvs = [(k, k) | k <- [0 :: Int .. n]]
+              m = HM.fromList kvs
+          in isValid m QC..&&.
+             m === List.foldl' (\acc (k, v) -> HM.insert k v acc) HM.empty kvs
       ]
     , testGroup "fromListWith"
       [ testProperty "model" $
@@ -469,6 +480,9 @@ tests =
           in  toOrdMap (HM.fromListWith Op kvsM) === M.fromListWith Op kvsM
       , testProperty "valid" $
         \(Fn2 f) (kvs :: [(Key, A)]) -> isValid (HM.fromListWith f kvs)
+      , testProperty "foldl'-insertWith" $
+        \(Fn2 f) (kvs :: [(Key, A)]) ->
+          HM.fromListWith f kvs === List.foldl' (\m (k, v) -> HM.insertWith f k v m) HM.empty kvs
       ]
     , testGroup "fromListWithKey"
       [ testProperty "model" $

@@ -133,6 +133,8 @@ tests = testGroup "Data.HashSet"
   , testProperty "filter" $
     \(Fn p) (s :: HSK) -> toOrdSet (HS.filter p s) === S.filter p (toOrdSet s)
   -- Conversions
+  , testProperty "fromList" $
+    \(xs :: [Key]) -> HS.fromList xs === List.foldl' (flip HS.insert) HS.empty xs
   , testProperty "toList" $
     \(xs :: [Key]) -> List.sort (HS.toList (HS.fromList xs)) === S.toAscList (S.fromList xs)
   ]
