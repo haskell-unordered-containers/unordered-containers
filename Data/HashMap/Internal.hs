@@ -173,7 +173,7 @@ import Data.HashMap.Internal.Array (Array, MArray)
 import Data.HashMap.Internal.List  (isPermutationBy, unorderedCompare)
 import Data.Maybe                  (isNothing)
 import Data.Semigroup              (Semigroup (..), stimesIdempotentMonoid)
-import GHC.Exts                    (Int (..), Int#, TYPE, (==#))
+import GHC.Exts                    (Int (..), Int#, SPEC (..), TYPE, (==#))
 import GHC.Stack                   (HasCallStack)
 import Prelude                     hiding (Foldable (..), filter, lookup, map,
                                     pred)
@@ -2331,84 +2331,80 @@ searchSwap mary n toFind start = go start toFind start
 --
 -- @since 0.2.21
 disjoint :: Eq k => HashMap k a -> HashMap k b -> Bool
-disjoint = disjointSubtrees 0
-{-# INLINE disjoint #-}
-
--- Note that as of GHC 9.12, SpecConstr creates a specialized worker for
--- handling the Collision vs. {BitmapIndexed,Full} and vice-versa cases,
--- but this worker fails to be properly specialized for different key
--- types. See https://gitlab.haskell.org/ghc/ghc/-/issues/26615.
-disjointSubtrees :: Eq k => Shift -> HashMap k a -> HashMap k b -> Bool
-disjointSubtrees !_s Empty _b = True
-disjointSubtrees s (Leaf hA (L kA _)) b =
-  lookupCont (\_ -> True) (\_ _ -> False) hA kA s b
-disjointSubtrees s (BitmapIndexed bmA aryA) (BitmapIndexed bmB aryB) =
-  -- We could do a pointer equality check here but it's probably not worth it
-  -- since it would save only O(1) extra work:
-  --
-  -- not (aryA `A.unsafeSameArray` aryB) &&
-  disjointArrays s bmA aryA bmB aryB
-disjointSubtrees s (BitmapIndexed bmA aryA) (Full aryB) =
-  disjointArrays s bmA aryA fullBitmap aryB
-disjointSubtrees s (Full aryA) (BitmapIndexed bmB aryB) =
-  disjointArrays s fullBitmap aryA bmB aryB
-disjointSubtrees s (Full aryA) (Full aryB) =
-    -- We could do a pointer equality check here but it's probably not worth it
-    -- since it would save only O(1) extra work:
-    --
-    -- not (aryA `A.unsafeSameArray` aryB) &&
-    go (maxChildren - 1)
+disjoint a b = go SPEC 0 a b
   where
-    go i
-      | i < 0 = True
-      | otherwise = case A.index# aryA i of
-          (# stA #) -> case A.index# aryB i of
-            (# stB #) ->
-              disjointSubtrees (nextShift s) stA stB &&
-              go (i - 1)
-disjointSubtrees s a@(Collision hA _) (BitmapIndexed bmB aryB)
-  | m .&. bmB == 0 = True
-  | otherwise = case A.index# aryB i of
-      (# stB #) -> disjointSubtrees (nextShift s) a stB
-  where
-    m = mask hA s
-    i = sparseIndex bmB m
-disjointSubtrees s a@(Collision hA _) (Full aryB) =
-  case A.index# aryB (index hA s) of
-    (# stB #) -> disjointSubtrees (nextShift s) a stB
-disjointSubtrees _ (Collision hA aryA) (Collision hB aryB) =
-  disjointCollisions hA aryA hB aryB
-disjointSubtrees _s _a Empty = True
-disjointSubtrees s a (Leaf hB (L kB _)) =
-  lookupCont (\_ -> True) (\_ _ -> False) hB kB s a
-disjointSubtrees s a b@Collision{} = disjointSubtrees s b a
-{-# INLINABLE disjointSubtrees #-}
-
-disjointArrays :: Eq k => Shift -> Bitmap -> Array (HashMap k a) -> Bitmap -> Array (HashMap k b) -> Bool
-disjointArrays !s !bmA !aryA !bmB !aryB = go (bmA .&. bmB)
-  where
-    go 0 = True
-    go bm = case A.index# aryA iA of
-        (# stA #) -> case A.index# aryB iB of
-          (# stB #) ->
-            disjointSubtrees (nextShift s) stA stB &&
-            go (bm .&. complement m)
+    -- Keep the recursive worker under the INLINE wrapper so the client can
+    -- type-specialise first; then SpecConstr can see the specialised loop.
+    go :: Eq k => SPEC -> Shift -> HashMap k a -> HashMap k b -> Bool
+    go !_ !_ Empty _b = True
+    go !_ s (Leaf hA (L kA _)) b' =
+      lookupCont (\_ -> True) (\_ _ -> False) hA kA s b'
+    go !spec s (BitmapIndexed bmA aryA) (BitmapIndexed bmB aryB) =
+      disjointArrays spec s bmA aryA bmB aryB
+    go !spec s (BitmapIndexed bmA aryA) (Full aryB) =
+      disjointArrays spec s bmA aryA fullBitmap aryB
+    go !spec s (Full aryA) (BitmapIndexed bmB aryB) =
+      disjointArrays spec s fullBitmap aryA bmB aryB
+    go !spec s (Full aryA) (Full aryB) =
+        -- We could do a pointer equality check here but it's probably not worth it
+        -- since it would save only O(1) extra work:
+        --
+        -- not (aryA `A.unsafeSameArray` aryB) &&
+        goFull (maxChildren - 1)
       where
-        m = bm .&. negate bm
-        iA = sparseIndex bmA m
-        iB = sparseIndex bmB m
-{-# INLINE disjointArrays #-}
+        goFull i
+          | i < 0 = True
+          | otherwise = case A.index# aryA i of
+              (# stA #) -> case A.index# aryB i of
+                (# stB #) ->
+                  go spec (nextShift s) stA stB &&
+                  goFull (i - 1)
+    go !spec s (Collision hA aryA) b' =
+      goCollision spec s hA aryA b'
+    go !_ _ _a Empty = True
+    go !_ s a' (Leaf hB (L kB _)) =
+      lookupCont (\_ -> True) (\_ _ -> False) hB kB s a'
+    go !spec s a' (Collision hB aryB) =
+      goCollision spec s hB aryB a'
 
--- TODO: GHC 9.12.2 inlines disjointCollisions into `disjoint @Int`.
--- How do you prevent this while preserving specialization?
--- https://stackoverflow.com/questions/79838305/ensuring-specialization-while-preventing-inlining
-disjointCollisions :: Eq k => Hash -> Array (Leaf k a) -> Hash -> Array (Leaf k b) -> Bool
-disjointCollisions !hA !aryA !hB !aryB
-  | hA == hB = A.all predicate aryA
-  | otherwise = True
-  where
-    predicate (L kA _) = lookupInArrayCont (\_ -> True) (\_ _ -> False) kA aryB
-{-# INLINABLE disjointCollisions #-}
+    disjointArrays :: Eq k => SPEC -> Shift -> Bitmap -> Array (HashMap k a) -> Bitmap -> Array (HashMap k b) -> Bool
+    disjointArrays !spec !s !bmA !aryA !bmB !aryB = goBits (bmA .&. bmB)
+      where
+        goBits 0 = True
+        goBits bm = case A.index# aryA iA of
+            (# stA #) -> case A.index# aryB iB of
+              (# stB #) ->
+                go spec (nextShift s) stA stB &&
+                goBits (bm .&. complement m)
+          where
+            m = bm .&. negate bm
+            iA = sparseIndex bmA m
+            iB = sparseIndex bmB m
+
+    goCollision :: Eq k => SPEC -> Shift -> Hash -> Array (Leaf k a) -> HashMap k b -> Bool
+    goCollision !_ _ _ _ Empty = True
+    goCollision !_ s hA aryA (Leaf hB (L kB _)) =
+      lookupCont (\_ -> True) (\_ _ -> False) hB kB s (Collision hA aryA)
+    goCollision !spec s hA aryA (BitmapIndexed bmB aryB)
+      | m .&. bmB == 0 = True
+      | otherwise = case A.index# aryB i of
+          (# stB #) -> go spec (nextShift s) (Collision hA aryA) stB
+      where
+        m = mask hA s
+        i = sparseIndex bmB m
+    goCollision !spec s hA aryA (Full aryB) =
+      case A.index# aryB (index hA s) of
+        (# stB #) -> go spec (nextShift s) (Collision hA aryA) stB
+    goCollision _ _ hA aryA (Collision hB aryB) =
+      disjointCollisions hA aryA hB aryB
+
+    disjointCollisions :: Eq k => Hash -> Array (Leaf k a) -> Hash -> Array (Leaf k b) -> Bool
+    disjointCollisions !hA !aryA !hB !aryB
+      | hA == hB = A.all predicate aryA
+      | otherwise = True
+      where
+        predicate (L kA _) = lookupInArrayCont (\_ -> True) (\_ _ -> False) kA aryB
+{-# INLINE disjoint #-}
 
 ------------------------------------------------------------------------
 -- * Folds
