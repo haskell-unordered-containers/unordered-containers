@@ -208,12 +208,19 @@ tests =
       , testProperty "valid" $
         \(Fn f) k (x :: HMKI) -> isValid (HM.adjust f k x)
       ]
-    , testGroup "update" 
+    , testGroup "update"
       [ testProperty "model" $
         \(Fn f) k (x :: HMKI) ->
           toOrdMap (HM.update f k x) === M.update f k (toOrdMap x)
       , testProperty "valid" $
         \(Fn f) k (x :: HMKI) -> isValid (HM.update f k x)
+      ]
+    , testGroup "upsert"
+      [ testProperty "model" $
+        \(Fn f) k (x :: HMKI) ->
+          toOrdMap (HM.upsert f k x) === M.upsert f k (toOrdMap x)
+      , testProperty "valid" $
+        \(Fn f) k (x :: HMKI) -> isValid (HM.upsert f k x)
       ]
     , testGroup "alter"
       [ testProperty "model" $
@@ -478,6 +485,13 @@ tests =
           in  toOrdMap (HM.fromListWithKey combine kvsM) === M.fromListWithKey combine kvsM
       , testProperty "valid" $
         \(Fn3 f) (kvs :: [(Key, A)]) -> isValid (HM.fromListWithKey f kvs)
+      ]
+    , testGroup "fromListUpsert"
+      [ testProperty "model" $
+        \(Fn2 f :: Fun (A, Maybe A) A) (kvs :: [(Key, A)]) ->
+          toOrdMap (HM.fromListUpsert f kvs) === M.fromListUpsert f kvs
+      , testProperty "valid" $
+        \(Fn2 f :: Fun (A, Maybe A) A) (kvs :: [(Key, A)]) -> isValid (HM.fromListUpsert f kvs)
       ]
     , testProperty "toList" $
       \(m :: HMKI) -> List.sort (HM.toList m) === List.sort (M.toList (toOrdMap m))

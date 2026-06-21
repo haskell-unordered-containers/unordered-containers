@@ -54,6 +54,7 @@ module Data.HashMap.Internal
     , delete
     , adjust
     , update
+    , upsert
     , alter
     , alterF
     , isSubmapOf
@@ -111,6 +112,7 @@ module Data.HashMap.Internal
     , fromList
     , fromListWith
     , fromListWithKey
+    , fromListUpsert
 
       -- ** Internals used by the strict version
     , Hash
@@ -1314,6 +1316,24 @@ update :: Hashable k => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
 update f = alter (>>= f)
 {-# INLINABLE update #-}
 
+-- | \(O(\log n)\) Update the value at a key or insert a value if the key is
+-- not in the map.
+--
+-- @
+-- let inc = maybe 1 (+1)
+-- upsert inc 'a' (fromList [('a',1),('c',2)]) == fromList [('a',2),('c',2)]
+-- upsert inc 'b' (fromList [('a',1),('c',2)]) == fromList [('a',1),('b',1),('c',2)]
+-- @
+--
+-- @since FIXME
+upsert :: Hashable k => (Maybe v -> v) -> k -> HashMap k v -> HashMap k v
+upsert f k m =
+    let !h = hash k
+        !lookupRes = lookupRecordCollision h k m
+    in case lookupRes of
+        Absent -> insertNewKey h k (f Nothing) m
+        Present v collPos -> insertKeyExists collPos h k (f (Just v)) m
+{-# INLINABLE upsert #-}
 
 -- | \(O(\log n)\)  The expression @('alter' f k map)@ alters the value @x@ at @k@, or
 -- absence thereof.
@@ -2721,6 +2741,33 @@ fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m) empty
 {-# INLINE fromListWithKey #-}
+
+-- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
+-- the provided function to combine values.
+--
+-- The result is equivalent to performing an 'upsert' for every key\/value
+-- in the list.
+--
+-- @
+-- fromListUpsert f = 'List.foldl'' (\\m (k, x) -> 'upsert' (f x) k m) 'empty'
+-- @
+--
+-- ==== __Examples__
+--
+-- Group all values by their keys:
+--
+-- > let xs = [('a', 1), ('b', 2), ('a', 3)]
+-- > in fromListUpsert (\x -> maybe [x] (x:)) xs
+-- >
+-- > = fromList [('a', [3, 1]), ('b', [2])]
+--
+-- Note that the lists in the resulting map contain elements in reverse order
+-- from their occurrences in the original list.
+--
+-- @since FIXME
+fromListUpsert :: Hashable k => (a -> Maybe v -> v) -> [(k, a)] -> HashMap k v
+fromListUpsert f = List.foldl' (\ m (k, x) -> upsert (f x) k m) empty
+{-# INLINE fromListUpsert #-}
 
 ------------------------------------------------------------------------
 -- Array operations

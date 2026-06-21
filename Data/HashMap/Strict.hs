@@ -47,6 +47,7 @@ module Data.HashMap.Strict
     , delete
     , adjust
     , update
+    , upsert
     , alter
     , alterF
     , isSubmapOf
@@ -103,6 +104,7 @@ module Data.HashMap.Strict
     , fromList
     , fromListWith
     , fromListWithKey
+    , fromListUpsert
 
       -- ** HashSets
     , HS.keysSet
