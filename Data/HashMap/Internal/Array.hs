@@ -32,6 +32,7 @@ module Data.HashMap.Internal.Array
       -- * Creation
     , new
     , new_
+    , empty
     , singleton
     , singletonM
     , snoc
@@ -210,7 +211,7 @@ liftRnfArray rnf0 ary0 = go ary0 n0 0
 -- value.
 new :: Int -> a -> ST s (MArray s a)
 new _n@(I# n#) b =
-    CHECK_GT("new",_n,(0 :: Int))
+    CHECK_GE("new",_n,(0 :: Int))
     ST $ \s ->
         case newSmallArray# n# b s of
             (# s', ary #) -> (# s', MArray ary #)
@@ -227,6 +228,10 @@ shrink mary _n@(I# n#) =
   ST $ \s -> case Exts.shrinkSmallMutableArray# (unMArray mary) n# s of
     s' -> (# s', mary #)
 {-# INLINE shrink #-}
+
+empty :: Array a
+empty = run (new_ 0)
+{-# NOINLINE empty #-}
 
 singleton :: a -> Array a
 singleton x = runST (singletonM x)

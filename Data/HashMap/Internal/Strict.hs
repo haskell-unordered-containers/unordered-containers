@@ -196,7 +196,6 @@ insertWith :: Hashable k => (v -> v -> v) -> k -> v -> HashMap k v
 insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
   where
     h0 = hash k0
-    go !h !k x !_ Empty = leaf h k x
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then leaf h k (f x y)
@@ -204,8 +203,12 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
         | otherwise = x `seq` runST (HM.two s h k x hy t)
     go h k x s (BitmapIndexed b ary)
         | b .&. m == 0 =
-            let ary' = A.insert ary i $! leaf h k x
-            in HM.bitmapIndexedOrFull (b .|. m) ary'
+            let !l = leaf h k x
+            in if b == 0
+              then l
+              else
+                let ary' = A.insert ary i l
+                in HM.bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             case A.index# ary i of
               (# st #) ->
@@ -238,7 +241,6 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
     go :: forall s. Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
-    go !h !k x !_ Empty = return $! leaf h k x
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then return $! leaf h k (f k x y)
@@ -248,8 +250,12 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
         | otherwise = x `seq` HM.two s h k x hy t
     go h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 = do
-            ary' <- A.insertM ary i $! leaf h k x
-            return $! HM.bitmapIndexedOrFull (b .|. m) ary'
+            let !l = leaf h k x
+            if b == 0
+              then return l
+              else do
+                ary' <- A.insertM ary i l
+                return $! HM.bitmapIndexedOrFull (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
             st' <- go h k x (nextShift s) st
@@ -274,7 +280,6 @@ adjust :: Hashable k => (v -> v) -> k -> HashMap k v -> HashMap k v
 adjust f k0 m0 = go h0 k0 0 m0
   where
     h0 = hash k0
-    go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky y))
         | hy == h && ky == k = leaf h k (f y)
         | otherwise          = t
@@ -468,9 +473,6 @@ unionWithKey :: Eq k => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
           -> HashMap k v
 unionWithKey f = go 0
   where
-    -- empty vs. anything
-    go !_ t1 Empty = t1
-    go _ Empty t2 = t2
     -- leaf vs. leaf
     go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
@@ -503,9 +505,13 @@ unionWithKey f = go 0
         in Full ary'
     -- leaf vs. branch
     go s (BitmapIndexed b1 ary1) t2
-        | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
-                               b'   = b1 .|. m2
-                           in HM.bitmapIndexedOrFull b' ary'
+        | b1 .&. m2 == 0 =
+            if b1 == 0
+              then t2
+              else
+                let ary' = A.insert ary1 i t2
+                    b'   = b1 .|. m2
+                in HM.bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
                                    go (nextShift s) st1 t2
                            in BitmapIndexed b1 ary'
@@ -514,9 +520,13 @@ unionWithKey f = go 0
           m2 = mask h2 s
           i = sparseIndex b1 m2
     go s t1 (BitmapIndexed b2 ary2)
-        | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
-                               b'   = b2 .|. m1
-                           in HM.bitmapIndexedOrFull b' ary'
+        | b2 .&. m1 == 0 =
+            if b2 == 0
+              then t1
+              else
+                let ary' = A.insert ary2 i t1
+                    b'   = b2 .|. m1
+                in HM.bitmapIndexedOrFull b' ary'
         | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
                                    go (nextShift s) t1 st2
                            in BitmapIndexed b2 ary'
@@ -555,7 +565,6 @@ unionWithKey f = go 0
 mapWithKey :: (k -> v1 -> v2) -> HashMap k v1 -> HashMap k v2
 mapWithKey f = go
   where
-    go Empty                 = Empty
     go (Leaf h (L k v))      = leaf h k (f k v)
     go (BitmapIndexed b ary) = BitmapIndexed b $ A.map' go ary
     go (Full ary)            = Full $ A.map' go ary
@@ -607,7 +616,6 @@ traverseWithKey
   -> HashMap k v1 -> f (HashMap k v2)
 traverseWithKey f = go
   where
-    go Empty                 = pure Empty
     go (Leaf h (L k v))      = leaf h k <$> f k v
     go (BitmapIndexed b ary) = BitmapIndexed b <$> A.traverse' go ary
     go (Full ary)            = Full <$> A.traverse' go ary
