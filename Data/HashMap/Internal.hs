@@ -1358,10 +1358,16 @@ alterF :: (Functor f, Hashable k)
 alterF f = \ !k !m ->
   let
     !h = hash k
-    mv = lookup' h k m
-  in (<$> f mv) $ \case
-    Nothing -> maybe m (const (delete' h k m)) mv
-    Just v' -> insert' h k v' m
+    lookupRes = lookupRecordCollision h k m
+    mv = lookupResToMaybe lookupRes
+  in (<$> f mv) $ \fres ->
+    case fres of
+      Nothing -> case lookupRes of
+        Absent      -> m
+        Present _ i -> deleteKeyExists i h k m
+      Just v' -> case lookupRes of
+        Absent      -> insertNewKey h k v' m
+        Present _ i -> insertKeyExists i h k v' m
 
 -- We unconditionally rewrite alterF in RULES, but we expose an
 -- unfolding just in case it's used in some way that prevents the
