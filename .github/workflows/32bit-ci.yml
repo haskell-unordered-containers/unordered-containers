@@ -25,7 +25,7 @@ jobs:
         # Pin the GHC version: the i386/ubuntu:bionic container can't run the
         # deb10 i386 bindist that ghcup's "recommended" GHC moved to (see #596).
         curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_INSTALL_NO_STACK=1 BOOTSTRAP_HASKELL_GHC_VERSION=9.6.7 sh
-    - uses: actions/checkout@v1 #This version must stay old enough to remain compatible with the container image
+    - uses: actions/checkout@v7 #This version must stay old enough to remain compatible with the container image
     - name: Test
       run: |
         source ~/.ghcup/env
