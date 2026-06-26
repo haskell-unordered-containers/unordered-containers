@@ -130,6 +130,7 @@ module Data.HashMap.Internal
     , sparseIndex
     , two
     , unionArrayBy
+    , unionArrayByInternal
     , updateFullArray
     , updateFullArrayM
     , updateFullArrayWith'
@@ -1707,22 +1708,18 @@ unionWithKey f = go 0
         | otherwise = goDifferentHash s h1 h2 t1 t2
     -- branch vs. branch
     go s (BitmapIndexed _ b1 ary1) (BitmapIndexed _ b2 ary2) =
-        let b'   = b1 .|. b2
-            ary' = unionArrayBy (go (nextShift s)) b1 b2 ary1 ary2
-            sz   = sumSizes ary'
+        let b'         = b1 .|. b2
+            (ary', sz) = unionArrayByInternal (go (nextShift s)) b1 b2 ary1 ary2
         in bitmapIndexedOrFull sz b' ary'
     go s (BitmapIndexed _ b1 ary1) (Full _ ary2) =
-        let ary' = unionArrayBy (go (nextShift s)) b1 fullBitmap ary1 ary2
-            sz   = sumSizes ary'
+        let (ary', sz) = unionArrayByInternal (go (nextShift s)) b1 fullBitmap ary1 ary2
         in Full sz ary'
     go s (Full _ ary1) (BitmapIndexed _ b2 ary2) =
-        let ary' = unionArrayBy (go (nextShift s)) fullBitmap b2 ary1 ary2
-            sz   = sumSizes ary'
+        let (ary', sz) = unionArrayByInternal (go (nextShift s)) fullBitmap b2 ary1 ary2
         in Full sz ary'
     go s (Full _ ary1) (Full _ ary2) =
-        let ary' = unionArrayBy (go (nextShift s)) fullBitmap fullBitmap
-                   ary1 ary2
-            sz   = sumSizes ary'
+        let (ary', sz) = unionArrayByInternal (go (nextShift s)) fullBitmap fullBitmap
+                         ary1 ary2
         in Full sz ary'
     -- leaf vs. branch
     go s (BitmapIndexed sz b1 ary1) t2
@@ -1813,6 +1810,43 @@ unionArrayBy f !b1 !b2 !ary1 !ary2 = A.run $ do
     -- subset of the other, we could use a slightly simpler algorithm,
     -- where we copy one array, and then update.
 {-# INLINE unionArrayBy #-}
+
+-- | Like 'unionArrayBy', but also returns the total 'size' of the combined
+-- sub-nodes, accumulated in the single pass the function already makes over
+-- the arrays. This avoids a separate @sumSizes@ traversal of the result, which
+-- would re-force the @size@ field of every freshly-built child.
+unionArrayByInternal
+    :: (HashMap k v -> HashMap k v -> HashMap k v)
+    -> Bitmap -> Bitmap
+    -> Array (HashMap k v) -> Array (HashMap k v)
+    -> (Array (HashMap k v), Int)
+unionArrayByInternal f !b1 !b2 !ary1 !ary2 = A.run2 $ do
+    let bCombined = b1 .|. b2
+    mary <- A.new_ (popCount bCombined)
+    -- iterate over nonzero bits of b1 .|. b2, accumulating the total size
+    let go !i !i1 !i2 !b !sz
+            | b == 0 = return sz
+            | testBit (b1 .&. b2) = do
+                x1 <- A.indexM ary1 i1
+                x2 <- A.indexM ary2 i2
+                let !x = f x1 x2
+                A.write mary i x
+                go (i+1) (i1+1) (i2+1) b' (sz + size x)
+            | testBit b1 = do
+                x1 <- A.indexM ary1 i1
+                A.write mary i x1
+                go (i+1) (i1+1) i2 b' (sz + size x1)
+            | otherwise = do
+                x2 <- A.indexM ary2 i2
+                A.write mary i x2
+                go (i+1) i1 (i2+1) b' (sz + size x2)
+          where
+            m = 1 `unsafeShiftL` countTrailingZeros b
+            testBit x = x .&. m /= 0
+            b' = b .&. complement m
+    sz <- go 0 0 0 bCombined 0
+    return (mary, sz)
+{-# INLINE unionArrayByInternal #-}
 
 -- TODO: Figure out the time complexity of 'unions'.
 
@@ -1987,28 +2021,30 @@ difference = go_difference 0
     
         -- TODO: i == popCount bResult. Not sure if that would be faster.
         -- Also i1 is in some relation with b1'
-        let goDA !i !i1 !b1' !bResult !nChanges
-              | b1' == 0 = pure (bResult, nChanges)
+        -- @sz@ accumulates the total size of the sub-nodes written to @mary@,
+        -- avoiding a separate @sumSizes@ pass over the result.
+        let goDA !i !i1 !b1' !bResult !nChanges !sz
+              | b1' == 0 = pure (bResult, nChanges, sz)
               | otherwise = do
                 !st1 <- A.indexM ary1 i1
                 case m .&. b2 of
                   0 -> do
                     A.write mary i st1
-                    goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges
+                    goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges (sz + size st1)
                   _ -> do
                     !st2 <- A.indexM ary2 (sparseIndex b2 m)
                     case go_difference (nextShift s) st1 st2 of
-                      Empty -> goDA i (i1 + 1) nextB1' bResult (nChanges + 1)
+                      Empty -> goDA i (i1 + 1) nextB1' bResult (nChanges + 1) sz
                       st -> do
                         A.write mary i st
                         let same = I# (Exts.reallyUnsafePtrEquality# st st1)
                         let nChanges' = nChanges + (1 - same)
-                        goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges'
+                        goDA (i + 1) (i1 + 1) nextB1' (bResult .|. m) nChanges' (sz + size st)
               where
                 m = b1' .&. negate b1'
                 nextB1' = b1' .&. complement m
     
-        (bResult, nChanges) <- goDA 0 0 b1 0 0
+        (bResult, nChanges, sz) <- goDA 0 0 b1 0 0 0
         if nChanges == 0
           then pure t1
           else case popCount bResult of
@@ -2017,10 +2053,10 @@ difference = go_difference 0
               l <- A.read mary 0
               if isLeafOrCollision l
                 then pure l
-                else BitmapIndexed (size l) bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
+                else BitmapIndexed sz bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
             n -> do
               ary <- A.unsafeFreeze =<< A.shrink mary n
-              pure $! bitmapIndexedOrFull (sumSizes ary) bResult ary
+              pure $! bitmapIndexedOrFull sz bResult ary
 {-# INLINABLE difference #-}
 
 -- TODO: This could be faster if we would keep track of which elements of ary2
@@ -2167,28 +2203,30 @@ differenceWithKey f = go_differenceWithKey 0
 
         -- TODO: i == popCount bResult. Not sure if that would be faster.
         -- Also iA is in some relation with bA'
-        let go_dWKA !i !iA !bA' !bResult !nChanges
-              | bA' == 0 = pure (bResult, nChanges)
+        -- @sz@ accumulates the total size of the sub-nodes written to @mary@,
+        -- avoiding a separate @sumSizes@ pass over the result.
+        let go_dWKA !i !iA !bA' !bResult !nChanges !sz
+              | bA' == 0 = pure (bResult, nChanges, sz)
               | otherwise = do
                 !stA <- A.indexM aryA iA
                 case m .&. bB of
                   0 -> do
                     A.write mary i stA
-                    go_dWKA (i + 1) (iA + 1) nextBA' (bResult .|. m) nChanges
+                    go_dWKA (i + 1) (iA + 1) nextBA' (bResult .|. m) nChanges (sz + size stA)
                   _ -> do
                     !stB <- A.indexM aryB (sparseIndex bB m)
                     case go_differenceWithKey (nextShift s) stA stB of
-                      Empty -> go_dWKA i (iA + 1) nextBA' bResult (nChanges + 1)
+                      Empty -> go_dWKA i (iA + 1) nextBA' bResult (nChanges + 1) sz
                       st -> do
                         A.write mary i st
                         let same = I# (Exts.reallyUnsafePtrEquality# st stA)
                         let nChanges' = nChanges + (1 - same)
-                        go_dWKA (i + 1) (iA + 1) nextBA' (bResult .|. m) nChanges'
+                        go_dWKA (i + 1) (iA + 1) nextBA' (bResult .|. m) nChanges' (sz + size st)
               where
                 m = bA' .&. negate bA'
                 nextBA' = bA' .&. complement m
 
-        (bResult, nChanges) <- go_dWKA 0 0 bA 0 0
+        (bResult, nChanges, sz) <- go_dWKA 0 0 bA 0 0 0
         if nChanges == 0
           then pure tA
           else case popCount bResult of
@@ -2197,10 +2235,10 @@ differenceWithKey f = go_differenceWithKey 0
               l <- A.read mary 0
               if isLeafOrCollision l
                 then pure l
-                else BitmapIndexed (size l) bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
+                else BitmapIndexed sz bResult <$> (A.unsafeFreeze =<< A.shrink mary 1)
             n -> do
               ary <- A.unsafeFreeze =<< A.shrink mary n
-              pure $! bitmapIndexedOrFull (sumSizes ary) bResult ary
+              pure $! bitmapIndexedOrFull sz bResult ary
 {-# INLINE differenceWithKey #-}
 
 -- | 'update', specialized to 'Collision' nodes.
@@ -2338,24 +2376,25 @@ intersectionArrayBy f !b1 !b2 !ary1 !ary2
   | b1 .&. b2 == 0 = Empty
   | otherwise = runST $ do
     mary <- A.new_ $ popCount bIntersect
-    -- iterate over nonzero bits of b1 .|. b2
-    let go !i !i1 !i2 !b !bFinal
-          | b == 0 = pure (i, bFinal)
+    -- iterate over nonzero bits of b1 .|. b2, accumulating the total size of
+    -- the written sub-nodes so we can avoid a separate @sumSizes@ pass.
+    let go !i !i1 !i2 !b !bFinal !sz
+          | b == 0 = pure (i, bFinal, sz)
           | testBit $ b1 .&. b2 = do
             x1 <- A.indexM ary1 i1
             x2 <- A.indexM ary2 i2
             case f x1 x2 of
-              Empty -> go i (i1 + 1) (i2 + 1) b' (bFinal .&. complement m)
-              _ -> do
-                A.write mary i $! f x1 x2
-                go (i + 1) (i1 + 1) (i2 + 1) b' bFinal
-          | testBit b1 = go i (i1 + 1) i2 b' bFinal
-          | otherwise = go i i1 (i2 + 1) b' bFinal
+              Empty -> go i (i1 + 1) (i2 + 1) b' (bFinal .&. complement m) sz
+              x -> do
+                A.write mary i x
+                go (i + 1) (i1 + 1) (i2 + 1) b' bFinal (sz + size x)
+          | testBit b1 = go i (i1 + 1) i2 b' bFinal sz
+          | otherwise = go i i1 (i2 + 1) b' bFinal sz
           where
             m = 1 `unsafeShiftL` countTrailingZeros b
             testBit x = x .&. m /= 0
             b' = b .&. complement m
-    (len, bFinal) <- go 0 0 0 bCombined bIntersect
+    (len, bFinal, sz) <- go 0 0 0 bCombined bIntersect 0
     case len of
       0 -> pure Empty
       1 -> do
@@ -2364,10 +2403,10 @@ intersectionArrayBy f !b1 !b2 !ary1 !ary2
           then pure l
           else do
               ary' <- A.unsafeFreeze =<< A.shrink mary 1
-              pure $! BitmapIndexed (sumSizes ary') bFinal ary'
+              pure $! BitmapIndexed sz bFinal ary'
       _ -> do
           ary' <- A.unsafeFreeze =<< A.shrink mary len
-          pure $! bitmapIndexedOrFull (sumSizes ary') bFinal ary'
+          pure $! bitmapIndexedOrFull sz bFinal ary'
   where
     bCombined = b1 .|. b2
     bIntersect = b1 .&. b2
@@ -2665,12 +2704,14 @@ filterMapAux onLeaf onColl = go
         let !n = A.length ary0
         in runST $ do
             mary <- A.new_ n
-            step ary0 mary b0 0 0 1 n
+            step ary0 mary b0 0 0 1 n 0
       where
+        -- @sz@ accumulates the total size of the kept sub-nodes, avoiding a
+        -- separate @sumSizes@ pass over the result array.
         step :: Array (HashMap k v1) -> MArray s (HashMap k v2)
-             -> Bitmap -> Int -> Int -> Bitmap -> Int
+             -> Bitmap -> Int -> Int -> Bitmap -> Int -> Int
              -> ST s (HashMap k v2)
-        step !ary !mary !b i !j !bi n
+        step !ary !mary !b i !j !bi n !sz
             | i >= n = case j of
                 0 -> return Empty
                 1 -> do
@@ -2680,19 +2721,18 @@ filterMapAux onLeaf onColl = go
                       _ -> BitmapIndexed (size ch) b <$> (A.unsafeFreeze =<< A.shrink mary 1)
                 _ -> do
                     ary2 <- A.unsafeFreeze =<< A.shrink mary j
-                    let sz' = sumSizes ary2
                     return $! if j == maxChildren
-                              then Full sz' ary2
-                              else BitmapIndexed sz' b ary2
-            | bi .&. b == 0 = step ary mary b i j (bi `unsafeShiftL` 1) n
+                              then Full sz ary2
+                              else BitmapIndexed sz b ary2
+            | bi .&. b == 0 = step ary mary b i j (bi `unsafeShiftL` 1) n sz
             | otherwise = do
                 st <- A.indexM ary i
                 case go st of
                   Empty ->
-                    step ary mary (b .&. complement bi) (i+1) j (bi `unsafeShiftL` 1) n
+                    step ary mary (b .&. complement bi) (i+1) j (bi `unsafeShiftL` 1) n sz
                   t -> do
                     A.write mary j t
-                    step ary mary b (i+1) (j+1) (bi `unsafeShiftL` 1) n
+                    step ary mary b (i+1) (j+1) (bi `unsafeShiftL` 1) n (sz + size t)
 
     filterC ary0 h =
         let !n = A.length ary0

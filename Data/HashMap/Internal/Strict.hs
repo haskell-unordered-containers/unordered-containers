@@ -502,21 +502,17 @@ unionWithKey f = go 0
         | otherwise = goDifferentHash s h1 h2 t1 t2
     -- branch vs. branch
     go s (BitmapIndexed _ b1 ary1) (BitmapIndexed _ b2 ary2) =
-        let b'   = b1 .|. b2
-            ary' = HM.unionArrayBy (go (nextShift s)) b1 b2 ary1 ary2
-            sz   = A.foldl' (\acc hm -> acc + HM.size hm) 0 ary'
+        let b'         = b1 .|. b2
+            (ary', sz) = HM.unionArrayByInternal (go (nextShift s)) b1 b2 ary1 ary2
         in HM.bitmapIndexedOrFull sz b' ary'
     go s (BitmapIndexed _ b1 ary1) (Full _ ary2) =
-        let ary' = HM.unionArrayBy (go (nextShift s)) b1 fullBitmap ary1 ary2
-            sz   = A.foldl' (\acc hm -> acc + HM.size hm) 0 ary'
+        let (ary', sz) = HM.unionArrayByInternal (go (nextShift s)) b1 fullBitmap ary1 ary2
         in Full sz ary'
     go s (Full _ ary1) (BitmapIndexed _ b2 ary2) =
-        let ary' = HM.unionArrayBy (go (nextShift s)) fullBitmap b2 ary1 ary2
-            sz   = A.foldl' (\acc hm -> acc + HM.size hm) 0 ary'
+        let (ary', sz) = HM.unionArrayByInternal (go (nextShift s)) fullBitmap b2 ary1 ary2
         in Full sz ary'
     go s (Full _ ary1) (Full _ ary2) =
-        let ary' = HM.unionArrayBy (go (nextShift s)) fullBitmap fullBitmap ary1 ary2
-            sz   = A.foldl' (\acc hm -> acc + HM.size hm) 0 ary'
+        let (ary', sz) = HM.unionArrayByInternal (go (nextShift s)) fullBitmap fullBitmap ary1 ary2
         in Full sz ary'
     -- leaf vs. branch
     go s (BitmapIndexed sz b1 ary1) t2
