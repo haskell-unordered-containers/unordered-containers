@@ -28,9 +28,6 @@ module Data.HashMap.Internal.List
 
 import Data.List  (sortBy)
 import Data.Maybe (fromMaybe)
-#if !MIN_VERSION_base(4,11,0)
-import Data.Semigroup ((<>))
-#endif
 
 -- Note: previous implementation isPermutation = null (as // bs)
 -- was O(n^2) too.

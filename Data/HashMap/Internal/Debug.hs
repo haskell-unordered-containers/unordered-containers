@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP              #-}
+{-# LANGUAGE MagicHash        #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE UnboxedTuples    #-}
 
 -- | = WARNING
 --
@@ -34,11 +36,6 @@ import Data.HashMap.Internal (Bitmap, Hash, HashMap (..), Leaf (..),
 import Data.Semigroup        (Sum (..))
 
 import qualified Data.HashMap.Internal.Array as A
-
-
-#if !MIN_VERSION_base(4,11,0)
-import Data.Semigroup (Semigroup (..))
-#endif
 
 data Validity k = Invalid (Error k) SubHashPath | Valid
   deriving (Eq, Show)
@@ -134,12 +131,14 @@ valid t     = validInternal initialSubHashPath t
 
     validSubTrees p b ary
       | A.length ary == 1
-      , isLeafOrCollision (A.index ary 0)
+      , (# st #) <- A.index# ary 0
+      , isLeafOrCollision st
       = Invalid INV5_BitmapIndexed_invalid_single_subtree p
       | otherwise = go b
       where
         go 0  = Valid
-        go b' = validInternal (addSubHash p (fromIntegral c)) (A.index ary i) <> go b''
+        go b' = case A.index# ary i of
+          (# st #) -> validInternal (addSubHash p (fromIntegral c)) st <> go b''
           where
             c = countTrailingZeros b'
             m = 1 `unsafeShiftL` c

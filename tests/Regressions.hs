@@ -1,8 +1,10 @@
+{-# LANGUAGE BinaryLiterals      #-}
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE UnboxedTuples       #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 module Regressions (tests) where
 
 import Control.Exception     (evaluate)
@@ -26,13 +28,10 @@ import Test.Tasty.QuickCheck (testProperty)
 import qualified Data.HashMap.Lazy   as HML
 import qualified Data.HashMap.Strict as HMS
 import qualified Data.HashSet        as HS
+import qualified Test.Tasty          as Tasty
 
-#if MIN_VERSION_base(4,12,0)
--- nothunks requires base >= 4.12
-#define HAVE_NOTHUNKS
 import qualified Data.Foldable  as Foldable
 import           NoThunks.Class (noThunksInValues)
-#endif
 
 issue32 :: Assertion
 issue32 = assert $ isJust $ HMS.lookup 7 m'
@@ -139,7 +138,6 @@ issue254Strict = do
 ------------------------------------------------------------------------
 -- Issue #379
 
-#ifdef HAVE_NOTHUNKS
 
 issue379Union :: Assertion
 issue379Union = do
@@ -164,8 +162,6 @@ issue379StrictUnionWithKey = do
   let u = HMS.unionWithKey (\(KC i) v0 v1 -> i + v0 + v1) m0 m1
   mThunkInfo <- noThunksInValues mempty (Foldable.toList u)
   assert $ isNothing mThunkInfo
-
-#endif
 
 -- Another key type that always collides.
 --
@@ -194,8 +190,6 @@ issue379LazyUnionWith = do
 ------------------------------------------------------------------------
 -- Issue #381
 
-#ifdef HAVE_NOTHUNKS
-
 issue381mapMaybe :: Assertion
 issue381mapMaybe = do
   let m0 = HMS.fromList [(KC 1, 10), (KC 2, 20 :: Int)]
@@ -209,8 +203,6 @@ issue381mapMaybeWithKey = do
   let m1 = HMS.mapMaybeWithKey (\(KC k) v -> Just (k + v)) m0
   mThunkInfo <- noThunksInValues mempty (Foldable.toList m1)
   assert $ isNothing mThunkInfo
-
-#endif
 
 ------------------------------------------------------------------------
 -- Issue #382
@@ -232,8 +224,6 @@ issue382 = do
 ------------------------------------------------------------------------
 -- Issue #383
 
-#ifdef HAVE_NOTHUNKS
-
 -- Custom Functor to prevent interference from alterF rules
 newtype MyIdentity a = MyIdentity a
 instance Functor MyIdentity where
@@ -248,8 +238,6 @@ issue383 = do
   mThunkInfo <- noThunksInValues mempty (Foldable.toList m)
   assert $ isNothing mThunkInfo
 
-#endif
-
 ------------------------------------------------------------------------
 -- Issue #420
 
@@ -261,6 +249,17 @@ issue420 = do
   let s1 = s0 `HS.intersection` s0
   assert $ k1 `HS.member` s1
   assert $ k2 `HS.member` s1
+
+------------------------------------------------------------------------
+-- Issue 491
+
+issue491 :: TestTree
+issue491 = Tasty.localOption (Tasty.mkTimeout 1000000) $ testGroup "issue491" $
+    [ testCase "1" $ assert $ m [0, -1] `HML.isSubmapOf` m [0, -1]
+    , testCase "2" $ assert $ m [1, 0b11111] `HML.isSubmapOf` m [1, 0b11111]
+    , testCase "3" $ assert $ m [0, 1] `HML.isSubmapOf` m [0, 1, 0b11111]
+    ]
+  where m = HS.toMap . HS.fromList @Int
 
 ------------------------------------------------------------------------
 -- * Test list
@@ -275,21 +274,16 @@ tests = testGroup "Regression tests"
     , testCase "issue254 strict" issue254Strict
     , testGroup "issue379"
           [ testCase "Lazy.unionWith" issue379LazyUnionWith
-#ifdef HAVE_NOTHUNKS
           , testCase "union" issue379Union
           , testCase "Strict.unionWith" issue379StrictUnionWith
           , testCase "Strict.unionWithKey" issue379StrictUnionWithKey
-#endif
           ]
-#ifdef HAVE_NOTHUNKS
     , testGroup "issue381"
           [ testCase "mapMaybe" issue381mapMaybe
           , testCase "mapMaybeWithKey" issue381mapMaybeWithKey
           ]
-#endif
     , testCase "issue382" issue382
-#ifdef HAVE_NOTHUNKS
     , testCase "issue383" issue383
-#endif
     , testCase "issue420" issue420
+    , issue491
     ]

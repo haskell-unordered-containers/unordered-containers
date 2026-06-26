@@ -37,7 +37,7 @@
 -- strings.
 --
 -- Many operations have a average-case complexity of \(O(\log n)\).  The
--- implementation uses a large base (i.e. 32) so in practice these
+-- implementation uses a large base (i.e. 16 or 32) so in practice these
 -- operations are constant time.
 
 module Data.HashSet.Internal
@@ -52,6 +52,7 @@ module Data.HashSet.Internal
     , null
     , size
     , member
+    , lookupElement
     , insert
     , delete
     , isSubsetOf
@@ -66,6 +67,7 @@ module Data.HashSet.Internal
       -- * Difference and intersection
     , difference
     , intersection
+    , disjoint
 
     -- * Folds
     , foldr
@@ -98,7 +100,7 @@ import Data.Hashable.Lifted  (Hashable1 (..), Hashable2 (..))
 import Data.HashMap.Internal (HashMap, equalKeys, equalKeys1, foldMapWithKey,
                               foldlWithKey, foldrWithKey)
 import Data.Semigroup        (Semigroup (..), stimesIdempotentMonoid)
-import Prelude               hiding (filter, foldl, foldr, map, null)
+import Prelude               hiding (Foldable (..), filter, map)
 import Text.Read
 
 import qualified Data.Data                  as Data
@@ -144,7 +146,7 @@ instance NFData1 HashSet where
 --
 -- In general, the lack of extensionality can be observed with any function
 -- that depends on the key ordering, such as folds and traversals.
-instance (Eq a) => Eq (HashSet a) where
+instance Eq a => Eq (HashSet a) where
     HashSet a == HashSet b = equalKeys a b
     {-# INLINE (==) #-}
 
@@ -158,6 +160,8 @@ instance (Ord a) => Ord (HashSet a) where
 instance Ord1 HashSet where
     liftCompare c (HashSet a) (HashSet b) = liftCompare2 c compare a b
 
+-- | Note that 'Foldable.elem' is \(O(n)\). For a 'Hashable' element
+-- type, use 'member', which is \(O(\log n)\).
 instance Foldable.Foldable HashSet where
     foldMap f = foldMapWithKey (\a _ -> f a) . asMap
     foldr = foldr
@@ -186,7 +190,7 @@ instance Foldable.Foldable HashSet where
 --
 -- >>> fromList [1,2] <> fromList [2,3]
 -- fromList [1,2,3]
-instance (Hashable a, Eq a) => Semigroup (HashSet a) where
+instance Hashable a => Semigroup (HashSet a) where
     (<>) = union
     {-# INLINE (<>) #-}
     stimes = stimesIdempotentMonoid
@@ -205,13 +209,13 @@ instance (Hashable a, Eq a) => Semigroup (HashSet a) where
 --
 -- >>> mappend (fromList [1,2]) (fromList [2,3])
 -- fromList [1,2,3]
-instance (Hashable a, Eq a) => Monoid (HashSet a) where
+instance Hashable a => Monoid (HashSet a) where
     mempty = empty
     {-# INLINE mempty #-}
     mappend = (<>)
     {-# INLINE mappend #-}
 
-instance (Eq a, Hashable a, Read a) => Read (HashSet a) where
+instance (Hashable a, Read a) => Read (HashSet a) where
     readPrec = parens $ prec 10 $ do
       Ident "fromList" <- lexP
       fromList <$> readPrec
@@ -226,7 +230,7 @@ instance (Show a) => Show (HashSet a) where
     showsPrec d m = showParen (d > 10) $
       showString "fromList " . shows (toList m)
 
-instance (Data a, Eq a, Hashable a) => Data (HashSet a) where
+instance (Data a, Hashable a) => Data (HashSet a) where
     gfoldl f z m   = z fromList `f` toList m
     toConstr _     = fromListConstr
     gunfold k z c  = case Data.constrIndex c of
@@ -296,7 +300,7 @@ keysSet m = fromMap (() <$ m)
 -- False
 --
 -- @since 0.2.12
-isSubsetOf :: (Eq a, Hashable a) => HashSet a -> HashSet a -> Bool
+isSubsetOf :: Hashable a => HashSet a -> HashSet a -> Bool
 isSubsetOf s1 s2 = H.isSubmapOfBy (\_ _ -> True) (asMap s1) (asMap s2)
 
 -- | \(O(n+m)\) Construct a set containing all elements from both sets.
@@ -344,17 +348,27 @@ size = H.size . asMap
 -- True
 -- >>> HashSet.member 1 (Hashset.fromList [4,5,6])
 -- False
-member :: (Eq a, Hashable a) => a -> HashSet a -> Bool
+member :: Hashable a => a -> HashSet a -> Bool
 member a s = case H.lookup a (asMap s) of
                Just _ -> True
                _      -> False
 {-# INLINABLE member #-}
 
+-- | \(O(\log n)\) For a given value, return the equal element in the set if
+-- present, otherwise return 'Nothing'.
+--
+-- This is useful for /interning/, i.e. to reduce memory usage.
+--
+-- @since 0.2.21
+lookupElement :: Hashable a => a -> HashSet a -> Maybe a
+lookupElement a = H.lookupKey a . asMap
+{-# INLINE lookupElement #-}
+
 -- | \(O(\log n)\) Add the specified value to this set.
 --
 -- >>> HashSet.insert 1 HashSet.empty
 -- fromList [1]
-insert :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
+insert :: Hashable a => a -> HashSet a -> HashSet a
 insert a = HashSet . H.insert a () . asMap
 {-# INLINABLE insert #-}
 
@@ -364,29 +378,29 @@ insert a = HashSet . H.insert a () . asMap
 -- fromList [2,3]
 -- >>> HashSet.delete 1 (HashSet.fromList [4,5,6])
 -- fromList [4,5,6]
-delete :: (Eq a, Hashable a) => a -> HashSet a -> HashSet a
+delete :: Hashable a => a -> HashSet a -> HashSet a
 delete a = HashSet . H.delete a . asMap
 {-# INLINABLE delete #-}
 
--- | \(O(n)\) Transform this set by applying a function to every value.
+-- | \(O(n \log n)\) Transform this set by applying a function to every value.
 -- The resulting set may be smaller than the source.
 --
 -- >>> HashSet.map show (HashSet.fromList [1,2,3])
 -- HashSet.fromList ["1","2","3"]
-map :: (Hashable b, Eq b) => (a -> b) -> HashSet a -> HashSet b
+map :: Hashable b => (a -> b) -> HashSet a -> HashSet b
 map f = fromList . List.map f . toList
 {-# INLINE map #-}
 
--- | \(O(n)\) Difference of two sets. Return elements of the first set
+-- | \(O(n \log m)\) Difference of two sets. Return elements of the first set
 -- not existing in the second.
 --
 -- >>> HashSet.difference (HashSet.fromList [1,2,3]) (HashSet.fromList [2,3,4])
 -- fromList [1]
-difference :: (Eq a, Hashable a) => HashSet a -> HashSet a -> HashSet a
+difference :: Hashable a => HashSet a -> HashSet a -> HashSet a
 difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
 {-# INLINABLE difference #-}
 
--- | \(O(n)\) Intersection of two sets. Return elements present in both
+-- | \(O(n \log m)\) Intersection of two sets. Return elements present in both
 -- the first set and the second.
 --
 -- >>> HashSet.intersection (HashSet.fromList [1,2,3]) (HashSet.fromList [2,3,4])
@@ -394,6 +408,18 @@ difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
 intersection :: Eq a => HashSet a -> HashSet a -> HashSet a
 intersection (HashSet a) (HashSet b) = HashSet (H.intersection a b)
 {-# INLINABLE intersection #-}
+
+-- | \(O(n \log m)\) Check whether two sets are disjoint (i.e., their
+-- intersection is empty).
+--
+-- @
+-- xs ``disjoint`` ys = null (xs ``intersection`` ys)
+-- @
+--
+-- @since 0.2.21
+disjoint :: Eq k => HashSet k -> HashSet k -> Bool
+disjoint (HashSet a) (HashSet b) = H.disjoint a b
+{-# INLINE disjoint #-}
 
 -- | \(O(n)\) Reduce this set by applying a binary operator to all
 -- elements, using the given starting value (typically the
@@ -439,17 +465,20 @@ filter p = HashSet . H.filterWithKey q . asMap
 {-# INLINE filter #-}
 
 -- | \(O(n)\) Return a list of this set's elements.  The list is
--- produced lazily.
+-- produced lazily. The order of its elements is unspecified, and it may
+-- change from version to version of either this package or of @hashable@.
 toList :: HashSet a -> [a]
 toList t = Exts.build (\ c z -> foldrWithKey (const . c) z (asMap t))
 {-# INLINE toList #-}
 
--- | \(O(n \min(W, n))\) Construct a set from a list of elements.
-fromList :: (Eq a, Hashable a) => [a] -> HashSet a
-fromList = HashSet . List.foldl' (\ m k -> H.insert k () m) H.empty
+-- | \(O(n \log n)\) Construct a set from a list of elements.
+fromList :: Hashable a => [a] -> HashSet a
+fromList = HashSet . List.foldl' (\ m k -> H.unsafeInsert k () m) H.empty
 {-# INLINE fromList #-}
 
-instance (Eq a, Hashable a) => Exts.IsList (HashSet a) where
+#if defined(__GLASGOW_HASKELL__)
+instance Hashable a => Exts.IsList (HashSet a) where
     type Item (HashSet a) = a
     fromList = fromList
     toList   = toList
+#endif

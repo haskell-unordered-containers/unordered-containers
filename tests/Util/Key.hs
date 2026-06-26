@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass   #-}
 {-# LANGUAGE DeriveGeneric    #-}
+{-# LANGUAGE MagicHash        #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Util.Key (Key(..), SmallSum (..), keyToInt, incKey, collisionAtHash) where
@@ -7,6 +8,7 @@ module Util.Key (Key(..), SmallSum (..), keyToInt, incKey, collisionAtHash) wher
 import Data.Bits       (bit, (.&.))
 import Data.Hashable   (Hashable (hashWithSalt))
 import Data.Word       (Word16)
+import GHC.Exts        (Int (..), bitReverse#, int2Word#, word2Int#)
 import GHC.Generics    (Generic)
 import Test.QuickCheck (Arbitrary (..), CoArbitrary (..), Function, Gen, Large)
 
@@ -46,17 +48,26 @@ arbitraryHash = do
         [ (2, fromIntegral . QC.getLarge <$> arbitrary @(Large Word16))
         , (1, QC.getSmall <$> arbitrary)
         , (1, QC.getLarge <$> arbitrary)
+          -- Hashes where the lowest `maxChildren` bits are set are interesting
+          -- edge cases. See #491.
+        , (1, QC.elements [-1, 0xFF, 0xFFF])
         ]
   i <- QC.frequency gens
-  moreCollisions' <- QC.elements [moreCollisions, id]
-  pure (moreCollisions' i)
+  transform <- QC.elements [id, moreCollisions, bitReverse]
+  pure (transform i)
 
 -- | Mask out most bits to produce more collisions
 moreCollisions :: Int -> Int
-moreCollisions w = fromIntegral (w .&. mask)
+moreCollisions w = fromIntegral (w .&. moreCollisionsMask)
 
-mask :: Int
-mask = sum [bit n | n <- [0, 3, 8, 14, 61]]
+-- | Bitmask for @moreCollisions@
+moreCollisionsMask :: Int
+moreCollisionsMask = sum [bit n | n <- [0, 3, 8, 14, 61]]
+
+-- | Reverse order of bits, in order to generate variation in the
+-- high bits, resulting in HashMap trees of greater height.
+bitReverse :: Int -> Int
+bitReverse (I# i) = I# (word2Int# (bitReverse# (int2Word# i)))
 
 keyToInt :: Key -> Int
 keyToInt (K h x) = h * fromEnum x

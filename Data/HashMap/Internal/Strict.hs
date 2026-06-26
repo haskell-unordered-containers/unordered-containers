@@ -1,10 +1,11 @@
-{-# LANGUAGE BangPatterns  #-}
-{-# LANGUAGE CPP           #-}
-{-# LANGUAGE LambdaCase    #-}
-{-# LANGUAGE MagicHash     #-}
-{-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE Trustworthy   #-}
-{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE PatternGuards       #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE Trustworthy         #-}
+{-# LANGUAGE UnboxedTuples       #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
 ------------------------------------------------------------------------
@@ -39,7 +40,7 @@
 -- strings.
 --
 -- Many operations have a average-case complexity of \(O(\log n)\).  The
--- implementation uses a large base (i.e. 32) so in practice these
+-- implementation uses a large base (i.e. 16 or 32) so in practice these
 -- operations are constant time.
 module Data.HashMap.Internal.Strict
     (
@@ -61,6 +62,7 @@ module Data.HashMap.Internal.Strict
     , HM.findWithDefault
     , HM.lookupDefault
     , (HM.!)
+    , HM.lookupKey
     , insert
     , insertWith
     , HM.delete
@@ -90,9 +92,11 @@ module Data.HashMap.Internal.Strict
       -- * Difference and intersection
     , HM.difference
     , differenceWith
+    , differenceWithKey
     , HM.intersection
     , intersectionWith
     , intersectionWithKey
+    , HM.disjoint
 
       -- * Folds
     , HM.foldMapWithKey
@@ -123,16 +127,17 @@ module Data.HashMap.Internal.Strict
     ) where
 
 import Control.Applicative   (Const (..))
-import Control.Monad.ST      (runST)
+import Control.Monad.ST      (ST, runST)
 import Data.Bits             ((.&.), (.|.))
 import Data.Coerce           (coerce)
 import Data.Functor.Identity (Identity (..))
--- See Note [Imports from Data.HashMap.Internal]
 import Data.Hashable         (Hashable)
-import Data.HashMap.Internal (Hash, HashMap (..), Leaf (..), LookupRes (..),
-                              fullBitmap, hash, index, mask, nextShift, ptrEq,
-                              sparseIndex)
-import Prelude               hiding (lookup, map)
+-- See Note [Imports from Data.HashMap.Internal]
+import Data.HashMap.Internal       (Hash, HashMap (..), Leaf (..),
+                                    LookupRes (..), Shift, fullBitmap, hash,
+                                    index, mask, nextShift, ptrEq, sparseIndex)
+import Data.HashMap.Internal.Array (Array)
+import Prelude                     hiding (lookup, map)
 
 -- See Note [Imports from Data.HashMap.Internal]
 import qualified Data.HashMap.Internal       as HM
@@ -175,7 +180,7 @@ singleton k !v = HM.singleton k v
 -- | \(O(\log n)\) Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
 -- the key, the old value is replaced.
-insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
+insert :: Hashable k => k -> v -> HashMap k v -> HashMap k v
 insert k !v = HM.insert k v
 {-# INLINABLE insert #-}
 
@@ -186,7 +191,7 @@ insert k !v = HM.insert k v
 --
 -- > insertWith f k v map
 -- >   where f new old = new + old
-insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
+insertWith :: Hashable k => (v -> v -> v) -> k -> v -> HashMap k v
            -> HashMap k v
 insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
   where
@@ -202,21 +207,23 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
             let ary' = A.insert ary i $! leaf h k x
             in HM.bitmapIndexedOrFull (sz + 1) (b .|. m) ary'
         | otherwise =
-            let st   = A.index ary i
-                sz'  = HM.size st
-                st'  = go h k x (nextShift s) st
-                sz'' = HM.size st'
-                ary' = A.update ary i $! st'
-            in BitmapIndexed (sz + (sz'' - sz')) b ary'
+            case A.index# ary i of
+              (# st #) ->
+                let !stSz = HM.size st
+                    !st' = go h k x (nextShift s) st
+                    !stSz' = HM.size st'
+                    ary' = A.update ary i st'
+                in BitmapIndexed (sz + (stSz' - stSz)) b ary'
       where m = mask h s
             i = sparseIndex b m
     go h k x s (Full sz ary) =
-        let st   = A.index ary i
-            sz'  = HM.size st
-            st'  = go h k x (nextShift s) st
-            sz'' = HM.size st'
-            ary' = HM.update32 ary i $! st'
-        in Full (sz + (sz'' - sz')) ary'
+        case A.index# ary i of
+          (# st #) ->
+            let !stSz = HM.size st
+                !st' = go h k x (nextShift s) st
+                !stSz' = HM.size st'
+                ary' = HM.updateFullArray ary i st'
+            in Full (sz + (stSz' - stSz)) ary'
       where i = index h s
     go h k x s t@(Collision sz hy v)
         | h == hy   = let ary' = updateOrSnocWith f k x v
@@ -226,16 +233,17 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
 {-# INLINABLE insertWith #-}
 
 -- | In-place update version of insertWith
-unsafeInsertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> HashMap k v
+unsafeInsertWith :: Hashable k => (v -> v -> v) -> k -> v -> HashMap k v
                  -> HashMap k v
 unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (const f) k0 v0 m0
 {-# INLINABLE unsafeInsertWith #-}
 
-unsafeInsertWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> k -> v -> HashMap k v
+unsafeInsertWithKey :: forall k v. Hashable k => (k -> v -> v -> v) -> k -> v -> HashMap k v
                     -> HashMap k v
 unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
+    go :: forall s. Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
     go !h !k x !_ Empty = return $! leaf h k x
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
@@ -273,7 +281,7 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 
 -- | \(O(\log n)\) Adjust the value tied to a given key in this map only
 -- if it is present. Otherwise, leave the map alone.
-adjust :: (Eq k, Hashable k) => (v -> v) -> k -> HashMap k v -> HashMap k v
+adjust :: Hashable k => (v -> v) -> k -> HashMap k v -> HashMap k v
 adjust f k0 m0 = go h0 k0 0 m0
   where
     h0 = hash k0
@@ -283,18 +291,21 @@ adjust f k0 m0 = go h0 k0 0 m0
         | otherwise          = t
     go h k s t@(BitmapIndexed sz b ary)
         | b .&. m == 0 = t
-        | otherwise = let st   = A.index ary i
-                          st'  = go h k (nextShift s) st
-                          ary' = A.update ary i $! st'
-                      in BitmapIndexed sz b ary'
+        | otherwise =
+            case A.index# ary i of
+              (# st #) ->
+                let !st' = go h k (nextShift s) st
+                    ary' = A.update ary i st'
+                in BitmapIndexed sz b ary'
       where m = mask h s
             i = sparseIndex b m
     go h k s (Full sz ary) =
-        let i    = index h s
-            st   = A.index ary i
-            st'  = go h k (nextShift s) st
-            ary' = HM.update32 ary i $! st'
-        in Full sz ary'
+        case A.index# ary i of
+          (# st #) ->
+            let !st' = go h k (nextShift s) st
+                ary' = HM.updateFullArray ary i st'
+            in Full sz ary'
+      where i = index h s
     go h k _ t@(Collision sz hy v)
         | h == hy   = Collision sz h (updateWith f k v)
         | otherwise = t
@@ -303,7 +314,7 @@ adjust f k0 m0 = go h0 k0 0 m0
 -- | \(O(\log n)\)  The expression @('update' f k map)@ updates the value @x@ at @k@
 -- (if it is in the map). If @(f x)@ is 'Nothing', the element is deleted.
 -- If it is @('Just' y)@, the key @k@ is bound to the new value @y@.
-update :: (Eq k, Hashable k) => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
+update :: Hashable k => (a -> Maybe a) -> k -> HashMap k a -> HashMap k a
 update f = alter (>>= f)
 {-# INLINABLE update #-}
 
@@ -315,7 +326,7 @@ update f = alter (>>= f)
 -- @
 -- 'lookup' k ('alter' f k m) = f ('lookup' k m)
 -- @
-alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
+alter :: Hashable k => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
 alter f k m =
     let !h = hash k
         !lookupRes = HM.lookupRecordCollision h k m
@@ -340,7 +351,7 @@ alter f k m =
 -- <https://hackage.haskell.org/package/lens/docs/Control-Lens-At.html#v:at Control.Lens.At>.
 --
 -- @since 0.2.10
-alterF :: (Functor f, Eq k, Hashable k)
+alterF :: (Functor f, Hashable k)
        => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
 -- Special care is taken to only calculate the hash once. When we rewrite
 -- with RULES, we also ensure that we only compare the key for equality
@@ -407,7 +418,7 @@ impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
 --
 -- Failure to abide by these laws will make demons come out of your nose.
 alterFWeird
-       :: (Functor f, Eq k, Hashable k)
+       :: (Functor f, Hashable k)
        => f (Maybe v)
        -> f (Maybe v)
        -> (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
@@ -417,7 +428,7 @@ alterFWeird _ _ f = alterFEager f
 -- | This is the default version of alterF that we use in most non-trivial
 -- cases. It's called "eager" because it looks up the given key in the map
 -- eagerly, whether or not the given function requires that information.
-alterFEager :: (Functor f, Eq k, Hashable k)
+alterFEager :: (Functor f, Hashable k)
        => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
 alterFEager f !k !m = (<$> f mv) $ \fres ->
   case fres of
@@ -535,13 +546,13 @@ unionWithKey f = go 0
     go s (Full _ ary1) t2 =
         let h2   = leafHashCode t2
             i    = index h2 s
-            ary' = HM.update32With' ary1 i $ \st1 -> go (nextShift s) st1 t2
+            ary' = HM.updateFullArrayWith' ary1 i $ \st1 -> go (nextShift s) st1 t2
             sz'  = A.foldl' (\acc hm -> acc + HM.size hm) 0 ary'
         in Full sz' ary'
     go s t1 (Full _ ary2) =
         let h1   = leafHashCode t1
             i    = index h1 s
-            ary' = HM.update32With' ary2 i $ \st2 -> go (nextShift s) t1 st2
+            ary' = HM.updateFullArrayWith' ary2 i $ \st2 -> go (nextShift s) t1 st2
             sz'  = A.foldl' (\acc hm -> acc + HM.size hm) 0 ary'
         in Full sz' ary'
 
@@ -637,13 +648,25 @@ traverseWithKey f = go
 -- encountered, the combining function is applied to the values of these keys.
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
-differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
-differenceWith f a b = HM.foldlWithKey' go HM.empty a
-  where
-    go m k v = case HM.lookup k b of
-                 Nothing -> v `seq` HM.unsafeInsert k v m
-                 Just w  -> maybe m (\ !y -> HM.unsafeInsert k y m) (f v w)
-{-# INLINABLE differenceWith #-}
+differenceWith :: Hashable k => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
+differenceWith f = HM.differenceWithKey $
+  \_k vA vB -> case f vA vB of
+     Nothing -> Nothing
+     x@(Just v) -> v `seq` x
+{-# INLINE differenceWith #-}
+
+-- | \(O(n \log m)\) Difference with a combining function. When two equal keys are
+-- encountered, the combining function is applied to the values of these keys.
+-- If it returns 'Nothing', the element is discarded (proper set difference). If
+-- it returns (@'Just' y@), the element is updated with a new value @y@.
+--
+-- @since 0.2.21
+differenceWithKey :: Eq k => (k -> v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
+differenceWithKey f = HM.differenceWithKey $
+  \k vA vB -> case f k vA vB of
+     Nothing -> Nothing
+     x@(Just v) -> v `seq` x
+{-# INLINE differenceWithKey #-}
 
 -- | \(O(n+m)\) Intersection of two maps. If a key occurs in both maps
 -- the provided function is used to combine the values from the two
@@ -667,7 +690,7 @@ intersectionWithKey f = HM.intersectionWithKey# $ \k v1 v2 -> let !v3 = f k v1 v
 -- | \(O(n \log n)\) Construct a map with the supplied mappings.  If the
 -- list contains duplicate mappings, the later mappings take
 -- precedence.
-fromList :: (Eq k, Hashable k) => [(k, v)] -> HashMap k v
+fromList :: Hashable k => [(k, v)] -> HashMap k v
 fromList = List.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) HM.empty
 {-# INLINABLE fromList #-}
 
@@ -701,7 +724,7 @@ fromList = List.foldl' (\ m (k, !v) -> HM.unsafeInsert k v m) HM.empty
 --
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
-fromListWith :: (Eq k, Hashable k) => (v -> v -> v) -> [(k, v)] -> HashMap k v
+fromListWith :: Hashable k => (v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) HM.empty
 {-# INLINE fromListWith #-}
 
@@ -731,21 +754,21 @@ fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) HM.empty
 -- > = fromList [(k, f k d (f k c (f k b a)))]
 --
 -- @since 0.2.11
-fromListWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
+fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
 fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey f k v m) HM.empty
 {-# INLINE fromListWithKey #-}
 
 ------------------------------------------------------------------------
 -- Array operations
 
-updateWith :: Eq k => (v -> v) -> k -> A.Array (Leaf k v) -> A.Array (Leaf k v)
+updateWith :: Eq k => (v -> v) -> k -> Array (Leaf k v) -> Array (Leaf k v)
 updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
   where
     go !k !ary !i !n
         | i >= n    = ary
-        | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> let !v' = f y in A.update ary i (L k v')
-                     | otherwise -> go k ary (i+1) n
+        | otherwise = case A.index# ary i of
+            (# L kx y #) | k == kx   -> let !v' = f y in A.update ary i (L k v')
+                         | otherwise -> go k ary (i+1) n
 {-# INLINABLE updateWith #-}
 
 -- | Append the given key and value to the array. If the key is
@@ -753,8 +776,8 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
 -- the given function to the new and old value (in that order). The
 -- value is always evaluated to WHNF before being inserted into the
 -- array.
-updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
+updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> Array (Leaf k v)
+                 -> Array (Leaf k v)
 updateOrSnocWith f = updateOrSnocWithKey (const f)
 {-# INLINABLE updateOrSnocWith #-}
 
@@ -763,16 +786,16 @@ updateOrSnocWith f = updateOrSnocWithKey (const f)
 -- the given function to the new and old value (in that order). The
 -- value is always evaluated to WHNF before being inserted into the
 -- array.
-updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> A.Array (Leaf k v)
-                 -> A.Array (Leaf k v)
+updateOrSnocWithKey :: Eq k => (k -> v -> v -> v) -> k -> v -> Array (Leaf k v)
+                 -> Array (Leaf k v)
 updateOrSnocWithKey f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
   where
     go !k v !ary !i !n
         -- Not found, append to the end.
         | i >= n = A.snoc ary $! L k $! v
-        | otherwise = case A.index ary i of
-            (L kx y) | k == kx   -> let !v' = f k v y in A.update ary i (L k v')
-                     | otherwise -> go k v ary (i+1) n
+        | otherwise = case A.index# ary i of
+            (# L kx y #) | k == kx   -> let !v' = f k v y in A.update ary i (L k v')
+                         | otherwise -> go k v ary (i+1) n
 {-# INLINABLE updateOrSnocWithKey #-}
 
 ------------------------------------------------------------------------

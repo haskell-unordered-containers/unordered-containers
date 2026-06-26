@@ -4,7 +4,7 @@ module Strictness (tests) where
 
 import Control.Arrow                (second)
 import Control.Monad                (guard)
-import Data.Foldable                (foldl')
+import Data.Foldable                (Foldable (..))
 import Data.Hashable                (Hashable)
 import Data.HashMap.Strict          (HashMap)
 import Data.Maybe                   (fromMaybe, isJust)
@@ -17,9 +17,11 @@ import Test.Tasty.QuickCheck        (testProperty)
 import Text.Show.Functions          ()
 import Util.Key                     (Key)
 
+import Prelude hiding (Foldable (..))
+
 import qualified Data.HashMap.Strict as HM
 
-instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
+instance (Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
   arbitrary = HM.fromList <$> arbitrary
   shrink = fmap HM.fromList . shrink . HM.toList
 

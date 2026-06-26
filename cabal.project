@@ -1,0 +1,4 @@
+packages: ./*.cabal
+
+package unordered-containers
+  ghc-options: -msse4.2

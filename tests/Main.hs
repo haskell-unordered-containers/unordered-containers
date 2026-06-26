@@ -1,14 +1,17 @@
 module Main (main) where
 
-import Test.Tasty (defaultMain, testGroup)
+import GHC.IO.Encoding (setLocaleEncoding, utf8)
+import Test.Tasty      (defaultMain, testGroup)
 
 import qualified Properties
 import qualified Regressions
 import qualified Strictness
 
 main :: IO ()
-main = defaultMain $ testGroup "All"
-  [ Properties.tests
-  , Regressions.tests
-  , Strictness.tests
-  ]
+main = do
+  setLocaleEncoding utf8
+  defaultMain $ testGroup "All"
+    [ Properties.tests
+    , Regressions.tests
+    , Strictness.tests
+    ]

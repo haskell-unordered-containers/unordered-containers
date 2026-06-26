@@ -24,6 +24,7 @@ import Data.Function               (on)
 import Data.Functor.Identity       (Identity (..))
 import Data.Hashable               (Hashable (hashWithSalt))
 import Data.HashMap.Internal.Debug (Validity (..), valid)
+import Data.Maybe                  (isJust)
 import Data.Ord                    (comparing)
 import Test.QuickCheck             (Arbitrary (..), Fun, Property, pattern Fn,
                                     pattern Fn2, pattern Fn3, (===), (==>))
@@ -46,7 +47,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map.Lazy     as M
 #endif
 
-instance (Eq k, Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
+instance (Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
   arbitrary = HM.fromList <$> arbitrary
   shrink = fmap HM.fromList . shrink . HM.toList
 
@@ -62,7 +63,7 @@ sortByKey = List.sortBy (compare `on` fst)
 toOrdMap :: Ord k => HashMap k v -> M.Map k v
 toOrdMap = M.fromList . HM.toList
 
-isValid :: (Eq k, Hashable k, Show k) => HashMap k v -> Property
+isValid :: (Hashable k, Show k) => HashMap k v -> Property
 isValid m = valid m === Valid
 
 -- The free magma is used to test that operations are applied in the
@@ -173,6 +174,10 @@ tests =
       \(k :: Key) (m :: HMKI) -> HM.lookup k m === M.lookup k (toOrdMap m)
     , testProperty "!?" $
       \(k :: Key) (m :: HMKI) -> m HM.!? k === M.lookup k (toOrdMap m)
+    , testGroup "lookupKey" $
+      [ testProperty "isJust (lookupKey k m) == member k m" $
+        \(k :: Key) (m :: HMKI) -> isJust (HM.lookupKey k m) === HM.member k m
+      ]
     , testGroup "insert"
       [ testProperty "model" $
         \(k :: Key) (v :: Int) x ->
@@ -182,7 +187,7 @@ tests =
         \(k :: Key) (v :: Int) x -> isValid (HM.insert k v x)
       ]
     , testGroup "insertWith"
-      [ testProperty "insertWith" $
+      [ testProperty "model" $
         \(Fn2 f) k v (x :: HMKI) ->
           toOrdMap (HM.insertWith f k v x) === M.insertWith f k v (toOrdMap x)
       , testProperty "valid" $
@@ -256,21 +261,8 @@ tests =
         \(x :: HMKI) y -> HM.isSubmapOf x y === M.isSubmapOf (toOrdMap x) (toOrdMap y)
       , testProperty "m ⊆ m" $
         \(x :: HMKI) -> HM.isSubmapOf x x
-      , testProperty "m1 ⊆ m1 ∪ m2" $
-        \(x :: HMKI) y -> HM.isSubmapOf x (HM.union x y)
-      , testProperty "m1 ⊈ m2  ⇒  m1 ∪ m2 ⊈ m1" $
-        \(m1 :: HMKI) m2 -> not (HM.isSubmapOf m1 m2) ==> HM.isSubmapOf m1 (HM.union m1 m2)
-      , testProperty "m1\\m2 ⊆ m1" $
-        \(m1 :: HMKI) (m2 :: HMKI) -> HM.isSubmapOf (HM.difference m1 m2) m1
-      , testProperty "m1 ∩ m2 ≠ ∅  ⇒  m1 ⊈ m1\\m2 " $
-        \(m1 :: HMKI) (m2 :: HMKI) ->
-          not (HM.null (HM.intersection m1 m2)) ==>
-          not (HM.isSubmapOf m1 (HM.difference m1 m2))
       , testProperty "delete k m ⊆ m" $
-        \(m :: HMKI) ->
-          not (HM.null m) ==>
-          QC.forAll (QC.elements (HM.keys m)) $ \k ->
-          HM.isSubmapOf (HM.delete k m) m
+        \k (m :: HMKI) -> HM.isSubmapOf (HM.delete k m) m
       , testProperty "m ⊈ delete k m " $
         \(m :: HMKI) ->
           not (HM.null m) ==>
@@ -323,6 +315,21 @@ tests =
           toOrdMap (HM.differenceWith f x y) === M.differenceWith f (toOrdMap x) (toOrdMap y)
       , testProperty "valid" $
         \(Fn2 f) (x :: HMK A) (y :: HMK B) -> isValid (HM.differenceWith f x y)
+      , testProperty "differenceWith (\\x y -> Just $ f x y) xs ys == intersectionWith f xs ys `union` xs" $
+        \(Fn2 f) (x :: HMK A) (y :: HMK B) ->
+          HM.differenceWith (\a b -> Just $ f a b) x y
+          === HM.intersectionWith f x y `HM.union` x
+      ]
+    , testGroup "differenceWithKey"
+      [ testProperty "model" $
+        \(Fn3 f) (x :: HMK A) (y :: HMK B) ->
+          toOrdMap (HM.differenceWithKey f x y) === M.differenceWithKey f (toOrdMap x) (toOrdMap y)
+      , testProperty "valid" $
+        \(Fn3 f) (x :: HMK A) (y :: HMK B) -> isValid (HM.differenceWithKey f x y)
+      , testProperty "differenceWithKey (\\k x y -> Just $ f k x y) xs ys == intersectionWithKey f xs ys `union` xs" $
+        \(Fn3 f) (x :: HMK A) (y :: HMK B) ->
+          HM.differenceWithKey (\k a b -> Just $ f k a b) x y
+          === HM.intersectionWithKey f x y `HM.union` x
       ]
     , testGroup "intersection"
       [ testProperty "model" $
@@ -350,6 +357,11 @@ tests =
         \(Fn3 f :: Fun (Key, A, B) C) (x :: HMK A) (y :: HMK B) ->
           isValid (HM.intersectionWithKey f x y)
       ]
+    , testGroup "disjoint"
+      [ testProperty "model" $
+        \(x :: HMKI) (y :: HMKI) ->
+          HM.disjoint x y === M.disjoint (toOrdMap x) (toOrdMap y)
+      ]
     , testGroup "compose"
       [ testProperty "valid" $
         \(x :: HMK Int) (y :: HMK Key) -> isValid (HM.compose x y)
@@ -362,12 +374,12 @@ tests =
         \(Fn f :: Fun A B) (m :: HMK A) -> isValid (HM.map f m)
       ]
     , testGroup "traverseWithKey"
-      [ testProperty "model" $ QC.mapSize (\s -> s `div` 8) $
+      [ testProperty "model" $ QC.mapSize (\s -> min 18 $ div s 8) $
         \(x :: HMKI) ->
           let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
               ys = HM.traverseWithKey f x
           in  List.sort (fmap toOrdMap ys) === List.sort (M.traverseWithKey f (toOrdMap x))
-      , testProperty "valid" $ QC.mapSize (\s -> s `div` 8) $
+      , testProperty "valid" $ QC.mapSize (\s -> min 18 $ div s 8) $
         \(x :: HMKI) ->
           let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
               ys = HM.traverseWithKey f x

@@ -1,5 +1,5 @@
 name:           unordered-containers
-version:        0.2.19.1
+version:        0.2.21
 synopsis:       Efficient hashing-based container types
 description:
   Efficient hashing-based container types.  The containers have been
@@ -13,7 +13,7 @@ description:
   .
   This package currently provides no defenses against hash collision attacks
   such as HashDoS.
-  Users who need to store input from untrusted sources are advised to use
+  Users who need to store keys derived from untrusted input are advised to use
   @Data.Map@ or @Data.Set@ from the @containers@ package instead.
 license:        BSD3
 license-file:   LICENSE
@@ -29,14 +29,15 @@ cabal-version:  >=1.10
 extra-source-files: CHANGES.md
 
 tested-with:
-  GHC ==9.4.1
-   || ==9.2.4
+  GHC ==9.14.1
+   || ==9.12.2
+   || ==9.10.3
+   || ==9.8.4
+   || ==9.6.7
+   || ==9.4.8
+   || ==9.2.8
    || ==9.0.2
    || ==8.10.7
-   || ==8.8.4
-   || ==8.6.5
-   || ==8.4.4
-   || ==8.2.2
 
 flag debug
   description:  Enable debug support
@@ -55,10 +56,12 @@ library
     Data.HashSet.Internal
 
   build-depends:
-    base >= 4.10 && < 5,
+    base >= 4.14 && < 5,
     deepseq >= 1.4.3,
-    hashable >= 1.2.5 && < 1.5,
-    template-haskell < 2.20
+    hashable >= 1.4 && < 1.6
+  if impl(ghc)
+    build-depends:
+      template-haskell >= 2.16 && < 2.25
 
   default-language: Haskell2010
 
@@ -70,11 +73,6 @@ library
     BangPatterns
 
   ghc-options: -Wall -O2 -fwarn-tabs -ferror-spans
-
-  -- For dumping the generated code:
-  -- ghc-options: -ddump-simpl -ddump-stg-final -ddump-cmm -ddump-asm -ddump-to-file
-  -- ghc-options: -dsuppress-coercions -dsuppress-unfoldings -dsuppress-module-prefixes
-  -- ghc-options: -dsuppress-uniques -dsuppress-timestamps
 
   if flag(debug)
     cpp-options: -DASSERTS
@@ -101,21 +99,18 @@ test-suite unordered-containers-tests
     hashable,
     HUnit,
     QuickCheck >= 2.4.0.1,
+    nothunks >= 0.1.3,
     random,
     tasty >= 1.4.0.3,
     tasty-hunit >= 0.10.0.3,
     tasty-quickcheck >= 0.10.1.2,
     unordered-containers
 
-  if impl(ghc >= 8.6)
-    build-depends:
-      nothunks >= 0.1.3
-
   default-language: Haskell2010
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   cpp-options: -DASSERTS
 
-benchmark benchmarks
+benchmark package-comparisons
   hs-source-dirs: benchmarks
   main-is: Benchmarks.hs
   type: exitcode-stdio-1.0
@@ -133,17 +128,34 @@ benchmark benchmarks
     hashable,
     vector,
     hashmap,
-    mtl,
     random,
     tasty-bench >= 0.3.1,
     unordered-containers,
     vector
 
   default-language: Haskell2010
-  ghc-options: -Wall -O2 -rtsopts -with-rtsopts=-A32m
-  if impl(ghc >= 8.10)
-    ghc-options: "-with-rtsopts=-A32m --nonmoving-gc"
+  ghc-options: -Wall -O2 -rtsopts "-with-rtsopts=-A32m" -fproc-alignment=64
   -- cpp-options: -DBENCH_containers_Map -DBENCH_containers_IntMap -DBENCH_hashmap_Map
+
+benchmark fine-grained
+  hs-source-dirs: benchmarks
+  main-is: FineGrained.hs
+  type: exitcode-stdio-1.0
+
+  other-modules:
+    Key.Bytes
+
+  build-depends:
+    base,
+    bytestring >= 0.11.3,
+    deepseq,
+    hashable,
+    random >= 1.3.0,
+    tasty-bench >= 0.4.1,
+    unordered-containers
+
+  default-language: Haskell2010
+  ghc-options: -Wall -O2 -rtsopts "-with-rtsopts=-A64m" -fproc-alignment=64
 
 source-repository head
   type:     git

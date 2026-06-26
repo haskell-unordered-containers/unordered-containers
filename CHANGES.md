@@ -1,3 +1,84 @@
+## [0.2.21] - December 2025
+
+* API enhancements:
+  * [Add `HashMap.lookupKey` and `HashSet.lookupElement`](https://github.com/haskell-unordered-containers/unordered-containers/pull/554)
+  * [Add `differenceWithKey`](https://github.com/haskell-unordered-containers/unordered-containers/pull/542)
+  * [Add `disjoint`](https://github.com/haskell-unordered-containers/unordered-containers/pull/559)
+
+* Performance improvements:
+  * [`HashSet.fromList`: Use `unsafeInsert`](https://github.com/haskell-unordered-containers/unordered-containers/pull/515)
+  * [Use tree-diffing for `difference`](https://github.com/haskell-unordered-containers/unordered-containers/pull/535)
+  * [Remove some unnecessary forcing of HashMaps](https://github.com/haskell-unordered-containers/unordered-containers/pull/545)
+  * [Remove the `Array.index` function](https://github.com/haskell-unordered-containers/unordered-containers/pull/539)
+  * [`hashWithSalt`: Ensure that the salt `Int` is unboxed](https://github.com/haskell-unordered-containers/unordered-containers/pull/569)
+
+* Documentation changes:
+  * [Turn some comments into docstrings](https://github.com/haskell-unordered-containers/unordered-containers/pull/516)
+  * [Reword disclaimer regarding hash collision attacks](https://github.com/haskell-unordered-containers/unordered-containers/pull/557)
+  * [Update time complexity of some HashSet functions](https://github.com/haskell-unordered-containers/unordered-containers/pull/568)
+  * [Update instructions for code inspection](https://github.com/haskell-unordered-containers/unordered-containers/pull/567)
+
+* Other changes:
+  * [Drop support for GHC < 8.10](https://github.com/haskell-unordered-containers/unordered-containers/pull/510)
+  * [Address deprecation warnings and other warnings](https://github.com/haskell-unordered-containers/unordered-containers/pull/512)
+  * [Optimize indexing in arrays of length 2](https://github.com/haskell-unordered-containers/unordered-containers/pull/528)
+  * [Introduce `ShiftedHash`](https://github.com/haskell-unordered-containers/unordered-containers/pull/529)
+  * [New "fine-grained" benchmarks](https://github.com/haskell-unordered-containers/unordered-containers/pull/526)
+  * [Make it compile with MicroHs](https://github.com/haskell-unordered-containers/unordered-containers/pull/553). Thanks, @augustss!
+  * [Remove redundant `Eq` constraints](https://github.com/haskell-unordered-containers/unordered-containers/pull/558)
+  * [Refactor `delete`](https://github.com/haskell-unordered-containers/unordered-containers/pull/571)
+  * [`difference[With]`: Undo constraint relaxation](https://github.com/haskell-unordered-containers/unordered-containers/pull/573)
+
+[0.2.21]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.20.1...v0.2.21
+
+## [0.2.20.1] - October 2025
+
+* [Fix infinite loop in `isSubmapOf[By]` / `isSubsetOf` on 32-bit platforms](https://github.com/haskell-unordered-containers/unordered-containers/pull/501).
+  To fix this bug and potentially other similar bugs, we return to a branching factor of 16 on 32-bit platforms.
+
+* [Relax bounds for GHC 9.12](https://github.com/haskell-unordered-containers/unordered-containers/pull/499)
+
+* [Require `hashable >= 1.4`](https://github.com/haskell-unordered-containers/unordered-containers/pull/506)
+
+* Documentation changes:
+  * [Fix documentation about branching factor in `Data.HashMap.Strict`](https://github.com/haskell-unordered-containers/unordered-containers/pull/494)
+  * [Improve documentation for `Data.HashMap.compose`](https://github.com/haskell-unordered-containers/unordered-containers/pull/500)
+  * [Fixes docs of `Data.HashMap.Lazy.fromList`: it takes O(n * log(n))](https://github.com/haskell-unordered-containers/unordered-containers/pull/498)
+  * [Add disclaimer to `Data.HashSet.toList`](https://github.com/haskell-unordered-containers/unordered-containers/pull/507)
+
+* [Remove bad `isSubmapOf` testcase](https://github.com/haskell-unordered-containers/unordered-containers/pull/504)
+
+[0.2.20.1]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.20...v0.2.20.1
+
+## [0.2.20] - January 2024
+
+* [Allow `template-haskell-2.21`](https://github.com/haskell-unordered-containers/unordered-containers/pull/484)
+
+* [Rename confusing variables](https://github.com/haskell-unordered-containers/unordered-containers/pull/479)
+
+* [Deal with introduction of `Prelude.foldl'`](https://github.com/haskell-unordered-containers/unordered-containers/pull/480)
+
+* [Remove redundant `Hashable` constraints](https://github.com/haskell-unordered-containers/unordered-containers/pull/478)
+  from `intersection.*` and `union.*`.
+
+* Various optimizations and cleanups:
+  [#458](https://github.com/haskell-unordered-containers/unordered-containers/pull/458),
+  [#469](https://github.com/haskell-unordered-containers/unordered-containers/pull/469),
+  [#404](https://github.com/haskell-unordered-containers/unordered-containers/pull/404),
+  [#460](https://github.com/haskell-unordered-containers/unordered-containers/pull/460),
+  [#456](https://github.com/haskell-unordered-containers/unordered-containers/pull/456),
+  [#433](https://github.com/haskell-unordered-containers/unordered-containers/pull/433)
+
+* Add invariant tests:
+  [#444](https://github.com/haskell-unordered-containers/unordered-containers/pull/444),
+  [#455](https://github.com/haskell-unordered-containers/unordered-containers/pull/455)
+
+* [Improve test case generation](https://github.com/haskell-unordered-containers/unordered-containers/pull/442)
+
+* [Improve test failure reporting](https://github.com/haskell-unordered-containers/unordered-containers/pull/440)
+
+[0.2.20]: https://github.com/haskell-unordered-containers/unordered-containers/compare/v0.2.19.1...v0.2.20
+
 ## [0.2.19.1] – April 2022
 
 * [Fix bug in `intersection[With[Key]]`](https://github.com/haskell-unordered-containers/unordered-containers/pull/427)
