@@ -7,32 +7,30 @@
 
 module Main where
 
-import Control.DeepSeq       (NFData (..))
-import Data.Bits             ((.&.))
-import Data.Functor.Identity (Identity (..))
-import Data.Hashable         (Hashable, hash)
-import Data.List             (foldl')
-import Data.Maybe            (fromMaybe)
-import GHC.Generics          (Generic)
-import Prelude               hiding (lookup)
-import Test.Tasty.Bench      (bench, bgroup, defaultMain, env, nf, whnf)
+import Control.DeepSeq                                      (NFData (..))
+import Data.Bits                                            ((.&.))
+import Data.Functor.Identity                                (Identity (..))
+import Data.Hashable                                        (Hashable, hash)
+import Data.List                                            (foldl')
+import Data.Maybe                                           (fromMaybe)
+import GHC.Generics                                         (Generic)
+import Prelude                                              hiding (lookup)
+import Test.Tasty.Bench                                     (bench, bgroup,defaultMain,
+                                                             env, nf, whnf)
 
-import qualified Data.ByteString        as BS
-import qualified "hashmap" Data.HashMap as IHM
-import qualified Data.HashMap.Strict    as HM
-import qualified "unordered-containers" Data.HashSet as HS
-import qualified Data.IntMap            as IM
-import           Data.List              (foldl')
-import qualified Data.Map               as M
-import           Data.Maybe             (fromMaybe)
-import qualified Data.Set               as S
-import qualified Data.Vector            as V
-import           GHC.Generics           (Generic)
-import           Prelude                hiding (lookup)
+import qualified Data.ByteString                            as BS
+import qualified "hashmap" Data.HashMap                     as IHM
+import qualified "unordered-containers" Data.HashMap.Strict as HM
+import qualified "unordered-containers"  Data.HashSet       as HS
+import qualified Data.IntMap                                as IM
+import qualified Data.Map                                   as M
+import qualified Data.Set                                   as S
+import qualified Data.Vector                                as V
+import Prelude hiding                                       (lookup)
 
-import qualified Util.ByteString        as UBS
-import qualified Util.Int               as UI
-import qualified Util.String            as US
+import qualified Util.ByteString                            as UBS
+import qualified Util.Int                                   as UI
+import qualified Util.String                                as US
 
 data B where
     B :: NFData a => a -> B
@@ -162,8 +160,8 @@ main = do
         [
 #ifdef BENCH_containers_Map
           env setupEnv $ \ ~(Env{..}) ->
-          -- Comparison to other data structures
-          -- Map
+          -- * Comparison to other data structures
+          -- ** Map
           bgroup "Map"
           [ bgroup "lookup"
             [ bench "String" $ whnf (lookupM keys) m
@@ -265,7 +263,7 @@ main = do
 
           env setupEnv $ \ ~(Env{..}) ->
           bgroup "HashMap"
-          [ -- Basic interface
+          [ -- * Basic interface
             bgroup "lookup"
             [ bench "String" $ whnf (lookup keys) hm
             , bench "ByteString" $ whnf (lookup keysBS) hmbs
@@ -406,7 +404,7 @@ main = do
             -- Transformations
           , bench "map" $ whnf (HM.map (\ v -> v + 1)) hmi
 
-            -- Difference and intersection
+            -- * Difference and intersection
           , bench "difference" $ whnf (HM.difference hmi) hmi2
 
             -- Folds
@@ -572,8 +570,15 @@ alterFDelete xs m0 =
 {-# SPECIALIZE alterFDelete :: [BS.ByteString] -> HM.HashMap BS.ByteString Int
                             -> HM.HashMap BS.ByteString Int #-}
 
-unionC :: (Eq k, Hashable k, Foldable f) => f (HM.HashMap k Int)
-       -> HM.HashMap k Int
+isSubmapOfNaive :: (Eq k, Hashable k) => HM.HashMap k Int -> HM.HashMap k Int -> Bool
+isSubmapOfNaive m1 m2 = and [ Just v1 == HM.lookup k1 m2 | (k1,v1) <- HM.toList m1 ]
+{-# SPECIALIZE isSubmapOfNaive :: HM.HashMap Int Int -> HM.HashMap Int Int -> Bool #-}
+{-# SPECIALIZE isSubmapOfNaive :: HM.HashMap String Int -> HM.HashMap String Int -> Bool #-}
+{-# SPECIALIZE isSubmapOfNaive :: HM.HashMap BS.ByteString Int -> HM.HashMap BS.ByteString Int -> Bool #-}
+
+------------------------------------------------------------------------
+-- * Containerized benchmarks
+unionC :: (Eq k, Hashable k, Foldable f) => f (HM.HashMap k Int) -> HM.HashMap k Int
 unionC = foldl' HM.union mempty
 {-# SPECIALIZE unionC :: [HM.HashMap Int Int] -> HM.HashMap Int Int #-}
 {-# SPECIALIZE unionC :: V.Vector (HM.HashMap Int Int) -> HM.HashMap Int Int #-}
@@ -618,15 +623,9 @@ sizeHS = HS.map HM.size
 sizeS :: S.Set (HM.HashMap Int Int) -> S.Set Int
 sizeS = S.map HM.size
 
-isSubmapOfNaive :: (Eq k, Hashable k) => HM.HashMap k Int -> HM.HashMap k Int -> Bool
-isSubmapOfNaive m1 m2 = and [ Just v1 == HM.lookup k1 m2 | (k1,v1) <- HM.toList m1 ]
-{-# SPECIALIZE isSubmapOfNaive :: HM.HashMap Int Int -> HM.HashMap Int Int -> Bool #-}
-{-# SPECIALIZE isSubmapOfNaive :: HM.HashMap String Int -> HM.HashMap String Int -> Bool #-}
-{-# SPECIALIZE isSubmapOfNaive :: HM.HashMap BS.ByteString Int -> HM.HashMap BS.ByteString Int -> Bool #-}
-
-#ifdef BENCH_containers_Map
 ------------------------------------------------------------------------
 -- * Map
+#ifdef BENCH_containers_Map
 
 lookupM :: Ord k => [k] -> M.Map k Int -> Int
 lookupM xs m = foldl' (\z k -> fromMaybe z (M.lookup k m)) 0 xs

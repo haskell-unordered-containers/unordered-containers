@@ -29,8 +29,7 @@
 
 module Data.HashMap.Internal
     (
-      Tree(..)
-    , HashMap(..)
+      HashMap(..)
     , Leaf(..)
 
       -- * Construction
@@ -126,13 +125,11 @@ module Data.HashMap.Internal
     , sparseIndex
     , two
     , unionArrayBy
-    , unionArrayByInternal
     , update32
     , update32M
     , update32With'
-    , update32WithInternal'
     , updateOrConcatWithKey
-    , filterMapAuxInternal
+    , filterMapAux
     , equalKeys
     , equalKeys1
     , lookupRecordCollision
@@ -164,6 +161,7 @@ import Data.Functor.Identity      (Identity (..))
 import Data.Hashable              (Hashable)
 import Data.Hashable.Lifted       (Hashable1, Hashable2)
 import Data.HashMap.Internal.List (isPermutationBy, unorderedCompare)
+import Data.Monoid                (Sum (..))
 import Data.Semigroup             (Semigroup (..), stimesIdempotentMonoid)
 import GHC.Exts                   (Int (..), Int#, TYPE, (==#))
 import GHC.Stack                  (HasCallStack)
@@ -186,7 +184,7 @@ hash :: H.Hashable a => a -> Hash
 hash = fromIntegral . H.hash
 
 data Leaf k v = L !k v
-  deriving Eq
+  deriving (Eq)
 
 instance (NFData k, NFData v) => NFData (Leaf k v) where
     rnf (L k v) = rnf k `seq` rnf v
@@ -209,12 +207,12 @@ instance NFData2 Leaf where
 
 -- | A map from keys to values.  A map cannot contain duplicate keys;
 -- each key can map to at most one value.
-data Tree k v
+data HashMap k v
     = Empty
     -- ^ Invariants:
     --
     -- * 'Empty' is not a valid sub-node. It can only appear at the root. (INV1)
-    | BitmapIndexed !Bitmap !(A.Array (Tree k v))
+    | BitmapIndexed {-# UNPACK #-} !Size !Bitmap !(A.Array (HashMap k v))
     -- ^ Invariants:
     --
     -- * Only the lower @maxChildren@ bits of the 'Bitmap' may be set. The
@@ -232,11 +230,11 @@ data Tree k v
     --   compatible with its 'Hash'. (INV6)
     --   (TODO: Document this properly (#425))
     -- * The 'Hash' of a 'Leaf' node must be the 'hash' of its key. (INV7)
-    | Full !(A.Array (Tree k v))
+    | Full {-# UNPACK #-} !Size !(A.Array (HashMap k v))
     -- ^ Invariants:
     --
     -- * The array of a 'Full' node stores exactly 'maxChildren' sub-nodes. (INV8)
-    | Collision !Hash !(A.Array (Leaf k v))
+    | Collision {-# UNPACK #-} !Size !Hash !(A.Array (Leaf k v))
     -- ^ Invariants:
     --
     -- * The location of a 'Leaf' or 'Collision' node in the tree must be
@@ -247,42 +245,35 @@ data Tree k v
     --   the node. (INV7)
     -- * No two keys stored in a 'Collision' can be equal according to their
     --   'Eq' instance. (INV10)
+    -- * In each of the variants where a size field exists, it must not be a
+    --   negative integer, and must represent the size of the subtree - from that
+    --   node down - or the sum of sizes of all subtrees if it's an array of hashmaps.
 
-type role Tree nominal representational
+type Size = Int
 
-instance (NFData k, NFData v) => NFData (Tree k v) where
-    rnf Empty                 = ()
-    rnf (BitmapIndexed _ ary) = rnf ary
-    rnf (Leaf _ l)            = rnf l
-    rnf (Full ary)            = rnf ary
-    rnf (Collision _ ary)     = rnf ary
-
-deriving instance (TH.Lift k, TH.Lift v) => TH.Lift (Tree k v)
-
--- | @since 0.2.14.0
-instance NFData k => NFData1 (Tree k) where
-    liftRnf = liftRnf2 rnf
-
--- | @since 0.2.14.0
-instance NFData2 Tree where
-    liftRnf2 _ _ Empty                       = ()
-    liftRnf2 rnf1 rnf2 (BitmapIndexed _ ary) = liftRnf (liftRnf2 rnf1 rnf2) ary
-    liftRnf2 rnf1 rnf2 (Leaf _ l)            = liftRnf2 rnf1 rnf2 l
-    liftRnf2 rnf1 rnf2 (Full ary)            = liftRnf (liftRnf2 rnf1 rnf2) ary
-    liftRnf2 rnf1 rnf2 (Collision _ ary)     = liftRnf (liftRnf2 rnf1 rnf2) ary
-
--- | A wrapper over 'Tree'. The 'Int' field represent the hashmap's
--- size.
-data HashMap k v = HashMap {-# UNPACK #-} !A.Size !(Tree k v)
-
-instance NFData2 HashMap where
-    liftRnf2 rnf1 rnf2 (HashMap sz hm) = rnf sz `seq` liftRnf2  rnf1 rnf2 hm
+type role HashMap nominal representational
 
 -- | @since 0.2.17.0
 deriving instance (TH.Lift k, TH.Lift v) => TH.Lift (HashMap k v)
 
 instance (NFData k, NFData v) => NFData (HashMap k v) where
-    rnf (HashMap !_ m) = rnf m
+    rnf Empty                 = ()
+    rnf (BitmapIndexed _ _ ary) = rnf ary
+    rnf (Leaf _ l)            = rnf l
+    rnf (Full _ ary)            = rnf ary
+    rnf (Collision _ _ ary)     = rnf ary
+
+-- | @since 0.2.14.0
+instance NFData k => NFData1 (HashMap k) where
+    liftRnf = liftRnf2 rnf
+
+-- | @since 0.2.14.0
+instance NFData2 HashMap where
+    liftRnf2 _ _ Empty                       = ()
+    liftRnf2 rnf1 rnf2 (BitmapIndexed _ _ ary) = liftRnf (liftRnf2 rnf1 rnf2) ary
+    liftRnf2 rnf1 rnf2 (Leaf _ l)            = liftRnf2 rnf1 rnf2 l
+    liftRnf2 rnf1 rnf2 (Full _ ary)            = liftRnf (liftRnf2 rnf1 rnf2) ary
+    liftRnf2 rnf1 rnf2 (Collision _ _ ary)     = liftRnf (liftRnf2 rnf1 rnf2) ary
 
 instance Functor (HashMap k) where
     fmap = map
@@ -343,7 +334,7 @@ instance (Eq k, Hashable k) => Monoid (HashMap k v) where
   {-# INLINE mappend #-}
 
 instance (Data k, Data v, Eq k, Hashable k) => Data (HashMap k v) where
-    gfoldl f z hw   = z fromList `f` toList hw
+    gfoldl f z m   = z fromList `f` toList m
     toConstr _     = fromListConstr
     gunfold k z c  = case Data.constrIndex c of
         1 -> k (z fromList)
@@ -436,14 +427,14 @@ instance (Eq k, Eq v) => Eq (HashMap k v) where
 equal1 :: Eq k
        => (v -> v' -> Bool)
        -> HashMap k v -> HashMap k v' -> Bool
-equal1 eq (HashMap s1 t1) (HashMap s2 t2) = s1 == s2 && go t1 t2
+equal1 eq t1 t2 = (size t1 == size t2) && go t1 t2
   where
     go Empty Empty = True
-    go (BitmapIndexed bm1 ary1) (BitmapIndexed bm2 ary2)
+    go (BitmapIndexed _ bm1 ary1) (BitmapIndexed _ bm2 ary2)
       = bm1 == bm2 && A.sameArray1 go ary1 ary2
     go (Leaf h1 l1) (Leaf h2 l2) = h1 == h2 && leafEq l1 l2
-    go (Full ary1) (Full ary2) = A.sameArray1 go ary1 ary2
-    go (Collision h1 ary1) (Collision h2 ary2)
+    go (Full _ ary1) (Full _ ary2) = A.sameArray1 go ary1 ary2
+    go (Collision _ h1 ary1) (Collision _ h2 ary2)
       = h1 == h2 && isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
     go _ _ = False
 
@@ -451,8 +442,7 @@ equal1 eq (HashMap s1 t1) (HashMap s2 t2) = s1 == s2 && go t1 t2
 
 equal2 :: (k -> k' -> Bool) -> (v -> v' -> Bool)
       -> HashMap k v -> HashMap k' v' -> Bool
-equal2 eqk eqv (HashMap s1 t1) (HashMap s2 t2) =
-    (s1 == s2) && go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
+equal2 eqk eqv t1 t2 = size t1 == size t2 && go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
   where
     -- If the two trees are the same, then their lists of 'Leaf's and
     -- 'Collision's read from left to right should be the same (modulo the
@@ -462,7 +452,7 @@ equal2 eqk eqv (HashMap s1 t1) (HashMap s2 t2) =
       | k1 == k2 &&
         leafEq l1 l2
       = go tl1 tl2
-    go (Collision h1 ary1 : tl1) (Collision h2 ary2 : tl2)
+    go (Collision _ h1 ary1 : tl1) (Collision _ h2 ary2 : tl2)
       | h1 == h2 &&
         A.length ary1 == A.length ary2 &&
         isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
@@ -486,20 +476,19 @@ instance (Ord k, Ord v) => Ord (HashMap k v) where
 
 cmp :: (k -> k' -> Ordering) -> (v -> v' -> Ordering)
     -> HashMap k v -> HashMap k' v' -> Ordering
-cmp cmpk cmpv (HashMap s1 t1) (HashMap s2 t2) =
-    compare s1 s2 `mappend` go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
+cmp cmpk cmpv t1 t2 = go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
   where
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
       = compare k1 k2 `mappend`
         leafCompare l1 l2 `mappend`
         go tl1 tl2
-    go (Collision h1 ary1 : tl1) (Collision h2 ary2 : tl2)
+    go (Collision _ h1 ary1 : tl1) (Collision _ h2 ary2 : tl2)
       = compare h1 h2 `mappend`
         compare (A.length ary1) (A.length ary2) `mappend`
         unorderedCompare leafCompare (A.toList ary1) (A.toList ary2) `mappend`
         go tl1 tl2
-    go (Leaf _ _ : _) (Collision _ _ : _) = LT
-    go (Collision _ _ : _) (Leaf _ _ : _) = GT
+    go (Leaf _ _ : _) (Collision _ _ _ : _) = LT
+    go (Collision _ _ _ : _) (Leaf _ _ : _) = GT
     go [] [] = EQ
     go [] _  = LT
     go _  [] = GT
@@ -509,13 +498,12 @@ cmp cmpk cmpv (HashMap s1 t1) (HashMap s2 t2) =
 
 -- Same as 'equal2' but doesn't compare the values.
 equalKeys1 :: (k -> k' -> Bool) -> HashMap k v -> HashMap k' v' -> Bool
-equalKeys1 eq (HashMap s1 t1) (HashMap s2 t2) =
-    (s1 == s2) && go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
+equalKeys1 eq t1 t2 = size t1 == size t2 && go (leavesAndCollisions t1 []) (leavesAndCollisions t2 [])
   where
     go (Leaf k1 l1 : tl1) (Leaf k2 l2 : tl2)
       | k1 == k2 && leafEq l1 l2
       = go tl1 tl2
-    go (Collision h1 ary1 : tl1) (Collision h2 ary2 : tl2)
+    go (Collision _ h1 ary1 : tl1) (Collision _ h2 ary2 : tl2)
       | h1 == h2 && A.length ary1 == A.length ary2 &&
         isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
       = go tl1 tl2
@@ -526,30 +514,30 @@ equalKeys1 eq (HashMap s1 t1) (HashMap s2 t2) =
 
 -- Same as 'equal1' but doesn't compare the values.
 equalKeys :: Eq k => HashMap k v -> HashMap k v' -> Bool
-equalKeys (HashMap s1 t1) (HashMap s2 t2) = s1 == s2 && go t1 t2
+equalKeys = go
   where
-    go :: Eq k => Tree k v -> Tree k v' -> Bool
+    go :: Eq k => HashMap k v -> HashMap k v' -> Bool
     go Empty Empty = True
-    go (BitmapIndexed bm1 ary1) (BitmapIndexed bm2 ary2)
+    go (BitmapIndexed _ bm1 ary1) (BitmapIndexed _ bm2 ary2)
       = bm1 == bm2 && A.sameArray1 go ary1 ary2
     go (Leaf h1 l1) (Leaf h2 l2) = h1 == h2 && leafEq l1 l2
-    go (Full ary1) (Full ary2) = A.sameArray1 go ary1 ary2
-    go (Collision h1 ary1) (Collision h2 ary2)
+    go (Full _ ary1) (Full _ ary2) = A.sameArray1 go ary1 ary2
+    go (Collision _ h1 ary1) (Collision _ h2 ary2)
       = h1 == h2 && isPermutationBy leafEq (A.toList ary1) (A.toList ary2)
     go _ _ = False
 
     leafEq (L k1 _) (L k2 _) = k1 == k2
 
 instance Hashable2 HashMap where
-    liftHashWithSalt2 hk hv salt (HashMap _ hm) = go salt (leavesAndCollisions hm [])
+    liftHashWithSalt2 hk hv salt hm = go salt (leavesAndCollisions hm [])
       where
-        -- go :: Int -> [Tree k v] -> Int
+        -- go :: Int -> [HashMap k v] -> Int
         go s [] = s
         go s (Leaf _ l : tl)
           = s `hashLeafWithSalt` l `go` tl
         -- For collisions we hashmix hash value
         -- and then array of values' hashes sorted
-        go s (Collision h a : tl)
+        go s (Collision _ h a : tl)
           = (s `H.hashWithSalt` h) `hashCollisionWithSalt` a `go` tl
         go s (_ : tl) = s `go` tl
 
@@ -567,18 +555,18 @@ instance (Hashable k) => Hashable1 (HashMap k) where
     liftHashWithSalt = H.liftHashWithSalt2 H.hashWithSalt
 
 instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
-    hashWithSalt salt (HashMap _ t) = go salt t
+    hashWithSalt salt hm = go salt hm
       where
-        go :: Int -> Tree k v -> Int
+        go :: Int -> HashMap k v -> Int
         go s Empty = s
-        go s (BitmapIndexed _ a) = A.foldl' go s a
+        go s (BitmapIndexed sz _ a) = sz `H.hashWithSalt` A.foldl' go s a
         go s (Leaf h (L _ v))
           = s `H.hashWithSalt` h `H.hashWithSalt` v
         -- For collisions we hashmix hash value
         -- and then array of values' hashes sorted
-        go s (Full a) = A.foldl' go s a
-        go s (Collision h a)
-          = (s `H.hashWithSalt` h) `hashCollisionWithSalt` a
+        go s (Full sz a) = sz `H.hashWithSalt` A.foldl' go s a
+        go s (Collision sz h a)
+          = sz `H.hashWithSalt` ((s `H.hashWithSalt` h) `hashCollisionWithSalt` a)
 
         hashLeafWithSalt :: Int -> Leaf k v -> Int
         hashLeafWithSalt s (L k v) = s `H.hashWithSalt` k `H.hashWithSalt` v
@@ -591,17 +579,17 @@ instance (Hashable k, Hashable v) => Hashable (HashMap k v) where
         arrayHashesSorted s = List.sort . List.map (hashLeafWithSalt s) . A.toList
 
 -- | Helper to get 'Leaf's and 'Collision's as a list.
-leavesAndCollisions :: Tree k v -> [Tree k v] -> [Tree k v]
-leavesAndCollisions (BitmapIndexed _ ary) a = A.foldr leavesAndCollisions a ary
-leavesAndCollisions (Full ary)            a = A.foldr leavesAndCollisions a ary
+leavesAndCollisions :: HashMap k v -> [HashMap k v] -> [HashMap k v]
+leavesAndCollisions (BitmapIndexed _ _ ary) a = A.foldr leavesAndCollisions a ary
+leavesAndCollisions (Full _ ary)              a = A.foldr leavesAndCollisions a ary
 leavesAndCollisions l@(Leaf _ _)          a = l : a
-leavesAndCollisions c@(Collision _ _)     a = c : a
-leavesAndCollisions Empty                 a = a
+leavesAndCollisions c@(Collision _ _ _)     a = c : a
+leavesAndCollisions Empty                   a = a
 
 -- | Helper function to detect 'Leaf's and 'Collision's.
-isLeafOrCollision :: Tree k v -> Bool
+isLeafOrCollision :: HashMap k v -> Bool
 isLeafOrCollision (Leaf _ _)      = True
-isLeafOrCollision (Collision _ _) = True
+isLeafOrCollision (Collision _ _ _) = True
 isLeafOrCollision _               = False
 
 ------------------------------------------------------------------------
@@ -609,23 +597,32 @@ isLeafOrCollision _               = False
 
 -- | \(O(1)\) Construct an empty map.
 empty :: HashMap k v
-empty = HashMap 0 Empty
+empty = Empty
 
 -- | \(O(1)\) Construct a map with a single element.
 singleton :: (Hashable k) => k -> v -> HashMap k v
-singleton k v = HashMap 1 (Leaf (hash k) (L k v))
+singleton k v = Leaf (hash k) (L k v)
 
 ------------------------------------------------------------------------
 -- * Basic interface
 
 -- | \(O(1)\) Return 'True' if this map is empty, 'False' otherwise.
 null :: HashMap k v -> Bool
-null (HashMap _ Empty) = True
-null _                 = False
+null Empty = True
+null _   = False
 
 -- | \(O(1)\) Return the number of key-value mappings in this map.
 size :: HashMap k v -> Int
-size (HashMap sz _) = A.unSize sz
+size Empty                 = 0
+size (Leaf _ _)            = 1
+size (BitmapIndexed s _ _) = s
+size (Full s _)            = s
+size (Collision s _ _)     = s
+
+sumSizes :: A.Array (HashMap k v) -> Int
+sumSizes = \ary ->
+    getSum (A.foldMap (\hm -> Sum (size hm)) ary)
+{-# INLINE sumSizes #-}
 
 -- | \(O(\log n)\) Return 'True' if the specified key is present in the
 -- map, 'False' otherwise.
@@ -641,12 +638,12 @@ lookup :: (Eq k, Hashable k) => k -> HashMap k v -> Maybe v
 -- GHC does not yet perform a worker-wrapper transformation on
 -- unboxed sums automatically. That seems likely to happen at some
 -- point (possibly as early as GHC 8.6) but for now we do it manually.
-lookup k (HashMap _ m) = case lookup# k m of
+lookup k m = case lookup# k m of
   (# (# #) | #) -> Nothing
   (# | a #) -> Just a
 {-# INLINE lookup #-}
 
-lookup# :: (Eq k, Hashable k) => k -> Tree k v -> (# (# #) | v #)
+lookup# :: (Eq k, Hashable k) => k -> HashMap k v -> (# (# #) | v #)
 lookup# k m = lookupCont (\_ -> (# (# #) | #)) (\v _i -> (# | v #)) (hash k) k 0 m
 {-# INLINABLE lookup# #-}
 
@@ -659,7 +656,7 @@ lookup' :: Eq k => Hash -> k -> HashMap k v -> Maybe v
 -- lookup' would probably prefer to be implemented in terms of its own
 -- lookup'#, but it's not important enough and we don't want too much
 -- code.
-lookup' h k (HashMap _ m) = case lookupRecordCollision# h k m of
+lookup' h k m = case lookupRecordCollision# h k m of
   (# (# #) | #) -> Nothing
   (# | (# a, _i #) #) -> Just a
 {-# INLINE lookup' #-}
@@ -686,7 +683,7 @@ lookupResToMaybe (Present x _) = Just x
 --   Key not in map           => Absent
 --   Key in map, no collision => Present v (-1)
 --   Key in map, collision    => Present v position
-lookupRecordCollision :: Eq k => Hash -> k -> Tree k v -> LookupRes v
+lookupRecordCollision :: Eq k => Hash -> k -> HashMap k v -> LookupRes v
 lookupRecordCollision h k m = case lookupRecordCollision# h k m of
   (# (# #) | #) -> Absent
   (# | (# a, i #) #) -> Present a (I# i) -- GHC will eliminate the I#
@@ -697,7 +694,7 @@ lookupRecordCollision h k m = case lookupRecordCollision# h k m of
 -- may be changing in GHC 8.6 or so (there is some work in progress), but
 -- for now we use Int# explicitly here. We don't need to push the Int#
 -- into lookupCont because inlining takes care of that.
-lookupRecordCollision# :: Eq k => Hash -> k -> Tree k v -> (# (# #) | (# v, Int# #) #)
+lookupRecordCollision# :: Eq k => Hash -> k -> HashMap k v -> (# (# #) | (# v, Int# #) #)
 lookupRecordCollision# h k m =
     lookupCont (\_ -> (# (# #) | #)) (\v (I# i) -> (# | (# v, i #) #)) h k 0 m
 -- INLINABLE to specialize to the Eq instance.
@@ -723,22 +720,22 @@ lookupCont ::
   -> Hash -- The hash of the key
   -> k
   -> Int -- The offset of the subkey in the hash.
-  -> Tree k v -> r
+  -> HashMap k v -> r
 lookupCont absent present !h0 !k0 !s0 !m0 = go h0 k0 s0 m0
   where
-    go :: Eq k => Hash -> k -> Int -> Tree k v -> r
+    go :: Eq k => Hash -> k -> Int -> HashMap k v -> r
     go !_ !_ !_ Empty = absent (# #)
     go h k _ (Leaf hx (L kx x))
         | h == hx && k == kx = present x (-1)
         | otherwise          = absent (# #)
-    go h k s (BitmapIndexed b v)
+    go h k s (BitmapIndexed _ b v)
         | b .&. m == 0 = absent (# #)
         | otherwise    =
             go h k (nextShift s) (A.index v (sparseIndex b m))
       where m = mask h s
-    go h k s (Full v) =
+    go h k s (Full _ v) =
       go h k (nextShift s) (A.index v (index h s))
-    go h k _ (Collision hx v)
+    go h k _ (Collision _ hx v)
         | h == hx   = lookupInArrayCont absent present k v
         | otherwise = absent (# #)
 {-# INLINE lookupCont #-}
@@ -789,76 +786,71 @@ lookupDefault = findWithDefault
 infixl 9 !
 
 -- | Create a 'Collision' value with two 'Leaf' values.
-collision :: Hash -> Leaf k v -> Leaf k v -> Tree k v
+collision :: Hash -> Leaf k v -> Leaf k v -> HashMap k v
 collision h !e1 !e2 =
     let v = A.run $ do mary <- A.new 2 e1
                        A.write mary 1 e2
                        return mary
-    in Collision h v
+    in Collision 2 h v
 {-# INLINE collision #-}
 
 -- | Create a 'BitmapIndexed' or 'Full' node.
-bitmapIndexedOrFull :: Bitmap -> A.Array (Tree k v) -> Tree k v
+bitmapIndexedOrFull :: Size -> Bitmap -> A.Array (HashMap k v) -> HashMap k v
 -- The strictness in @ary@ helps achieve a nice code size reduction in
 -- @unionWith[Key]@ with GHC 9.2.2. See the Core diffs in
 -- https://github.com/haskell-unordered-containers/unordered-containers/pull/376.
-bitmapIndexedOrFull b !ary
-    | b == fullBitmap = Full ary
-    | otherwise         = BitmapIndexed b ary
+bitmapIndexedOrFull sz b !ary
+    | b == fullBitmap   = Full sz ary
+    | otherwise         = BitmapIndexed sz b ary
 {-# INLINE bitmapIndexedOrFull #-}
 
 -- | \(O(\log n)\) Associate the specified value with the specified
 -- key in this map.  If this map previously contained a mapping for
--- the key, the old value is replaced. Returns a tuple containing the
--- hashmap's change in size, and the hashmap after the insertion.
+-- the key, the old value is replaced.
 insert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
 insert k v m = insert' (hash k) k v m
 {-# INLINABLE insert #-}
 
-insert' :: (Eq k, Hashable k) => Hash -> k -> v -> HashMap k v -> HashMap k v
-insert' h k v (HashMap sz m) =
-    let A.Sized diff m' = insertInternal h k v m
-    in HashMap (sz + diff) m'
-{-# INLINABLE insert' #-}
-
-insertInternal :: Eq k => Hash -> k -> v -> Tree k v -> A.Sized (Tree k v)
-insertInternal h0 k0 v0 m0 = go h0 k0 v0 0 m0
+insert' :: Eq k => Hash -> k -> v -> HashMap k v -> HashMap k v
+insert' h0 k0 v0 m0 = go h0 k0 v0 0 m0
   where
-    go !h !k x !_ Empty = A.Sized 1 (Leaf h (L k x))
+    go !h !k x !_ Empty = Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then if x `ptrEq` y
-                         then A.Sized 0 t
-                         else A.Sized 0 (Leaf h (L k x))
-                    else A.Sized 1 (collision h l (L k x))
-        | otherwise = A.Sized 1 (runST (two s h k x hy t))
-    go h k x s t@(BitmapIndexed b ary)
+                         then t
+                         else Leaf h (L k x)
+                    else collision h l (L k x)
+        | otherwise = runST (two s h k x hy t)
+    go h k x s t@(BitmapIndexed sz b ary)
         | b .&. m == 0 =
-            let !ary' = A.insert ary i $! Leaf h (L k x)
-            in A.Sized 1 (bitmapIndexedOrFull (b .|. m) ary')
+            let 
+                !ary' = A.insert ary i $! Leaf h (L k x)
+            in bitmapIndexedOrFull (sz + 1) (b .|. m) ary'
         | otherwise =
             let !st  = A.index ary i
-                A.Sized sz !st' = go h k x (nextShift s) st
+                !sz'  = size st
+                !st' = go h k x (nextShift s) st
+                !sz'' = size st'
             in if st' `ptrEq` st
-               then A.Sized sz t
-               else A.Sized sz (BitmapIndexed b (A.update ary i st'))
+               then t
+               else BitmapIndexed (sz + (sz'' - sz')) b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
-    go h k x s t@(Full ary) =
+    go h k x s t@(Full sz ary) =
         let !st  = A.index ary i
-            A.Sized sz !st' = go h k x (nextShift s) st
+            !sz'  = size st
+            !st' = go h k x (nextShift s) st
+            !sz'' = size st'
         in if st' `ptrEq` st
-            then A.Sized sz t
-            else A.Sized sz (Full (update32 ary i st'))
+            then t
+            else Full (sz + (sz'' - sz')) (update32 ary i st')
       where i = index h s
-    go h k x s t@(Collision hy v)
-        | h == hy   =
-            let !start = A.length v
-                !newV = updateOrSnocWith (\a _ -> (# a #)) k x v
-                !end = A.length newV
-            in A.Sized (A.Size (end - start)) (Collision h newV)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-{-# INLINABLE insertInternal #-}
+    go h k x s t@(Collision sz hy v)
+        | h == hy   = let ary = updateOrSnocWith (\a _ -> (# a #)) k x v
+                      in Collision (A.length ary) h ary
+        | otherwise = go h k x s $ BitmapIndexed sz (mask hy s) (A.singleton t)
+{-# INLINABLE insert' #-}
 
 -- Insert optimized for the case when we know the key is not in the map.
 --
@@ -867,32 +859,32 @@ insertInternal h0 k0 v0 m0 = go h0 k0 v0 0 m0
 -- We can skip:
 --  - the key equality check on a Leaf
 --  - check for its existence in the array for a hash collision
-insertNewKey :: Hash -> k -> v -> Tree k v -> Tree k v
+insertNewKey :: Hash -> k -> v -> HashMap k v -> HashMap k v
 insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
   where
     go !h !k x !_ Empty = Leaf h (L k x)
     go h k x s t@(Leaf hy l)
       | hy == h = collision h l (L k x)
       | otherwise = runST (two s h k x hy t)
-    go h k x s (BitmapIndexed b ary)
+    go h k x s (BitmapIndexed sz b ary)
         | b .&. m == 0 =
             let !ary' = A.insert ary i $! Leaf h (L k x)
-            in bitmapIndexedOrFull (b .|. m) ary'
+            in bitmapIndexedOrFull (sz + 1) (b .|. m) ary'
         | otherwise =
             let !st  = A.index ary i
                 !st' = go h k x (nextShift s) st
-            in BitmapIndexed b (A.update ary i st')
+            in BitmapIndexed (sz + 1) b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
-    go h k x s (Full ary) =
+    go h k x s (Full sz ary) =
         let !st  = A.index ary i
             !st' = go h k x (nextShift s) st
-        in Full (update32 ary i st')
+        in Full (sz + 1) (update32 ary i st')
       where i = index h s
-    go h k x s t@(Collision hy v)
-        | h == hy   = Collision h (A.snoc v (L k x))
+    go h k x s t@(Collision sz hy v)
+        | h == hy   = Collision (sz + 1) h (A.snoc v (L k x))
         | otherwise =
-            go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+            go h k x s $ BitmapIndexed sz (mask hy s) (A.singleton t)
 {-# NOINLINE insertNewKey #-}
 
 
@@ -902,24 +894,24 @@ insertNewKey !h0 !k0 x0 !m0 = go h0 k0 x0 0 m0
 -- hash collision position if there was one. This information can be obtained
 -- from 'lookupRecordCollision'. If there is no collision, pass (-1) as collPos
 -- (first argument).
-insertKeyExists :: Int -> Hash -> k -> v -> Tree k v -> Tree k v
+insertKeyExists :: Int -> Hash -> k -> v -> HashMap k v -> HashMap k v
 insertKeyExists !collPos0 !h0 !k0 x0 !m0 = go collPos0 h0 k0 x0 m0
   where
     go !_collPos !_shiftedHash !k x (Leaf h _kx)
         = Leaf h (L k x)
-    go collPos shiftedHash k x (BitmapIndexed b ary) =
+    go collPos shiftedHash k x (BitmapIndexed sz b ary) =
         let !st  = A.index ary i
             !st' = go collPos (shiftHash shiftedHash) k x st
-        in BitmapIndexed b (A.update ary i st')
+        in BitmapIndexed sz b (A.update ary i st')
       where m = mask' shiftedHash
             i = sparseIndex b m
-    go collPos shiftedHash k x (Full ary) =
-        let !st  = A.index ary i
+    go collPos shiftedHash k x (Full sz ary) =
+        let !st   = A.index ary i
             !st' = go collPos (shiftHash shiftedHash) k x st
-        in Full (update32 ary i st')
+        in Full sz (update32 ary i st')
       where i = index' shiftedHash
-    go collPos _shiftedHash k x (Collision h v)
-        | collPos >= 0 = Collision h (setAtPosition collPos k x v)
+    go collPos _shiftedHash k x (Collision sz h v)
+        | collPos >= 0 = Collision sz h (setAtPosition collPos k x v)
         | otherwise = Empty -- error "Internal error: go {collPos negative}"
     go _ _ _ _ Empty = Empty -- error "Internal error: go Empty"
 
@@ -948,50 +940,44 @@ setAtPosition i k x ary = A.update ary i (L k x)
 
 -- | In-place update version of insert
 unsafeInsert :: (Eq k, Hashable k) => k -> v -> HashMap k v -> HashMap k v
-unsafeInsert k0 v0 (HashMap sz m0) =
-    let A.Sized diff m0' = unsafeInsertInternal k0 v0 m0
-    in HashMap (diff + sz) m0'
-{-# INLINABLE unsafeInsert #-}
-
--- | In-place update version of insert. Returns a tuple with the
--- HashMap's change in size and the hashmap itself.
-unsafeInsertInternal :: (Eq k, Hashable k) => k -> v -> Tree k v -> A.Sized (Tree k v)
-unsafeInsertInternal k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
-    go !h !k x !_ Empty = return $! A.Sized 1 (Leaf h (L k x))
+    go !h !k x !_ Empty = return $! Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then if x `ptrEq` y
-                         then return $! A.Sized 0 t
-                         else return $! A.Sized 0 (Leaf h (L k x))
-                    else return $! A.Sized 1 (collision h l (L k x))
-        | otherwise = A.Sized 1 <$> two s h k x hy t
-    go h k x s t@(BitmapIndexed b ary)
+                         then return t
+                         else return $! Leaf h (L k x)
+                    else return $! collision h l (L k x)
+        | otherwise = two s h k x hy t
+    go h k x s (BitmapIndexed sz b ary)
         | b .&. m == 0 = do
             ary' <- A.insertM ary i $! Leaf h (L k x)
-            return $! A.Sized 1 (bitmapIndexedOrFull (b .|. m) ary')
+            return $! bitmapIndexedOrFull (sz + 1) (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
-            A.Sized sz st' <- go h k x (nextShift s) st
+            let sz' = size st
+            st' <- go h k x (nextShift s) st
+            let sz'' = size st'
             A.unsafeUpdateM ary i st'
-            return (A.Sized sz t)
+            return (BitmapIndexed (sz + (sz'' - sz')) b ary)
       where m = mask h s
             i = sparseIndex b m
-    go h k x s t@(Full ary) = do
+    go h k x s (Full sz ary) = do
         st <- A.indexM ary i
-        A.Sized sz st' <- go h k x (nextShift s) st
+        let sz' = size st
+        st' <- go h k x (nextShift s) st
+        let sz'' = size st'
         A.unsafeUpdateM ary i st'
-        return (A.Sized sz t)
+        return (Full (sz + (sz'' - sz')) ary)
       where i = index h s
-    go h k x s t@(Collision hy v)
-        | h == hy   =
-            let !start = A.length v
-                !newV = updateOrSnocWith (\a _ -> (# a #)) k x v
-                !end = A.length newV
-            in return $! A.Sized (A.Size (end - start)) (Collision h newV)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-{-# INLINABLE unsafeInsertInternal #-}
+    go h k x s t@(Collision sz hy v)
+        | h == hy   = do let ary = updateOrSnocWith (\a _ -> (# a #)) k x v
+                             sz' = A.length ary
+                         return $! Collision sz' h ary
+        | otherwise = go h k x s $ BitmapIndexed sz (mask hy s) (A.singleton t)
+{-# INLINABLE unsafeInsert #-}
 
 -- | Create a map from two key-value pairs which hashes don't collide. To
 -- enhance sharing, the second key-value pair is represented by the hash of its
@@ -1001,19 +987,19 @@ unsafeInsertInternal k0 v0 m0 = runST (go h0 k0 v0 0 m0)
 -- key. See issue #232. We don't need to force the HashMap argument
 -- because it's already in WHNF (having just been matched) and we
 -- just put it directly in an array.
-two :: Shift -> Hash -> k -> v -> Hash -> Tree k v -> ST s (Tree k v)
+two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
 two = go
   where
     go s h1 k1 v1 h2 t2
         | bp1 == bp2 = do
             st <- go (nextShift s) h1 k1 v1 h2 t2
             ary <- A.singletonM st
-            return $ BitmapIndexed bp1 ary
+            return $ BitmapIndexed (size st) bp1 ary
         | otherwise  = do
             mary <- A.new 2 $! Leaf h1 (L k1 v1)
             A.write mary idx2 t2
             ary <- A.unsafeFreeze mary
-            return $ BitmapIndexed (bp1 .|. bp2) ary
+            return $ BitmapIndexed 2 (bp1 .|. bp2) ary
       where
         bp1  = mask h1 s
         bp2  = mask h2 s
@@ -1048,65 +1034,52 @@ insertWith f k new m = insertModifying new (\old -> (# f new old #)) k m
 -- to the unboxed unary tuple, we avoid introducing any unnecessary
 -- thunks in the tree.
 insertModifying :: (Eq k, Hashable k) => v -> (v -> (# v #)) -> k -> HashMap k v
-                -> HashMap k v
--- We're not going to worry about allocating a function closure
--- to pass to insertModifying. See comments at 'adjust'.
-insertModifying x f k (HashMap sz m) =
-    let A.Sized diff m' = insertWithInternal x f k m
-    in HashMap (sz + diff) m'
-{-# INLINE insertModifying #-}
-
--- | @insertModifying@ is a lot like insertWith; we use it to implement alterF.
--- It takes a value to insert when the key is absent and a function
--- to apply to calculate a new value when the key is present. Thanks
--- to the unboxed unary tuple, we avoid introducing any unnecessary
--- thunks in the tree.
--- | /O(log n)/ Associate the specified value with the specified
--- key in this map.  If this map previously contained a mapping for
--- the key, the old value is replaced. Returns a tuple containing the
--- hashmap's change in size, and the hashmap after the insertion.
-insertWithInternal :: (Eq k, Hashable k) => v -> (v -> (# v #)) -> k -> Tree k v
-            -> A.Sized (Tree k v)
-insertWithInternal x f k0 m0 = go h0 k0 0 m0
+            -> HashMap k v
+insertModifying x f k0 m0 = go h0 k0 0 m0
   where
     !h0 = hash k0
-    go !h !k !_ Empty = A.Sized 1 (Leaf h (L k x))
+    go !h !k !_ Empty = Leaf h (L k x)
     go h k s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
-                    then A.Sized 0 (case f y of
+                    then case f y of
                       (# v' #) | ptrEq y v' -> t
-                               | otherwise -> Leaf h (L k v'))
-                    else A.Sized 1 (collision h l (L k x))
-        | otherwise = A.Sized 1 (runST (two s h k x hy t))
-    go h k s t@(BitmapIndexed b ary)
+                               | otherwise -> Leaf h (L k v')
+                    else collision h l (L k x)
+        | otherwise = runST (two s h k x hy t)
+    go h k s t@(BitmapIndexed sz b ary)
         | b .&. m == 0 =
             let ary' = A.insert ary i $! Leaf h (L k x)
-            in A.Sized 1 (bitmapIndexedOrFull (b .|. m) ary')
+            in bitmapIndexedOrFull (sz + 1) (b .|. m) ary'
         | otherwise =
-            let !st             = A.index ary i
-                A.Sized sz !st' = go h k (nextShift s) st
-                ary'            = A.update ary i $! st'
+            let !st   = A.index ary i
+                !sz'  = size st
+                !st'  = go h k (nextShift s) st
+                !sz'' = size st'
+                ary'  = A.update ary i $! st'
             in if ptrEq st st'
-               then A.Sized 0 t
-               else A.Sized sz (BitmapIndexed b ary')
+               then t
+               else BitmapIndexed (sz + (sz'' - sz')) b ary'
       where m = mask h s
             i = sparseIndex b m
-    go h k s t@(Full ary) =
-        let !st             = A.index ary i
-            A.Sized sz !st' = go h k (nextShift s) st
-            ary'            = update32 ary i $! st'
+    go h k s t@(Full sz ary) =
+        let !st   = A.index ary i
+            !sz'  = size st
+            !st'  = go h k (nextShift s) st
+            !sz'' = size st'
+            ary' = update32 ary i $! st'
         in if ptrEq st st'
-           then A.Sized 0 t
-           else A.Sized sz (Full ary')
+           then t
+           else Full (sz + (sz'' - sz')) ary'
       where i = index h s
-    go h k s t@(Collision hy v)
+    go h k s t@(Collision sz hy v)
         | h == hy   =
-            let !v' = insertModifyingArr x f k v
+            let !v'  = insertModifyingArr x f k v
+                !sz' = A.length v'
             in if A.unsafeSameArray v v'
-               then A.Sized 0 t
-               else A.Sized (A.Size (A.length v' - A.length v)) (Collision h v')
-        | otherwise = go h k s $ BitmapIndexed (mask hy s) (A.singleton t)
-{-# INLINABLE insertWithInternal #-}
+               then t
+               else Collision sz' h v'
+        | otherwise = go h k s $ BitmapIndexed sz (mask hy s) (A.singleton t)
+{-# INLINABLE insertModifying #-}
 
 -- Like insertModifying for arrays; used to implement insertModifying
 insertModifyingArr :: Eq k => v -> (v -> (# v #)) -> k -> A.Array (Leaf k v)
@@ -1125,84 +1098,74 @@ insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
 {-# INLINE insertModifyingArr #-}
 
 -- | In-place update version of insertWith
-unsafeInsertWith :: forall k v . (Eq k, Hashable k)
+unsafeInsertWith :: forall k v. (Eq k, Hashable k)
                  => (v -> v -> v) -> k -> v -> HashMap k v
                  -> HashMap k v
-unsafeInsertWith f k0 v0 (HashMap sz m0) =
-    let A.Sized diff m0' = unsafeInsertWithKey (\_ a b -> (# f a b #)) k0 v0 m0
-    in HashMap (diff + sz) m0'
+unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (\_ a b -> (# f a b #)) k0 v0 m0
 {-# INLINABLE unsafeInsertWith #-}
 
 unsafeInsertWithKey :: forall k v. (Eq k, Hashable k)
-                 => (k -> v -> v -> (# v #)) -> k -> v -> Tree k v
-                 -> A.Sized (Tree k v)
+                 => (k -> v -> v -> (# v #)) -> k -> v -> HashMap k v
+                 -> HashMap k v
 unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
   where
     h0 = hash k0
-    go :: Hash -> k -> v -> Shift -> Tree k v -> ST s (A.Sized (Tree k v))
-    go !h !k x !_ Empty = return $! A.Sized 1 (Leaf h (L k x))
+    go :: Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
+    go !h !k x !_ Empty = return $! Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then case f k x y of
-                        (# v #) -> return $! A.Sized 0 (Leaf h (L k v))
-                    else           return $! A.Sized 1 (collision h l (L k x))
-        | otherwise = do
-            twoHM <- two s h k x hy t
-            return $! A.Sized 1 twoHM
-    go h k x s t@(BitmapIndexed b ary)
+                        (# v #) -> return $! Leaf h (L k v)
+                    else return $! collision h l (L k x)
+        | otherwise = two s h k x hy t
+    go h k x s (BitmapIndexed sz b ary)
         | b .&. m == 0 = do
             ary' <- A.insertM ary i $! Leaf h (L k x)
-            return $! A.Sized 1 (bitmapIndexedOrFull (b .|. m) ary')
+            return $! bitmapIndexedOrFull (sz + 1) (b .|. m) ary'
         | otherwise = do
             st <- A.indexM ary i
-            A.Sized sz st' <- go h k x (nextShift s) st
+            let sz' = size st
+            st' <- go h k x (nextShift s) st
+            let sz'' = size st'
             A.unsafeUpdateM ary i st'
-            return (A.Sized sz t)
+            return (BitmapIndexed (sz + (sz'' - sz')) b ary)
       where m = mask h s
             i = sparseIndex b m
-    go h k x s t@(Full ary) = do
+    go h k x s (Full sz ary) = do
         st <- A.indexM ary i
-        A.Sized sz st' <- go h k x (nextShift s) st
+        let sz' = size st
+        st' <- go h k x (nextShift s) st
+        let sz'' = size st'
         A.unsafeUpdateM ary i st'
-        return (A.Sized sz t)
+        return (Full (sz + (sz'' - sz')) ary)
       where i = index h s
-    go h k x s t@(Collision hy v)
-        | h == hy   =
-            let !start = A.Size (A.length v)
-                !newV = updateOrSnocWithKey f k x v
-                !end = A.Size (A.length newV)
-            in return $! A.Sized (end - start) (Collision h newV)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+    go h k x s t@(Collision sz hy v)
+        | h == hy   = let v' = updateOrSnocWithKey f k x v
+                      in return $! Collision (A.length v') h v'
+        | otherwise = go h k x s $ BitmapIndexed sz (mask hy s) (A.singleton t)
 {-# INLINABLE unsafeInsertWithKey #-}
 
 -- | \(O(\log n)\) Remove the mapping for the specified key from this map
--- if present. Returns a tuple with the hashmap's change in size and the
--- hashmap after the deletion.
+-- if present.
 delete :: (Eq k, Hashable k) => k -> HashMap k v -> HashMap k v
 delete k m = delete' (hash k) k m
 {-# INLINABLE delete #-}
 
-
-delete' :: (Eq k, Hashable k) => Hash -> k -> HashMap k v -> HashMap k v
-delete' h k (HashMap sz m) =
-    let A.Sized diff m' = deleteInternal h k m
-    in HashMap (sz + diff) m'
-{-# INLINABLE delete' #-}
-
-
-deleteInternal :: Eq k => Hash -> k -> Tree k v -> A.Sized (Tree k v)
-deleteInternal h0 k0 m0 = go h0 k0 0 m0
+delete' :: Eq k => Hash -> k -> HashMap k v -> HashMap k v
+delete' h0 k0 m0 = go h0 k0 0 m0
   where
-    go !_ !_ !_ Empty = A.Sized 0 Empty
+    go !_ !_ !_ Empty = Empty
     go h k _ t@(Leaf hy (L ky _))
-        | hy == h && ky == k = A.Sized (-1) Empty
-        | otherwise          = A.Sized 0 t
-    go h k s t@(BitmapIndexed b ary)
-        | b .&. m == 0 = A.Sized 0 t
+        | hy == h && ky == k = Empty
+        | otherwise          = t
+    go h k s t@(BitmapIndexed sz b ary)
+        | b .&. m == 0 = t
         | otherwise =
             let !st = A.index ary i
-                A.Sized sz !st' = go h k (nextShift s) st
-            in A.Sized sz  $! if st' `ptrEq` st
+                !sz'  = size st
+                !st' = go h k (nextShift s) st
+                !sz'' = size st'
+            in if st' `ptrEq` st
                 then t
                 else case st' of
                 Empty | A.length ary == 1 -> Empty
@@ -1213,48 +1176,52 @@ deleteInternal h0 k0 m0 = go h0 k0 0 m0
                           _                               -> bIndexed
                       | otherwise -> bIndexed
                     where
-                      bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
+                      bIndexed = BitmapIndexed (sz - sz') (b .&. complement m) (A.delete ary i)
                 l | isLeafOrCollision l && A.length ary == 1 -> l
-                _ -> BitmapIndexed b (A.update ary i st')
+                _ -> BitmapIndexed (sz + (sz'' - sz')) b (A.update ary i st')
       where m = mask h s
             i = sparseIndex b m
-    go h k s t@(Full ary) =
+    go h k s t@(Full sz ary) =
         let !st   = A.index ary i
-            A.Sized sz !st' = go h k (nextShift s) st
-        in A.Sized sz $! if st' `ptrEq` st
+            !sz'  = size st
+            !st' = go h k (nextShift s) st
+            !sz'' = size st'
+        in if st' `ptrEq` st
             then t
             else case st' of
             Empty ->
                 let ary' = A.delete ary i
                     bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
-                in BitmapIndexed bm ary'
-            _ -> Full (A.update ary i st')
+                in BitmapIndexed (sz - sz') bm ary'
+            _ -> Full (sz + (sz'' - sz')) (A.update ary i st')
       where i = index h s
-    go h k _ t@(Collision hy v)
+    go h k _ t@(Collision sz hy v)
         | h == hy = case indexOf k v of
             Just i
                 | A.length v == 2 ->
-                    A.Sized (-1) $! if i == 0
+                    if i == 0
                     then Leaf h (A.index v 1)
                     else Leaf h (A.index v 0)
-                | otherwise -> A.Sized (-1) (Collision h (A.delete v i))
-            Nothing -> A.Sized 0 t
-        | otherwise = A.Sized 0 t
-{-# INLINABLE deleteInternal #-}
+                | otherwise -> Collision (sz - 1) h (A.delete v i)
+            Nothing -> t
+        | otherwise = t
+{-# INLINABLE delete' #-}
 
 -- | Delete optimized for the case when we know the key is in the map.
 --
 -- It is only valid to call this when the key exists in the map and you know the
 -- hash collision position if there was one. This information can be obtained
 -- from 'lookupRecordCollision'. If there is no collision, pass (-1) as collPos.
-deleteKeyExists :: Int -> Hash -> k -> Tree k v -> Tree k v
+deleteKeyExists :: Int -> Hash -> k -> HashMap k v -> HashMap k v
 deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
   where
-    go :: Int -> Word -> k -> Tree k v -> Tree k v
+    go :: Int -> Word -> k -> HashMap k v -> HashMap k v
     go !_collPos !_shiftedHash !_k (Leaf _ _) = Empty
-    go collPos shiftedHash k (BitmapIndexed b ary) =
+    go collPos shiftedHash k (BitmapIndexed sz b ary) =
             let !st = A.index ary i
+                !sz'  = size st
                 !st' = go collPos (shiftHash shiftedHash) k st
+                !sz'' = size st'
             in case st' of
                 Empty | A.length ary == 1 -> Empty
                       | A.length ary == 2 ->
@@ -1264,27 +1231,29 @@ deleteKeyExists !collPos0 !h0 !k0 !m0 = go collPos0 h0 k0 m0
                           _                               -> bIndexed
                       | otherwise -> bIndexed
                     where
-                      bIndexed = BitmapIndexed (b .&. complement m) (A.delete ary i)
+                      bIndexed = BitmapIndexed (sz + (sz'' - sz')) (b .&. complement m) (A.delete ary i)
                 l | isLeafOrCollision l && A.length ary == 1 -> l
-                _ -> BitmapIndexed b (A.update ary i st')
+                _ -> BitmapIndexed (sz + (sz'' - sz')) b (A.update ary i st')
       where m = mask' shiftedHash
             i = sparseIndex b m
-    go collPos shiftedHash k (Full ary) =
+    go collPos shiftedHash k (Full sz ary) =
         let !st   = A.index ary i
+            !sz'  = size st
             !st' = go collPos (shiftHash shiftedHash) k st
+            !sz'' = size st'
         in case st' of
             Empty ->
                 let ary' = A.delete ary i
                     bm   = fullBitmap .&. complement (1 `unsafeShiftL` i)
-                in BitmapIndexed bm ary'
-            _ -> Full (A.update ary i st')
+                in BitmapIndexed (sz + (sz'' - sz')) bm ary'
+            _ -> Full (sz + (sz'' - sz')) (A.update ary i st')
       where i = index' shiftedHash
-    go collPos _shiftedHash _k (Collision h v)
+    go collPos _shiftedHash _k (Collision sz h v)
       | A.length v == 2
       = if collPos == 0
         then Leaf h (A.index v 1)
         else Leaf h (A.index v 0)
-      | otherwise = Collision h (A.delete v collPos)
+      | otherwise = Collision (sz - 1) h (A.delete v collPos)
     go !_ !_ !_ Empty = Empty -- error "Internal error: deleteKeyExists empty"
 
     -- Customized version of 'index' that doesn't require a 'Shift'.
@@ -1317,7 +1286,7 @@ adjust f k m = adjust# (\v -> (# f v #)) k m
 
 -- | Much like 'adjust', but not inherently leaky.
 adjust# :: (Eq k, Hashable k) => (v -> (# v #)) -> k -> HashMap k v -> HashMap k v
-adjust# f k0 (HashMap sz m0) = HashMap sz (go h0 k0 0 m0)
+adjust# f k0 m0 = go h0 k0 0 m0
   where
     h0 = hash k0
     go !_ !_ !_ Empty = Empty
@@ -1326,29 +1295,29 @@ adjust# f k0 (HashMap sz m0) = HashMap sz (go h0 k0 0 m0)
             (# y' #) | ptrEq y y' -> t
                      | otherwise -> Leaf h (L k y')
         | otherwise          = t
-    go h k s t@(BitmapIndexed b ary)
+    go h k s t@(BitmapIndexed sz b ary)
         | b .&. m == 0 = t
         | otherwise = let !st   = A.index ary i
                           !st'  = go h k (nextShift s) st
                           ary' = A.update ary i $! st'
                       in if ptrEq st st'
                          then t
-                         else BitmapIndexed b ary'
+                         else BitmapIndexed sz b ary'
       where m = mask h s
             i = sparseIndex b m
-    go h k s t@(Full ary) =
+    go h k s t@(Full sz ary) =
         let i    = index h s
             !st   = A.index ary i
             !st'  = go h k (nextShift s) st
             ary' = update32 ary i $! st'
         in if ptrEq st st'
            then t
-           else Full ary'
-    go h k _ t@(Collision hy v)
+           else Full sz ary'
+    go h k _ t@(Collision sz hy v)
         | h == hy   = let !v' = updateWith# f k v
                       in if A.unsafeSameArray v v'
                          then t
-                         else Collision h v'
+                         else Collision sz h v'
         | otherwise = t
 {-# INLINABLE adjust# #-}
 
@@ -1369,19 +1338,19 @@ update f = alter (>>= f)
 -- 'lookup' k ('alter' f k m) = f ('lookup' k m)
 -- @
 alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> HashMap k v -> HashMap k v
-alter f k hm@(HashMap sz m) =
+alter f k m =
     let !h = hash k
         !lookupRes = lookupRecordCollision h k m
     in case f (lookupResToMaybe lookupRes) of
         Nothing -> case lookupRes of
-            Absent            -> hm
-            Present _ collPos -> HashMap (sz - 1) $! deleteKeyExists collPos h k m
+            Absent            -> m
+            Present _ collPos -> deleteKeyExists collPos h k m
         Just v' -> case lookupRes of
-            Absent            -> HashMap (sz + 1) $! insertNewKey h k v' m
+            Absent            -> insertNewKey h k v' m
             Present v collPos ->
                 if v `ptrEq` v'
-                    then hm
-                    else HashMap sz $! insertKeyExists collPos h k v' m
+                    then m
+                    else insertKeyExists collPos h k v' m
 {-# INLINABLE alter #-}
 
 -- | \(O(\log n)\)  The expression @('alterF' f k map)@ alters the value @x@ at
@@ -1495,32 +1464,32 @@ alterFWeird _ _ f = alterFEager f
 -- eagerly, whether or not the given function requires that information.
 alterFEager :: (Functor f, Eq k, Hashable k)
        => (Maybe v -> f (Maybe v)) -> k -> HashMap k v -> f (HashMap k v)
-alterFEager f !k hm@(HashMap sz m) = (<$> f mv) $ \case
+alterFEager f !k m = (<$> f mv) $ \case
 
     ------------------------------
     -- Delete the key from the map.
     Nothing -> case lookupRes of
 
-        -- Key did not exist in the map to begin with, no-op
-        Absent -> hm
+      -- Key did not exist in the map to begin with, no-op
+      Absent -> m
 
-        -- Key did exist
-        Present _ collPos -> HashMap (sz - 1) (deleteKeyExists collPos h k m)
+      -- Key did exist
+      Present _ collPos -> deleteKeyExists collPos h k m
 
     ------------------------------
     -- Update value
     Just v' -> case lookupRes of
 
-        -- Key did not exist before, insert v' under a new key
-        Absent -> HashMap (sz + 1) (insertNewKey h k v' m)
+      -- Key did not exist before, insert v' under a new key
+      Absent -> insertNewKey h k v' m
 
-        -- Key existed before
-        Present v collPos ->
-            if v `ptrEq` v'
-            -- If the value is identical, no-op
-            then hm
-            -- If the value changed, update the value.
-            else HashMap sz (insertKeyExists collPos h k v' m)
+      -- Key existed before
+      Present v collPos ->
+        if v `ptrEq` v'
+        -- If the value is identical, no-op
+        then m
+        -- If the value changed, update the value.
+        else insertKeyExists collPos h k v' m
 
   where !h = hash k
         !lookupRes = lookupRecordCollision h k m
@@ -1571,9 +1540,9 @@ isSubmapOfBy :: (Eq k, Hashable k) => (v1 -> v2 -> Bool) -> HashMap k v1 -> Hash
 -- and m2 are collision nodes for the same hash. Since collision nodes are
 -- unsorted arrays, it requires for every key in m1 a linear search to to find a
 -- matching key in m2, hence O(n*m).
-isSubmapOfBy comp (HashMap !sz1 !m1) (HashMap !sz2 !m2)
-    | sz1 > sz2 = False
-    | otherwise = go 0 m1 m2
+isSubmapOfBy comp !m1 !m2
+    | size m1 <= size m2 = go 0 m1 m2
+    | otherwise = False
   where
     -- An empty map is always a submap of any other map.
     go _ Empty _ = True
@@ -1587,28 +1556,33 @@ isSubmapOfBy comp (HashMap !sz1 !m1) (HashMap !sz2 !m2)
     -- In this case, we need to check that for each x in ls1, there is a y in
     -- ls2 such that x `comp` y. This is the worst case complexity-wise since it
     -- requires a O(m*n) check.
-    go _ (Collision h1 ls1) (Collision h2 ls2) =
-      h1 == h2 && subsetArray comp ls1 ls2
+    go _ (Collision sz1 h1 ls1) (Collision sz2 h2 ls2) =
+      sz1 <= sz2 && h1 == h2 && subsetArray comp ls1 ls2
 
     -- In this case, we only need to check the entries in ls2 with the hash h1.
-    go s t1@(Collision h1 _) (BitmapIndexed b ls2)
+    go s t1@(Collision sz1 h1 _) (BitmapIndexed sz2 b ls2)
+        | sz1 > sz2 = False
         | b .&. m == 0 = False
         | otherwise    =
             go (nextShift s) t1 (A.index ls2 (sparseIndex b m))
       where m = mask h1 s
 
     -- Similar to the previous case we need to traverse l2 at the index for the hash h1.
-    go s t1@(Collision h1 _) (Full ls2) =
-      go (nextShift s) t1 (A.index ls2 (index h1 s))
+    go s t1@(Collision sz1 h1 _) (Full sz2 ls2)
+        | sz1 > sz2 = False
+        | otherwise = go (nextShift s) t1 (A.index ls2 (index h1 s))
 
     -- In cases where the first and second map are BitmapIndexed or Full,
     -- traverse down the tree at the appropriate indices.
-    go s (BitmapIndexed b1 ls1) (BitmapIndexed b2 ls2) =
-      submapBitmapIndexed (go (nextShift s)) b1 ls1 b2 ls2
-    go s (BitmapIndexed b1 ls1) (Full ls2) =
-      submapBitmapIndexed (go (nextShift s)) b1 ls1 fullBitmap ls2
-    go s (Full ls1) (Full ls2) =
-      submapBitmapIndexed (go (nextShift s)) fullBitmap ls1 fullBitmap ls2
+    go s (BitmapIndexed sz1 b1 ls1) (BitmapIndexed sz2 b2 ls2)
+        | sz1 > sz2 = False
+        | otherwise = submapBitmapIndexed (go (nextShift s)) b1 ls1 b2 ls2
+    go s (BitmapIndexed sz1 b1 ls1) (Full sz2 ls2)
+        | sz1 > sz2 = False
+        | otherwise = submapBitmapIndexed (go (nextShift s)) b1 ls1 fullBitmap ls2
+    go s (Full sz1 ls1) (Full sz2 ls2)
+        | sz1 > sz2 = False
+        | otherwise = submapBitmapIndexed (go (nextShift s)) fullBitmap ls1 fullBitmap ls2
 
     -- Collision and Full nodes always contain at least two entries. Hence it
     -- cannot be a map of a leaf.
@@ -1621,7 +1595,7 @@ isSubmapOfBy comp (HashMap !sz1 !m1) (HashMap !sz2 !m2)
 {-# INLINABLE isSubmapOfBy #-}
 
 -- | \(O(\min n m))\) Checks if a bitmap indexed node is a submap of another.
-submapBitmapIndexed :: (Tree k v1 -> Tree k v2 -> Bool) -> Bitmap -> A.Array (Tree k v1) -> Bitmap -> A.Array (Tree k v2) -> Bool
+submapBitmapIndexed :: (HashMap k v1 -> HashMap k v2 -> Bool) -> Bitmap -> A.Array (HashMap k v1) -> Bitmap -> A.Array (HashMap k v2) -> Bool
 submapBitmapIndexed comp !b1 !ary1 !b2 !ary2 = subsetBitmaps && go 0 0 (b1Orb2 .&. negate b1Orb2)
   where
     go :: Int -> Int -> Bitmap -> Bool
@@ -1669,159 +1643,105 @@ unionWith f = unionWithKey (const f)
 -- | \(O(n+m)\) The union of two maps.  If a key occurs in both maps,
 -- the provided function (first argument) will be used to compute the
 -- result.
-unionWithKey
-    :: Eq k
-    => (k -> v -> v -> v)
-    -> HashMap k v
-    -> HashMap k v
-    -> HashMap k v
-unionWithKey f (HashMap x tree1) (HashMap y tree2) = if x < y
-    then let A.Sized diff m' = unionWithKeyInternal f y tree1 tree2
-         in HashMap (diff + x) m'
-    else let A.Sized diff m' = unionWithKeyInternal (\k v v' -> f k v' v) x tree2 tree1
-         in HashMap (diff + y) m'
-{-# INLINE unionWithKey #-}
-
--- | /O(n+m)/ The union of two maps.  If a key occurs in both maps,
--- the provided function (first argument) will be used to compute the
--- result.
--- Returns a tuple where the first component is how many elements were added
--- to the first hashmap and the second is the union hashmap itself.
-unionWithKeyInternal
-    :: forall k v . Eq k
-    => (k -> v -> v -> v)
-    -> A.Size
-    -- ^ Initial size of the 
-    -> Tree k v
-    -> Tree k v
-    -> A.Sized (Tree k v)
-unionWithKeyInternal f siz hm1 hm2 = go 0 siz hm1 hm2
+unionWithKey :: Eq k => (k -> v -> v -> v) -> HashMap k v -> HashMap k v
+          -> HashMap k v
+unionWithKey f = go 0
   where
-    go :: Int                -- ^ Bitmask accumulator
-       -> A.Size             -- ^ Size accumulator.
-                             -- Counts down from the second hashmap's size.
-       -> Tree k v
-       -> Tree k v
-       -> A.Sized (Tree k v)
     -- empty vs. anything
-    go !_ !sz t1 Empty = A.Sized sz t1
-    go _ !sz Empty t2 = A.Sized sz t2
+    go !_ t1 Empty = t1
+    go _ Empty t2 = t2
     -- leaf vs. leaf
-    go s !sz t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
+    go s t1@(Leaf h1 l1@(L k1 v1)) t2@(Leaf h2 l2@(L k2 v2))
         | h1 == h2  = if k1 == k2
-                      then A.Sized (sz - 1) (Leaf h1 (L k1 (f k1 v1 v2)))
-                      else A.Sized sz (collision h1 l1 l2)
-        | otherwise = goDifferentHash s sz h1 h2 t1 t2
-    go s !sz t1@(Leaf h1 (L k1 v1)) t2@(Collision h2 ls2)
-        | h1 == h2  =
-            let !start = A.Size (A.length ls2)
-                !newV = updateOrSnocWithKey (\k a b -> (# f k a b #)) k1 v1 ls2
-                !end = A.Size (A.length newV)
-            in A.Sized (sz + (end - start - 1)) (Collision h1 newV)
-        | otherwise = goDifferentHash s sz h1 h2 t1 t2
-    go s !sz t1@(Collision h1 ls1) t2@(Leaf h2 (L k2 v2))
-        | h1 == h2  =
-            let !start = A.Size (A.length ls1)
-                !newV = updateOrSnocWithKey (\k a b -> (# f k b a #)) k2 v2 ls1
-                !end = A.Size (A.length newV)
-            in A.Sized (sz + (end - start - 1)) (Collision h1 newV)
-        | otherwise = goDifferentHash s sz h1 h2 t1 t2
-    go s !sz t1@(Collision h1 ls1) t2@(Collision h2 ls2)
-        | h1 == h2  =
-            let !start = A.Size (A.length ls1)
-                !newV = updateOrConcatWithKey (\k a b -> (# f k a b #)) ls1 ls2
-                !end = A.Size (A.length newV)
-                !len_ls2 = A.Size (A.length ls2)
-            in A.Sized (sz + (end - start - len_ls2)) (Collision h1 newV)
-        | otherwise = goDifferentHash s sz h1 h2 t1 t2
+                      then Leaf h1 (L k1 (f k1 v1 v2))
+                      else collision h1 l1 l2
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    go s t1@(Leaf h1 (L k1 v1)) t2@(Collision _ h2 ls2)
+        | h1 == h2  = let ary' = updateOrSnocWithKey (\k a b -> (# f k a b #)) k1 v1 ls2
+                      in Collision (A.length ary') h1 ary'
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    go s t1@(Collision _ h1 ls1) t2@(Leaf h2 (L k2 v2))
+        | h1 == h2  = let ary' = updateOrSnocWithKey (\k a b -> (# f k b a #)) k2 v2 ls1
+                      in Collision (A.length ary') h1 ary'
+        | otherwise = goDifferentHash s h1 h2 t1 t2
+    go s t1@(Collision _ h1 ls1) t2@(Collision _ h2 ls2)
+        | h1 == h2  = let ary' = updateOrConcatWithKey (\k a b -> (# f k a b #)) ls1 ls2
+                      in Collision (A.length ary') h1 ary'
+        | otherwise = goDifferentHash s h1 h2 t1 t2
     -- branch vs. branch
-    go s !sz (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
-        let b'         = b1 .|. b2
-            A.RunResA dsz ary' =
-                unionArrayByInternal sz
-                                     (go (nextShift s))
-                                     b1
-                                     b2
-                                     ary1
-                                     ary2
-        in A.Sized dsz (bitmapIndexedOrFull b' ary')
-    go s !sz (BitmapIndexed b1 ary1) (Full ary2) =
-        let A.RunResA dsz ary' =
-                unionArrayByInternal sz
-                                     (go (nextShift s))
-                                     b1
-                                     fullBitmap
-                                     ary1
-                                     ary2
-        in A.Sized dsz (Full ary')
-    go s !sz (Full ary1) (BitmapIndexed b2 ary2) =
-        let A.RunResA dsz ary' =
-                unionArrayByInternal sz
-                                     (go (nextShift s))
-                                     fullBitmap
-                                     b2
-                                     ary1
-                                     ary2
-        in A.Sized dsz (Full ary')
-    go s !sz (Full ary1) (Full ary2) =
-        let A.RunResA dsz ary' =
-                unionArrayByInternal sz
-                                     (go (nextShift s))
-                                     fullBitmap
-                                     fullBitmap
-                                     ary1
-                                     ary2
-        in A.Sized dsz (Full ary')
+    go s (BitmapIndexed _ b1 ary1) (BitmapIndexed _ b2 ary2) =
+        let b'   = b1 .|. b2
+            ary' = unionArrayBy (go (nextShift s)) b1 b2 ary1 ary2
+            sz   = sumSizes ary'
+        in bitmapIndexedOrFull sz b' ary'
+    go s (BitmapIndexed _ b1 ary1) (Full _ ary2) =
+        let ary' = unionArrayBy (go (nextShift s)) b1 fullBitmap ary1 ary2
+            sz   = sumSizes ary'
+        in Full sz ary'
+    go s (Full _ ary1) (BitmapIndexed _ b2 ary2) =
+        let ary' = unionArrayBy (go (nextShift s)) fullBitmap b2 ary1 ary2
+            sz   = sumSizes ary'
+        in Full sz ary'
+    go s (Full _ ary1) (Full _ ary2) =
+        let ary' = unionArrayBy (go (nextShift s)) fullBitmap fullBitmap
+                   ary1 ary2
+            sz   = sumSizes ary'
+        in Full sz ary'
     -- leaf vs. branch
-    go s !sz (BitmapIndexed b1 ary1) t2
+    go s (BitmapIndexed sz b1 ary1) t2
         | b1 .&. m2 == 0 = let ary' = A.insert ary1 i t2
                                b'   = b1 .|. m2
-                           in A.Sized sz (bitmapIndexedOrFull b' ary')
-        | otherwise      = let A.RunResA dsz ary' = A.updateWithInternal' ary1 i $ \st1 ->
-                                   go (nextShift s) sz st1 t2
-                           in A.Sized dsz (BitmapIndexed b1 ary')
+                           in bitmapIndexedOrFull (sz + size t2) b' ary'
+        | otherwise      = let ary' = A.updateWith' ary1 i $ \st1 ->
+                                   go (nextShift s) st1 t2
+                               sz' = sumSizes ary'
+                           in BitmapIndexed sz' b1 ary'
         where
           h2 = leafHashCode t2
           m2 = mask h2 s
           i = sparseIndex b1 m2
-    go s !sz t1 (BitmapIndexed b2 ary2)
+    go s t1 (BitmapIndexed sz b2 ary2)
         | b2 .&. m1 == 0 = let ary' = A.insert ary2 i $! t1
                                b'   = b2 .|. m1
-                           in A.Sized sz (bitmapIndexedOrFull b' ary')
-        | otherwise      = let A.RunResA dsz ary' = A.updateWithInternal' ary2 i $ \st2 ->
-                                   go (nextShift s) sz t1 st2
-                           in A.Sized dsz (BitmapIndexed b2 ary')
+                           in bitmapIndexedOrFull (sz + size t1) b' ary'
+        | otherwise      = let ary' = A.updateWith' ary2 i $ \st2 ->
+                                   go (nextShift s) t1 st2
+                               sz'  = sumSizes ary'
+                           in BitmapIndexed sz' b2 ary'
       where
         h1 = leafHashCode t1
         m1 = mask h1 s
         i = sparseIndex b2 m1
-    go s !sz (Full ary1) t2 =
+    go s (Full _ ary1) t2 =
         let h2   = leafHashCode t2
             i    = index h2 s
-            A.RunResA dsz ary' =
-                update32WithInternal' ary1 i $ \st1 ->
-                    go (nextShift s) sz st1 t2
-        in A.Sized dsz (Full ary')
-    go s !sz t1 (Full ary2) =
-        let h1                 = leafHashCode t1
-            i                  = index h1 s
-            A.RunResA dsz ary' = update32WithInternal' ary2 i $ \st2 ->
-                go (nextShift s) sz t1 st2
-        in A.Sized dsz (Full ary')
+            ary' = update32With' ary1 i $ \st1 -> go (nextShift s) st1 t2
+            sz'  = sumSizes ary'
+        in Full sz' ary'
+    go s t1 (Full _ ary2) =
+        let h1   = leafHashCode t1
+            i    = index h1 s
+            ary' = update32With' ary2 i $ \st2 -> go (nextShift s) t1 st2
+            sz'  = sumSizes ary'
+        in Full sz' ary'
 
     leafHashCode (Leaf h _) = h
-    leafHashCode (Collision h _) = h
+    leafHashCode (Collision _ h _) = h
     leafHashCode _ = error "leafHashCode"
 
-    goDifferentHash s sz h1 h2 t1 t2
-        | m1 == m2  = let A.Sized dsz hm = goDifferentHash (nextShift s) sz h1 h2 t1 t2
-                      in A.Sized dsz $! BitmapIndexed m1 (A.singleton hm)
-        | m1 <  m2  = A.Sized sz (BitmapIndexed (m1 .|. m2) (A.pair t1 t2))
-        | otherwise = A.Sized sz (BitmapIndexed (m1 .|. m2) (A.pair t2 t1))
+    goDifferentHash s h1 h2 t1 t2
+        | m1 == m2  = let ary' = goDifferentHash (nextShift s) h1 h2 t1 t2
+                      in BitmapIndexed sz' m1 (A.singleton $! ary')
+        | m1 <  m2  = BitmapIndexed sz' (m1 .|. m2) (A.pair t1 t2)
+        | otherwise = BitmapIndexed sz' (m1 .|. m2) (A.pair t2 t1)
       where
         m1 = mask h1 s
         m2 = mask h2 s
-{-# INLINE unionWithKeyInternal #-}
+
+        s1 = size t1
+        s2 = size t2
+        sz' = s1 + s2
+{-# INLINE unionWithKey #-}
 
 -- | Strict in the result of @f@.
 unionArrayBy :: (a -> a -> a) -> Bitmap -> Bitmap -> A.Array a -> A.Array a
@@ -1856,41 +1776,6 @@ unionArrayBy f !b1 !b2 !ary1 !ary2 = A.run $ do
     -- subset of the other, we could use a slightly simpler algorithm,
     -- where we copy one array, and then update.
 {-# INLINE unionArrayBy #-}
-
--- | Strict in the result of @f@.
-unionArrayByInternal
-    :: A.Size
-    -> (A.Size -> a -> a -> A.Sized a)
-    -> Bitmap
-    -> Bitmap
-    -> A.Array a
-    -> A.Array a
-    -> A.RunResA a
-unionArrayByInternal siz f b1 b2 ary1 ary2 = A.runInternal $ do
-    let b' = b1 .|. b2
-    mary <- A.new_ (popCount b')
-    -- iterate over nonzero bits of b1 .|. b2
-    -- it would be nice if we could shift m by more than 1 each time
-    let ba = b1 .&. b2
-        go !sz !i !i1 !i2 !m
-            | m > b'        = return sz
-            | b' .&. m == 0 = go sz i i1 i2 (m `unsafeShiftL` 1)
-            | ba .&. m /= 0 = do
-                let A.Sized dsz hm = f sz (A.index ary1 i1) (A.index ary2 i2)
-                A.write mary i hm
-                go dsz (i+1) (i1+1) (i2+1) (m `unsafeShiftL` 1)
-            | b1 .&. m /= 0 = do
-                A.write mary i =<< A.indexM ary1 i1
-                go sz (i+1) (i1+1) (i2  ) (m `unsafeShiftL` 1)
-            | otherwise     = do
-                A.write mary i =<< A.indexM ary2 i2
-                go sz (i+1) (i1  ) (i2+1) (m `unsafeShiftL` 1)
-    d <- go siz 0 0 0 (b' .&. negate b') -- XXX: b' must be non-zero
-    return (A.RunResM d mary)
-    -- TODO: For the case where b1 .&. b2 == b1, i.e. when one is a
-    -- subset of the other, we could use a slightly simpler algorithm,
-    -- where we copy one array, and then update.
-{-# INLINE unionArrayByInternal #-}
 
 -- TODO: Figure out the time complexity of 'unions'.
 
@@ -1927,16 +1812,16 @@ compose bc !ab
 
 -- | \(O(n)\) Transform this map by applying a function to every value.
 mapWithKey :: (k -> v1 -> v2) -> HashMap k v1 -> HashMap k v2
-mapWithKey f (HashMap sz m) = HashMap sz (go m)
+mapWithKey f = go
   where
     go Empty = Empty
     go (Leaf h (L k v)) = Leaf h $ L k (f k v)
-    go (BitmapIndexed b ary) = BitmapIndexed b $ A.map go ary
-    go (Full ary) = Full $ A.map go ary
+    go (BitmapIndexed sz b ary) = BitmapIndexed sz b $ A.map go ary
+    go (Full sz ary) = Full sz $ A.map go ary
     -- Why map strictly over collision arrays? Because there's no
     -- point suspending the O(1) work this does for each leaf.
-    go (Collision h ary) = Collision h $
-                           A.map' (\ (L k v) -> L k (f k v)) ary
+    go (Collision sz h ary) = Collision sz h $
+                              A.map' (\ (L k v) -> L k (f k v)) ary
 {-# INLINE mapWithKey #-}
 
 -- | \(O(n)\) Transform this map by applying a function to every value.
@@ -1955,14 +1840,14 @@ traverseWithKey
   :: Applicative f
   => (k -> v1 -> f v2)
   -> HashMap k v1 -> f (HashMap k v2)
-traverseWithKey f (HashMap sz m) = HashMap sz <$> go m
+traverseWithKey f = go
   where
-    go Empty                 = pure Empty
-    go (Leaf h (L k v))      = Leaf h . L k <$> f k v
-    go (BitmapIndexed b ary) = BitmapIndexed b <$> A.traverse go ary
-    go (Full ary)            = Full <$> A.traverse go ary
-    go (Collision h ary)     =
-        Collision h <$> A.traverse' (\ (L k v) -> L k <$> f k v) ary
+    go Empty                    = pure Empty
+    go (Leaf h (L k v))         = Leaf h . L k <$> f k v
+    go (BitmapIndexed sz b ary) = BitmapIndexed sz b <$> A.traverse go ary
+    go (Full sz ary)            = Full sz <$> A.traverse go ary
+    go (Collision sz h ary)     =
+        Collision sz h <$> A.traverse' (\ (L k v) -> L k <$> f k v) ary
 {-# INLINE traverseWithKey #-}
 
 -- | \(O(n)\).
@@ -2000,13 +1885,8 @@ difference a b = foldlWithKey' go empty a
 -- encountered, the combining function is applied to the values of these keys.
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
-differenceWith
-    :: (Eq k, Hashable k)
-    => (v -> w -> Maybe v)
-    -> HashMap k v
-    -> HashMap k w
-    -> HashMap k v
-differenceWith f a b =foldlWithKey' go empty a
+differenceWith :: (Eq k, Hashable k) => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
+differenceWith f a b = foldlWithKey' go empty a
   where
     go m k v = case lookup k b of
                  Nothing -> unsafeInsert k v m
@@ -2030,134 +1910,113 @@ intersectionWith f = Exts.inline intersectionWithKey $ const f
 -- the provided function is used to combine the values from the two
 -- maps.
 intersectionWithKey :: Eq k => (k -> v1 -> v2 -> v3) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
-intersectionWithKey f (HashMap _ tree1) (HashMap _ tree2) =
-    let A.Sized newSz m' = intersectionWithKey# (\k v1 v2 -> (# f k v1 v2 #)) tree1 tree2
-    in HashMap newSz m'
-
+intersectionWithKey f = intersectionWithKey# $ \k v1 v2 -> (# f k v1 v2 #)
 {-# INLINABLE intersectionWithKey #-}
 
-intersectionWithKey#
-    :: forall k v1 v2 v3 . Eq k
-    => (k -> v1 -> v2 -> (# v3 #))
-    -> Tree k v1
-    -> Tree k v2
-    -> A.Sized (Tree k v3)
-intersectionWithKey# f = go 0 0
+intersectionWithKey# :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> HashMap k v1 -> HashMap k v2 -> HashMap k v3
+intersectionWithKey# f = go 0
   where
-    go :: Int                -- ^ Bitmask accumulator
-       -> A.Size             -- ^ Size accumulator.
-       -> Tree k v1
-       -> Tree k v2
-       -> A.Sized (Tree k v3)
     -- empty vs. anything
-    go !_ !sz _ Empty = A.Sized sz Empty
-    go _ !sz Empty _ = A.Sized sz Empty
+    go !_ _ Empty = Empty
+    go _ Empty _ = Empty
     -- leaf vs. anything
-    go s !sz (Leaf h1 (L k1 v1)) t2 =
+    go s (Leaf h1 (L k1 v1)) t2 =
       lookupCont
-        (\_ -> A.Sized sz Empty)
-        (\v _ -> case f k1 v1 v of (# v' #) -> A.Sized (sz + 1) $! Leaf h1 $ L k1 v')
+        (\_ -> Empty)
+        (\v _ -> case f k1 v1 v of (# v' #) -> Leaf h1 $ L k1 v')
         h1 k1 s t2
-    go s !sz t1 (Leaf h2 (L k2 v2)) =
+    go s t1 (Leaf h2 (L k2 v2)) =
       lookupCont
-        (\_ -> A.Sized sz Empty)
-        (\v _ -> case f k2 v v2 of (# v' #) -> A.Sized (sz + 1) $! Leaf h2 $ L k2 v')
+        (\_ -> Empty)
+        (\v _ -> case f k2 v v2 of (# v' #) -> Leaf h2 $ L k2 v')
         h2 k2 s t1
     -- collision vs. collision
-    -- stopped here
-    go _ !sz (Collision h1 ls1) (Collision h2 ls2) = intersectionCollisions f sz h1 h2 ls1 ls2
+    go _ (Collision _ h1 ls1) (Collision _ h2 ls2) = intersectionCollisions f h1 h2 ls1 ls2
     -- branch vs. branch
-    go s !sz (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
-      intersectionArrayBy (go (nextShift s)) sz b1 b2 ary1 ary2
-    go s !sz (BitmapIndexed b1 ary1) (Full ary2) =
-      intersectionArrayBy (go (nextShift s)) sz b1 fullBitmap ary1 ary2
-    go s !sz (Full ary1) (BitmapIndexed b2 ary2) =
-      intersectionArrayBy (go (nextShift s)) sz fullBitmap b2 ary1 ary2
-    go s !sz (Full ary1) (Full ary2) =
-      intersectionArrayBy (go (nextShift s)) sz fullBitmap fullBitmap ary1 ary2
+    go s (BitmapIndexed _ b1 ary1) (BitmapIndexed _ b2 ary2) =
+      intersectionArrayBy (go (nextShift s)) b1 b2 ary1 ary2
+    go s (BitmapIndexed _ b1 ary1) (Full _ ary2) =
+      intersectionArrayBy (go (nextShift s)) b1 fullBitmap ary1 ary2
+    go s (Full _ ary1) (BitmapIndexed _ b2 ary2) =
+      intersectionArrayBy (go (nextShift s)) fullBitmap b2 ary1 ary2
+    go s (Full _ ary1) (Full _ ary2) =
+      intersectionArrayBy (go (nextShift s)) fullBitmap fullBitmap ary1 ary2
     -- collision vs. branch
-    go s !sz (BitmapIndexed b1 ary1) t2@(Collision h2 _ls2)
-      | b1 .&. m2 == 0 = A.Sized sz Empty
-      | otherwise = go (nextShift s) sz (A.index ary1 i) t2
+    go s (BitmapIndexed _ b1 ary1) t2@(Collision _ h2 _ls2)
+      | b1 .&. m2 == 0 = Empty
+      | otherwise = go (nextShift s) (A.index ary1 i) t2
       where
         m2 = mask h2 s
         i = sparseIndex b1 m2
-    go s !sz t1@(Collision h1 _ls1) (BitmapIndexed b2 ary2)
-      | b2 .&. m1 == 0 = A.Sized sz Empty
-      | otherwise = go (nextShift s) sz t1 (A.index ary2 i)
+    go s t1@(Collision _ h1 _ls1) (BitmapIndexed _ b2 ary2)
+      | b2 .&. m1 == 0 = Empty
+      | otherwise = go (nextShift s) t1 (A.index ary2 i)
       where
         m1 = mask h1 s
         i = sparseIndex b2 m1
-    go s !sz (Full ary1) t2@(Collision h2 _ls2) = go (nextShift s) sz (A.index ary1 i) t2
+    go s (Full _ ary1) t2@(Collision _ h2 _ls2) = go (nextShift s) (A.index ary1 i) t2
       where
         i = index h2 s
-    go s !sz t1@(Collision h1 _ls1) (Full ary2) = go (nextShift s) sz t1 (A.index ary2 i)
+    go s t1@(Collision _ h1 _ls1) (Full _ ary2) = go (nextShift s) t1 (A.index ary2 i)
       where
         i = index h1 s
 {-# INLINE intersectionWithKey# #-}
 
 intersectionArrayBy ::
-  ( A.Size ->
-    Tree k v1 ->
-    Tree k v2 ->
-    A.Sized (Tree k v3)
+  ( HashMap k v1 ->
+    HashMap k v2 ->
+    HashMap k v3
   ) ->
-  A.Size ->
   Bitmap ->
   Bitmap ->
-  A.Array (Tree k v1) ->
-  A.Array (Tree k v2) ->
-  A.Sized (Tree k v3)
-intersectionArrayBy f !sze !b1 !b2 !ary1 !ary2
-  | b1 .&. b2 == 0 = A.Sized sze Empty
+  A.Array (HashMap k v1) ->
+  A.Array (HashMap k v2) ->
+  HashMap k v3
+intersectionArrayBy f !b1 !b2 !ary1 !ary2
+  | b1 .&. b2 == 0 = Empty
   | otherwise = runST $ do
     mary <- A.new_ $ popCount bIntersect
     -- iterate over nonzero bits of b1 .|. b2
-    let go !i !i1 !i2 !sz !b !bFinal
-          | b == 0 = pure (i, bFinal, sz)
+    let go !i !i1 !i2 !b !bFinal
+          | b == 0 = pure (i, bFinal)
           | testBit $ b1 .&. b2 = do
             x1 <- A.indexM ary1 i1
             x2 <- A.indexM ary2 i2
-            let A.Sized newSz hm = f sz x1 x2
-            case hm of
-              Empty -> go i (i1 + 1) (i2 + 1) newSz b' (bFinal .&. complement m)
+            case f x1 x2 of
+              Empty -> go i (i1 + 1) (i2 + 1) b' (bFinal .&. complement m)
               _ -> do
-                A.write mary i $! hm
-                go (i + 1) (i1 + 1) (i2 + 1) newSz b' bFinal
-          | testBit b1 = go i (i1 + 1) i2 sz b' bFinal
-          | otherwise = go i i1 (i2 + 1) sz b' bFinal
+                A.write mary i $! f x1 x2
+                go (i + 1) (i1 + 1) (i2 + 1) b' bFinal
+          | testBit b1 = go i (i1 + 1) i2 b' bFinal
+          | otherwise = go i i1 (i2 + 1) b' bFinal
           where
             m = 1 `unsafeShiftL` countTrailingZeros b
             testBit x = x .&. m /= 0
             b' = b .&. complement m
-    (len, bFinal, hmSize) <- go 0 0 0 sze bCombined bIntersect
+    (len, bFinal) <- go 0 0 0 bCombined bIntersect
     case len of
-      0 -> pure . A.Sized hmSize $ Empty
+      0 -> pure Empty
       1 -> do
         l <- A.read mary 0
         if isLeafOrCollision l
-          then pure . A.Sized hmSize $! l
-          else A.Sized hmSize . BitmapIndexed bFinal <$> (A.unsafeFreeze =<< A.shrink mary 1)
-      _ -> A.Sized hmSize . bitmapIndexedOrFull bFinal <$> (A.unsafeFreeze =<< A.shrink mary len)
+          then pure l
+          else do
+              ary' <- A.unsafeFreeze =<< A.shrink mary 1
+              pure $! BitmapIndexed (sumSizes ary') bFinal ary'
+      _ -> do
+          ary' <- A.unsafeFreeze =<< A.shrink mary len
+          pure $! bitmapIndexedOrFull (sumSizes ary') bFinal ary'
   where
     bCombined = b1 .|. b2
     bIntersect = b1 .&. b2
 {-# INLINE intersectionArrayBy #-}
 
-intersectionCollisions
-    :: Eq k
-    => (k -> v1 -> v2 -> (# v3 #))
-    -> A.Size
-    -> Hash
-    -> Hash
-    -> A.Array (Leaf k v1)
-    -> A.Array (Leaf k v2)
-    -> A.Sized (Tree k v3)
-intersectionCollisions f sz h1 h2 ary1 ary2
+intersectionCollisions :: Eq k => (k -> v1 -> v2 -> (# v3 #)) -> Hash -> Hash -> A.Array (Leaf k v1) -> A.Array (Leaf k v2) -> HashMap k v3
+intersectionCollisions f h1 h2 ary1 ary2
   | h1 == h2 = runST $ do
     mary2 <- A.thaw ary2 0 $ A.length ary2
     mary <- A.new_ $ min (A.length ary1) (A.length ary2)
-    let go !i !j
+    let go i j
           | i >= A.length ary1 || j >= A.lengthM mary2 = pure j
           | otherwise = do
             L k1 v1 <- A.indexM ary1 i
@@ -2167,13 +2026,13 @@ intersectionCollisions f sz h1 h2 ary1 ary2
                 A.write mary j $ L k1 v3
                 go (i + 1) (j + 1)
               Nothing -> do
-                 go (i + 1) j
+                go (i + 1) j
     len <- go 0 0
-    A.Sized (sz + A.Size len) <$> case len of
+    case len of
       0 -> pure Empty
       1 -> Leaf h1 <$> A.read mary 0
-      _ -> Collision h1 <$> (A.unsafeFreeze =<< A.shrink mary len)
-  | otherwise = A.Sized sz Empty
+      _ -> Collision len h1 <$> (A.unsafeFreeze =<< A.shrink mary len)
+  | otherwise = Empty
 {-# INLINE intersectionCollisions #-}
 
 -- | Say we have
@@ -2226,13 +2085,13 @@ foldr' f = foldrWithKey' (\ _ v z -> f v z)
 -- is evaluated before using the result in the next application.
 -- This function is strict in the starting value.
 foldlWithKey' :: (a -> k -> v -> a) -> a -> HashMap k v -> a
-foldlWithKey' f acc (HashMap _ m) = go acc m
+foldlWithKey' f = go
   where
     go !z Empty                = z
     go z (Leaf _ (L k v))      = f z k v
-    go z (BitmapIndexed _ ary) = A.foldl' go z ary
-    go z (Full ary)            = A.foldl' go z ary
-    go z (Collision _ ary)     = A.foldl' (\ z' (L k v) -> f z' k v) z ary
+    go z (BitmapIndexed _ _ ary) = A.foldl' go z ary
+    go z (Full _ ary)            = A.foldl' go z ary
+    go z (Collision _ _ ary)     = A.foldl' (\ z' (L k v) -> f z' k v) z ary
 {-# INLINE foldlWithKey' #-}
 
 -- | \(O(n)\) Reduce this map by applying a binary operator to all
@@ -2241,13 +2100,13 @@ foldlWithKey' f acc (HashMap _ m) = go acc m
 -- is evaluated before using the result in the next application.
 -- This function is strict in the starting value.
 foldrWithKey' :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-foldrWithKey' f a (HashMap _ m) = go m a
+foldrWithKey' f = flip go
   where
     go Empty z                 = z
     go (Leaf _ (L k v)) !z     = f k v z
-    go (BitmapIndexed _ ary) !z = A.foldr' go z ary
-    go (Full ary) !z           = A.foldr' go z ary
-    go (Collision _ ary) !z    = A.foldr' (\ (L k v) z' -> f k v z') z ary
+    go (BitmapIndexed _ _ ary) !z = A.foldr' go z ary
+    go (Full _ ary) !z           = A.foldr' go z ary
+    go (Collision _ _ ary) !z    = A.foldr' (\ (L k v) z' -> f k v z') z ary
 {-# INLINE foldrWithKey' #-}
 
 -- | \(O(n)\) Reduce this map by applying a binary operator to all
@@ -2268,38 +2127,38 @@ foldl f = foldlWithKey (\a _k v -> f a v)
 -- elements, using the given starting value (typically the
 -- right-identity of the operator).
 foldrWithKey :: (k -> v -> a -> a) -> a -> HashMap k v -> a
-foldrWithKey f a (HashMap _ m) = go m a
+foldrWithKey f = flip go
   where
     go Empty z                 = z
     go (Leaf _ (L k v)) z      = f k v z
-    go (BitmapIndexed _ ary) z = A.foldr go z ary
-    go (Full ary) z            = A.foldr go z ary
-    go (Collision _ ary) z     = A.foldr (\ (L k v) z' -> f k v z') z ary
+    go (BitmapIndexed _ _ ary) z = A.foldr go z ary
+    go (Full _ ary) z            = A.foldr go z ary
+    go (Collision _ _ ary) z     = A.foldr (\ (L k v) z' -> f k v z') z ary
 {-# INLINE foldrWithKey #-}
 
 -- | \(O(n)\) Reduce this map by applying a binary operator to all
 -- elements, using the given starting value (typically the
 -- left-identity of the operator).
 foldlWithKey :: (a -> k -> v -> a) -> a -> HashMap k v -> a
-foldlWithKey f a (HashMap _ m) = go a m
+foldlWithKey f = go
   where
     go z Empty                 = z
     go z (Leaf _ (L k v))      = f z k v
-    go z (BitmapIndexed _ ary) = A.foldl go z ary
-    go z (Full ary)            = A.foldl go z ary
-    go z (Collision _ ary)     = A.foldl (\ z' (L k v) -> f z' k v) z ary
+    go z (BitmapIndexed _ _ ary) = A.foldl go z ary
+    go z (Full _ ary)            = A.foldl go z ary
+    go z (Collision _ _ ary)     = A.foldl (\ z' (L k v) -> f z' k v) z ary
 {-# INLINE foldlWithKey #-}
 
 -- | \(O(n)\) Reduce the map by applying a function to each element
 -- and combining the results with a monoid operation.
 foldMapWithKey :: Monoid m => (k -> v -> m) -> HashMap k v -> m
-foldMapWithKey f (HashMap _ m) = go m
+foldMapWithKey f = go
   where
     go Empty = mempty
     go (Leaf _ (L k v)) = f k v
-    go (BitmapIndexed _ ary) = A.foldMap go ary
-    go (Full ary) = A.foldMap go ary
-    go (Collision _ ary) = A.foldMap (\ (L k v) -> f k v) ary
+    go (BitmapIndexed _ _ ary) = A.foldMap go ary
+    go (Full _ ary) = A.foldMap go ary
+    go (Collision _ _ ary) = A.foldMap (\ (L k v) -> f k v) ary
 {-# INLINE foldMapWithKey #-}
 
 ------------------------------------------------------------------------
@@ -2308,14 +2167,12 @@ foldMapWithKey f (HashMap _ m) = go m
 -- | \(O(n)\) Transform this map by applying a function to every value
 --   and retaining only some of them.
 mapMaybeWithKey :: (k -> v1 -> Maybe v2) -> HashMap k v1 -> HashMap k v2
-mapMaybeWithKey f (HashMap _ m) = HashMap size' m'
+mapMaybeWithKey f = filterMapAux onLeaf onColl
   where onLeaf (Leaf h (L k v)) | Just v' <- f k v = Just (Leaf h (L k v'))
         onLeaf _ = Nothing
 
         onColl (L k v) | Just v' <- f k v = Just (L k v')
                        | otherwise = Nothing
-
-        A.Sized size' m' = filterMapAuxInternal onLeaf onColl m
 {-# INLINE mapMaybeWithKey #-}
 
 -- | \(O(n)\) Transform this map by applying a function to every value
@@ -2327,86 +2184,86 @@ mapMaybe f = mapMaybeWithKey (const f)
 -- | \(O(n)\) Filter this map by retaining only elements satisfying a
 -- predicate.
 filterWithKey :: forall k v. (k -> v -> Bool) -> HashMap k v -> HashMap k v
-filterWithKey pred (HashMap _ m) = HashMap size' m'
+filterWithKey pred = filterMapAux onLeaf onColl
   where onLeaf t@(Leaf _ (L k v)) | pred k v = Just t
         onLeaf _ = Nothing
 
         onColl el@(L k v) | pred k v = Just el
         onColl _ = Nothing
-
-        A.Sized size' m' = filterMapAuxInternal onLeaf onColl m
 {-# INLINE filterWithKey #-}
 
--- | Common implementation for 'filterWithKey' and 'mapMaybeWithKey',
--- allowing the former and latter to reuse terms.
--- Returns the result hashmap's size, and the hashmap itself.
-filterMapAuxInternal :: forall k v1 v2
-              . (Tree k v1 -> Maybe (Tree k v2))
-             -> (Leaf k v1 -> Maybe (Leaf k v2))
-             -> Tree k v1
-             -> A.Sized (Tree k v2)
-filterMapAuxInternal onLeaf onColl = go 0
-  where
-    go !sz Empty = A.Sized sz Empty
-    go !sz t@Leaf{}
-        | Just t' <- onLeaf t =  A.Sized (sz + 1) t'
-        | otherwise = A.Sized sz Empty
-    go !sz (BitmapIndexed b ary) = filterA sz ary b
-    go !sz (Full ary) = filterA sz ary fullBitmap
-    go !sz (Collision h ary) = filterC sz ary h
 
-    filterA sze ary0 b0 =
+-- | Common implementation for 'filterWithKey' and 'mapMaybeWithKey',
+--   allowing the former to former to reuse terms.
+filterMapAux :: forall k v1 v2
+              . (HashMap k v1 -> Maybe (HashMap k v2))
+             -> (Leaf k v1 -> Maybe (Leaf k v2))
+             -> HashMap k v1
+             -> HashMap k v2
+filterMapAux onLeaf onColl = go
+  where
+    go Empty = Empty
+    go t@Leaf{}
+        | Just t' <- onLeaf t = t'
+        | otherwise = Empty
+    go (BitmapIndexed _  b ary) = filterA ary b
+    go (Full _ ary) = filterA ary fullBitmap
+    go (Collision _ h ary) = filterC ary h
+
+    filterA ary0 b0 =
         let !n = A.length ary0
         in runST $ do
             mary <- A.new_ n
-            step ary0 mary b0 0 0 1 n sze
+            step ary0 mary b0 0 0 1 n
       where
-        step :: A.Array (Tree k v1) -> A.MArray s (Tree k v2)
-             -> Bitmap -> Int -> Int -> Bitmap -> Int -> A.Size
-             -> ST s (A.Sized (Tree k v2))
-        step !ary !mary !b i !j !bi n !siz
+        step :: A.Array (HashMap k v1) -> A.MArray s (HashMap k v2)
+             -> Bitmap -> Int -> Int -> Bitmap -> Int
+             -> ST s (HashMap k v2)
+        step !ary !mary !b i !j !bi n
             | i >= n = case j of
-                0 -> return $! A.Sized siz Empty
+                0 -> return Empty
                 1 -> do
                     ch <- A.read mary 0
                     case ch of
-                      t | isLeafOrCollision t -> return . A.Sized siz $! t
-                      _                       -> A.Sized siz . BitmapIndexed b <$> (A.unsafeFreeze =<< A.shrink mary 1)
+                      t | isLeafOrCollision t -> return t
+                      _                       -> BitmapIndexed (size ch) b <$> (A.unsafeFreeze =<< A.shrink mary 1)
                 _ -> do
                     ary2 <- A.unsafeFreeze =<< A.shrink mary j
-                    return . A.Sized siz $! if j == maxChildren
-                              then Full ary2
-                              else BitmapIndexed b ary2
-            | bi .&. b == 0 = step ary mary b i j (bi `unsafeShiftL` 1) n siz
-            | otherwise = case go siz (A.index ary i) of
-                A.Sized dsz Empty -> step ary mary (b .&. complement bi) (i+1) j
-                         (bi `unsafeShiftL` 1) n dsz
-                A.Sized dsz t     -> do
-                  A.write mary j t
-                  step ary mary b (i+1) (j+1) (bi `unsafeShiftL` 1) n dsz
+                    let sz' = sumSizes ary2
+                    return $! if j == maxChildren
+                              then Full sz' ary2
+                              else BitmapIndexed sz' b ary2
+            | bi .&. b == 0 = step ary mary b i j (bi `unsafeShiftL` 1) n
+            | otherwise = case go (A.index ary i) of
+                Empty -> step ary mary (b .&. complement bi) (i+1) j
+                         (bi `unsafeShiftL` 1) n
+                t     -> do A.write mary j t
+                            step ary mary b (i+1) (j+1) (bi `unsafeShiftL` 1) n
 
-    filterC siz ary0 h =
+    filterC ary0 h =
         let !n = A.length ary0
         in runST $ do
             mary <- A.new_ n
-            step ary0 mary 0 0 n siz
+            step ary0 mary 0 0 n
       where
         step :: A.Array (Leaf k v1) -> A.MArray s (Leaf k v2)
-             -> Int -> Int -> Int -> A.Size
-             -> ST s (A.Sized (Tree k v2))
-        step !ary !mary i !j n !sze
+             -> Int -> Int -> Int
+             -> ST s (HashMap k v2)
+        step !ary !mary i !j n
             | i >= n    = case j of
-                0 -> return (A.Sized sze Empty)
+                0 -> return Empty
                 1 -> do l <- A.read mary 0
-                        return . A.Sized sze $! Leaf h l
+                        return $! Leaf h l
                 _ | i == j -> do ary2 <- A.unsafeFreeze mary
-                                 return . A.Sized sze $! Collision h ary2
+                                 let sz' = A.length ary2
+                                 return $! Collision sz' h ary2
                   | otherwise -> do ary2 <- A.unsafeFreeze =<< A.shrink mary j
-                                    return . A.Sized sze $! Collision h ary2
+                                    let sz' = A.length ary2
+                                    return $! Collision sz' h ary2
             | Just el <- onColl $! A.index ary i
-                = A.write mary j el >> step ary mary (i+1) (j+1) n (sze + 1)
-            | otherwise = step ary mary (i+1) j n sze
-{-# INLINE filterMapAuxInternal #-}
+                = A.write mary j el >> step ary mary (i+1) (j+1) n
+            | otherwise = step ary mary (i+1) j n
+{-# INLINE filterMapAux #-}
 
 -- | \(O(n)\) Filter this map by retaining only elements which values
 -- satisfy a predicate.
@@ -2508,9 +2365,7 @@ fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 --
 -- @since 0.2.11
 fromListWithKey :: (Eq k, Hashable k) => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWithKey f = List.foldl' (\ (HashMap sz m) (k, v) ->
-    let A.Sized diff m' = unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m
-    in HashMap (sz + diff) m') empty
+fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m) empty
 {-# INLINE fromListWithKey #-}
 
 ------------------------------------------------------------------------
@@ -2639,13 +2494,6 @@ update32With' ary idx f
   = update32 ary idx $! f x
 {-# INLINE update32With' #-}
 
--- | /O(n)/ Update the element at the given position in this array, by applying a function to it.
-update32WithInternal' :: A.Array e -> Int -> (e -> A.Sized e) -> A.RunResA e
-update32WithInternal' ary idx f =
-    let A.Sized s x = f $! A.index ary idx
-    in A.RunResA s (update32 ary idx x)
-{-# INLINE update32WithInternal' #-}
-
 -- | Unsafely clone an array of (2^bitsPerSubkey) elements.  The length of the input
 -- array is not checked.
 clone :: A.Array e -> ST s (A.MArray s e)
@@ -2724,7 +2572,7 @@ nextShift s = s + bitsPerSubkey
 ------------------------------------------------------------------------
 -- Pointer equality
 
--- | Check if the two arguments are the same value.  N.B. This
+-- | Check if two the two arguments are the same value.  N.B. This
 -- function might give false negatives (due to GC moving objects.)
 ptrEq :: a -> a -> Bool
 ptrEq x y = Exts.isTrue# (Exts.reallyUnsafePtrEquality# x y ==# 1#)
