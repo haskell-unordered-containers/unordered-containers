@@ -3,7 +3,7 @@
 {-# LANGUAGE MagicHash        #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Util.Key (Key(..), keyToInt, incKey, collisionAtHash) where
+module Util.Key (Key(..), SmallSum (..), keyToInt, incKey, collisionAtHash) where
 
 import Data.Bits       (bit, (.&.))
 import Data.Hashable   (Hashable (hashWithSalt))

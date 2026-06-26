@@ -1,10 +1,12 @@
-{-# LANGUAGE BangPatterns          #-}
-{-# LANGUAGE CPP                   #-}
-{-# LANGUAGE MagicHash             #-}
-{-# LANGUAGE Rank2Types            #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TemplateHaskellQuotes #-}
-{-# LANGUAGE UnboxedTuples         #-}
+{-# LANGUAGE BangPatterns               #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DeriveLift                 #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MagicHash                  #-}
+{-# LANGUAGE Rank2Types                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TemplateHaskellQuotes      #-}
+{-# LANGUAGE UnboxedTuples              #-}
 {-# OPTIONS_GHC -fno-full-laziness -funbox-strict-fields #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
@@ -28,7 +30,6 @@
 module Data.HashMap.Internal.Array
     ( Array(..)
     , MArray(..)
-
       -- * Creation
     , new
     , new_
@@ -56,6 +57,7 @@ module Data.HashMap.Internal.Array
     , unsafeThaw
     , unsafeSameArray
     , run
+    , run2
     , copy
     , copyM
     , cloneM
@@ -297,6 +299,12 @@ unsafeThaw ary
 run :: (forall s . ST s (MArray s e)) -> Array e
 run act = runST $ act >>= unsafeFreeze
 {-# INLINE run #-}
+
+run2 :: (forall s. ST s (MArray s e, a)) -> (Array e, a)
+run2 k = runST (do
+                 (marr,b) <- k
+                 arr <- unsafeFreeze marr
+                 return (arr,b))
 
 -- | Unsafely copy the elements of an array. Array bounds are not checked.
 copy :: Array e -> Int -> MArray s e -> Int -> Int -> ST s ()
