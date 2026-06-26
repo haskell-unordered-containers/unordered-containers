@@ -30,11 +30,6 @@
 module Data.HashMap.Internal.Array
     ( Array(..)
     , MArray(..)
-    , RunResA (..)
-    , RunResM (..)
-    , Size (..)
-    , Sized (..)
-
       -- * Creation
     , new
     , new_
@@ -52,7 +47,6 @@ module Data.HashMap.Internal.Array
     , index#
     , update
     , updateWith'
-    , updateWithInternal'
     , unsafeUpdateM
     , insert
     , insertM
@@ -63,7 +57,6 @@ module Data.HashMap.Internal.Array
     , unsafeThaw
     , unsafeSameArray
     , run
-    , runInternal
     , run2
     , copy
     , copyM
@@ -303,20 +296,9 @@ unsafeThaw ary
                    (# s', mary #) -> (# s', MArray mary #)
 {-# INLINE unsafeThaw #-}
 
-data RunResA e = RunResA !Size !(Array e)
-
-data RunResM s e = RunResM !Size !(MArray s e)
-
 run :: (forall s . ST s (MArray s e)) -> Array e
 run act = runST $ act >>= unsafeFreeze
 {-# INLINE run #-}
-
-runInternal :: (forall s . ST s (RunResM s e)) -> RunResA e
-runInternal act = runST $ do
-    RunResM s mary <- act
-    ary <- unsafeFreeze mary
-    return (RunResA s ary)
-{-# INLINE runInternal #-}
 
 run2 :: (forall s. ST s (MArray s e, a)) -> (Array e, a)
 run2 k = runST (do
@@ -391,28 +373,6 @@ updateWith' ary idx f
   | (# x #) <- index# ary idx
   = update ary idx $! f x
 {-# INLINE updateWith' #-}
-
--- | This newtype wrapper is to avoid confusion when local functions
--- take more than one paramenter of 'Int' type (see 'go' in
--- 'Data.HashMap.Base.unionWithKeyInternal').
-newtype Size = Size { unSize :: Int }
-    deriving (Eq, Ord, Num, Integral, Enum, Real, NFData, TH.Lift)
-
--- | Helper datatype used in 'updateWithInternal''. Used when a change in
--- a value's size must be returned along with the value itself (typically
--- a hashmap).
-data Sized a = Sized {-# UNPACK #-} !Size !a
-
--- | /O(n)/ Update the element at the given position in this array, by
--- applying a function to it.  Evaluates the element to WHNF before
--- inserting it into the array.
-updateWithInternal' :: Array e -> Int -> (e -> Sized e) -> RunResA e
-updateWithInternal' ary idx f =
-    case index# ary idx of
-      (# x #) ->
-        let Sized sz e = f x
-        in RunResA sz (update ary idx e)
-{-# INLINE updateWithInternal' #-}
 
 -- | \(O(1)\) Update the element at the given position in this array,
 -- without copying.
