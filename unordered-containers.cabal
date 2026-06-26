@@ -126,12 +126,10 @@ benchmark package-comparisons
     containers,
     deepseq,
     hashable,
-    vector,
     hashmap,
     random,
     tasty-bench >= 0.3.1,
-    unordered-containers,
-    vector
+    unordered-containers
 
   default-language: Haskell2010
   ghc-options: -Wall -O2 -rtsopts "-with-rtsopts=-A32m" -fproc-alignment=64
