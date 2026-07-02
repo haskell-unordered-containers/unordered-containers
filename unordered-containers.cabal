@@ -51,6 +51,7 @@ library
     Data.HashMap.Internal.List
     Data.HashMap.Internal.Strict
     Data.HashMap.Lazy
+    Data.HashMap.Merge.Lazy
     Data.HashMap.Strict
     Data.HashSet
     Data.HashSet.Internal

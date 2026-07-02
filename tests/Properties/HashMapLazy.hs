@@ -44,7 +44,9 @@ import qualified Data.Map.Strict     as M
 #else
 import           Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashMap.Merge.Lazy as HMM
 import qualified Data.Map.Lazy     as M
+import qualified Data.Map.Merge.Lazy as MM
 #endif
 
 instance (Hashable k, Arbitrary k, Arbitrary v) => Arbitrary (HashMap k v) where
@@ -366,6 +368,32 @@ tests =
       [ testProperty "valid" $
         \(x :: HMK Int) (y :: HMK Key) -> isValid (HM.compose x y)
       ]
+#if !defined(STRICT)
+    , testGroup "merge"
+      [ testProperty "union-like: preserveMissing + zipWithMatched" $
+        \(Fn3 f :: Fun (Key, Int, Int) Int) (x :: HMKI) (y :: HMKI) ->
+          let z = HMM.merge HMM.preserveMissing HMM.preserveMissing (HMM.zipWithMatched f) x y
+              m = MM.merge MM.preserveMissing MM.preserveMissing (MM.zipWithMatched f) (toOrdMap x) (toOrdMap y)
+          in toOrdMap z === m QC..&&. isValid z
+      , testProperty "intersection-like: dropMissing + zipWithMaybeMatched" $
+        \(Fn3 f :: Fun (Key, A, B) (Maybe C)) (x :: HMK A) (y :: HMK B) ->
+          let z = HMM.merge HMM.dropMissing HMM.dropMissing (HMM.zipWithMaybeMatched f) x y
+              m = MM.merge MM.dropMissing MM.dropMissing (MM.zipWithMaybeMatched f) (toOrdMap x) (toOrdMap y)
+          in toOrdMap z === m QC..&&. isValid z
+      , testProperty "general: mapMaybeMissing + zipWithMaybeMatched" $
+        \(Fn2 f :: Fun (Key, A) (Maybe C)) (Fn2 g :: Fun (Key, B) (Maybe C))
+         (Fn3 h :: Fun (Key, A, B) (Maybe C)) (x :: HMK A) (y :: HMK B) ->
+          let z = HMM.merge (HMM.mapMaybeMissing f) (HMM.mapMaybeMissing g) (HMM.zipWithMaybeMatched h) x y
+              m = MM.merge (MM.mapMaybeMissing f) (MM.mapMaybeMissing g) (MM.zipWithMaybeMatched h) (toOrdMap x) (toOrdMap y)
+          in toOrdMap z === m QC..&&. isValid z
+      , testProperty "mapMissing + filterMissing + zipWithMaybeMatched" $
+        \(Fn2 f :: Fun (Key, A) C) (Fn2 p :: Fun (Key, C) Bool)
+         (Fn3 h :: Fun (Key, A, C) (Maybe C)) (x :: HMK A) (y :: HMK C) ->
+          let z = HMM.merge (HMM.mapMissing f) (HMM.filterMissing p) (HMM.zipWithMaybeMatched h) x y
+              m = MM.merge (MM.mapMissing f) (MM.filterMissing p) (MM.zipWithMaybeMatched h) (toOrdMap x) (toOrdMap y)
+          in toOrdMap z === m QC..&&. isValid z
+      ]
+#endif
     -- Transformations
     , testGroup "map"
       [ testProperty "model" $

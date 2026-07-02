@@ -66,6 +66,20 @@ module Data.HashMap.Internal
     , unionWithKey
     , unions
 
+      -- ** Merge
+    , merge
+    , WhenMissing (..)
+    , SimpleWhenMissing
+    , WhenMatched (..)
+    , SimpleWhenMatched
+    , dropMissing
+    , preserveMissing
+    , mapMissing
+    , mapMaybeMissing
+    , filterMissing
+    , zipWithMatched
+    , zipWithMaybeMatched
+
     -- ** Compose
     , compose
 
@@ -1754,6 +1768,279 @@ unions :: Eq k => [HashMap k v] -> HashMap k v
 unions = List.foldl' union empty
 {-# INLINE unions #-}
 
+------------------------------------------------------------------------
+-- ** Merge
+
+-- | A tactic for dealing with keys present in one map but not the
+-- other in 'merge'.
+--
+-- A tactic of type @WhenMissing f k x y@ is an abstract representation
+-- of a function of type @k -> x -> f (Maybe y)@.
+--
+-- @since 0.2.22.0
+data WhenMissing f k x y = WhenMissing
+  { missingSubtree :: HashMap k x -> f (HashMap k y)
+    -- ^ Invariant: The resulting map must only contain keys of the
+    -- argument map, each with its original hash, so that it can take
+    -- the argument's place in the tree structure.
+    -- Must agree with 'missingKey'.
+  , missingKey :: k -> x -> f (Maybe y)
+  }
+
+-- | A tactic for dealing with keys present in one map but not the
+-- other in 'merge'.
+--
+-- A tactic of type @SimpleWhenMissing k x y@ is an abstract
+-- representation of a function of type @k -> x -> Maybe y@.
+--
+-- @since 0.2.22.0
+type SimpleWhenMissing = WhenMissing Identity
+
+-- | A tactic for dealing with keys present in both maps in 'merge'.
+--
+-- A tactic of type @WhenMatched f k x y z@ is an abstract
+-- representation of a function of type @k -> x -> y -> f (Maybe z)@.
+--
+-- @since 0.2.22.0
+newtype WhenMatched f k x y z = WhenMatched
+  { matchedKey :: k -> x -> y -> f (Maybe z) }
+
+-- | A tactic for dealing with keys present in both maps in 'merge'.
+--
+-- A tactic of type @SimpleWhenMatched k x y z@ is an abstract
+-- representation of a function of type @k -> x -> y -> Maybe z@.
+--
+-- @since 0.2.22.0
+type SimpleWhenMatched = WhenMatched Identity
+
+-- | Drop all the entries whose keys are missing from the other map.
+--
+-- @dropMissing = 'mapMaybeMissing' (\\_ _ -> Nothing)@
+--
+-- but @dropMissing@ is much faster.
+--
+-- @since 0.2.22.0
+dropMissing :: Applicative f => WhenMissing f k x y
+dropMissing = WhenMissing (const (pure Empty)) (\_ _ -> pure Nothing)
+{-# INLINE dropMissing #-}
+
+-- | Preserve, unchanged, the entries whose keys are missing from the
+-- other map.
+--
+-- @preserveMissing = 'mapMaybeMissing' (\\_ v -> Just v)@
+--
+-- but @preserveMissing@ is much faster.
+--
+-- @since 0.2.22.0
+preserveMissing :: Applicative f => WhenMissing f k x x
+preserveMissing = WhenMissing pure (\_ v -> pure (Just v))
+{-# INLINE preserveMissing #-}
+
+-- | Map over the entries whose keys are missing from the other map.
+--
+-- @mapMissing f = 'mapMaybeMissing' (\\k v -> Just (f k v))@
+--
+-- but @mapMissing@ is somewhat faster.
+--
+-- @since 0.2.22.0
+mapMissing :: Applicative f => (k -> x -> y) -> WhenMissing f k x y
+mapMissing f = WhenMissing (pure . mapWithKey f) (\k v -> pure (Just (f k v)))
+{-# INLINE mapMissing #-}
+
+-- | Map over the entries whose keys are missing from the other map,
+-- optionally removing some.
+--
+-- @since 0.2.22.0
+mapMaybeMissing :: Applicative f => (k -> x -> Maybe y) -> WhenMissing f k x y
+mapMaybeMissing f = WhenMissing (pure . mapMaybeWithKey f) (\k v -> pure (f k v))
+{-# INLINE mapMaybeMissing #-}
+
+-- | Filter the entries whose keys are missing from the other map.
+--
+-- @filterMissing p = 'mapMaybeMissing' (\\k v -> if p k v then Just v else Nothing)@
+--
+-- but @filterMissing@ is somewhat faster.
+--
+-- @since 0.2.22.0
+filterMissing :: Applicative f => (k -> x -> Bool) -> WhenMissing f k x x
+filterMissing p =
+    WhenMissing (pure . filterWithKey p) (\k v -> pure (if p k v then Just v else Nothing))
+{-# INLINE filterMissing #-}
+
+-- | When a key is found in both maps, apply a function to the key and
+-- values and use the result in the merged map.
+--
+-- @zipWithMatched f = 'zipWithMaybeMatched' (\\k x y -> Just (f k x y))@
+--
+-- @since 0.2.22.0
+zipWithMatched :: Applicative f => (k -> x -> y -> z) -> WhenMatched f k x y z
+zipWithMatched f = WhenMatched (\k x y -> pure (Just (f k x y)))
+{-# INLINE zipWithMatched #-}
+
+-- | When a key is found in both maps, apply a function to the key and
+-- values. If it returns 'Nothing', the key is dropped from the merged
+-- map; if it returns @'Just' z@, the key is mapped to @z@.
+--
+-- @since 0.2.22.0
+zipWithMaybeMatched
+  :: Applicative f => (k -> x -> y -> Maybe z) -> WhenMatched f k x y z
+zipWithMaybeMatched f = WhenMatched (\k x y -> pure (f k x y))
+{-# INLINE zipWithMaybeMatched #-}
+
+-- | \(O(n+m)\) Merge two maps.
+--
+-- @merge miss1 miss2 match m1 m2@ combines the maps @m1@ and @m2@,
+-- using the tactic @miss1@ for the entries whose keys occur only in
+-- @m1@, the tactic @miss2@ for the entries whose keys occur only in
+-- @m2@, and the tactic @match@ for the keys that occur in both maps.
+--
+-- Some examples:
+--
+-- @
+-- 'unionWithKey' f = merge 'preserveMissing' 'preserveMissing' ('zipWithMatched' f)
+-- 'intersectionWithKey' f = merge 'dropMissing' 'dropMissing' ('zipWithMatched' f)
+-- 'differenceWith' f = merge 'preserveMissing' 'dropMissing' ('zipWithMaybeMatched' (const f))
+-- @
+--
+-- @since 0.2.22.0
+merge
+  :: Eq k
+  => SimpleWhenMissing k a c -- ^ What to do with keys in @m1@ but not @m2@
+  -> SimpleWhenMissing k b c -- ^ What to do with keys in @m2@ but not @m1@
+  -> SimpleWhenMatched k a b c -- ^ What to do with keys in both @m1@ and @m2@
+  -> HashMap k a -- ^ Map @m1@
+  -> HashMap k b -- ^ Map @m2@
+  -> HashMap k c
+merge miss1 miss2 match = go 0
+  where
+    miss1Sub t = runIdentity (missingSubtree miss1 t)
+    miss2Sub t = runIdentity (missingSubtree miss2 t)
+    miss1Key k v = runIdentity (missingKey miss1 k v)
+    miss2Key k v = runIdentity (missingKey miss2 k v)
+    matchKey k v1 v2 = runIdentity (matchedKey match k v1 v2)
+
+    -- empty vs. anything
+    go !_ Empty t2 = miss2Sub t2
+    go _ t1 Empty = miss1Sub t1
+    -- leaf vs. leaf
+    go s t1@(Leaf h1 (L k1 v1)) t2@(Leaf h2 (L k2 v2))
+      | h1 == h2 =
+          if k1 == k2
+          then case matchKey k1 v1 v2 of
+            Just v  -> Leaf h1 (L k1 v)
+            Nothing -> Empty
+          else case (miss1Key k1 v1, miss2Key k2 v2) of
+            (Nothing,  Nothing ) -> Empty
+            (Just v1', Nothing ) -> Leaf h1 (L k1 v1')
+            (Nothing,  Just v2') -> Leaf h2 (L k2 v2')
+            (Just v1', Just v2') -> collision h1 (L k1 v1') (L k2 v2')
+      | otherwise = goDifferentHash s h1 h2 (miss1Sub t1) (miss2Sub t2)
+    -- leaf vs. collision
+    go s t1@(Leaf h1 l1) t2@(Collision h2 ls2)
+      | h1 == h2  = goCollisions h1 (A.singleton l1) ls2
+      | otherwise = goDifferentHash s h1 h2 (miss1Sub t1) (miss2Sub t2)
+    go s t1@(Collision h1 ls1) t2@(Leaf h2 l2)
+      | h1 == h2  = goCollisions h1 ls1 (A.singleton l2)
+      | otherwise = goDifferentHash s h1 h2 (miss1Sub t1) (miss2Sub t2)
+    go s t1@(Collision h1 ls1) t2@(Collision h2 ls2)
+      | h1 == h2  = goCollisions h1 ls1 ls2
+      | otherwise = goDifferentHash s h1 h2 (miss1Sub t1) (miss2Sub t2)
+    -- branch vs. branch
+    go s (BitmapIndexed b1 ary1) (BitmapIndexed b2 ary2) =
+      goArrays s b1 b2 ary1 ary2
+    go s (BitmapIndexed b1 ary1) (Full ary2) =
+      goArrays s b1 fullBitmap ary1 ary2
+    go s (Full ary1) (BitmapIndexed b2 ary2) =
+      goArrays s fullBitmap b2 ary1 ary2
+    go s (Full ary1) (Full ary2) =
+      goArrays s fullBitmap fullBitmap ary1 ary2
+    -- leaf vs. branch
+    go s t1 (BitmapIndexed b2 ary2) =
+      goArrays s (mask (leafHashCode t1) s) b2 (A.singleton t1) ary2
+    go s t1 (Full ary2) =
+      goArrays s (mask (leafHashCode t1) s) fullBitmap (A.singleton t1) ary2
+    go s (BitmapIndexed b1 ary1) t2 =
+      goArrays s b1 (mask (leafHashCode t2) s) ary1 (A.singleton t2)
+    go s (Full ary1) t2 =
+      goArrays s fullBitmap (mask (leafHashCode t2) s) ary1 (A.singleton t2)
+
+    -- Merge the children of two branch nodes. A leaf or collision node
+    -- is treated as a pseudo-branch with a single child, so that
+    -- children of the branch that don't line up with it are correctly
+    -- handled by the missing tactics.
+    goArrays s !b1 !b2 !ary1 !ary2 = runST $ do
+      let bCombined = b1 .|. b2
+      mary <- A.new_ (popCount bCombined)
+      -- iterate over nonzero bits of b1 .|. b2, dropping the bits of
+      -- children that merge to Empty
+      let step !i !i1 !i2 !b !bFinal
+            | b == 0 = pure (i, bFinal)
+            | testBit (b1 .&. b2) = do
+                x1 <- A.indexM ary1 i1
+                x2 <- A.indexM ary2 i2
+                writeOrSkip (go (nextShift s) x1 x2) (i1 + 1) (i2 + 1)
+            | testBit b1 = do
+                x1 <- A.indexM ary1 i1
+                writeOrSkip (miss1Sub x1) (i1 + 1) i2
+            | otherwise = do
+                x2 <- A.indexM ary2 i2
+                writeOrSkip (miss2Sub x2) i1 (i2 + 1)
+            where
+              m = 1 `unsafeShiftL` countTrailingZeros b
+              testBit x = x .&. m /= 0
+              b' = b .&. complement m
+              writeOrSkip t i1' i2' = case t of
+                Empty -> step i i1' i2' b' (bFinal .&. complement m)
+                _ -> do
+                  A.write mary i t
+                  step (i + 1) i1' i2' b' bFinal
+      (len, bFinal) <- step 0 0 0 bCombined bCombined
+      case len of
+        0 -> pure Empty
+        1 -> do
+          l <- A.read mary 0
+          if isLeafOrCollision l
+            then pure l
+            else BitmapIndexed bFinal <$> (A.unsafeFreeze =<< A.shrink mary 1)
+        _ -> bitmapIndexedOrFull bFinal <$> (A.unsafeFreeze =<< A.shrink mary len)
+
+    -- Merge two collision nodes with the same hash @h@.
+    goCollisions h ls1 ls2 =
+      let step1 (L k1 v1) acc =
+            lookupInArrayCont
+              (\_ -> maybeCons k1 (miss1Key k1 v1) acc)
+              (\v2 _ -> maybeCons k1 (matchKey k1 v1 v2) acc)
+              k1 ls2
+          -- keys of ls2 that also occur in ls1 were already handled by step1
+          step2 (L k2 v2) acc =
+            lookupInArrayCont
+              (\_ -> maybeCons k2 (miss2Key k2 v2) acc)
+              (\_ _ -> acc)
+              k2 ls1
+          maybeCons k (Just v) acc = L k v : acc
+          maybeCons _ Nothing acc = acc
+          ls' = A.foldr step1 (A.foldr step2 [] ls2) ls1
+      in case ls' of
+        []  -> Empty
+        [l] -> Leaf h l
+        _   -> Collision h (A.fromList (List.length ls') ls')
+
+    leafHashCode (Leaf h _) = h
+    leafHashCode (Collision h _) = h
+    leafHashCode _ = error "leafHashCode"
+
+    -- Precondition: @h1 /= h2@. @t1@ and @t2@ are the results of the
+    -- missing tactics and may be 'Empty'.
+    goDifferentHash s h1 h2 t1 t2
+      | Empty <- t1 = t2
+      | Empty <- t2 = t1
+      | m1 == m2  = BitmapIndexed m1 (A.singleton $! goDifferentHash (nextShift s) h1 h2 t1 t2)
+      | m1 <  m2  = BitmapIndexed (m1 .|. m2) (A.pair t1 t2)
+      | otherwise = BitmapIndexed (m1 .|. m2) (A.pair t2 t1)
+      where
+        m1 = mask h1 s
+        m2 = mask h2 s
+{-# INLINE merge #-}
 
 ------------------------------------------------------------------------
 -- * Compose

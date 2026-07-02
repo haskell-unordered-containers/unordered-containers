@@ -1,3 +1,10 @@
+## Unreleased
+
+* API enhancements:
+  * Add `Data.HashMap.Merge.Lazy` with a general `merge` function and merge
+    tactics, mirroring `Data.Map.Merge.Lazy` from `containers`
+    ([#226](https://github.com/haskell-unordered-containers/unordered-containers/issues/226))
+
 ## [0.2.21] - December 2025
 
 * API enhancements:
