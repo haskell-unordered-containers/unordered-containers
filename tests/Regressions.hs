@@ -31,7 +31,8 @@ import qualified Data.HashSet        as HS
 import qualified Test.Tasty          as Tasty
 
 import qualified Data.Foldable  as Foldable
-import           NoThunks.Class (noThunksInValues)
+import           NoThunks.Class (noThunks, noThunksInValues)
+import           Util.NoThunks  ()
 
 issue32 :: Assertion
 issue32 = assert $ isJust $ HMS.lookup 7 m'
@@ -92,6 +93,17 @@ propEqAfterDelete (Keys keys) =
 
 mapFromKeys :: [Int] -> HMS.HashMap Int ()
 mapFromKeys keys = HMS.fromList (zip keys (repeat ()))
+
+------------------------------------------------------------------------
+-- Issue #232
+
+-- 'HMS.insert' used to leave thunks in the array of a 'BitmapIndexed' node,
+-- even though 'Data.HashMap.Strict' promises fully forced values (and keys).
+issue232 :: Assertion
+issue232 = do
+  m <- evaluate $ foldl' (\acc v -> HMS.insert v v acc) HMS.empty [0 .. 16 :: Int]
+  mThunkInfo <- noThunks mempty m
+  assert $ isNothing mThunkInfo
 
 ------------------------------------------------------------------------
 -- Issue #254
@@ -270,6 +282,7 @@ tests = testGroup "Regression tests"
       testCase "issue32" issue32
     , testCase "issue39a" issue39
     , testProperty "issue39b" propEqAfterDelete
+    , testCase "issue232" issue232
     , testCase "issue254 lazy" issue254Lazy
     , testCase "issue254 strict" issue254Strict
     , testGroup "issue379"
