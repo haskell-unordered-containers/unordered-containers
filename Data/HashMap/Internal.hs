@@ -1836,6 +1836,10 @@ traverseWithKey f = go
 -- @since 0.2.14.0
 mapKeys :: Hashable k2 => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
 mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
+-- INLINABLE so that fromList can specialize at the caller's key type:
+-- in unspecialized code, allocating a Leaf for a key of statically unknown
+-- taggedness goes through a thunk (see #235).
+{-# INLINABLE mapKeys #-}
 
 ------------------------------------------------------------------------
 -- * Difference and intersection
