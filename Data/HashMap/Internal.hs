@@ -254,6 +254,38 @@ data HashMap k v
     -- * No two keys stored in a 'Collision' can be equal according to their
     --   'Eq' instance. (INV10)
 
+{-
+Note [Canonical form]
+~~~~~~~~~~~~~~~~~~~~~
+
+The invariants above imply that HashMaps have a canonical form: two
+HashMaps that contain the same key-value pairs have the same tree
+structure, modulo the order of keys within a Collision node -- regardless
+of the order in which they were constructed. This is because each key's
+hash fully determines the path to its leaf, while the remaining
+invariants, in particular INV1, INV3, INV5, INV8 and INV9, rule out
+alternative encodings of the same sub-tree (e.g. a redundant
+BitmapIndexed node wrapping a single Leaf, a BitmapIndexed node that
+could be a Full node, or a single-entry Collision node that could be a
+Leaf).
+
+Several functions rely on this, in two ways:
+
+* equal1 and equalKeys compare two trees structurally, node by node.
+  Canonical form makes this complete: maps with equal contents have
+  identical structure, except within Collision nodes, which these
+  functions compare as unordered collections.
+
+* equal2, cmp, equalKeys1 and the Hashable instances flatten a tree with
+  leavesAndCollisions. Canonical form guarantees that maps with equal
+  contents produce the same sequence of leaves, again modulo the order
+  within Collision nodes, which these functions handle
+  order-insensitively.
+
+Without a canonical form these functions could give inconsistent results
+for maps with equal contents.
+-}
+
 type role HashMap nominal representational
 
 -- | @since 0.2.17.0
