@@ -30,7 +30,7 @@ instance Monoid Histogram where
     mempty = H 0 0 0 0 0
 
 -- | Count the number of node types at each level
-nodeHistogram :: HM.HashMap k v -> [Histogram]
+nodeHistogram :: HM.Tree k v -> [Histogram]
 nodeHistogram Empty = [mempty { empty = 1 }]
 nodeHistogram (Leaf {}) = [mempty { leaf = 1 }]
 nodeHistogram (BitmapIndexed _ ary) =
