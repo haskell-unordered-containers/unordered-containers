@@ -27,6 +27,18 @@ opaqueSucc :: Int -> Int
 opaqueSucc x = x + 1
 {-# NOINLINE opaqueSucc #-}
 
+opaque1 :: (a -> b) -> a -> b
+opaque1 f x = f x
+{-# NOINLINE opaque1 #-}
+
+opaque2 :: (a -> b -> c) -> a -> b -> c
+opaque2 f x y = f x y
+{-# NOINLINE opaque2 #-}
+
+opaque3 :: (a -> b -> c -> d) -> a -> b -> c -> d
+opaque3 f x y z = f x y z
+{-# NOINLINE opaque3 #-}
+
 tests :: TestTree
 tests = testGroup "NoThunks"
   [ testGroup "singleton"
@@ -41,7 +53,7 @@ tests = testGroup "NoThunks"
   , testGroup "insertWith"
     [ testProperty "no thunks" $
       \(k :: Key) (v :: Int) (m :: HMKI) ->
-        noThunksProperty (HM.insertWith (+) (forced k) (forced v) (forced m))
+        noThunksProperty (HM.insertWith (opaque2 (+)) (forced k) (forced v) (forced m))
     ]
   , testGroup "delete"
     [ testProperty "no thunks" $
@@ -49,23 +61,32 @@ tests = testGroup "NoThunks"
     ]
   , testGroup "adjust"
     [ testProperty "no thunks" $
-      \(k :: Key) (m :: HMKI) -> noThunksProperty (HM.adjust (+ 1) (forced k) (forced m))
+      \(k :: Key) (m :: HMKI) ->
+        noThunksProperty (HM.adjust (opaque1 (+ 1)) (forced k) (forced m))
     ]
   , testGroup "update"
     [ testProperty "no thunks" $
       \(k :: Key) (m :: HMKI) ->
-        noThunksProperty (HM.update (\v -> Just (v + 1)) (forced k) (forced m))
+        noThunksProperty
+          (HM.update (opaque1 (\v -> Just (v + 1))) (forced k) (forced m))
     ]
   , testGroup "alter"
     [ testProperty "no thunks" $
       \(k :: Key) (m :: HMKI) ->
-        noThunksProperty (HM.alter (\mv -> Just (maybe 0 (+ 1) mv)) (forced k) (forced m))
+        noThunksProperty
+          (HM.alter
+            (opaque1 (\mv -> Just (maybe 0 (+ 1) mv)))
+            (forced k)
+            (forced m))
     ]
   , testGroup "alterF"
     [ testProperty "no thunks" $
       \(k :: Key) (m :: HMKI) ->
         let MyIdentity m' =
-              HM.alterF (MyIdentity . Just . maybe 0 (+ 1)) (forced k) (forced m)
+              HM.alterF
+                (opaque1 (MyIdentity . Just . maybe 0 (+ 1)))
+                (forced k)
+                (forced m)
         in  noThunksProperty m'
     -- Identity and the always-Just result make alterFinsertWith fire.
     , testProperty "alterFinsertWith rule: no thunks" $
@@ -84,13 +105,16 @@ tests = testGroup "NoThunks"
   , testGroup "unionWith"
     [ testProperty "no thunks" $
       \(m1 :: HMKI) (m2 :: HMKI) ->
-        noThunksProperty (HM.unionWith (+) (forced m1) (forced m2))
+        noThunksProperty (HM.unionWith (opaque2 (+)) (forced m1) (forced m2))
     ]
   , testGroup "unionWithKey"
     [ testProperty "no thunks" $
       \(m1 :: HMKI) (m2 :: HMKI) ->
         noThunksProperty
-          (HM.unionWithKey (\k v1 v2 -> keyToInt k + v1 + v2) (forced m1) (forced m2))
+          (HM.unionWithKey
+            (opaque3 (\k v1 v2 -> keyToInt k + v1 + v2))
+            (forced m1)
+            (forced m2))
     ]
   , testGroup "unions"
     [ testProperty "no thunks" $
@@ -98,21 +122,25 @@ tests = testGroup "NoThunks"
     ]
   , testGroup "map"
     [ testProperty "no thunks" $
-      \(m :: HMKI) -> noThunksProperty (HM.map (+ 1) (forced m))
+      \(m :: HMKI) -> noThunksProperty (HM.map (opaque1 (+ 1)) (forced m))
     ]
   , testGroup "mapWithKey"
     [ testProperty "no thunks" $
-      \(m :: HMKI) -> noThunksProperty (HM.mapWithKey (\k v -> keyToInt k + v) (forced m))
+      \(m :: HMKI) ->
+        noThunksProperty
+          (HM.mapWithKey (opaque2 (\k v -> keyToInt k + v)) (forced m))
     ]
   , testGroup "traverseWithKey"
     [ testProperty "no thunks" $
       \(m :: HMKI) -> ioProperty $ do
-        m' <- HM.traverseWithKey (\k v -> pure (keyToInt k + v)) (forced m)
+        m' <- HM.traverseWithKey
+          (opaque2 (\k v -> pure (keyToInt k + v)))
+          (forced m)
         pure (noThunksProperty m')
     ]
   , testGroup "mapKeys"
     [ testProperty "no thunks" $
-      \(m :: HMKI) -> noThunksProperty (HM.mapKeys incKey (forced m))
+      \(m :: HMKI) -> noThunksProperty (HM.mapKeys (opaque1 incKey) (forced m))
     ]
   , testGroup "difference"
     [ testProperty "no thunks" $
@@ -121,7 +149,11 @@ tests = testGroup "NoThunks"
   , testGroup "differenceWith"
     [ testProperty "no thunks" $
       \(m1 :: HMKI) (m2 :: HMKI) ->
-        noThunksProperty (HM.differenceWith (\v1 v2 -> Just (v1 + v2)) (forced m1) (forced m2))
+        noThunksProperty
+          (HM.differenceWith
+            (opaque2 (\v1 v2 -> Just (v1 + v2)))
+            (forced m1)
+            (forced m2))
     ]
   , testGroup "intersection"
     [ testProperty "no thunks" $
@@ -130,35 +162,45 @@ tests = testGroup "NoThunks"
   , testGroup "intersectionWith"
     [ testProperty "no thunks" $
       \(m1 :: HMKI) (m2 :: HMKI) ->
-        noThunksProperty (HM.intersectionWith (+) (forced m1) (forced m2))
+        noThunksProperty
+          (HM.intersectionWith (opaque2 (+)) (forced m1) (forced m2))
     ]
   , testGroup "intersectionWithKey"
     [ testProperty "no thunks" $
       \(m1 :: HMKI) (m2 :: HMKI) ->
         noThunksProperty
-          (HM.intersectionWithKey (\k v1 v2 -> keyToInt k + v1 + v2) (forced m1) (forced m2))
+          (HM.intersectionWithKey
+            (opaque3 (\k v1 v2 -> keyToInt k + v1 + v2))
+            (forced m1)
+            (forced m2))
     ]
   , testGroup "filter"
     [ testProperty "no thunks" $
-      \(m :: HMKI) -> noThunksProperty (HM.filter even (forced m))
+      \(m :: HMKI) -> noThunksProperty (HM.filter (opaque1 even) (forced m))
     ]
   , testGroup "filterWithKey"
     [ testProperty "no thunks" $
       \(m :: HMKI) ->
-        noThunksProperty (HM.filterWithKey (\k v -> even (keyToInt k + v)) (forced m))
+        noThunksProperty
+          (HM.filterWithKey
+            (opaque2 (\k v -> even (keyToInt k + v)))
+            (forced m))
     ]
   , testGroup "mapMaybe"
     [ testProperty "no thunks" $
       \(m :: HMKI) ->
         noThunksProperty
-          (HM.mapMaybe (\v -> if even v then Just (v + 1) else Nothing) (forced m))
+          (HM.mapMaybe
+            (opaque1 (\v -> if even v then Just (v + 1) else Nothing))
+            (forced m))
     ]
   , testGroup "mapMaybeWithKey"
     [ testProperty "no thunks" $
       \(m :: HMKI) ->
         noThunksProperty $
           HM.mapMaybeWithKey
-            (\k v -> if even v then Just (keyToInt k + v) else Nothing)
+            (opaque2
+              (\k v -> if even v then Just (keyToInt k + v) else Nothing))
             (forced m)
     ]
   , testGroup "fromList"
@@ -167,12 +209,16 @@ tests = testGroup "NoThunks"
     ]
   , testGroup "fromListWith"
     [ testProperty "no thunks" $
-      \(kvs :: [(Key, Int)]) -> noThunksProperty (HM.fromListWith (+) (forced kvs))
+      \(kvs :: [(Key, Int)]) ->
+        noThunksProperty (HM.fromListWith (opaque2 (+)) (forced kvs))
     ]
   , testGroup "fromListWithKey"
     [ testProperty "no thunks" $
       \(kvs :: [(Key, Int)]) ->
-        noThunksProperty (HM.fromListWithKey (\k v1 v2 -> keyToInt k + v1 + v2) (forced kvs))
+        noThunksProperty
+          (HM.fromListWithKey
+            (opaque3 (\k v1 v2 -> keyToInt k + v1 + v2))
+            (forced kvs))
     ]
   , testGroup "<>"
     [ testProperty "no thunks" $
