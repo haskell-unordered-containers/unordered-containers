@@ -5,6 +5,7 @@
 module Properties.NoThunks (tests) where
 
 import Control.DeepSeq         (NFData, rnf)
+import Data.Functor.Identity   (Identity (..))
 import Properties.HashMapStrict ()
 import Test.QuickCheck          (ioProperty)
 import Test.Tasty              (TestTree, testGroup)
@@ -21,6 +22,10 @@ type HMKI = HMK Int
 -- no-thunks invariant is only claimed for thunk-free inputs.
 forced :: NFData a => a -> a
 forced x = rnf x `seq` x
+
+opaqueSucc :: Int -> Int
+opaqueSucc x = x + 1
+{-# NOINLINE opaqueSucc #-}
 
 tests :: TestTree
 tests = testGroup "NoThunks"
@@ -61,6 +66,15 @@ tests = testGroup "NoThunks"
       \(k :: Key) (m :: HMKI) ->
         let MyIdentity m' =
               HM.alterF (MyIdentity . Just . maybe 0 (+ 1)) (forced k) (forced m)
+        in  noThunksProperty m'
+    -- Identity and the always-Just result make alterFinsertWith fire.
+    , testProperty "alterFinsertWith rule: no thunks" $
+      \(k :: Key) (v :: Int) (m :: HMKI) ->
+        let Identity m' =
+              HM.alterF
+                (Identity . Just . maybe (opaqueSucc (forced v)) opaqueSucc)
+                (forced k)
+                (forced m)
         in  noThunksProperty m'
     ]
   , testGroup "union"
