@@ -120,4 +120,8 @@ import qualified Data.HashSet.Internal as HS
 -- 1. Key arguments are evaluated to WHNF;
 --
 -- 2. Keys and values are evaluated to WHNF before they are stored in
---    the map.
+--    the map;
+--
+-- 3. A 'HashMap' produced by functions in this module is spine-strict: its
+--    internal tree contains no thunks, provided that the internal trees of all
+--    input maps contain no thunks.
