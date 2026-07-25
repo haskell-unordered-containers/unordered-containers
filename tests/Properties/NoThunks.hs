@@ -17,6 +17,7 @@ import qualified Data.HashMap.Strict as HM
 
 type HMK  = HM.HashMap Key
 type HMKI = HMK Int
+type HMKK = HMK Key
 
 -- | Force a value to normal form before using it as test input: the
 -- no-thunks invariant is only claimed for thunk-free inputs.
@@ -41,7 +42,11 @@ opaque3 f x y z = f x y z
 
 tests :: TestTree
 tests = testGroup "NoThunks"
-  [ testGroup "singleton"
+  [ testGroup "empty"
+    [ testProperty "no thunks" $
+        noThunksProperty (HM.empty :: HMKI)
+    ]
+  , testGroup "singleton"
     [ testProperty "no thunks" $
       \(k :: Key) (v :: Int) -> noThunksProperty (HM.singleton (forced k) (forced v))
     ]
@@ -97,6 +102,24 @@ tests = testGroup "NoThunks"
                 (forced k)
                 (forced m)
         in  noThunksProperty m'
+    -- Ignoring the old value makes alterFconstant fire.
+    , testProperty "alterFconstant rule: no thunks" $
+      \(k :: Key) (mv :: Maybe Int) (m :: HMKI) ->
+        let Identity m' =
+              HM.alterF
+                (const (Identity (forced mv)))
+                (forced k)
+                (forced m)
+        in  noThunksProperty m'
+    -- Preserving absence makes alterFadjust fire.
+    , testProperty "alterFadjust rule: no thunks" $
+      \(k :: Key) (m :: HMKI) ->
+        let Identity m' =
+              HM.alterF
+                (Identity . fmap opaqueSucc)
+                (forced k)
+                (forced m)
+        in  noThunksProperty m'
     ]
   , testGroup "union"
     [ testProperty "no thunks" $
@@ -142,6 +165,11 @@ tests = testGroup "NoThunks"
     [ testProperty "no thunks" $
       \(m :: HMKI) -> noThunksProperty (HM.mapKeys (opaque1 incKey) (forced m))
     ]
+  , testGroup "compose"
+    [ testProperty "no thunks" $
+      \(bc :: HMKI) (ab :: HMKK) ->
+        noThunksProperty (HM.compose (forced bc) (forced ab))
+    ]
   , testGroup "difference"
     [ testProperty "no thunks" $
       \(m1 :: HMKI) (m2 :: HMKI) -> noThunksProperty (HM.difference (forced m1) (forced m2))
@@ -152,6 +180,15 @@ tests = testGroup "NoThunks"
         noThunksProperty
           (HM.differenceWith
             (opaque2 (\v1 v2 -> Just (v1 + v2)))
+            (forced m1)
+            (forced m2))
+    ]
+  , testGroup "differenceWithKey"
+    [ testProperty "no thunks" $
+      \(m1 :: HMKI) (m2 :: HMKI) ->
+        noThunksProperty
+          (HM.differenceWithKey
+            (opaque3 (\k v1 v2 -> Just (keyToInt k + v1 + v2)))
             (forced m1)
             (forced m2))
     ]
