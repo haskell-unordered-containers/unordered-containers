@@ -1,0 +1,14 @@
+diff --git a/.github/workflows/haskell-ci.yml b/.github/workflows/haskell-ci.yml
+--- a/.github/workflows/haskell-ci.yml
++++ b/.github/workflows/haskell-ci.yml
+@@ -228,6 +228,10 @@ jobs:
+       - name: tests
+         run: |
+           $CABAL v2-test $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --test-show-details=direct
++      - name: tests (-O0)
++        if: strategy.job-index == 0
++        run: |
++          $CABAL v2-test $ARG_COMPILER --enable-tests --disable-benchmarks --ghc-options=-O0 all --test-show-details=direct
+       - name: cabal check
+         run: |
+           cd ${PKGDIR_unordered_containers} || false
