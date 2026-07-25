@@ -363,11 +363,8 @@ alterF f = \ !k !m ->
 test_bottom :: a
 test_bottom = error "Data.HashMap.alterF internal error: hit test_bottom"
 
-bogus# :: (# #) -> (# a #)
-bogus# _ = error "Data.HashMap.alterF internal error: hit bogus#"
-
-impossibleAdjust :: a
-impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
+impossibleAlterF :: a
+impossibleAlterF = error "Data.HashMap.alterF internal error: impossible result"
 
 {-# RULES
 
@@ -382,9 +379,12 @@ impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
 
 "alterFinsertWith" [1] forall (f :: Maybe a -> Identity (Maybe a)) x y.
   alterFWeird (coerce (Just x)) (coerce (Just y)) f =
-    coerce (HM.insertModifying x (\mold -> case runIdentity (f (Just mold)) of
-                                               Nothing -> bogus# (# #)
-                                               Just !new -> (# new #)))
+    \ !k !m -> Identity $
+      insertWith
+        (\_ old -> case runIdentity (f (Just old)) of
+                        Nothing -> impossibleAlterF
+                        Just new -> new)
+        k x m
 
 -- This rule is written a bit differently than the one for lazy
 -- maps because the adjust here is strict. We could write it the
@@ -393,7 +393,7 @@ impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
   alterFWeird (coerce Nothing) (coerce (Just x)) f =
     coerce (adjust (\a -> case runIdentity (f (Just a)) of
                                Just a' -> a'
-                               Nothing -> impossibleAdjust))
+                               Nothing -> impossibleAlterF))
 
 "alterFlookup" forall _ign1 _ign2 (f :: Maybe a -> Const r (Maybe a)) .
   alterFWeird _ign1 _ign2 f = \ !k !m -> Const (getConst (f (HM.lookup k m)))

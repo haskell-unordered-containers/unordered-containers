@@ -88,13 +88,16 @@ test-suite unordered-containers-tests
     Properties.HashMapStrict
     Properties.HashSet
     Properties.List
+    Properties.NoThunks
     Strictness
     Util.Key
+    Util.NoThunks
 
   build-depends:
     base,
     ChasingBottoms,
     containers >= 0.5.8,
+    deepseq,
     hashable,
     HUnit,
     QuickCheck >= 2.4.0.1,

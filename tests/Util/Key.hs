@@ -5,6 +5,7 @@
 
 module Util.Key (Key(..), keyToInt, incKey, collisionAtHash) where
 
+import Control.DeepSeq (NFData)
 import Data.Bits       (bit, (.&.))
 import Data.Hashable   (Hashable (hashWithSalt))
 import Data.Word       (Word16)
@@ -20,13 +21,13 @@ data Key = K
     -- ^ The hash of the key
   , _x :: !SmallSum
     -- ^ Additional data, so we can have collisions for any hash
-  } deriving (Eq, Ord, Read, Show, Generic, Function, CoArbitrary)
+  } deriving (Eq, Ord, Read, Show, Generic, Function, CoArbitrary, NFData)
 
 instance Hashable Key where
   hashWithSalt _ (K h _) = h
 
 data SmallSum = A | B | C | D
-  deriving (Eq, Ord, Read, Show, Generic, Enum, Bounded, Function, CoArbitrary)
+  deriving (Eq, Ord, Read, Show, Generic, Enum, Bounded, Function, CoArbitrary, NFData)
 
 instance Arbitrary SmallSum where
   arbitrary = QC.arbitraryBoundedEnum
