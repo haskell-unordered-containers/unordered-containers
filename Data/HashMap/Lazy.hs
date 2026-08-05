@@ -48,6 +48,7 @@ module Data.HashMap.Lazy
     , delete
     , adjust
     , update
+    , upsert
     , alter
     , alterF
     , isSubmapOf
@@ -104,6 +105,7 @@ module Data.HashMap.Lazy
     , fromList
     , fromListWith
     , fromListWithKey
+    , fromListUpsert
 
       -- ** HashSets
     , HS.keysSet
