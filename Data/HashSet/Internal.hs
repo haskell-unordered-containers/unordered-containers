@@ -93,6 +93,7 @@ module Data.HashSet.Internal
     ) where
 
 import Control.DeepSeq       (NFData (..), NFData1 (..), liftRnf2)
+import Control.Monad.ST      (runST)
 import Data.Data             (Constr, Data (..), DataType)
 import Data.Functor.Classes
 import Data.Hashable         (Hashable (hashWithSalt))
@@ -473,7 +474,7 @@ toList t = Exts.build (\ c z -> foldrWithKey (const . c) z (asMap t))
 
 -- | \(O(n \log n)\) Construct a set from a list of elements.
 fromList :: Hashable a => [a] -> HashSet a
-fromList = HashSet . List.foldl' (\ m k -> H.unsafeInsert k () m) H.empty
+fromList xs = HashSet $ runST $ Foldable.foldlM (\ m k -> H.unsafeInsert k () m) H.empty xs
 {-# INLINE fromList #-}
 
 #if defined(__GLASGOW_HASKELL__)

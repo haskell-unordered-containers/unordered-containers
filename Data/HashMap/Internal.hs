@@ -164,6 +164,7 @@ import Data.Bits                   (complement, countTrailingZeros, popCount,
                                     (.|.))
 import Data.Coerce                 (coerce)
 import Data.Data                   (Constr, Data (..), DataType)
+import Data.Foldable               (foldlM)
 import Data.Functor.Classes        (Eq1 (..), Eq2 (..), Ord1 (..), Ord2 (..),
                                     Read1 (..), Show1 (..), Show2 (..))
 import Data.Functor.Identity       (Identity (..))
@@ -996,11 +997,11 @@ setAtPosition i k x ary = A.update ary i (L k x)
 
 
 -- | In-place update version of insert
-unsafeInsert :: forall k v. Hashable k => k -> v -> HashMap k v -> HashMap k v
-unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+unsafeInsert :: forall k v s. Hashable k => k -> v -> HashMap k v -> ST s (HashMap k v)
+unsafeInsert k0 v0 m0 = go h0 k0 v0 0 m0
   where
     h0 = hash k0
-    go :: forall s. Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
+    go :: Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
     go !h !k x !_ Empty = return $! Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
@@ -1149,16 +1150,16 @@ insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
 {-# INLINE insertModifyingArr #-}
 
 -- | In-place update version of insertWith
-unsafeInsertWith :: forall k v. Hashable k
+unsafeInsertWith :: forall k v s. Hashable k
                  => (v -> v -> v) -> k -> v -> HashMap k v
-                 -> HashMap k v
+                 -> ST s (HashMap k v)
 unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (\_ a b -> (# f a b #)) k0 v0 m0
 {-# INLINABLE unsafeInsertWith #-}
 
-unsafeInsertWithKey :: forall k v. Hashable k
+unsafeInsertWithKey :: forall k v s. Hashable k
                  => (k -> v -> v -> (# v #)) -> k -> v -> HashMap k v
-                 -> HashMap k v
-unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+                 -> ST s (HashMap k v)
+unsafeInsertWithKey f k0 v0 m0 = go h0 k0 v0 0 m0
   where
     h0 = hash k0
     go :: Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
@@ -2687,7 +2688,7 @@ toList t = Exts.build (\ c z -> foldrWithKey (curry c) z t)
 -- | \(O(n \log n)\) Construct a map with the supplied mappings.  If the list
 -- contains duplicate mappings, the later mappings take precedence.
 fromList :: Hashable k => [(k, v)] -> HashMap k v
-fromList = List.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
+fromList xs = runST $ foldlM (\ m (k, v) -> unsafeInsert k v m) empty xs
 {-# INLINABLE fromList #-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
@@ -2721,7 +2722,7 @@ fromList = List.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
 fromListWith :: Hashable k => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
+fromListWith f xs = runST $ foldlM (\ m (k, v) -> unsafeInsertWith f k v m) empty xs
 {-# INLINE fromListWith #-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
@@ -2751,7 +2752,7 @@ fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 --
 -- @since 0.2.11
 fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m) empty
+fromListWithKey f xs = runST $ foldlM (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m) empty xs
 {-# INLINE fromListWithKey #-}
 
 ------------------------------------------------------------------------
