@@ -1029,12 +1029,12 @@ unsafeInsert k0 v0 m0 = go h0 k0 v0 0 m0
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = two s h k x hy t
 {-# INLINABLE unsafeInsert #-}
 
--- | Create a map from two key-value pairs which hashes don't collide. To
--- enhance sharing, the second key-value pair is represented by the hash of its
--- key and a singleton HashMap pairing its key with its value.
+-- | Create a map from a key-value pair and an existing 'Leaf' or 'Collision'
+-- node. The two hashes must differ. To enhance sharing, the node is passed
+-- together with its hash and reused as is.
 --
 -- Note: to avoid silly thunks, this function must be strict in the
 -- key. See issue #232. We don't need to force the HashMap argument
@@ -1189,7 +1189,7 @@ unsafeInsertWithKey f k0 v0 m0 = go h0 k0 v0 0 m0
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWithKey f k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = two s h k x hy t
 {-# INLINABLE unsafeInsertWithKey #-}
 
 -- | \(O(\log n)\) Remove the mapping for the specified key from this map
