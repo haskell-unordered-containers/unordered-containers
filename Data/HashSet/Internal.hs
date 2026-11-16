@@ -190,7 +190,7 @@ instance Foldable.Foldable HashSet where
 --
 -- >>> fromList [1,2] <> fromList [2,3]
 -- fromList [1,2,3]
-instance Hashable a => Semigroup (HashSet a) where
+instance Eq a => Semigroup (HashSet a) where
     (<>) = union
     {-# INLINE (<>) #-}
     stimes = stimesIdempotentMonoid
@@ -209,7 +209,7 @@ instance Hashable a => Semigroup (HashSet a) where
 --
 -- >>> mappend (fromList [1,2]) (fromList [2,3])
 -- fromList [1,2,3]
-instance Hashable a => Monoid (HashSet a) where
+instance Eq a => Monoid (HashSet a) where
     mempty = empty
     {-# INLINE mempty #-}
     mappend = (<>)
@@ -300,7 +300,7 @@ keysSet m = fromMap (() <$ m)
 -- False
 --
 -- @since 0.2.12
-isSubsetOf :: Hashable a => HashSet a -> HashSet a -> Bool
+isSubsetOf :: Eq a => HashSet a -> HashSet a -> Bool
 isSubsetOf s1 s2 = H.isSubmapOfBy (\_ _ -> True) (asMap s1) (asMap s2)
 
 -- | \(O(n+m)\) Construct a set containing all elements from both sets.
@@ -396,7 +396,7 @@ map f = fromList . List.map f . toList
 --
 -- >>> HashSet.difference (HashSet.fromList [1,2,3]) (HashSet.fromList [2,3,4])
 -- fromList [1]
-difference :: Hashable a => HashSet a -> HashSet a -> HashSet a
+difference :: Eq a => HashSet a -> HashSet a -> HashSet a
 difference (HashSet a) (HashSet b) = HashSet (H.difference a b)
 {-# INLINABLE difference #-}
 
