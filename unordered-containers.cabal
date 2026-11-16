@@ -49,6 +49,7 @@ library
     Data.HashMap.Internal.Array
     Data.HashMap.Internal.Debug
     Data.HashMap.Internal.List
+    Data.HashMap.Internal.ST
     Data.HashMap.Internal.Strict
     Data.HashMap.Lazy
     Data.HashMap.Strict
