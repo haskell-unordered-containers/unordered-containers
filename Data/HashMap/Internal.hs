@@ -346,7 +346,7 @@ instance Bifoldable HashMap where
 --
 -- >>> fromList [(1,'a'),(2,'b')] <> fromList [(2,'c'),(3,'d')]
 -- fromList [(1,'a'),(2,'b'),(3,'d')]
-instance Hashable k => Semigroup (HashMap k v) where
+instance Eq k => Semigroup (HashMap k v) where
   (<>) = union
   {-# INLINE (<>) #-}
   stimes = stimesIdempotentMonoid
@@ -362,7 +362,7 @@ instance Hashable k => Semigroup (HashMap k v) where
 --
 -- >>> mappend (fromList [(1,'a'),(2,'b')]) (fromList [(2,'c'),(3,'d')])
 -- fromList [(1,'a'),(2,'b'),(3,'d')]
-instance Hashable k => Monoid (HashMap k v) where
+instance Eq k => Monoid (HashMap k v) where
   mempty = empty
   {-# INLINE mempty #-}
   mappend = (<>)
@@ -1529,7 +1529,7 @@ alterFEager f !k m = (<$> f mv) $ \case
 -- False
 --
 -- @since 0.2.12
-isSubmapOf :: (Hashable k, Eq v) => HashMap k v -> HashMap k v -> Bool
+isSubmapOf :: (Eq k, Eq v) => HashMap k v -> HashMap k v -> Bool
 isSubmapOf = Exts.inline isSubmapOfBy (==)
 {-# INLINABLE isSubmapOf #-}
 
@@ -1549,7 +1549,7 @@ isSubmapOf = Exts.inline isSubmapOfBy (==)
 -- False
 --
 -- @since 0.2.12
-isSubmapOfBy :: Hashable k => (v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2 -> Bool
+isSubmapOfBy :: Eq k => (v1 -> v2 -> Bool) -> HashMap k v1 -> HashMap k v2 -> Bool
 -- For maps without collisions the complexity is O(n*log m), where n is the size
 -- of m1 and m the size of m2: the inclusion operation visits every leaf in m1 at least once.
 -- For each leaf in m1, it looks up the key in m2.
@@ -1874,7 +1874,7 @@ mapKeys f = fromList . foldrWithKey (\k x xs -> (f k, x) : xs) []
 
 -- | \(O(n \log m)\) Difference of two maps. Return elements of the first map
 -- not existing in the second.
-difference :: Hashable k => HashMap k v -> HashMap k w -> HashMap k v
+difference :: Eq k => HashMap k v -> HashMap k w -> HashMap k v
 difference = go_difference 0
   where
     go_difference !_s Empty _ = Empty
@@ -2000,7 +2000,7 @@ differenceCollisions !h1 !ary1 t1 !h2 !ary2
 -- encountered, the combining function is applied to the values of these keys.
 -- If it returns 'Nothing', the element is discarded (proper set difference). If
 -- it returns (@'Just' y@), the element is updated with a new value @y@.
-differenceWith :: Hashable k => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
+differenceWith :: Eq k => (v -> w -> Maybe v) -> HashMap k v -> HashMap k w -> HashMap k v
 differenceWith f = differenceWithKey (const f)
 {-# INLINE differenceWith #-}
 
