@@ -10,8 +10,9 @@ module Regressions (tests) where
 import Control.Exception     (evaluate)
 import Control.Monad         (replicateM)
 import Data.Bits             (shiftL)
+import Data.Char             (digitToInt)
 import Data.Hashable         (Hashable (..))
-import Data.List             (delete)
+import Data.List             (delete, sort)
 import Data.Maybe            (isJust, isNothing)
 import GHC.Exts              (touch#)
 import GHC.IO                (IO (..))
@@ -19,7 +20,7 @@ import Numeric.Natural       (Natural)
 import System.Mem            (performGC)
 import System.Mem.Weak       (deRefWeak, mkWeakPtr)
 import System.Random         (randomIO)
-import Test.HUnit            (Assertion, assert)
+import Test.HUnit            (Assertion, assert, (@?=))
 import Test.QuickCheck
 import Test.Tasty            (TestTree, testGroup)
 import Test.Tasty.HUnit      (testCase)
@@ -262,6 +263,33 @@ issue491 = Tasty.localOption (Tasty.mkTimeout 1000000) $ testGroup "issue491" $
   where m = HS.toMap . HS.fromList @Int
 
 ------------------------------------------------------------------------
+-- Issue #601
+
+-- | A key that hashes to the number it spells: @hash (Numeral "33") == 33@.
+newtype Numeral = Numeral String
+  deriving Eq
+
+instance Hashable Numeral where
+  -- Whether 'issue601' triggers the bug is sensitive to how this is written.
+  hash (Numeral s) = Foldable.foldl' (\h c -> 10 * h + digitToInt c) 0 s
+  hashWithSalt salt k = hashWithSalt salt (hash k)
+
+-- 'HS.fromList' used to build the set with in-place inserts in a pure fold.
+-- GHC could therefore share the set for the known prefix between the calls
+-- of @fromListWithPrefix@, and the second call below returned [1, 2, 33, 65].
+issue601 :: Assertion
+issue601 = do
+  -- 33 and 65 go to the root slot that 1 occupies.
+  hashes (fromListWithPrefix [Numeral "33"]) @?= [1, 2, 33]
+  hashes (fromListWithPrefix [Numeral "65"]) @?= [1, 2, 65]
+  where
+    fromListWithPrefix :: [Numeral] -> HS.HashSet Numeral
+    fromListWithPrefix ks = HS.fromList ([Numeral "1", Numeral "2"] ++ ks)
+    {-# NOINLINE fromListWithPrefix #-}
+
+    hashes = sort . map hash . HS.toList
+
+------------------------------------------------------------------------
 -- * Test list
 
 tests :: TestTree
@@ -286,4 +314,5 @@ tests = testGroup "Regression tests"
     , testCase "issue383" issue383
     , testCase "issue420" issue420
     , issue491
+    , testCase "issue601" issue601
     ]
