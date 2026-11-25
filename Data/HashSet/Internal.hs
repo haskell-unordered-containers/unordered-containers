@@ -475,7 +475,7 @@ toList t = Exts.build (\ c z -> foldrWithKey (const . c) z (asMap t))
 
 -- | \(O(n \log n)\) Construct a set from a list of elements.
 fromList :: Hashable a => [a] -> HashSet a
-fromList xs = HashSet $ runST $ foldlST' (\ m k -> H.unsafeInsert k () m) H.empty xs
+fromList = \ xs -> HashSet $ runST $ foldlST' (\ m k -> H.unsafeInsert k () m) H.empty xs
 {-# INLINE fromList #-}
 
 #if defined(__GLASGOW_HASKELL__)
