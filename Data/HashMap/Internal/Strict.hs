@@ -137,7 +137,7 @@ import Data.HashMap.Internal       (Hash, HashMap (..), Leaf (..),
                                     LookupRes (..), Shift, fullBitmap, hash,
                                     index, mask, nextShift, ptrEq, sparseIndex)
 import Data.HashMap.Internal.Array (Array)
-import Data.HashMap.Internal.ST (foldlST')
+import Data.HashMap.Internal.ST    (foldlST')
 import Prelude                     hiding (lookup, map)
 
 -- See Note [Imports from Data.HashMap.Internal]
