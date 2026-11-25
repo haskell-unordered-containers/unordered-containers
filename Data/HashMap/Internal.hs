@@ -1037,13 +1037,12 @@ unsafeInsert k0 v0 m0 = go h0 k0 v0 0 m0
 -- together with its hash and reused as is.
 --
 -- Note: to avoid silly thunks, this function must be strict in the
--- key. See issue #232. We don't need to force the HashMap argument
--- because it's already in WHNF (having just been matched) and we
--- just put it directly in an array.
+-- key. See issue #232. The node is forced too, so that no thunk can
+-- end up in the array.
 two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
 two = go
   where
-    go s h1 k1 v1 h2 t2
+    go s h1 k1 v1 h2 !t2
         | bp1 == bp2 = do
             st <- go (nextShift s) h1 k1 v1 h2 t2
             ary <- A.singletonM st
