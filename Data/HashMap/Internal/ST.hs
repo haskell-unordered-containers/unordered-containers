@@ -1,5 +1,5 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP          #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
 -- | = WARNING
@@ -22,7 +22,8 @@ module Data.HashMap.Internal.ST
   ) where
 
 import Control.Monad.ST
-import Data.Foldable (Foldable (foldr)) -- for MicroHS
+-- for MicroHS
+import Data.Foldable (Foldable (foldr))
 #ifdef __GLASGOW_HASKELL__
 import GHC.Exts (oneShot)
 #endif
