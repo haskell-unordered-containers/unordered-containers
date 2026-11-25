@@ -996,7 +996,12 @@ setAtPosition i k x ary = A.update ary i (L k x)
 {-# INLINE setAtPosition #-}
 
 
--- | In-place update version of insert
+-- | In-place update version of 'insert'.
+--
+-- The arrays of the 'BitmapIndexed' and 'Full' nodes of the argument are
+-- overwritten. This is only safe for a map that was built from 'empty' by
+-- @unsafeInsert*@ calls in the same 'ST' computation, each result being
+-- passed to the next call and not used otherwise.
 unsafeInsert :: forall k v s. Hashable k => k -> v -> HashMap k v -> ST s (HashMap k v)
 unsafeInsert k0 v0 m0 = go h0 k0 v0 0 m0
   where
@@ -1148,13 +1153,15 @@ insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
               | otherwise -> go k ary (i+1) n
 {-# INLINE insertModifyingArr #-}
 
--- | In-place update version of insertWith
+-- | In-place update version of 'insertWith'. See 'unsafeInsert' for when
+-- this is safe.
 unsafeInsertWith :: forall k v s. Hashable k
                  => (v -> v -> v) -> k -> v -> HashMap k v
                  -> ST s (HashMap k v)
 unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (\_ a b -> (# f a b #)) k0 v0 m0
 {-# INLINABLE unsafeInsertWith #-}
 
+-- | Like 'unsafeInsertWith', but the combining function also takes the key.
 unsafeInsertWithKey :: forall k v s. Hashable k
                  => (k -> v -> v -> (# v #)) -> k -> v -> HashMap k v
                  -> ST s (HashMap k v)

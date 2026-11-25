@@ -226,12 +226,14 @@ insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
         | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE insertWith #-}
 
--- | In-place update version of insertWith
+-- | In-place update version of 'insertWith'. See 'HM.unsafeInsert' for when
+-- this is safe.
 unsafeInsertWith :: Hashable k => (v -> v -> v) -> k -> v -> HashMap k v
                  -> ST s (HashMap k v)
 unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (const f) k0 v0 m0
 {-# INLINABLE unsafeInsertWith #-}
 
+-- | Like 'unsafeInsertWith', but the combining function also takes the key.
 unsafeInsertWithKey :: forall k v s. Hashable k => (k -> v -> v -> v) -> k -> v -> HashMap k v
                     -> ST s (HashMap k v)
 unsafeInsertWithKey f k0 v0 m0 = go h0 k0 v0 0 m0
