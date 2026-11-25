@@ -699,7 +699,7 @@ fromList xs = runST $ foldlST' (\ m (k, !v) -> HM.unsafeInsert k v m) HM.empty x
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
 fromListWith :: Hashable k => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f xs = runST $ foldlST' (\ m (k, v) -> unsafeInsertWith f k v m) HM.empty xs
+fromListWith f = \ xs -> runST $ foldlST' (\ m (k, v) -> unsafeInsertWith f k v m) HM.empty xs
 {-# INLINE fromListWith #-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
@@ -729,7 +729,7 @@ fromListWith f xs = runST $ foldlST' (\ m (k, v) -> unsafeInsertWith f k v m) HM
 --
 -- @since 0.2.11
 fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWithKey f xs = runST $ foldlST' (\ m (k, v) -> unsafeInsertWithKey f k v m) HM.empty xs
+fromListWithKey f = \ xs -> runST $ foldlST' (\ m (k, v) -> unsafeInsertWithKey f k v m) HM.empty xs
 {-# INLINE fromListWithKey #-}
 
 ------------------------------------------------------------------------
