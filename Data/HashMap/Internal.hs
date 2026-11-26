@@ -1159,7 +1159,7 @@ unsafeInsertWith :: forall k v s. Hashable k
                  => (v -> v -> v) -> k -> v -> HashMap k v
                  -> ST s (HashMap k v)
 unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (\_ a b -> (# f a b #)) k0 v0 m0
-{-# INLINABLE unsafeInsertWith #-}
+{-# INLINE unsafeInsertWith #-}
 
 -- | Like 'unsafeInsertWith', but the combining function also takes the key.
 unsafeInsertWithKey :: forall k v s. Hashable k
@@ -1196,7 +1196,8 @@ unsafeInsertWithKey f k0 v0 m0 = go h0 k0 v0 0 m0
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWithKey f k x v)
         | otherwise = two s h k x hy t
-{-# INLINABLE unsafeInsertWithKey #-}
+-- INLINE, so that 'go' is specialised to the combining function.
+{-# INLINE unsafeInsertWithKey #-}
 
 -- | \(O(\log n)\) Remove the mapping for the specified key from this map
 -- if present.
