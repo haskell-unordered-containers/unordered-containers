@@ -669,7 +669,7 @@ intersectionWithKey f = HM.intersectionWithKey# $ \k v1 v2 -> let !v3 = f k v1 v
 fromList :: Hashable k => [(k, v)] -> HashMap k v
 -- See Note [fromList arity] in Data.HashMap.Internal
 fromList = \ xs -> runST $ foldlST' (\ m (k, !v) -> HM.unsafeInsert k v m) HM.empty xs
-{-# INLINABLE fromList #-}
+{-# INLINE fromList #-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
 -- the provided function @f@ to merge duplicate entries with
