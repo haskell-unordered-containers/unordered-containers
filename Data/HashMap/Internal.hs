@@ -2696,13 +2696,14 @@ toList t = Exts.build (\ c z -> foldrWithKey (curry c) z t)
 fromList :: Hashable k => [(k, v)] -> HashMap k v
 -- See Note [fromList arity]
 fromList = \ xs -> runST $ foldlST' (\ m (k, v) -> unsafeInsert k v m) empty xs
-{-# INLINABLE fromList #-}
+{-# INLINE fromList #-}
 
 {-
 Note [fromList arity]
 ~~~~~~~~~~~~~~~~~~~~~
 
-The fromList* functions bind the list with a lambda:
+The fromList* functions are INLINE, so that the fold can fuse with a good
+producer of the list. They bind the list with a lambda:
 
     fromListWith f = \ xs -> ...
 
