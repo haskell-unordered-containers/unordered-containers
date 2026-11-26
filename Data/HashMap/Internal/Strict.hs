@@ -667,7 +667,8 @@ intersectionWithKey f = HM.intersectionWithKey# $ \k v1 v2 -> let !v3 = f k v1 v
 -- list contains duplicate mappings, the later mappings take
 -- precedence.
 fromList :: Hashable k => [(k, v)] -> HashMap k v
-fromList xs = runST $ foldlST' (\ m (k, !v) -> HM.unsafeInsert k v m) HM.empty xs
+-- See Note [fromList arity] in Data.HashMap.Internal
+fromList = \ xs -> runST $ foldlST' (\ m (k, !v) -> HM.unsafeInsert k v m) HM.empty xs
 {-# INLINABLE fromList #-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
@@ -701,6 +702,7 @@ fromList xs = runST $ foldlST' (\ m (k, !v) -> HM.unsafeInsert k v m) HM.empty x
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
 fromListWith :: Hashable k => (v -> v -> v) -> [(k, v)] -> HashMap k v
+-- See Note [fromList arity] in Data.HashMap.Internal
 fromListWith f = \ xs -> runST $ foldlST' (\ m (k, v) -> unsafeInsertWith f k v m) HM.empty xs
 {-# INLINE fromListWith #-}
 
@@ -731,6 +733,7 @@ fromListWith f = \ xs -> runST $ foldlST' (\ m (k, v) -> unsafeInsertWith f k v 
 --
 -- @since 0.2.11
 fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
+-- See Note [fromList arity] in Data.HashMap.Internal
 fromListWithKey f = \ xs -> runST $ foldlST' (\ m (k, v) -> unsafeInsertWithKey f k v m) HM.empty xs
 {-# INLINE fromListWithKey #-}
 

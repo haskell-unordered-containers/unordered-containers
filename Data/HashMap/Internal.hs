@@ -2694,8 +2694,23 @@ toList t = Exts.build (\ c z -> foldrWithKey (curry c) z t)
 -- | \(O(n \log n)\) Construct a map with the supplied mappings.  If the list
 -- contains duplicate mappings, the later mappings take precedence.
 fromList :: Hashable k => [(k, v)] -> HashMap k v
-fromList xs = runST $ foldlST' (\ m (k, v) -> unsafeInsert k v m) empty xs
+-- See Note [fromList arity]
+fromList = \ xs -> runST $ foldlST' (\ m (k, v) -> unsafeInsert k v m) empty xs
 {-# INLINABLE fromList #-}
+
+{-
+Note [fromList arity]
+~~~~~~~~~~~~~~~~~~~~~
+
+The fromList* functions bind the list with a lambda:
+
+    fromListWith f = \ xs -> ...
+
+GHC unfolds an INLINE function only when it is applied to all the arguments
+left of the '='. With the lambda, a partial application like @fromListWith f@
+still unfolds. (GHC 9.0 to 10.0 don't count the Hashable dictionary and unfold
+one argument early: https://gitlab.haskell.org/ghc/ghc/-/issues/27589.)
+-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
 -- the provided function @f@ to merge duplicate entries with
@@ -2728,6 +2743,7 @@ fromList xs = runST $ foldlST' (\ m (k, v) -> unsafeInsert k v m) empty xs
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
 fromListWith :: Hashable k => (v -> v -> v) -> [(k, v)] -> HashMap k v
+-- See Note [fromList arity]
 fromListWith f = \ xs -> runST $ foldlST' (\ m (k, v) -> unsafeInsertWith f k v m) empty xs
 {-# INLINE fromListWith #-}
 
@@ -2758,6 +2774,7 @@ fromListWith f = \ xs -> runST $ foldlST' (\ m (k, v) -> unsafeInsertWith f k v 
 --
 -- @since 0.2.11
 fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
+-- See Note [fromList arity]
 fromListWithKey f = \ xs -> runST $ foldlST' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m) empty xs
 {-# INLINE fromListWithKey #-}
 
