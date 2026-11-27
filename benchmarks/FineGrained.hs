@@ -30,6 +30,7 @@ main =
           bFromList,
           bLookup,
           bInsert,
+          bInsertWith,
           bUpdate,
           bAlter,
           bDelete,
@@ -178,6 +179,75 @@ bInsertAbsentKey =
     b s =
       bench (show s)
         . whnf (\(m, kvs) -> foldl' (\() (k, v) -> HM.insert k v m `seq` ()) () kvs)
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      ks <- genNBytes 2000 bytesLength gen
+      let kvs = take 1000 $ Data.List.cycle $ map (,1) $ filter (not . flip HM.member m) ks
+      return (m, kvs)
+    setupInts size gen = do
+      m <- genIntMap size gen
+      ks <- genInts 2000 gen
+      let kvs = take 1000 $ Data.List.cycle $ map (,1) $ filter (not . flip HM.member m) ks
+      return (m, kvs)
+
+-- 1000 insertions each, so we get more precise timings
+bInsertWith :: Benchmark
+bInsertWith =
+  bgroup
+    "insertWith (1000x)"
+    [ bgroup
+        "presentKey"
+        [ bgroup "sameValue" bInsertWithPresentKeySameValue,
+          bgroup "differentValue" bInsertWithPresentKeyDifferentValue
+        ],
+      bgroup "absentKey" bInsertWithAbsentKey
+    ]
+
+bInsertWithPresentKeySameValue :: [Benchmark]
+bInsertWithPresentKeySameValue =
+  [ bgroup'WithSizes sizes "Bytes" setupBytes b,
+    bgroup'WithSizes sizes "Int" setupInts b
+  ]
+  where
+    sizes = filter (/= 0) defaultSizes
+    b s =
+      bench (show s)
+        . whnf (\(m, kvs) -> foldl' (\() (k, v) -> HM.insertWith (\_ old -> old) k v m `seq` ()) () kvs)
+    toKVs = take 1000 . Data.List.cycle . HM.toList
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      return (m, toKVs m)
+    setupInts size gen = do
+      m <- genIntMap size gen
+      return (m, toKVs m)
+
+bInsertWithPresentKeyDifferentValue :: [Benchmark]
+bInsertWithPresentKeyDifferentValue =
+  [ bgroup'WithSizes sizes "Bytes" setupBytes b,
+    bgroup'WithSizes sizes "Int" setupInts b
+  ]
+  where
+    sizes = filter (/= 0) defaultSizes
+    b s =
+      bench (show s)
+        . whnf (\(m, kvs) -> foldl' (\() (k, v) -> HM.insertWith (+) k v m `seq` ()) () kvs)
+    toKVs = take 1000 . Data.List.cycle . HM.toList
+    setupBytes size gen = do
+      m <- genBytesMap size gen
+      return (m, toKVs m)
+    setupInts size gen = do
+      m <- genIntMap size gen
+      return (m, toKVs m)
+
+bInsertWithAbsentKey :: [Benchmark]
+bInsertWithAbsentKey =
+  [ bgroup' "Bytes" setupBytes b,
+    bgroup' "Int" setupInts b
+  ]
+  where
+    b s =
+      bench (show s)
+        . whnf (\(m, kvs) -> foldl' (\() (k, v) -> HM.insertWith (+) k v m `seq` ()) () kvs)
     setupBytes size gen = do
       m <- genBytesMap size gen
       ks <- genNBytes 2000 bytesLength gen
