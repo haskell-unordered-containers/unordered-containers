@@ -387,6 +387,20 @@ tests =
           let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
               ys = HM.traverseWithKey f x
           in  fmap valid ys === (Valid <$ ys)
+      , testProperty "ST" $
+        \(Fn2 f :: Fun (Key, A) B) (x :: HMK A) ->
+          let y = runST $ do
+                ref <- newSTRef []
+                x' <- HM.traverseWithKey (\k v -> f k v <$ modifySTRef ref ((k, v) :)) x
+                kvs <- readSTRef ref
+                pure (reverse kvs, x')
+          in  y === HM.traverseWithKey (\k v -> ([(k, v)], f k v)) x
+      , testProperty "IO" $
+        \(Fn2 f :: Fun (Key, A) B) (x :: HMK A) -> QC.ioProperty $ do
+          ref <- newIORef []
+          x' <- HM.traverseWithKey (\k v -> f k v <$ modifyIORef ref ((k, v) :)) x
+          kvs <- readIORef ref
+          pure $ (reverse kvs, x') === HM.traverseWithKey (\k v -> ([(k, v)], f k v)) x
       ]
     , testGroup "traverseWithKeyST"
       [ testProperty "traverseWithKey" $
