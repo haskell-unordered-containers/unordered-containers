@@ -171,6 +171,7 @@ import Data.Hashable               (Hashable)
 import Data.Hashable.Lifted        (Hashable1, Hashable2)
 import Data.HashMap.Internal.Array (Array, MArray)
 import Data.HashMap.Internal.List  (isPermutationBy, unorderedCompare)
+import Data.HashMap.Internal.ST    (foldlST')
 import Data.Maybe                  (isNothing)
 import Data.Semigroup              (Semigroup (..), stimesIdempotentMonoid)
 import GHC.Exts                    (Int (..), Int#, TYPE, (==#))
@@ -995,12 +996,17 @@ setAtPosition i k x ary = A.update ary i (L k x)
 {-# INLINE setAtPosition #-}
 
 
--- | In-place update version of insert
-unsafeInsert :: forall k v. Hashable k => k -> v -> HashMap k v -> HashMap k v
-unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+-- | In-place update version of 'insert'.
+--
+-- The arrays of the 'BitmapIndexed' and 'Full' nodes of the argument are
+-- overwritten. This is only safe for a map that was built from 'empty' by
+-- @unsafeInsert*@ calls in the same 'ST' computation, each result being
+-- passed to the next call and not used otherwise.
+unsafeInsert :: forall k v s. Hashable k => k -> v -> HashMap k v -> ST s (HashMap k v)
+unsafeInsert k0 v0 m0 = go h0 k0 v0 0 m0
   where
     h0 = hash k0
-    go :: forall s. Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
+    go :: Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
     go !h !k x !_ Empty = return $! Leaf h (L k x)
     go h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
@@ -1028,30 +1034,29 @@ unsafeInsert k0 v0 m0 = runST (go h0 k0 v0 0 m0)
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWith (\a _ -> (# a #)) k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = two s h k x hy t
 {-# INLINABLE unsafeInsert #-}
 
--- | Create a map from two key-value pairs which hashes don't collide. To
--- enhance sharing, the second key-value pair is represented by the hash of its
--- key and a singleton HashMap pairing its key with its value.
+-- | Create a map from a key-value pair and an existing 'Leaf' or 'Collision'
+-- node. The two hashes must differ. To enhance sharing, the node is passed
+-- together with its hash and reused as is.
 --
 -- Note: to avoid silly thunks, this function must be strict in the
--- key. See issue #232. We don't need to force the HashMap argument
--- because it's already in WHNF (having just been matched) and we
--- just put it directly in an array.
+-- key. See issue #232. The node is forced too, so that no thunk can
+-- end up in the array.
 two :: Shift -> Hash -> k -> v -> Hash -> HashMap k v -> ST s (HashMap k v)
 two = go
   where
-    go s h1 k1 v1 h2 t2
+    go s h1 k1 v1 h2 !t2
         | bp1 == bp2 = do
             st <- go (nextShift s) h1 k1 v1 h2 t2
             ary <- A.singletonM st
-            return $ BitmapIndexed bp1 ary
+            return $! BitmapIndexed bp1 ary
         | otherwise  = do
             mary <- A.new 2 $! Leaf h1 (L k1 v1)
             A.write mary idx2 t2
             ary <- A.unsafeFreeze mary
-            return $ BitmapIndexed (bp1 .|. bp2) ary
+            return $! BitmapIndexed (bp1 .|. bp2) ary
       where
         bp1  = mask h1 s
         bp2  = mask h2 s
@@ -1148,17 +1153,19 @@ insertModifyingArr x f k0 ary0 = go k0 ary0 0 (A.length ary0)
               | otherwise -> go k ary (i+1) n
 {-# INLINE insertModifyingArr #-}
 
--- | In-place update version of insertWith
-unsafeInsertWith :: forall k v. Hashable k
+-- | In-place update version of 'insertWith'. See 'unsafeInsert' for when
+-- this is safe.
+unsafeInsertWith :: forall k v s. Hashable k
                  => (v -> v -> v) -> k -> v -> HashMap k v
-                 -> HashMap k v
+                 -> ST s (HashMap k v)
 unsafeInsertWith f k0 v0 m0 = unsafeInsertWithKey (\_ a b -> (# f a b #)) k0 v0 m0
-{-# INLINABLE unsafeInsertWith #-}
+{-# INLINE unsafeInsertWith #-}
 
-unsafeInsertWithKey :: forall k v. Hashable k
+-- | Like 'unsafeInsertWith', but the combining function also takes the key.
+unsafeInsertWithKey :: forall k v s. Hashable k
                  => (k -> v -> v -> (# v #)) -> k -> v -> HashMap k v
-                 -> HashMap k v
-unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
+                 -> ST s (HashMap k v)
+unsafeInsertWithKey f k0 v0 m0 = go h0 k0 v0 0 m0
   where
     h0 = hash k0
     go :: Hash -> k -> v -> Shift -> HashMap k v -> ST s (HashMap k v)
@@ -1188,8 +1195,9 @@ unsafeInsertWithKey f k0 v0 m0 = runST (go h0 k0 v0 0 m0)
       where i = index h s
     go h k x s t@(Collision hy v)
         | h == hy   = return $! Collision h (updateOrSnocWithKey f k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
-{-# INLINABLE unsafeInsertWithKey #-}
+        | otherwise = two s h k x hy t
+-- INLINE, so that 'go' is specialised to the combining function.
+{-# INLINE unsafeInsertWithKey #-}
 
 -- | \(O(\log n)\) Remove the mapping for the specified key from this map
 -- if present.
@@ -2687,8 +2695,24 @@ toList t = Exts.build (\ c z -> foldrWithKey (curry c) z t)
 -- | \(O(n \log n)\) Construct a map with the supplied mappings.  If the list
 -- contains duplicate mappings, the later mappings take precedence.
 fromList :: Hashable k => [(k, v)] -> HashMap k v
-fromList = List.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
-{-# INLINABLE fromList #-}
+-- See Note [fromList arity]
+fromList = \ xs -> runST $ foldlST' (\ m (k, v) -> unsafeInsert k v m) empty xs
+{-# INLINE fromList #-}
+
+{-
+Note [fromList arity]
+~~~~~~~~~~~~~~~~~~~~~
+
+The fromList* functions are INLINE, so that the fold can fuse with a good
+producer of the list. They bind the list with a lambda:
+
+    fromListWith f = \ xs -> ...
+
+GHC unfolds an INLINE function only when it is applied to all the arguments
+left of the '='. With the lambda, a partial application like @fromListWith f@
+still unfolds. (GHC 9.0 to 10.0 don't count the Hashable dictionary and unfold
+one argument early: https://gitlab.haskell.org/ghc/ghc/-/issues/27589.)
+-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
 -- the provided function @f@ to merge duplicate entries with
@@ -2721,7 +2745,8 @@ fromList = List.foldl' (\ m (k, v) -> unsafeInsert k v m) empty
 -- > fromListWith f [(k, a), (k, b), (k, c), (k, d)]
 -- > = fromList [(k, f d (f c (f b a)))]
 fromListWith :: Hashable k => (v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
+-- See Note [fromList arity]
+fromListWith f = \ xs -> runST $ foldlST' (\ m (k, v) -> unsafeInsertWith f k v m) empty xs
 {-# INLINE fromListWith #-}
 
 -- | \(O(n \log n)\) Construct a map from a list of elements.  Uses
@@ -2751,7 +2776,8 @@ fromListWith f = List.foldl' (\ m (k, v) -> unsafeInsertWith f k v m) empty
 --
 -- @since 0.2.11
 fromListWithKey :: Hashable k => (k -> v -> v -> v) -> [(k, v)] -> HashMap k v
-fromListWithKey f = List.foldl' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m) empty
+-- See Note [fromList arity]
+fromListWithKey f = \ xs -> runST $ foldlST' (\ m (k, v) -> unsafeInsertWithKey (\k' a b -> (# f k' a b #)) k v m) empty xs
 {-# INLINE fromListWithKey #-}
 
 ------------------------------------------------------------------------
