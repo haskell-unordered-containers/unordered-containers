@@ -616,7 +616,27 @@ traverseWithKey f = go
     go (Full ary)            = Full <$> A.traverse' go ary
     go (Collision h ary)     =
         Collision h <$> A.traverse' (\ (L k v) -> (L k $!) <$> f k v) ary
-{-# INLINE traverseWithKey #-}
+{-# INLINE [1] traverseWithKey #-}
+
+-- See Note [traverseWithKey in ST and IO]
+{-# RULES
+"traverseWithKey/ST" forall f.
+    traverseWithKey f = \m -> forceValues <$> HM.traverseWithKeyST f m
+"traverseWithKey/IO" forall f.
+    traverseWithKey f = \m -> forceValues <$> HM.traverseWithKeyIO f m
+ #-}
+
+{- Note [traverseWithKey in ST and IO]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+traverseWithKey must run all actions even if a result is bottom (#201). So
+the rules can't use a traversal that forces each result as it is produced,
+like traverseWithKeyST. They traverse lazily and force the values in the map
+that the action returns: forceValues is not part of the action.
+-}
+
+-- | Evaluate all values to WHNF.
+forceValues :: HashMap k v -> HashMap k v
+forceValues m = HM.foldl' (\() v -> v `seq` ()) () m `seq` m
 
 -- | \(O(n)\) A version of 'traverseWithKey' specialized to 'ST', which allows
 -- a more efficient implementation.
