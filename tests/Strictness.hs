@@ -3,13 +3,19 @@
 module Strictness (tests) where
 
 import Control.Arrow                (second)
+import Control.Exception            (SomeException, try)
 import Control.Monad                (guard)
+import Control.Monad.ST             (runST, stToIO)
+import Data.Either                  (isLeft)
 import Data.Foldable                (Foldable (..))
 import Data.Hashable                (Hashable)
 import Data.HashMap.Strict          (HashMap)
+import Data.IORef                   (modifyIORef', newIORef, readIORef)
 import Data.Maybe                   (fromMaybe, isJust)
+import Data.STRef                   (modifySTRef', newSTRef, readSTRef)
 import Test.ChasingBottoms.IsBottom
-import Test.QuickCheck              (Arbitrary (..), Property, (.&&.), (===))
+import Test.QuickCheck              (Arbitrary (..), Property, ioProperty,
+                                     (.&&.), (===))
 import Test.QuickCheck.Function
 import Test.QuickCheck.Poly         (A)
 import Test.Tasty                   (TestTree, testGroup)
@@ -136,6 +142,73 @@ pFromListWithValueResultStrict lst comb_lazy calc_good_raw
     recover :: a -> Maybe a
     recover a = a <$ guard (not $ isBottom a)
 
+pTraverseWithKeyValueStrict :: Key -> HashMap Key Int -> Bool
+pTraverseWithKeyValueStrict k m =
+    fmap isBottom (HM.traverseWithKey f (HM.insert k 0 m)) == Just True
+  where
+    f k' v = Just (if k' == k then bottom else v)
+
+pTraverseWithKeyInSTValueStrict :: Key -> HashMap Key Int -> Bool
+pTraverseWithKeyInSTValueStrict k m =
+    isBottom $ runST $ HM.traverseWithKey f (HM.insert k 0 m)
+  where
+    f k' v = pure (if k' == k then bottom else v)
+
+pTraverseWithKeyInIOValueStrict :: Key -> HashMap Key Int -> Property
+pTraverseWithKeyInIOValueStrict k m =
+    ioProperty $ isBottom <$> HM.traverseWithKey f (HM.insert k 0 m)
+  where
+    f k' v = pure (if k' == k then bottom else v)
+
+-- Bottom results must not keep any action from running.
+pTraverseWithKeyInSTRunsAllActions :: HashMap Key Int -> Property
+pTraverseWithKeyInSTRunsAllActions m = ioProperty $ do
+    ref <- stToIO (newSTRef (0 :: Int))
+    _ <- stToIO $
+      HM.traverseWithKey (\_ _ -> bottom <$ modifySTRef' ref (+ 1)) m
+    n <- stToIO (readSTRef ref)
+    pure (n === HM.size m)
+
+pTraverseWithKeyInIORunsAllActions :: HashMap Key Int -> Property
+pTraverseWithKeyInIORunsAllActions m = ioProperty $ do
+    ref <- newIORef (0 :: Int)
+    _ <- HM.traverseWithKey (\_ _ -> bottom <$ modifyIORef' ref (+ 1)) m
+    n <- readIORef ref
+    pure (n === HM.size m)
+
+pTraverseWithKeySTValueStrict :: Key -> HashMap Key Int -> Bool
+pTraverseWithKeySTValueStrict k m =
+    isBottom $ runST $ HM.traverseWithKeyST f (HM.insert k 0 m)
+  where
+    f k' v = pure (if k' == k then bottom else v)
+
+pTraverseWithKeyIOValueStrict :: Key -> HashMap Key Int -> Property
+pTraverseWithKeyIOValueStrict k m = ioProperty $ do
+    r <- try' $ HM.traverseWithKeyIO f (HM.insert k 0 m)
+    pure (isLeft r)
+  where
+    f k' v = pure (if k' == k then bottom else v)
+
+-- With only bottom results, no action must run after the first one.
+pTraverseWithKeySTStopsAtBottom :: HashMap Key Int -> Property
+pTraverseWithKeySTStopsAtBottom m = ioProperty $ do
+    ref <- stToIO (newSTRef (0 :: Int))
+    _ <- try' $ stToIO $
+      HM.traverseWithKeyST (\_ _ -> bottom <$ modifySTRef' ref (+ 1)) m
+    n <- stToIO (readSTRef ref)
+    pure (n === min 1 (HM.size m))
+
+pTraverseWithKeyIOStopsAtBottom :: HashMap Key Int -> Property
+pTraverseWithKeyIOStopsAtBottom m = ioProperty $ do
+    ref <- newIORef (0 :: Int)
+    _ <- try' $
+      HM.traverseWithKeyIO (\_ _ -> bottom <$ modifyIORef' ref (+ 1)) m
+    n <- readIORef ref
+    pure (n === min 1 (HM.size m))
+
+try' :: IO (HashMap Key Int) -> IO (Either SomeException (HashMap Key Int))
+try' = try
+
 ------------------------------------------------------------------------
 -- * Test list
 
@@ -162,6 +235,15 @@ tests = testGroup "Strictness"
       , testProperty "fromList is value-strict" pFromListValueStrict
       , testProperty "fromListWith is key-strict" pFromListWithKeyStrict
       , testProperty "fromListWith is value-strict" pFromListWithValueResultStrict
+      , testProperty "traverseWithKey is value-strict" pTraverseWithKeyValueStrict
+      , testProperty "traverseWithKey in ST is value-strict" pTraverseWithKeyInSTValueStrict
+      , testProperty "traverseWithKey in IO is value-strict" pTraverseWithKeyInIOValueStrict
+      , testProperty "traverseWithKey in ST runs all actions" pTraverseWithKeyInSTRunsAllActions
+      , testProperty "traverseWithKey in IO runs all actions" pTraverseWithKeyInIORunsAllActions
+      , testProperty "traverseWithKeyST is value-strict" pTraverseWithKeySTValueStrict
+      , testProperty "traverseWithKeyIO is value-strict" pTraverseWithKeyIOValueStrict
+      , testProperty "traverseWithKeyST stops at a bottom result" pTraverseWithKeySTStopsAtBottom
+      , testProperty "traverseWithKeyIO stops at a bottom result" pTraverseWithKeyIOStopsAtBottom
       ]
     ]
 

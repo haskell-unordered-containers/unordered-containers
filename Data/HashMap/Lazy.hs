@@ -67,6 +67,8 @@ module Data.HashMap.Lazy
     , map
     , mapWithKey
     , traverseWithKey
+    , traverseWithKeyST
+    , traverseWithKeyIO
     , mapKeys
 
       -- * Difference and intersection

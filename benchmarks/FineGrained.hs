@@ -9,13 +9,16 @@ module Main where
 
 import Control.DeepSeq (NFData)
 import Control.Monad (replicateM)
+import Control.Monad.ST (ST, runST)
 import Data.Bifunctor (second)
 import Data.Bits (testBit)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet
 import Data.Hashable
+import Data.IORef
 import Data.List
+import Data.STRef
 import Key.Bytes
 import System.Random.Stateful
 import Test.Tasty.Bench
@@ -37,7 +40,10 @@ main =
           bUnions,
           bIntersection,
           bDifference,
-          bDifferenceWith
+          bDifferenceWith,
+          bTraverseWithKey,
+          bTraverseWithKeyST,
+          bTraverseWithKeyIO
         ],
       bgroup "HashSet" [bSetFromList]
     ]
@@ -501,6 +507,41 @@ bDifferenceWithEqual =
   ]
   where
     b size = bench (show size) . whnf (\m -> HM.differenceWith differenceWithF m m)
+
+-- | Add each entry's position in the traversal to its value.
+traverseStepST :: STRef s Int -> k -> Int -> ST s Int
+traverseStepST ref _ v = do
+  i <- readSTRef ref
+  writeSTRef ref $! i + 1
+  pure (i + v)
+{-# INLINE traverseStepST #-}
+
+bTraverseWithKey :: Benchmark
+bTraverseWithKey =
+  bgroup "traverseWithKey" [bgroup "ST" [bgroup' "Int" genIntMap b]]
+  where
+    b size =
+      bench (show size)
+        . whnf (\m -> runST (newSTRef 0 >>= \ref -> HM.traverseWithKey (traverseStepST ref) m))
+
+bTraverseWithKeyST :: Benchmark
+bTraverseWithKeyST = bgroup "traverseWithKeyST" [bgroup' "Int" genIntMap b]
+  where
+    b size =
+      bench (show size)
+        . whnf (\m -> runST (newSTRef 0 >>= \ref -> HM.traverseWithKeyST (traverseStepST ref) m))
+
+bTraverseWithKeyIO :: Benchmark
+bTraverseWithKeyIO = bgroup "traverseWithKeyIO" [bgroup' "Int" genIntMap b]
+  where
+    b size =
+      bench (show size)
+        . whnfAppIO (\m -> newIORef 0 >>= \ref -> HM.traverseWithKeyIO (step ref) m)
+    step :: IORef Int -> k -> Int -> IO Int
+    step ref _ v = do
+      i <- readIORef ref
+      writeIORef ref $! i + 1
+      pure (i + v)
 
 bSetFromList :: Benchmark
 bSetFromList =

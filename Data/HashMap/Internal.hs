@@ -73,6 +73,8 @@ module Data.HashMap.Internal
     , map
     , mapWithKey
     , traverseWithKey
+    , traverseWithKeyST
+    , traverseWithKeyIO
     , mapKeys
 
       -- * Difference and intersection
@@ -157,7 +159,8 @@ import Data.Traversable
 
 import Control.Applicative         (Const (..))
 import Control.DeepSeq             (NFData (..), NFData1 (..), NFData2 (..))
-import Control.Monad.ST            (ST, runST)
+import Control.Monad.ST            (ST, runST, stToIO)
+import Control.Monad.ST.Unsafe     (unsafeIOToST)
 import Data.Bifoldable             (Bifoldable (..))
 import Data.Bits                   (complement, countTrailingZeros, popCount,
                                     shiftL, unsafeShiftL, unsafeShiftR, (.&.),
@@ -1850,6 +1853,30 @@ traverseWithKey f = go
     go (Collision h ary)     =
         Collision h <$> A.traverse' (\ (L k v) -> L k <$> f k v) ary
 {-# INLINE traverseWithKey #-}
+
+-- | \(O(n)\) A version of 'traverseWithKey' specialized to 'ST', which allows
+-- a more efficient implementation.
+--
+-- @since FIXME
+traverseWithKeyST :: (k -> v1 -> ST s v2) -> HashMap k v1 -> ST s (HashMap k v2)
+traverseWithKeyST f = go
+  where
+    go Empty                 = pure Empty
+    go (Leaf h (L k v))      = Leaf h . L k <$> f k v
+    go (BitmapIndexed b ary) = BitmapIndexed b <$> A.traverseST go ary
+    go (Full ary)            = Full <$> A.traverseST go ary
+    go (Collision h ary)     =
+        Collision h <$> A.traverseST (\ (L k v) -> L k <$> f k v) ary
+{-# INLINE traverseWithKeyST #-}
+
+-- | \(O(n)\) A version of 'traverseWithKey' specialized to 'IO', which allows
+-- a more efficient implementation.
+--
+-- @since FIXME
+traverseWithKeyIO :: (k -> v1 -> IO v2) -> HashMap k v1 -> IO (HashMap k v2)
+traverseWithKeyIO f = \m ->
+    stToIO (traverseWithKeyST (\k v -> unsafeIOToST (f k v)) m)
+{-# INLINE traverseWithKeyIO #-}
 
 -- | \(O(n)\).
 -- @'mapKeys' f s@ is the map obtained by applying @f@ to each key of @s@.
