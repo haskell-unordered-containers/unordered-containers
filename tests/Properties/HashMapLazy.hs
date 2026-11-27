@@ -19,13 +19,16 @@
 module MODULE_NAME (tests) where
 
 import Control.Applicative         (Const (..))
+import Control.Monad.ST            (runST)
 import Data.Bifoldable
 import Data.Function               (on)
 import Data.Functor.Identity       (Identity (..))
 import Data.Hashable               (Hashable (hashWithSalt))
 import Data.HashMap.Internal.Debug (Validity (..), valid)
+import Data.IORef                  (modifyIORef, newIORef, readIORef)
 import Data.Maybe                  (isJust)
 import Data.Ord                    (comparing)
+import Data.STRef                  (modifySTRef, newSTRef, readSTRef)
 import Test.QuickCheck             (Arbitrary (..), Fun, Property, pattern Fn,
                                     pattern Fn2, pattern Fn3, (===), (==>))
 import Test.QuickCheck.Poly        (A, B, C)
@@ -384,6 +387,30 @@ tests =
           let f k v = [keyToInt k + v + 1, keyToInt k + v + 2]
               ys = HM.traverseWithKey f x
           in  fmap valid ys === (Valid <$ ys)
+      ]
+    , testGroup "traverseWithKeyST"
+      [ testProperty "traverseWithKey" $
+        \(Fn2 f :: Fun (Key, A) B) (x :: HMK A) ->
+          let y = runST $ do
+                ref <- newSTRef []
+                x' <- HM.traverseWithKeyST (\k v -> f k v <$ modifySTRef ref ((k, v) :)) x
+                kvs <- readSTRef ref
+                pure (reverse kvs, x')
+          in  y === HM.traverseWithKey (\k v -> ([(k, v)], f k v)) x
+      , testProperty "valid" $
+        \(Fn2 f :: Fun (Key, A) B) (x :: HMK A) ->
+          isValid (runST (HM.traverseWithKeyST (\k v -> pure (f k v)) x))
+      ]
+    , testGroup "traverseWithKeyIO"
+      [ testProperty "traverseWithKey" $
+        \(Fn2 f :: Fun (Key, A) B) (x :: HMK A) -> QC.ioProperty $ do
+          ref <- newIORef []
+          x' <- HM.traverseWithKeyIO (\k v -> f k v <$ modifyIORef ref ((k, v) :)) x
+          kvs <- readIORef ref
+          pure $ (reverse kvs, x') === HM.traverseWithKey (\k v -> ([(k, v)], f k v)) x
+      , testProperty "valid" $
+        \(Fn2 f :: Fun (Key, A) B) (x :: HMK A) -> QC.ioProperty $
+          isValid <$> HM.traverseWithKeyIO (\k v -> pure (f k v)) x
       ]
     , testGroup "mapKeys"
       [ testProperty "model" $

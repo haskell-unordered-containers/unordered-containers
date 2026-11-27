@@ -75,6 +75,7 @@ module Data.HashMap.Internal.Array
     , mapMaybe
     , traverse
     , traverse'
+    , traverseST
     , toList
     , fromList
     , fromList'
