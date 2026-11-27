@@ -10,6 +10,7 @@ module Regressions (tests) where
 import Control.Exception     (evaluate)
 import Control.Monad         (replicateM)
 import Data.Bits             (shiftL)
+import Data.Functor.Identity (Identity (..))
 import Data.Hashable         (Hashable (..))
 import Data.List             (delete)
 import Data.Maybe            (isJust, isNothing)
@@ -24,6 +25,7 @@ import Test.QuickCheck
 import Test.Tasty            (TestTree, testGroup)
 import Test.Tasty.HUnit      (testCase)
 import Test.Tasty.QuickCheck (testProperty)
+import Util.Key              (Key, collisionAtHash, incKey)
 
 import qualified Data.HashMap.Lazy   as HML
 import qualified Data.HashMap.Strict as HMS
@@ -262,6 +264,43 @@ issue491 = Tasty.localOption (Tasty.mkTimeout 1000000) $ testGroup "issue491" $
   where m = HS.toMap . HS.fromList @Int
 
 ------------------------------------------------------------------------
+-- Issue #599
+
+issue599 :: TestTree
+issue599 = testGroup "issue599"
+    [ testCase "Empty" $ noThunksAfterAlterF []
+    , testCase "Leaf, different hash" $ noThunksAfterAlterF [k1]
+    , testCase "Leaf, same hash" $ noThunksAfterAlterF [kB]
+    , testCase "BitmapIndexed" $ noThunksAfterAlterF [k1, k2]
+    , testCase "Collision" $ noThunksAfterAlterF [kB, kC]
+    , testCase "Leaf, present key" $ noThunksAfterAlterF [kA]
+    , testCase "Collision, present key" $ noThunksAfterAlterF [kA, kB]
+    , testCase "present key, unused default" $ do
+        let f = Identity . Just . maybe (error "Should not be evaluated") opaqueSucc
+        m <- evaluate $ runIdentity $ HMS.alterF f kA (HMS.singleton kA 1)
+        assert $ m == HMS.singleton kA 2
+    ]
+  where
+    (kA, kB, kC, _) = collisionAtHash 0
+    k1 = incKey kA
+    k2 = incKey k1
+
+    noThunksAfterAlterF ks = do
+      v <- randomIO
+      let m = issue599AlterF v kA (HMS.fromList [(k, 0) | k <- ks])
+      mThunkInfo <- noThunksInValues mempty (Foldable.toList m)
+      assert $ isNothing mThunkInfo
+
+-- The shape of the function makes the "alterFinsertWith" rule fire.
+issue599AlterF :: Int -> Key -> HMS.HashMap Key Int -> HMS.HashMap Key Int
+issue599AlterF v k m =
+  runIdentity $ HMS.alterF (Identity . Just . maybe (opaqueSucc v) opaqueSucc) k m
+
+opaqueSucc :: Int -> Int
+opaqueSucc = succ
+{-# NOINLINE opaqueSucc #-}
+
+------------------------------------------------------------------------
 -- * Test list
 
 tests :: TestTree
@@ -286,4 +325,5 @@ tests = testGroup "Regression tests"
     , testCase "issue383" issue383
     , testCase "issue420" issue420
     , issue491
+    , issue599
     ]

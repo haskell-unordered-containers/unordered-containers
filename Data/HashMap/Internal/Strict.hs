@@ -193,37 +193,48 @@ insert k !v = HM.insert k v
 -- >   where f new old = new + old
 insertWith :: Hashable k => (v -> v -> v) -> k -> v -> HashMap k v
            -> HashMap k v
-insertWith f k0 v0 m0 = go h0 k0 v0 0 m0
+insertWith f0 k0 v0 m0 = go f0 h0 k0 v0 0 m0
   where
     h0 = hash k0
-    go !h !k x !_ Empty = leaf h k x
-    go h k x s t@(Leaf hy l@(L ky y))
+    -- f is an argument so that go needs no closure.
+    go _ !h !k x !_ Empty = leaf h k x
+    go f h k x s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
-                    then leaf h k (f x y)
+                    then case f x y of
+                      !v' | ptrEq y v' -> t
+                          | otherwise -> Leaf h (L k v')
                     else x `seq` HM.collision h l (L k x)
         | otherwise = x `seq` runST (HM.two s h k x hy t)
-    go h k x s (BitmapIndexed b ary)
+    go f h k x s t@(BitmapIndexed b ary)
         | b .&. m == 0 =
             let ary' = A.insert ary i $! leaf h k x
             in HM.bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             case A.index# ary i of
-              (# st #) ->
-                let !st' = go h k x (nextShift s) st
+              (# !st #) ->
+                let !st' = go f h k x (nextShift s) st
                     ary' = A.update ary i st'
-                in BitmapIndexed b ary'
+                in if ptrEq st st'
+                   then t
+                   else BitmapIndexed b ary'
       where m = mask h s
             i = sparseIndex b m
-    go h k x s (Full ary) =
+    go f h k x s t@(Full ary) =
         case A.index# ary i of
-          (# st #) ->
-            let !st' = go h k x (nextShift s) st
+          (# !st #) ->
+            let !st' = go f h k x (nextShift s) st
                 ary' = HM.updateFullArray ary i st'
-            in Full ary'
+            in if ptrEq st st'
+               then t
+               else Full ary'
       where i = index h s
-    go h k x s t@(Collision hy v)
-        | h == hy   = Collision h (updateOrSnocWith f k x v)
-        | otherwise = go h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
+    go f h k x s t@(Collision hy v)
+        | h == hy   =
+            let !v' = insertWithArr f k x v
+            in if A.unsafeSameArray v v'
+               then t
+               else Collision h v'
+        | otherwise = go f h k x s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE insertWith #-}
 
 -- | In-place update version of insertWith
@@ -363,11 +374,8 @@ alterF f = \ !k !m ->
 test_bottom :: a
 test_bottom = error "Data.HashMap.alterF internal error: hit test_bottom"
 
-bogus# :: (# #) -> (# a #)
-bogus# _ = error "Data.HashMap.alterF internal error: hit bogus#"
-
-impossibleAdjust :: a
-impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
+impossibleAlterF :: a
+impossibleAlterF = error "Data.HashMap.alterF internal error: impossible result"
 
 {-# RULES
 
@@ -382,9 +390,12 @@ impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
 
 "alterFinsertWith" [1] forall (f :: Maybe a -> Identity (Maybe a)) x y.
   alterFWeird (coerce (Just x)) (coerce (Just y)) f =
-    coerce (HM.insertModifying x (\mold -> case runIdentity (f (Just mold)) of
-                                               Nothing -> bogus# (# #)
-                                               Just !new -> (# new #)))
+    \ !k !m -> Identity $
+      insertWith
+        (\_ old -> case runIdentity (f (Just old)) of
+                        Nothing -> impossibleAlterF
+                        Just new -> new)
+        k x m
 
 -- This rule is written a bit differently than the one for lazy
 -- maps because the adjust here is strict. We could write it the
@@ -393,7 +404,7 @@ impossibleAdjust = error "Data.HashMap.alterF internal error: impossible adjust"
   alterFWeird (coerce Nothing) (coerce (Just x)) f =
     coerce (adjust (\a -> case runIdentity (f (Just a)) of
                                Just a' -> a'
-                               Nothing -> impossibleAdjust))
+                               Nothing -> impossibleAlterF))
 
 "alterFlookup" forall _ign1 _ign2 (f :: Maybe a -> Const r (Maybe a)) .
   alterFWeird _ign1 _ign2 f = \ !k !m -> Const (getConst (f (HM.lookup k m)))
@@ -750,10 +761,23 @@ updateWith f k0 ary0 = go k0 ary0 0 (A.length ary0)
 -- the given function to the new and old value (in that order). The
 -- value is always evaluated to WHNF before being inserted into the
 -- array.
-updateOrSnocWith :: Eq k => (v -> v -> v) -> k -> v -> Array (Leaf k v)
-                 -> Array (Leaf k v)
-updateOrSnocWith f = updateOrSnocWithKey (const f)
-{-# INLINABLE updateOrSnocWith #-}
+--
+-- Returns the original array if the combined value is pointer-equal to
+-- the old one.
+insertWithArr :: Eq k => (v -> v -> v) -> k -> v -> Array (Leaf k v)
+              -> Array (Leaf k v)
+insertWithArr f k0 v0 ary0 = go k0 v0 ary0 0 (A.length ary0)
+  where
+    go !k v !ary !i !n
+        -- Not found, append to the end.
+        | i >= n = A.snoc ary $! L k $! v
+        | otherwise = case A.index# ary i of
+            (# L kx y #)
+                | k == kx   -> case f v y of
+                    !v' | ptrEq y v' -> ary
+                        | otherwise -> A.update ary i (L k v')
+                | otherwise -> go k v ary (i+1) n
+{-# INLINABLE insertWithArr #-}
 
 -- | Append the given key and value to the array. If the key is
 -- already present, instead update the value of the key by applying
