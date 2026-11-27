@@ -1087,47 +1087,48 @@ insertWith f k new m = insertModifying new (\old -> (# f new old #)) k m
 -- thunks in the tree.
 insertModifying :: Hashable k => v -> (v -> (# v #)) -> k -> HashMap k v
             -> HashMap k v
-insertModifying x f k0 m0 = go h0 k0 0 m0
+insertModifying x0 f0 k0 m0 = go x0 f0 h0 k0 0 m0
   where
     !h0 = hash k0
-    go !h !k !_ Empty = Leaf h (L k x)
-    go h k s t@(Leaf hy l@(L ky y))
+    -- x and f are arguments so that go needs no closure.
+    go x _ !h !k !_ Empty = Leaf h (L k x)
+    go x f h k s t@(Leaf hy l@(L ky y))
         | hy == h = if ky == k
                     then case f y of
                       (# v' #) | ptrEq y v' -> t
                                | otherwise -> Leaf h (L k v')
                     else collision h l (L k x)
         | otherwise = runST (two s h k x hy t)
-    go h k s t@(BitmapIndexed b ary)
+    go x f h k s t@(BitmapIndexed b ary)
         | b .&. m == 0 =
             let ary' = A.insert ary i $! Leaf h (L k x)
             in bitmapIndexedOrFull (b .|. m) ary'
         | otherwise =
             case A.index# ary i of
               (# !st #) ->
-                let !st' = go h k (nextShift s) st
+                let !st' = go x f h k (nextShift s) st
                     ary' = A.update ary i st'
                 in if ptrEq st st'
                    then t
                    else BitmapIndexed b ary'
       where m = mask h s
             i = sparseIndex b m
-    go h k s t@(Full ary) =
+    go x f h k s t@(Full ary) =
         case A.index# ary i of
           (# !st #) ->
-            let !st' = go h k (nextShift s) st
+            let !st' = go x f h k (nextShift s) st
                 ary' = updateFullArray ary i st'
             in if ptrEq st st'
                then t
                else Full ary'
       where i = index h s
-    go h k s t@(Collision hy v)
+    go x f h k s t@(Collision hy v)
         | h == hy   =
             let !v' = insertModifyingArr x f k v
             in if A.unsafeSameArray v v'
                then t
                else Collision h v'
-        | otherwise = go h k s $ BitmapIndexed (mask hy s) (A.singleton t)
+        | otherwise = go x f h k s $ BitmapIndexed (mask hy s) (A.singleton t)
 {-# INLINABLE insertModifying #-}
 
 -- | Like insertModifying for arrays; used to implement insertModifying
